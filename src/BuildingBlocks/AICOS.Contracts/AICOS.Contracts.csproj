@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Pure contracts: integration events + shared DTOs. NO dependencies on any service or framework. -->
+
+</Project>

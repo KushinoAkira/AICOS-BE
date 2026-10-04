@@ -1,0 +1,25 @@
+## .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+.idea/
+TestResults/
+*.log
+publish/
+
+## Secrets / local config
+.env
+appsettings.Local.json
+
+## Python (AI service)
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/
+
+## OS
+.DS_Store
+Thumbs.db
