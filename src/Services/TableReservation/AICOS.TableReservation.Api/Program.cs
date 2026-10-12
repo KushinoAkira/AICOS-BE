@@ -3,6 +3,7 @@ using AICOS.BuildingBlocks.Messaging;
 using AICOS.BuildingBlocks.Persistence;
 using AICOS.TableReservation.Api;
 using AICOS.TableReservation.Api.Features.DiningTables;
+using AICOS.TableReservation.Api.Features.Reservations;
 using AICOS.TableReservation.Api.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -18,5 +19,6 @@ app.UseAicosServiceDefaults();
 
 var api = app.MapAicosApiGroup();
 api.MapDiningTableEndpoints();
+api.MapReservationEndpoints();
 
 await app.RunAsync();
