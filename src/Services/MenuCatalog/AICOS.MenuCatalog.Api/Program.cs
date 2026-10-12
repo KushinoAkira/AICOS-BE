@@ -4,6 +4,7 @@ using AICOS.BuildingBlocks.Persistence;
 using AICOS.MenuCatalog.Api;
 using AICOS.MenuCatalog.Api.Features.Categories;
 using AICOS.MenuCatalog.Api.Features.Products;
+using AICOS.MenuCatalog.Api.Features.Promotions;
 using AICOS.MenuCatalog.Api.Features.PublicMenu;
 using AICOS.MenuCatalog.Api.Persistence;
 
@@ -24,6 +25,7 @@ app.UseAicosServiceDefaults();
 var api = app.MapAicosApiGroup();
 api.MapCategoryEndpoints();
 api.MapProductEndpoints();
+api.MapPromotionEndpoints();
 api.MapPublicMenuEndpoints();
 
 await app.RunAsync();
