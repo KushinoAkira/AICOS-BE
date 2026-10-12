@@ -2,7 +2,9 @@ using AICOS.BuildingBlocks.Hosting;
 using AICOS.BuildingBlocks.Messaging;
 using AICOS.BuildingBlocks.Persistence;
 using AICOS.WorkforceScheduling.Api;
+using AICOS.WorkforceScheduling.Api.Features.Attendance;
 using AICOS.WorkforceScheduling.Api.Features.Employees;
+using AICOS.WorkforceScheduling.Api.Features.Scheduling;
 using AICOS.WorkforceScheduling.Api.Infrastructure;
 using AICOS.WorkforceScheduling.Api.Persistence;
 
@@ -21,5 +23,7 @@ app.UseAicosServiceDefaults();
 
 var api = app.MapAicosApiGroup();
 api.MapEmployeeEndpoints();
+api.MapScheduleEndpoints();
+api.MapAttendanceEndpoints();
 
 await app.RunAsync();
