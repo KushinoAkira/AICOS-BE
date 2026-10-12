@@ -1,0 +1,84 @@
+using System.Collections.Concurrent;
+using System.Net.Http.Headers;
+using System.Text.RegularExpressions;
+using AICOS.BuildingBlocks.Messaging;
+using AICOS.BuildingBlocks.Persistence;
+using AICOS.BuildingBlocks.Security;
+using AICOS.Contracts;
+using AICOS.IdentityOrganization.Api;
+using AICOS.IdentityOrganization.Api.Infrastructure;
+using AICOS.IdentityOrganization.Api.Persistence;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+
+namespace AICOS.IdentityOrganization.Tests;
+
+/// <summary>
+/// Boots the Identity service with an in-memory database (one fresh database per factory instance),
+/// a recording event bus instead of Redis and a capturing email sender instead of the log.
+/// </summary>
+public sealed class IdentityApiFactory : WebApplicationFactory<IdentityOrganizationService>
+{
+    private readonly string _databaseName = $"identity-tests-{Guid.NewGuid():N}";
+
+    public RecordingEventBus Events { get; } = new();
+
+    public CapturingEmailSender Emails { get; } = new();
+
+    protected override void ConfigureWebHost(Microsoft.AspNetCore.Hosting.IWebHostBuilder builder)
+    {
+        builder.ConfigureServices(services =>
+        {
+            services.RemoveAll<DbContextOptions<IdentityOrganizationDbContext>>();
+            services.AddDbContext<IdentityOrganizationDbContext>((sp, options) => options
+                .UseInMemoryDatabase(_databaseName)
+                .AddInterceptors(sp.GetRequiredService<AuditableEntityInterceptor>()));
+
+            services.RemoveAll<IEventBus>();
+            services.AddSingleton<IEventBus>(Events);
+            services.RemoveAll<IEmailSender>();
+            services.AddSingleton<IEmailSender>(Emails);
+        });
+    }
+
+    /// <summary>A client carrying a /dev/token-style JWT (random user id, no account behind it).</summary>
+    public HttpClient CreateClientAs(string role, Guid? branchId = null, Guid? userId = null)
+    {
+        var client = CreateClient();
+        var (token, _) = Services.GetRequiredService<JwtTokenService>()
+            .CreateAccessToken(userId ?? Guid.NewGuid(), $"Test {role}", role, branchId);
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        return client;
+    }
+}
+
+public sealed class RecordingEventBus : IEventBus
+{
+    public ConcurrentQueue<IntegrationEvent> Published { get; } = new();
+
+    public Task PublishAsync<TEvent>(TEvent @event, CancellationToken cancellationToken = default)
+        where TEvent : IntegrationEvent
+    {
+        Published.Enqueue(@event);
+        return Task.CompletedTask;
+    }
+}
+
+public sealed partial class CapturingEmailSender : IEmailSender
+{
+    public ConcurrentQueue<(string To, string Subject, string Body)> Sent { get; } = new();
+
+    public Task SendAsync(string to, string subject, string body, CancellationToken cancellationToken)
+    {
+        Sent.Enqueue((to, subject, body));
+        return Task.CompletedTask;
+    }
+
+    public string LastCodeFor(string email) =>
+        SixDigits().Match(Sent.Last(m => m.To == email).Body).Value;
+
+    [GeneratedRegex(@"\b\d{6}\b")]
+    private static partial Regex SixDigits();
+}
