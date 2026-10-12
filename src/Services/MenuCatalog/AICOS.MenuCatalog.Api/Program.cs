@@ -2,6 +2,9 @@ using AICOS.BuildingBlocks.Hosting;
 using AICOS.BuildingBlocks.Messaging;
 using AICOS.BuildingBlocks.Persistence;
 using AICOS.MenuCatalog.Api;
+using AICOS.MenuCatalog.Api.Features.Categories;
+using AICOS.MenuCatalog.Api.Features.Products;
+using AICOS.MenuCatalog.Api.Features.PublicMenu;
 using AICOS.MenuCatalog.Api.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -19,6 +22,8 @@ await app.MigrateDatabaseAsync<MenuCatalogDbContext>();
 app.UseAicosServiceDefaults();
 
 var api = app.MapAicosApiGroup();
-// api.MapMenuCatalogEndpoints();   // feature endpoints go here (see Features/)
+api.MapCategoryEndpoints();
+api.MapProductEndpoints();
+api.MapPublicMenuEndpoints();
 
 await app.RunAsync();
