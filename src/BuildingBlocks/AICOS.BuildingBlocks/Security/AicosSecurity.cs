@@ -25,6 +25,9 @@ public static class AicosPolicies
 
     /// <summary>Anyone who works in a branch: SystemAdmin, Manager, Cashier, WarehouseStaff.</summary>
     public const string Staff = nameof(Staff);
+
+    /// <summary>Stock and purchasing work: SystemAdmin, Manager, WarehouseStaff.</summary>
+    public const string Warehouse = nameof(Warehouse);
 }
 
 /// <summary>Claim names used in our JWTs (raw JWT names, no WS-* claim mapping).</summary>
