@@ -5,6 +5,7 @@ using AICOS.Contracts.Events;
 using AICOS.CustomerEngagement.Api;
 using AICOS.CustomerEngagement.Api.Features.Customers;
 using AICOS.CustomerEngagement.Api.Features.Loyalty;
+using AICOS.CustomerEngagement.Api.Features.Vouchers;
 using AICOS.CustomerEngagement.Api.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -25,6 +26,7 @@ await app.MigrateDatabaseAsync<CustomerEngagementDbContext>();
 app.UseAicosServiceDefaults();
 
 var api = app.MapAicosApiGroup();
+api.MapVoucherEndpoints();
 api.MapCustomerEndpoints();
 
 await app.RunAsync();
