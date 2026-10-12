@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="FluentAssertions" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
+    <PackageReference Include="coverlet.collector" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+    <Using Include="FluentAssertions" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Services\MenuCatalog\AICOS.MenuCatalog.Api\AICOS.MenuCatalog.Api.csproj" />
+    <ProjectReference Include="..\..\src\Services\InventoryPurchasing\AICOS.InventoryPurchasing.Api\AICOS.InventoryPurchasing.Api.csproj" />
+    <ProjectReference Include="..\..\src\Services\TableReservation\AICOS.TableReservation.Api\AICOS.TableReservation.Api.csproj" />
+    <ProjectReference Include="..\..\src\Services\WorkforceScheduling\AICOS.WorkforceScheduling.Api\AICOS.WorkforceScheduling.Api.csproj" />
+    <ProjectReference Include="..\..\src\Services\CustomerEngagement\AICOS.CustomerEngagement.Api\AICOS.CustomerEngagement.Api.csproj" />
+  </ItemGroup>
+
+</Project>
