@@ -1,7 +1,10 @@
 using AICOS.BuildingBlocks.Hosting;
 using AICOS.BuildingBlocks.Messaging;
 using AICOS.BuildingBlocks.Persistence;
+using AICOS.Contracts.Events;
 using AICOS.CustomerEngagement.Api;
+using AICOS.CustomerEngagement.Api.Features.Customers;
+using AICOS.CustomerEngagement.Api.Features.Loyalty;
 using AICOS.CustomerEngagement.Api.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -10,8 +13,11 @@ builder.AddAicosServiceDefaults(CustomerEngagementService.Info);
 builder.AddAicosPostgres<CustomerEngagementDbContext>(CustomerEngagementService.Info);
 builder.AddAicosEventBus();
 
-// builder.Services.AddIntegrationEventHandler<SomeEvent, SomeEventHandler>();   // consume events from other services
-// builder.Services.AddAicosServiceClient<IOtherClient, OtherClient>(builder.Configuration, "Other");   // sync REST call to another service
+builder.Services.Configure<LoyaltyOptions>(builder.Configuration.GetSection("Loyalty"));
+
+// Events from other services.
+builder.Services.AddIntegrationEventHandler<CustomerRegisteredEvent, CustomerRegisteredHandler>(); // Identity: new Customer account
+builder.Services.AddIntegrationEventHandler<OrderCompletedEvent, OrderCompletedHandler>();         // Order: BR-25 loyalty points
 
 var app = builder.Build();
 
@@ -19,6 +25,6 @@ await app.MigrateDatabaseAsync<CustomerEngagementDbContext>();
 app.UseAicosServiceDefaults();
 
 var api = app.MapAicosApiGroup();
-// api.MapCustomerEngagementEndpoints();   // feature endpoints go here (see Features/)
+api.MapCustomerEndpoints();
 
 await app.RunAsync();
