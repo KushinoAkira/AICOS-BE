@@ -1,0 +1,299 @@
+# AICOS - local development stack.
+#
+#   docker compose up -d postgres redis      # infrastructure only (run services from the IDE)
+#   docker compose up -d --build             # everything: infra + gateway + 11 services
+#   docker compose --profile tools up -d     # + pgAdmin on http://localhost:5050
+#
+# Everything is reachable through the gateway: http://localhost:8080/api/v1/{orders|menu|...}/...
+# Each service is ALSO exposed directly on 5101-5111 for debugging (Swagger: http://localhost:510x/swagger).
+# All credentials below are DEV defaults - override via .env (see .env.example).
+
+x-dotnet-env: &dotnet-env
+  ASPNETCORE_ENVIRONMENT: Development
+  Database__MigrateOnStartup: "true"
+  ConnectionStrings__Redis: redis:6379
+  Jwt__SigningKey: ${JWT_SIGNING_KEY:-dev-only-signing-key-change-me-0123456789abcdef}
+  Services__Identity__BaseUrl: http://identity:8080
+  Services__Menu__BaseUrl: http://menu:8080
+  Services__Table__BaseUrl: http://table:8080
+  Services__Order__BaseUrl: http://order:8080
+  Services__Payment__BaseUrl: http://payment:8080
+  Services__Inventory__BaseUrl: http://inventory:8080
+  Services__Kitchen__BaseUrl: http://kitchen:8080
+  Services__Workforce__BaseUrl: http://workforce:8080
+  Services__Reporting__BaseUrl: http://reporting:8080
+  Services__Customer__BaseUrl: http://customer:8080
+  Services__Ai__BaseUrl: http://ai:8000
+
+x-dotnet-service: &dotnet-service
+  restart: unless-stopped
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+
+services:
+  # ------------------------------------------------------------------ infrastructure
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: aicos-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-aicos}
+      POSTGRES_USER: ${POSTGRES_USER:-aicos_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aicos_admin_dev}
+      SERVICE_DB_PASSWORD: ${SERVICE_DB_PASSWORD:-aicos_dev}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    container_name: aicos-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  pgadmin:
+    image: dpage/pgadmin4:8
+    container_name: aicos-pgadmin
+    profiles: ["tools"]
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@aicos.local
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
+    ports:
+      - "5050:80"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ------------------------------------------------------------------ gateway
+  gateway:
+    <<: *dotnet-service
+    image: aicos/gateway
+    container_name: aicos-gateway
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.dotnet
+      args:
+        PROJECT: src/Gateway/AICOS.Gateway
+        ASSEMBLY: AICOS.Gateway
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      Jwt__SigningKey: ${JWT_SIGNING_KEY:-dev-only-signing-key-change-me-0123456789abcdef}
+      ReverseProxy__Clusters__identity__Destinations__primary__Address: http://identity:8080
+      ReverseProxy__Clusters__menu__Destinations__primary__Address: http://menu:8080
+      ReverseProxy__Clusters__table__Destinations__primary__Address: http://table:8080
+      ReverseProxy__Clusters__order__Destinations__primary__Address: http://order:8080
+      ReverseProxy__Clusters__payment__Destinations__primary__Address: http://payment:8080
+      ReverseProxy__Clusters__inventory__Destinations__primary__Address: http://inventory:8080
+      ReverseProxy__Clusters__kitchen__Destinations__primary__Address: http://kitchen:8080
+      ReverseProxy__Clusters__workforce__Destinations__primary__Address: http://workforce:8080
+      ReverseProxy__Clusters__reporting__Destinations__primary__Address: http://reporting:8080
+      ReverseProxy__Clusters__customer__Destinations__primary__Address: http://customer:8080
+      ReverseProxy__Clusters__ai__Destinations__primary__Address: http://ai:8000
+    ports:
+      - "8080:8080"
+    depends_on:
+      - identity
+      - menu
+      - table
+      - order
+      - payment
+      - inventory
+      - kitchen
+      - workforce
+      - reporting
+      - customer
+      - ai
+
+  # ------------------------------------------------------------------ CORE
+  identity:
+    <<: *dotnet-service
+    image: aicos/identity
+    container_name: aicos-identity
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.dotnet
+      args:
+        PROJECT: src/Services/IdentityOrganization/AICOS.IdentityOrganization.Api
+        ASSEMBLY: AICOS.IdentityOrganization.Api
+    environment:
+      <<: *dotnet-env
+      ConnectionStrings__Default: Host=postgres;Port=5432;Database=${POSTGRES_DB:-aicos};Username=identity_svc;Password=${SERVICE_DB_PASSWORD:-aicos_dev}
+    ports: ["5101:8080"]
+
+  # ------------------------------------------------------------------ COMMERCE
+  menu:
+    <<: *dotnet-service
+    image: aicos/menu
+    container_name: aicos-menu
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.dotnet
+      args:
+        PROJECT: src/Services/MenuCatalog/AICOS.MenuCatalog.Api
+        ASSEMBLY: AICOS.MenuCatalog.Api
+    environment:
+      <<: *dotnet-env
+      ConnectionStrings__Default: Host=postgres;Port=5432;Database=${POSTGRES_DB:-aicos};Username=menu_svc;Password=${SERVICE_DB_PASSWORD:-aicos_dev}
+    ports: ["5102:8080"]
+
+  table:
+    <<: *dotnet-service
+    image: aicos/table
+    container_name: aicos-table
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.dotnet
+      args:
+        PROJECT: src/Services/TableReservation/AICOS.TableReservation.Api
+        ASSEMBLY: AICOS.TableReservation.Api
+    environment:
+      <<: *dotnet-env
+      ConnectionStrings__Default: Host=postgres;Port=5432;Database=${POSTGRES_DB:-aicos};Username=table_reservation_svc;Password=${SERVICE_DB_PASSWORD:-aicos_dev}
+    ports: ["5103:8080"]
+
+  order:
+    <<: *dotnet-service
+    image: aicos/order
+    container_name: aicos-order
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.dotnet
+      args:
+        PROJECT: src/Services/Ordering/AICOS.Ordering.Api
+        ASSEMBLY: AICOS.Ordering.Api
+    environment:
+      <<: *dotnet-env
+      ConnectionStrings__Default: Host=postgres;Port=5432;Database=${POSTGRES_DB:-aicos};Username=ordering_svc;Password=${SERVICE_DB_PASSWORD:-aicos_dev}
+    ports: ["5104:8080"]
+
+  payment:
+    <<: *dotnet-service
+    image: aicos/payment
+    container_name: aicos-payment
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.dotnet
+      args:
+        PROJECT: src/Services/Payments/AICOS.Payments.Api
+        ASSEMBLY: AICOS.Payments.Api
+    environment:
+      <<: *dotnet-env
+      ConnectionStrings__Default: Host=postgres;Port=5432;Database=${POSTGRES_DB:-aicos};Username=payment_svc;Password=${SERVICE_DB_PASSWORD:-aicos_dev}
+    ports: ["5105:8080"]
+
+  # ------------------------------------------------------------------ OPERATIONS
+  inventory:
+    <<: *dotnet-service
+    image: aicos/inventory
+    container_name: aicos-inventory
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.dotnet
+      args:
+        PROJECT: src/Services/InventoryPurchasing/AICOS.InventoryPurchasing.Api
+        ASSEMBLY: AICOS.InventoryPurchasing.Api
+    environment:
+      <<: *dotnet-env
+      ConnectionStrings__Default: Host=postgres;Port=5432;Database=${POSTGRES_DB:-aicos};Username=inventory_svc;Password=${SERVICE_DB_PASSWORD:-aicos_dev}
+    ports: ["5106:8080"]
+
+  kitchen:
+    <<: *dotnet-service
+    image: aicos/kitchen
+    container_name: aicos-kitchen
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.dotnet
+      args:
+        PROJECT: src/Services/KitchenOperations/AICOS.KitchenOperations.Api
+        ASSEMBLY: AICOS.KitchenOperations.Api
+    environment:
+      <<: *dotnet-env
+      ConnectionStrings__Default: Host=postgres;Port=5432;Database=${POSTGRES_DB:-aicos};Username=kitchen_svc;Password=${SERVICE_DB_PASSWORD:-aicos_dev}
+    ports: ["5107:8080"]
+
+  workforce:
+    <<: *dotnet-service
+    image: aicos/workforce
+    container_name: aicos-workforce
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.dotnet
+      args:
+        PROJECT: src/Services/WorkforceScheduling/AICOS.WorkforceScheduling.Api
+        ASSEMBLY: AICOS.WorkforceScheduling.Api
+    environment:
+      <<: *dotnet-env
+      ConnectionStrings__Default: Host=postgres;Port=5432;Database=${POSTGRES_DB:-aicos};Username=workforce_svc;Password=${SERVICE_DB_PASSWORD:-aicos_dev}
+    ports: ["5108:8080"]
+
+  # ------------------------------------------------------------------ INSIGHT
+  reporting:
+    <<: *dotnet-service
+    image: aicos/reporting
+    container_name: aicos-reporting
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.dotnet
+      args:
+        PROJECT: src/Services/ReportingAnalytics/AICOS.ReportingAnalytics.Api
+        ASSEMBLY: AICOS.ReportingAnalytics.Api
+    environment:
+      <<: *dotnet-env
+      ConnectionStrings__Default: Host=postgres;Port=5432;Database=${POSTGRES_DB:-aicos};Username=reporting_svc;Password=${SERVICE_DB_PASSWORD:-aicos_dev}
+    ports: ["5109:8080"]
+
+  customer:
+    <<: *dotnet-service
+    image: aicos/customer
+    container_name: aicos-customer
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.dotnet
+      args:
+        PROJECT: src/Services/CustomerEngagement/AICOS.CustomerEngagement.Api
+        ASSEMBLY: AICOS.CustomerEngagement.Api
+    environment:
+      <<: *dotnet-env
+      ConnectionStrings__Default: Host=postgres;Port=5432;Database=${POSTGRES_DB:-aicos};Username=customer_svc;Password=${SERVICE_DB_PASSWORD:-aicos_dev}
+    ports: ["5110:8080"]
+
+  # ------------------------------------------------------------------ AI (Python)
+  ai:
+    <<: *dotnet-service
+    image: aicos/ai
+    container_name: aicos-ai
+    build:
+      context: ./src/Services/Ai
+    environment:
+      DATABASE_URL: postgresql://ai_svc:${SERVICE_DB_PASSWORD:-aicos_dev}@postgres:5432/${POSTGRES_DB:-aicos}
+      REDIS_URL: redis://redis:6379/0
+      JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:-dev-only-signing-key-change-me-0123456789abcdef}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+    ports: ["5111:8000"]
+
+volumes:
+  postgres-data:
+  redis-data:

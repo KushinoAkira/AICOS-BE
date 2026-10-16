@@ -1,0 +1,24 @@
+# Shared Dockerfile for every .NET service and the gateway.
+# Build from the Backend/ folder:
+#   docker build -f docker/Dockerfile.dotnet \
+#     --build-arg PROJECT=src/Services/Ordering/AICOS.Ordering.Api \
+#     --build-arg ASSEMBLY=AICOS.Ordering.Api -t aicos/order .
+
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+ARG PROJECT
+WORKDIR /src
+
+COPY global.json Directory.Build.props Directory.Packages.props ./
+COPY src ./src
+RUN dotnet restore "${PROJECT}"
+RUN dotnet publish "${PROJECT}" -c Release -o /app/publish --no-restore /p:UseAppHost=false
+
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
+ARG ASSEMBLY
+ENV ASPNETCORE_HTTP_PORTS=8080 \
+    APP_ASSEMBLY=${ASSEMBLY}
+WORKDIR /app
+COPY --from=build /app/publish .
+EXPOSE 8080
+USER $APP_UID
+ENTRYPOINT ["sh", "-c", "exec dotnet ${APP_ASSEMBLY}.dll"]

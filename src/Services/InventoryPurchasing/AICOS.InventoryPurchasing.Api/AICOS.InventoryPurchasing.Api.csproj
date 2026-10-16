@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <RootNamespace>AICOS.InventoryPurchasing.Api</RootNamespace>
+    <AssemblyName>AICOS.InventoryPurchasing.Api</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\BuildingBlocks\AICOS.BuildingBlocks\AICOS.BuildingBlocks.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\AICOS.Contracts\AICOS.Contracts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Needed for `dotnet ef migrations add` -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+</Project>
