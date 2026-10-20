@@ -61,6 +61,7 @@ public static class AuthenticationExtensions
         services.AddAuthorizationBuilder()
             .AddPolicy(AicosPolicies.PlatformAdmin, p => p.RequireRole(AicosRoles.SuperAdmin))
             .AddPolicy(AicosPolicies.AdminOnly, p => p.RequireRole(AicosRoles.BrandAdmin))
+            .AddPolicy(AicosPolicies.AuditViewer, p => p.RequireRole(AicosRoles.SuperAdmin, AicosRoles.BrandAdmin))
             .AddPolicy(AicosPolicies.Management, p => p.RequireRole(AicosRoles.BrandAdmin, AicosRoles.BranchManager))
             .AddPolicy(AicosPolicies.Staff, p => p.RequireRole(
                 AicosRoles.BrandAdmin, AicosRoles.BranchManager, AicosRoles.Barista, AicosRoles.Cashier));

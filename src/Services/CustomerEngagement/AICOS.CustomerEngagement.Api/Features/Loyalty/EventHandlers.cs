@@ -75,3 +75,19 @@ public sealed class OrderCompletedHandler(
         await db.SaveChangesAsync(cancellationToken);
     }
 }
+
+/// <summary>Identity -> Customer: a customer edited their name or phone in Identity (UC-03); keep this copy in sync. Idempotent.</summary>
+public sealed class UserProfileUpdatedHandler(CustomerEngagementDbContext db) : IIntegrationEventHandler<UserProfileUpdatedEvent>
+{
+    public async Task HandleAsync(UserProfileUpdatedEvent @event, CancellationToken cancellationToken)
+    {
+        var customer = await db.Customers.FirstOrDefaultAsync(c => c.UserId == @event.UserId, cancellationToken);
+        if (customer is null)
+        {
+            return; // the profile is created by CustomerRegisteredEvent; nothing to sync yet
+        }
+
+        customer.UpdateProfile(@event.FullName, @event.Phone, customer.Birthday, customer.MarketingOptIn);
+        await db.SaveChangesAsync(cancellationToken);
+    }
+}

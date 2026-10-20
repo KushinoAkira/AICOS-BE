@@ -19,6 +19,7 @@ builder.Services.Configure<LoyaltyOptions>(builder.Configuration.GetSection("Loy
 // Events from other services.
 builder.Services.AddIntegrationEventHandler<CustomerRegisteredEvent, CustomerRegisteredHandler>(); // Identity: new Customer account
 builder.Services.AddIntegrationEventHandler<OrderCompletedEvent, OrderCompletedHandler>();         // Order: BR-25 loyalty points
+builder.Services.AddIntegrationEventHandler<UserProfileUpdatedEvent, UserProfileUpdatedHandler>();   // Identity: name/phone edited (UC-03)
 
 var app = builder.Build();
 

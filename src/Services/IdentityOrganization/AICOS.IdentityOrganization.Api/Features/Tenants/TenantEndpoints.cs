@@ -55,7 +55,7 @@ public static class TenantEndpoints
         TenantResponse.From(await FindAsync(db, id, ct));
 
     private static async Task<IResult> CreateAsync(
-        CreateTenantRequest request, IdentityOrganizationDbContext db, PasswordService passwords, CancellationToken ct)
+        CreateTenantRequest request, IdentityOrganizationDbContext db, PasswordService passwords, AuditLogger audit, CancellationToken ct)
     {
         TenantRequestValidator.EnsureValid(request);
 
@@ -74,24 +74,27 @@ public static class TenantEndpoints
 
         db.Tenants.Add(tenant);
         db.Users.Add(brandAdmin);
+        audit.Record(AuditScope.Platform, tenant.Id, "tenant.created", "Tenant", tenant.Id, after: AuditSnapshots.Of(tenant));
         await db.SaveChangesAsync(ct);
 
         return Results.CreatedAtRoute("GetTenant", new { id = tenant.Id }, TenantResponse.From(tenant));
     }
 
     private static async Task<TenantResponse> UpdateAsync(
-        Guid id, UpdateTenantRequest request, IdentityOrganizationDbContext db, CancellationToken ct)
+        Guid id, UpdateTenantRequest request, IdentityOrganizationDbContext db, AuditLogger audit, CancellationToken ct)
     {
         TenantRequestValidator.EnsureValid(request);
         var tenant = await FindAsync(db, id, ct);
+        var before = AuditSnapshots.Of(tenant);
         tenant.Update(request.Name!);
+        audit.Record(AuditScope.Platform, tenant.Id, "tenant.updated", "Tenant", tenant.Id, before, AuditSnapshots.Of(tenant));
         await db.SaveChangesAsync(ct);
         return TenantResponse.From(tenant);
     }
 
     /// <summary>BR-07: suspending a tenant also ends every session of its users, so access stops immediately.</summary>
     private static async Task<TenantResponse> ChangeStatusAsync(
-        Guid id, ChangeTenantStatusRequest request, IdentityOrganizationDbContext db, TimeProvider clock, CancellationToken ct)
+        Guid id, ChangeTenantStatusRequest request, IdentityOrganizationDbContext db, AuditLogger audit, TimeProvider clock, CancellationToken ct)
     {
         if (request.Status is null)
         {
@@ -99,7 +102,9 @@ public static class TenantEndpoints
         }
 
         var tenant = await FindAsync(db, id, ct);
+        var before = AuditSnapshots.Of(tenant);
         tenant.ChangeStatus(request.Status.Value);
+        audit.Record(AuditScope.Platform, tenant.Id, "tenant.status_changed", "Tenant", tenant.Id, before, AuditSnapshots.Of(tenant));
 
         if (request.Status == TenantStatus.Suspended)
         {

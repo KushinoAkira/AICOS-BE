@@ -52,6 +52,19 @@ internal static class AccountRules
         }
     }
 
+    /// <summary>Tells Customer Engagement the customer changed their name/phone. Best effort, like <see cref="PublishCustomerRegisteredAsync"/>.</summary>
+    public static async Task PublishProfileUpdatedAsync(IEventBus bus, ILogger logger, User user, CancellationToken ct)
+    {
+        try
+        {
+            await bus.PublishAsync(new UserProfileUpdatedEvent(user.Id, user.FullName, user.Phone), ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(ex, "Could not publish UserProfileUpdatedEvent for user {UserId}", user.Id);
+        }
+    }
+
     /// <summary>
     /// Tells Customer Engagement to create the customer profile. Redis Pub/Sub is at-most-once: a publish failure is
     /// logged, not surfaced, because the account itself was created successfully.

@@ -27,6 +27,7 @@ public static class AuthEndpoints
         auth.MapPost("/refresh", RefreshAsync).AllowAnonymous();
         auth.MapPost("/logout", LogoutAsync).AllowAnonymous();
         auth.MapGet("/me", MeAsync).RequireAuthorization();
+        auth.MapPut("/me", UpdateProfileAsync).RequireAuthorization();
         auth.MapPost("/change-password", ChangePasswordAsync).RequireAuthorization();
         auth.MapPost("/forgot-password", ForgotPasswordAsync).AllowAnonymous();
         auth.MapPost("/reset-password", ResetPasswordAsync).AllowAnonymous();
@@ -69,6 +70,7 @@ public static class AuthEndpoints
         IdentityOrganizationDbContext db,
         PasswordService passwords,
         AuthTokenIssuer tokens,
+        AuditLogger audit,
         IOptions<AuthOptions> options,
         TimeProvider clock,
         CancellationToken ct)
@@ -87,6 +89,11 @@ public static class AuthEndpoints
         if (!verified)
         {
             var lockedNow = user.RecordFailedLogin(now, settings.MaxFailedLoginAttempts, TimeSpan.FromMinutes(settings.LockoutMinutes));
+            if (lockedNow)
+            {
+                audit.RecordUser("user.locked_out", user, after: new { Reason = "Too many failed login attempts", settings.LockoutMinutes });
+            }
+
             await db.SaveChangesAsync(ct);
 
             if (lockedNow)
@@ -173,12 +180,37 @@ public static class AuthEndpoints
     private static async Task<UserResponse> MeAsync(ICurrentUser currentUser, IdentityOrganizationDbContext db, CancellationToken ct) =>
         UserResponse.From(await GetCurrentUserAsync(currentUser, db, ct));
 
+    /// <summary>UC-03: any signed-in user edits their own name, phone and username. The email and the role are not editable here.</summary>
+    private static async Task<UserResponse> UpdateProfileAsync(
+        UpdateProfileRequest request,
+        ICurrentUser currentUser,
+        IdentityOrganizationDbContext db,
+        IEventBus bus,
+        ILoggerFactory loggers,
+        CancellationToken ct)
+    {
+        AuthRequestValidator.EnsureValid(request);
+        var user = await GetCurrentUserAsync(currentUser, db, ct);
+        await AccountRules.EnsureUniqueAsync(db, user.Email, request.Username, excludeUserId: user.Id, ct);
+
+        user.UpdateProfile(request.FullName!, user.Email, request.Username, request.Phone);
+        await db.SaveChangesAsync(ct);
+
+        if (user.Role == AicosRoles.Customer)
+        {
+            await AccountRules.PublishProfileUpdatedAsync(bus, loggers.CreateLogger(LoggerCategory), user, ct);
+        }
+
+        return UserResponse.From(user);
+    }
+
     private static async Task<IResult> ChangePasswordAsync(
         ChangePasswordRequest request,
         ICurrentUser currentUser,
         IdentityOrganizationDbContext db,
         PasswordService passwords,
         AuthTokenIssuer tokens,
+        AuditLogger audit,
         CancellationToken ct)
     {
         AuthRequestValidator.EnsureValid(request);
@@ -190,6 +222,7 @@ public static class AuthEndpoints
         }
 
         user.SetPassword(passwords.Hash(user, request.NewPassword!), mustChangePassword: false);
+        audit.RecordUser("user.password_changed", user);
         await tokens.RevokeAllSessionsAsync(user.Id, ct);
         await db.SaveChangesAsync(ct);
 
@@ -250,6 +283,7 @@ public static class AuthEndpoints
         IdentityOrganizationDbContext db,
         PasswordService passwords,
         AuthTokenIssuer tokens,
+        AuditLogger audit,
         IOptions<AuthOptions> options,
         TimeProvider clock,
         CancellationToken ct)
@@ -281,6 +315,7 @@ public static class AuthEndpoints
 
         otp.Consume(now);
         user.SetPassword(passwords.Hash(user, request.NewPassword!), mustChangePassword: false);
+        audit.RecordUser("user.password_reset", user);
         user.ClearLockout();
         await tokens.RevokeAllSessionsAsync(user.Id, ct);
         await db.SaveChangesAsync(ct);
