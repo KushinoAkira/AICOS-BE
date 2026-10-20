@@ -9,7 +9,8 @@ namespace AICOS.IdentityOrganization.Api.Features.Tenants;
 public sealed record FirstAdminRequest(string? FullName, string? Email, string? Phone, string? Password);
 
 /// <summary>POST /tenants. <see cref="Code"/> is the tenant identifier / subdomain.</summary>
-public sealed record CreateTenantRequest(string? Name, string? Code, FirstAdminRequest? FirstAdmin);
+/// <summary><see cref="CreateTenantRequest.PlanId"/> is optional: when given, the tenant starts on that plan (UC-05 + UC-07 in one step).</summary>
+public sealed record CreateTenantRequest(string? Name, string? Code, FirstAdminRequest? FirstAdmin, Guid? PlanId = null);
 
 public sealed record UpdateTenantRequest(string? Name);
 

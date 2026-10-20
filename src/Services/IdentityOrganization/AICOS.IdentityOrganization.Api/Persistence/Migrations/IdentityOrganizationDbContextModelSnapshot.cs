@@ -226,6 +226,138 @@ namespace AICOS.IdentityOrganization.Api.Persistence.Migrations
                     b.ToTable("otp_codes", "identity");
                 });
 
+            modelBuilder.Entity("AICOS.IdentityOrganization.Api.Domain.SubscriptionPayment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("numeric(14,2)")
+                        .HasColumnName("amount");
+
+                    b.Property<string>("Method")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("method");
+
+                    b.Property<DateTime>("PaidAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("paid_at_utc");
+
+                    b.Property<DateTime>("PeriodStartUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("period_start_utc");
+
+                    b.Property<Guid?>("RecordedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("recorded_by");
+
+                    b.Property<string>("Reference")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("reference");
+
+                    b.Property<Guid>("SubscriptionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("subscription_id");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_subscription_payments");
+
+                    b.HasIndex("PaidAtUtc")
+                        .HasDatabaseName("ix_subscription_payments_paid_at_utc");
+
+                    b.HasIndex("SubscriptionId")
+                        .HasDatabaseName("ix_subscription_payments_subscription_id");
+
+                    b.HasIndex("TenantId")
+                        .HasDatabaseName("ix_subscription_payments_tenant_id");
+
+                    b.ToTable("subscription_payments", "identity");
+                });
+
+            modelBuilder.Entity("AICOS.IdentityOrganization.Api.Domain.SubscriptionPlan", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("BillingPeriod")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("billing_period");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("description");
+
+                    b.Property<decimal>("Fee")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("numeric(14,2)")
+                        .HasColumnName("fee");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<int?>("MaxBranches")
+                        .HasColumnType("integer")
+                        .HasColumnName("max_branches");
+
+                    b.Property<int?>("MaxStaffAccounts")
+                        .HasColumnType("integer")
+                        .HasColumnName("max_staff_accounts");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("Tier")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("tier");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at_utc");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id")
+                        .HasName("pk_subscription_plans");
+
+                    b.HasIndex("IsActive")
+                        .HasDatabaseName("ix_subscription_plans_is_active");
+
+                    b.HasIndex("Name")
+                        .IsUnique()
+                        .HasDatabaseName("ix_subscription_plans_name");
+
+                    b.ToTable("subscription_plans", "identity");
+                });
+
             modelBuilder.Entity("AICOS.IdentityOrganization.Api.Domain.Tenant", b =>
                 {
                     b.Property<Guid>("Id")
@@ -274,6 +406,105 @@ namespace AICOS.IdentityOrganization.Api.Persistence.Migrations
                         .HasDatabaseName("ix_tenants_code");
 
                     b.ToTable("tenants", "identity");
+                });
+
+            modelBuilder.Entity("AICOS.IdentityOrganization.Api.Domain.TenantSubscription", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("BillingPeriod")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("billing_period");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by");
+
+                    b.Property<decimal>("Fee")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("numeric(14,2)")
+                        .HasColumnName("fee");
+
+                    b.Property<DateTime?>("OverdueNoticeForPeriodEndUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("overdue_notice_for_period_end_utc");
+
+                    b.Property<decimal>("PaidAmount")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("numeric(14,2)")
+                        .HasColumnName("paid_amount");
+
+                    b.Property<DateTime?>("PaidAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("paid_at_utc");
+
+                    b.Property<string>("PaymentStatus")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("payment_status");
+
+                    b.Property<DateTime>("PeriodEndUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("period_end_utc");
+
+                    b.Property<DateTime>("PeriodStartUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("period_start_utc");
+
+                    b.Property<Guid>("PlanId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("plan_id");
+
+                    b.Property<string>("PlanName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("plan_name");
+
+                    b.Property<DateTime?>("RenewalNoticeForPeriodEndUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("renewal_notice_for_period_end_utc");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at_utc");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id")
+                        .HasName("pk_tenant_subscriptions");
+
+                    b.HasIndex("PeriodEndUtc")
+                        .HasDatabaseName("ix_tenant_subscriptions_period_end_utc");
+
+                    b.HasIndex("PlanId")
+                        .HasDatabaseName("ix_tenant_subscriptions_plan_id");
+
+                    b.HasIndex("TenantId")
+                        .HasDatabaseName("ix_tenant_subscriptions_tenant_id");
+
+                    b.ToTable("tenant_subscriptions", "identity");
                 });
 
             modelBuilder.Entity("AICOS.IdentityOrganization.Api.Domain.User", b =>
@@ -452,6 +683,33 @@ namespace AICOS.IdentityOrganization.Api.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_branches_tenants_tenant_id");
+                });
+
+            modelBuilder.Entity("AICOS.IdentityOrganization.Api.Domain.SubscriptionPayment", b =>
+                {
+                    b.HasOne("AICOS.IdentityOrganization.Api.Domain.TenantSubscription", null)
+                        .WithMany()
+                        .HasForeignKey("SubscriptionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_subscription_payments_tenant_subscriptions_subscription_id");
+                });
+
+            modelBuilder.Entity("AICOS.IdentityOrganization.Api.Domain.TenantSubscription", b =>
+                {
+                    b.HasOne("AICOS.IdentityOrganization.Api.Domain.SubscriptionPlan", null)
+                        .WithMany()
+                        .HasForeignKey("PlanId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_tenant_subscriptions_subscription_plans_plan_id");
+
+                    b.HasOne("AICOS.IdentityOrganization.Api.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_tenant_subscriptions_tenants_tenant_id");
                 });
 
             modelBuilder.Entity("AICOS.IdentityOrganization.Api.Domain.User", b =>

@@ -7,6 +7,8 @@ using AICOS.IdentityOrganization.Api.Features.Audit;
 using AICOS.IdentityOrganization.Api.Features.Auth;
 using AICOS.IdentityOrganization.Api.Features.Branches;
 using AICOS.IdentityOrganization.Api.Features.Dev;
+using AICOS.IdentityOrganization.Api.Features.Platform;
+using AICOS.IdentityOrganization.Api.Features.Subscriptions;
 using AICOS.IdentityOrganization.Api.Features.Tenants;
 using AICOS.IdentityOrganization.Api.Features.Users;
 using AICOS.IdentityOrganization.Api.Infrastructure;
@@ -25,6 +27,12 @@ builder.Services.AddOptions<AuthOptions>()
 builder.Services.AddSingleton<PasswordService>();
 builder.Services.AddScoped<AuthTokenIssuer>();
 builder.Services.AddScoped<AuditLogger>();
+builder.Services.AddOptions<SubscriptionOptions>()
+    .Bind(builder.Configuration.GetSection(SubscriptionOptions.SectionName))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+builder.Services.AddScoped<SubscriptionReminderJob>();
+builder.Services.AddHostedService<SubscriptionReminderService>();
 builder.Services.AddIntegrationEventHandler<AuditRecordedEvent, AuditRecordedHandler>(); // other services: sensitive changes for the audit history
 builder.Services.AddSingleton<IEmailSender, LoggingEmailSender>();
 
@@ -40,6 +48,9 @@ api.MapUserEndpoints();
 api.MapBranchEndpoints();
 api.MapTenantEndpoints();
 api.MapAuditEndpoints();
+api.MapPlanEndpoints();
+api.MapTenantSubscriptionEndpoints();
+api.MapPlatformEndpoints();
 
 if (app.Environment.IsDevelopment())
 {

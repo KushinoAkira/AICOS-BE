@@ -20,6 +20,12 @@ public sealed class IdentityOrganizationDbContext(DbContextOptions<IdentityOrgan
 
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
+    public DbSet<SubscriptionPlan> SubscriptionPlans => Set<SubscriptionPlan>();
+
+    public DbSet<TenantSubscription> TenantSubscriptions => Set<TenantSubscription>();
+
+    public DbSet<SubscriptionPayment> SubscriptionPayments => Set<SubscriptionPayment>();
+
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
         EnsureAuditLogIsAppendOnly();
