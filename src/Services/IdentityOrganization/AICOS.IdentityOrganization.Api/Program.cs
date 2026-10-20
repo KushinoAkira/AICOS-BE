@@ -5,6 +5,7 @@ using AICOS.IdentityOrganization.Api;
 using AICOS.IdentityOrganization.Api.Features.Auth;
 using AICOS.IdentityOrganization.Api.Features.Branches;
 using AICOS.IdentityOrganization.Api.Features.Dev;
+using AICOS.IdentityOrganization.Api.Features.Tenants;
 using AICOS.IdentityOrganization.Api.Features.Users;
 using AICOS.IdentityOrganization.Api.Infrastructure;
 using AICOS.IdentityOrganization.Api.Persistence;
@@ -33,6 +34,7 @@ var api = app.MapAicosApiGroup();
 api.MapAuthEndpoints();
 api.MapUserEndpoints();
 api.MapBranchEndpoints();
+api.MapTenantEndpoints();
 
 if (app.Environment.IsDevelopment())
 {

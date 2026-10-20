@@ -11,7 +11,7 @@ public sealed class MenuTests : IDisposable
     private readonly Guid _branch = Guid.NewGuid();
     private readonly HttpClient _manager;
 
-    public MenuTests() => _manager = _f.As(AicosRoles.Manager, _branch);
+    public MenuTests() => _manager = _f.As(AicosRoles.BranchManager, _branch);
 
     public void Dispose() => _f.Dispose();
 
@@ -30,7 +30,7 @@ public sealed class MenuTests : IDisposable
     {
         await _manager.Post("/api/v1/menu/categories", new { name = " ", sortOrder = -1 }).ShouldBe(400);
         await _manager.Post("/api/v1/menu/categories", new { branchId = Guid.NewGuid(), name = "X" }).ShouldBe(403, "branch.forbidden");
-        await _f.As(AicosRoles.SystemAdmin).Post("/api/v1/menu/categories", new { name = "X" }).ShouldBe(400);
+        await _f.As(AicosRoles.BrandAdmin).Post("/api/v1/menu/categories", new { name = "X" }).ShouldBe(400);
         await _f.As(AicosRoles.Cashier, _branch).Post("/api/v1/menu/categories", new { name = "X" }).ShouldBe(403);
     }
 
@@ -39,7 +39,7 @@ public sealed class MenuTests : IDisposable
     {
         var category = await _manager.PostOk("/api/v1/menu/categories", new { name = "Trà" });
 
-        await _f.As(AicosRoles.Manager, Guid.NewGuid()).Put($"/api/v1/menu/categories/{category.Id()}", new { name = "Hack" })
+        await _f.As(AicosRoles.BranchManager, Guid.NewGuid()).Put($"/api/v1/menu/categories/{category.Id()}", new { name = "Hack" })
             .ShouldBe(403, "branch.forbidden");
     }
 
@@ -93,7 +93,7 @@ public sealed class MenuTests : IDisposable
     [Fact]
     public async Task Product_in_category_of_other_branch_is_rejected()
     {
-        var otherManager = _f.As(AicosRoles.Manager, Guid.NewGuid());
+        var otherManager = _f.As(AicosRoles.BranchManager, Guid.NewGuid());
         var foreign = await otherManager.PostOk("/api/v1/menu/categories", new { name = "Khác" });
 
         await _manager.Post("/api/v1/menu/products", Product(foreign.Id(), "X")).ShouldBe(400);

@@ -24,6 +24,9 @@ public sealed class ServiceFactory<TService, TDbContext>(Action<IServiceCollecti
     where TService : class
     where TDbContext : DbContext
 {
+    /// <summary>The brand every test token belongs to; other services do not filter by tenant yet.</summary>
+    public static readonly Guid DefaultTenantId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+
     private readonly string _databaseName = $"tests-{Guid.NewGuid():N}";
 
     public RecordingEventBus Events { get; } = new();
@@ -49,11 +52,11 @@ public sealed class ServiceFactory<TService, TDbContext>(Action<IServiceCollecti
     }
 
     /// <summary>Client with a JWT for the given role. Tokens use the real clock so moving <see cref="Clock"/> never invalidates them.</summary>
-    public HttpClient As(string role, Guid? branchId = null, Guid? userId = null)
+    public HttpClient As(string role, Guid? branchId = null, Guid? userId = null, Guid? tenantId = null)
     {
         var client = CreateClient();
         var jwt = new JwtTokenService(Services.GetRequiredService<IOptions<JwtOptions>>(), TimeProvider.System);
-        var (token, _) = jwt.CreateAccessToken(userId ?? Guid.NewGuid(), $"Test {role}", role, branchId);
+        var (token, _) = jwt.CreateAccessToken(userId ?? Guid.NewGuid(), $"Test {role}", role, branchId, role == AicosRoles.SuperAdmin ? null : tenantId ?? DefaultTenantId);
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
         return client;
     }

@@ -59,12 +59,11 @@ public static class AuthenticationExtensions
             });
 
         services.AddAuthorizationBuilder()
-            .AddPolicy(AicosPolicies.AdminOnly, p => p.RequireRole(AicosRoles.SystemAdmin))
-            .AddPolicy(AicosPolicies.Management, p => p.RequireRole(AicosRoles.SystemAdmin, AicosRoles.Manager))
+            .AddPolicy(AicosPolicies.PlatformAdmin, p => p.RequireRole(AicosRoles.SuperAdmin))
+            .AddPolicy(AicosPolicies.AdminOnly, p => p.RequireRole(AicosRoles.BrandAdmin))
+            .AddPolicy(AicosPolicies.Management, p => p.RequireRole(AicosRoles.BrandAdmin, AicosRoles.BranchManager))
             .AddPolicy(AicosPolicies.Staff, p => p.RequireRole(
-                AicosRoles.SystemAdmin, AicosRoles.Manager, AicosRoles.Cashier, AicosRoles.WarehouseStaff))
-            .AddPolicy(AicosPolicies.Warehouse, p => p.RequireRole(
-                AicosRoles.SystemAdmin, AicosRoles.Manager, AicosRoles.WarehouseStaff));
+                AicosRoles.BrandAdmin, AicosRoles.BranchManager, AicosRoles.Barista, AicosRoles.Cashier));
 
         return services;
     }

@@ -25,6 +25,8 @@ internal sealed class UserConfiguration : IEntityTypeConfiguration<User>
         builder.HasIndex(u => u.Username).IsUnique();
         builder.HasIndex(u => u.Role);
         builder.HasIndex(u => u.BranchId);
+        builder.HasIndex(u => u.TenantId);
+        builder.HasOne<Tenant>().WithMany().HasForeignKey(u => u.TenantId).OnDelete(DeleteBehavior.Restrict);
 
         // branches lives in the same service/schema, so a real FK is allowed here.
         builder.HasOne<Branch>().WithMany().HasForeignKey(u => u.BranchId).OnDelete(DeleteBehavior.Restrict);

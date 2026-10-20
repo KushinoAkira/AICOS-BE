@@ -61,11 +61,11 @@ public sealed class AuthEndpointsTests : IDisposable
     public async Task Register_validates_all_fields()
     {
         var response = await _anonymous.PostAsJsonAsync($"{Auth}/register",
-            new RegisterRequest("", "not-an-email", "12ab", "short", "different"), Json);
+            new RegisterRequest("", "", "not-an-email", "12ab", "short", "different"), Json);
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         var errors = (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("errors");
-        foreach (var field in new[] { "FullName", "Email", "Phone", "Password", "ConfirmPassword" })
+        foreach (var field in new[] { "TenantCode", "FullName", "Email", "Phone", "Password", "ConfirmPassword" })
         {
             errors.TryGetProperty(field, out _).Should().BeTrue($"{field} should be reported");
         }
@@ -76,7 +76,7 @@ public sealed class AuthEndpointsTests : IDisposable
     {
         var response = await _anonymous.PostAsJsonAsync($"{Auth}/register", new
         {
-            fullName = "Hacker", email = "h@example.com", password = Password, confirmPassword = Password, role = "SystemAdmin",
+            tenantCode = IdentityApiFactory.TenantCode, fullName = "Hacker", email = "h@example.com", password = Password, confirmPassword = Password, role = "BrandAdmin",
         });
 
         (await response.Content.ReadFromJsonAsync<UserResponse>(Json))!.Role.Should().Be(AicosRoles.Customer);
@@ -153,8 +153,8 @@ public sealed class AuthEndpointsTests : IDisposable
     public async Task Staff_of_a_suspended_branch_cannot_log_in()
     {
         var branch = await CreateBranchAsync();
-        await CreateUserAsync("staff@example.com", AicosRoles.Manager, branch.Id);
-        using var admin = _factory.CreateClientAs(AicosRoles.SystemAdmin);
+        await CreateUserAsync("staff@example.com", AicosRoles.BranchManager, branch.Id);
+        using var admin = _factory.CreateClientAs(AicosRoles.BrandAdmin);
         await admin.PatchAsJsonAsync($"/api/v1/identity/branches/{branch.Id}/status", new { status = "Suspended" });
 
         var response = await LoginAsync("staff@example.com", Password);
@@ -293,7 +293,7 @@ public sealed class AuthEndpointsTests : IDisposable
         (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("errorCode").GetString();
 
     private Task<HttpResponseMessage> RegisterAsync(string email) =>
-        _anonymous.PostAsJsonAsync($"{Auth}/register", new RegisterRequest("Test User", email, "0901234567", Password, Password), Json);
+        _anonymous.PostAsJsonAsync($"{Auth}/register", new RegisterRequest(IdentityApiFactory.TenantCode, "Test User", email, "0901234567", Password, Password), Json);
 
     private Task<HttpResponseMessage> LoginAsync(string login, string password) =>
         _anonymous.PostAsJsonAsync($"{Auth}/login", new LoginRequest(login, password), Json);
@@ -314,7 +314,7 @@ public sealed class AuthEndpointsTests : IDisposable
 
     private async Task<BranchResponse> CreateBranchAsync()
     {
-        using var admin = _factory.CreateClientAs(AicosRoles.SystemAdmin);
+        using var admin = _factory.CreateClientAs(AicosRoles.BrandAdmin);
         var response = await admin.PostAsJsonAsync("/api/v1/identity/branches", new BranchRequest($"Branch {Guid.NewGuid():N}", null, null, null, null), Json);
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync<BranchResponse>(Json))!;
@@ -322,7 +322,7 @@ public sealed class AuthEndpointsTests : IDisposable
 
     private async Task CreateUserAsync(string email, string role, Guid? branchId, string? username = null)
     {
-        using var admin = _factory.CreateClientAs(AicosRoles.SystemAdmin);
+        using var admin = _factory.CreateClientAs(AicosRoles.BrandAdmin);
         var response = await admin.PostAsJsonAsync("/api/v1/identity/users",
             new CreateUserRequest("Staff Member", email, username, null, Password, role, branchId), Json);
         response.EnsureSuccessStatusCode();

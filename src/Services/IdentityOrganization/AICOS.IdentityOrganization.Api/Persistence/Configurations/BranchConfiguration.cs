@@ -17,7 +17,24 @@ internal sealed class BranchConfiguration : IEntityTypeConfiguration<Branch>
         builder.Property(b => b.Phone).HasMaxLength(Branch.PhoneMaxLength);
         builder.Property(b => b.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
 
-        builder.HasIndex(b => b.Name).IsUnique();
+        builder.HasIndex(b => new { b.TenantId, b.Name }).IsUnique();
+        builder.HasOne<Tenant>().WithMany().HasForeignKey(b => b.TenantId).OnDelete(DeleteBehavior.Restrict);
         builder.HasIndex(b => b.Status);
+    }
+}
+
+internal sealed class TenantConfiguration : IEntityTypeConfiguration<Tenant>
+{
+    public void Configure(EntityTypeBuilder<Tenant> builder)
+    {
+        builder.ToTable("tenants");
+        builder.HasKey(t => t.Id);
+        builder.Property(t => t.Id).ValueGeneratedNever();
+
+        builder.Property(t => t.Name).HasMaxLength(Tenant.NameMaxLength).IsRequired();
+        builder.Property(t => t.Code).HasMaxLength(Tenant.CodeMaxLength).IsRequired();
+        builder.Property(t => t.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
+
+        builder.HasIndex(t => t.Code).IsUnique();
     }
 }

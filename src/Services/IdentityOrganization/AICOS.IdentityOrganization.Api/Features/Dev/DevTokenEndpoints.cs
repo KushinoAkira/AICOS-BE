@@ -9,7 +9,7 @@ namespace AICOS.IdentityOrganization.Api.Features.Dev;
 /// </summary>
 public static class DevTokenEndpoints
 {
-    public sealed record DevTokenRequest(string? Role, Guid? BranchId, string? Name);
+    public sealed record DevTokenRequest(string? Role, Guid? BranchId, Guid? TenantId, string? Name);
 
     public static void MapDevTokenEndpoints(this RouteGroupBuilder api)
     {
@@ -19,7 +19,7 @@ public static class DevTokenEndpoints
                 ?? throw new ValidationFailedException(nameof(request.Role), $"Role must be one of: {string.Join(", ", AicosRoles.All)}.");
 
             var (token, expiresAtUtc) = tokens.CreateAccessToken(
-                Guid.NewGuid(), request.Name ?? $"Dev {role}", role, request.BranchId);
+                Guid.NewGuid(), request.Name ?? $"Dev {role}", role, request.BranchId, request.TenantId);
 
             return new { accessToken = token, expiresAtUtc, role };
         })

@@ -296,7 +296,7 @@ public static class ReservationEndpoints
     }
 
     private static bool IsStaff(ICurrentUser user) =>
-        user.IsInRole(AicosRoles.SystemAdmin) || user.IsInRole(AicosRoles.Manager) || user.IsInRole(AicosRoles.Cashier);
+        user.IsInRole(AicosRoles.BrandAdmin) || user.IsInRole(AicosRoles.BranchManager) || user.IsInRole(AicosRoles.Cashier);
 
     private static async Task<Reservation> FindForStaffAsync(TableReservationDbContext db, ICurrentUser user, Guid id, CancellationToken ct)
     {

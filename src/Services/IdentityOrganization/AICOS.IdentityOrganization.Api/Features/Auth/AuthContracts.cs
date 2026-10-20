@@ -5,8 +5,9 @@ using AICOS.IdentityOrganization.Api.Infrastructure;
 
 namespace AICOS.IdentityOrganization.Api.Features.Auth;
 
-/// <summary>UC-33: a guest registers a Customer account.</summary>
-public sealed record RegisterRequest(string? FullName, string? Email, string? Phone, string? Password, string? ConfirmPassword);
+/// <summary>UC-04: a guest registers a Customer account of one brand (BR-72). <see cref="TenantCode"/> is the brand identifier.</summary>
+public sealed record RegisterRequest(
+    string? TenantCode, string? FullName, string? Email, string? Phone, string? Password, string? ConfirmPassword);
 
 /// <summary>UC-01: <see cref="Login"/> is the email OR the username.</summary>
 public sealed record LoginRequest(string? Login, string? Password);
@@ -39,6 +40,7 @@ internal static class AuthRequestValidator
     public static void EnsureValid(RegisterRequest r)
     {
         var errors = new ValidationErrors();
+        CommonRules.Required(errors, nameof(r.TenantCode), r.TenantCode, "Brand code", Domain.Tenant.CodeMaxLength);
         CommonRules.Required(errors, nameof(r.FullName), r.FullName, "Full name", Domain.User.FullNameMaxLength);
         CommonRules.Email(errors, nameof(r.Email), r.Email);
         CommonRules.Phone(errors, nameof(r.Phone), r.Phone);

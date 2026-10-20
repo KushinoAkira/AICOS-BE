@@ -7,13 +7,14 @@ public enum UserStatus
 {
     Active,
 
-    /// <summary>Locked by a SystemAdmin (UC-02). Only an admin can unlock it.</summary>
+    /// <summary>Locked by a BrandAdmin (UC-02). Only an admin can unlock it.</summary>
     Locked,
 }
 
 /// <summary>
 /// A login account (UC-01, UC-02, UC-33). BR-01: exactly one role per account.
-/// Staff roles (Manager, Cashier, WarehouseStaff) belong to exactly one branch; SystemAdmin and Customer to none.
+/// Staff roles (BranchManager, Barista, Cashier) belong to exactly one branch; BrandAdmin and Customer to none.
+/// Every account except the SuperAdmin belongs to exactly one tenant (BR-04).
 /// </summary>
 public sealed class User : AuditableEntity<Guid>
 {
@@ -22,23 +23,24 @@ public sealed class User : AuditableEntity<Guid>
     public const int UsernameMaxLength = 50;
     public const int PhoneMaxLength = 20;
 
-    /// <summary>Roles an admin may assign. Guest is anonymous and AiBusinessAssistant is not a human login.</summary>
+    /// <summary>Roles a BrandAdmin may assign. SuperAdmin is seeded and Guest is anonymous.</summary>
     public static readonly IReadOnlyList<string> AssignableRoles =
-        [AicosRoles.SystemAdmin, AicosRoles.Manager, AicosRoles.Cashier, AicosRoles.WarehouseStaff, AicosRoles.Customer];
+        [AicosRoles.BrandAdmin, AicosRoles.BranchManager, AicosRoles.Barista, AicosRoles.Cashier, AicosRoles.Customer];
 
     /// <summary>Roles that work inside one branch and therefore require a BranchId.</summary>
     public static readonly IReadOnlyList<string> BranchRoles =
-        [AicosRoles.Manager, AicosRoles.Cashier, AicosRoles.WarehouseStaff];
+        [AicosRoles.BranchManager, AicosRoles.Barista, AicosRoles.Cashier];
 
     private User()
     {
     }
 
-    public User(string fullName, string email, string? username, string? phone, string role, Guid? branchId)
+    public User(string fullName, string email, string? username, string? phone, string role, Guid? branchId, Guid? tenantId = null)
     {
         Id = Guid.NewGuid();
         Status = UserStatus.Active;
         UpdateProfile(fullName, email, username, phone);
+        TenantId = tenantId;
         AssignRole(role, branchId);
     }
 
@@ -53,6 +55,9 @@ public sealed class User : AuditableEntity<Guid>
     public string? Phone { get; private set; }
 
     public string PasswordHash { get; private set; } = string.Empty;
+
+    /// <summary>Null only for the SuperAdmin (platform level).</summary>
+    public Guid? TenantId { get; private set; }
 
     public string Role { get; private set; } = string.Empty;
 

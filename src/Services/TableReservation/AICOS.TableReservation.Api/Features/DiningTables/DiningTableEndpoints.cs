@@ -19,7 +19,7 @@ public sealed record QrLookupResponse(Guid BranchId, Guid TableId, string TableC
 
 /// <summary>
 /// UC-38 Manage Tables and Floor Plan (+ QR codes, FR-59). Routes: /api/v1/tables/dining-tables and /api/v1/tables/public/qr/{token}.
-/// Read + status: all staff. Create/edit/delete/QR regenerate: SystemAdmin/Manager.
+/// Read + status: all staff. Create/edit/delete/QR regenerate: BrandAdmin/Manager.
 /// </summary>
 public static class DiningTableEndpoints
 {

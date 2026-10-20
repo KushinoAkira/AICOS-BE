@@ -35,7 +35,7 @@ public sealed record VoucherQuoteResponse(string Code, decimal OrderAmount, deci
 
 /// <summary>
 /// UC-41 Manage Gift Card / Voucher. Routes: /api/v1/customers/vouchers.
-/// Issue / list / revoke: SystemAdmin/Manager. Validate (preview) and redeem at the counter: all staff.
+/// Issue / list / revoke: BrandAdmin/Manager. Validate (preview) and redeem at the counter: all staff.
 /// BR-35: expired, redeemed or revoked codes are rejected (422).
 /// </summary>
 public static partial class VoucherEndpoints
@@ -212,7 +212,7 @@ public static partial class VoucherEndpoints
     {
         var normalized = code.Trim().ToUpperInvariant();
         var voucher = await db.Vouchers.FirstOrDefaultAsync(v => v.Code == normalized, ct);
-        if (voucher is null || (!user.IsInRole(AicosRoles.SystemAdmin) && user.BranchId != voucher.BranchId))
+        if (voucher is null || (!user.IsInRole(AicosRoles.BrandAdmin) && user.BranchId != voucher.BranchId))
         {
             throw new NotFoundException("Voucher", normalized);
         }

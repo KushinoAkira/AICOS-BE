@@ -9,7 +9,7 @@ namespace AICOS.MenuCatalog.Api.Features.Products;
 
 /// <summary>
 /// UC-06 Manage Menu - products with option groups. Routes: /api/v1/menu/products.
-/// Read: all staff (the POS needs it). Write: SystemAdmin/Manager. Delete is soft (orders keep a name snapshot).
+/// Read: all staff (the POS needs it). Write: BrandAdmin/Manager. Delete is soft (orders keep a name snapshot).
 /// </summary>
 public static class ProductEndpoints
 {

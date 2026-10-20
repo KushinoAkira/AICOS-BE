@@ -35,7 +35,7 @@ public sealed record WorkShiftResponse(Guid Id, Guid BranchId, string Name, Time
 
 /// <summary>
 /// Employee HR profiles and shift templates (UC-10 prerequisites). Routes: /api/v1/workforce/employees, /work-shifts.
-/// Manage: SystemAdmin/Manager of the branch (BR-58). Read own profile / shift templates: all staff.
+/// Manage: BrandAdmin/Manager of the branch (BR-58). Read own profile / shift templates: all staff.
 /// </summary>
 public static class EmployeeEndpoints
 {

@@ -37,7 +37,7 @@ public class GatewayTests : IClassFixture<WebApplicationFactory<Program>>
     public async Task Valid_bearer_token_passes_edge_validation()
     {
         var tokens = _factory.Services.GetRequiredService<JwtTokenService>();
-        var (token, _) = tokens.CreateAccessToken(Guid.NewGuid(), "Manager A", AicosRoles.Manager, Guid.NewGuid());
+        var (token, _) = tokens.CreateAccessToken(Guid.NewGuid(), "Manager A", AicosRoles.BranchManager, Guid.NewGuid(), Guid.NewGuid());
 
         using var client = _factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);

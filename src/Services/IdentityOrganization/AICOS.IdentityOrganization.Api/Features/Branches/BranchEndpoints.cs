@@ -2,15 +2,16 @@ using AICOS.BuildingBlocks.Exceptions;
 using AICOS.BuildingBlocks.Security;
 using AICOS.IdentityOrganization.Api.Domain;
 using AICOS.BuildingBlocks.Persistence;
+using AICOS.IdentityOrganization.Api.Features.Common;
 using AICOS.IdentityOrganization.Api.Persistence;
 using Microsoft.EntityFrameworkCore;
 
 namespace AICOS.IdentityOrganization.Api.Features.Branches;
 
 /// <summary>
-/// UC-03 Manage Branches. Routes: /api/v1/identity/branches.
-/// Only SystemAdmin can create/update/suspend; a Manager may read the single branch they are assigned to (BR-58).
-/// Branches are never hard-deleted - they are suspended instead (BR-38).
+/// UC-12 Manage Branches. Routes: /api/v1/identity/branches. Every branch belongs to the caller's tenant (BR-04).
+/// Only BrandAdmin can create/update/suspend; a BranchManager may read the single branch they are assigned to (BR-05).
+/// Branches are never hard-deleted - they are suspended instead (BR-08).
 /// </summary>
 public static class BranchEndpoints
 {
@@ -30,6 +31,7 @@ public static class BranchEndpoints
 
     private static async Task<PagedResponse<BranchResponse>> ListAsync(
         IdentityOrganizationDbContext db,
+        ICurrentUser currentUser,
         string? search,
         BranchStatus? status,
         int page = 1,
@@ -38,8 +40,9 @@ public static class BranchEndpoints
     {
         page = Math.Max(page, 1);
         pageSize = Math.Clamp(pageSize, 1, MaxPageSize);
+        var tenantId = Tenancy.Require(currentUser);
 
-        var query = db.Branches.AsNoTracking();
+        var query = db.Branches.AsNoTracking().Where(b => b.TenantId == tenantId);
 
         if (!string.IsNullOrWhiteSpace(search))
         {
@@ -65,11 +68,18 @@ public static class BranchEndpoints
         return new PagedResponse<BranchResponse>(items.Select(BranchResponse.From).ToList(), page, pageSize, total);
     }
 
-    /// <summary>Public: active branches for guests/customers choosing where to view the menu or reserve a table.</summary>
-    private static async Task<List<BranchResponse>> ListActiveAsync(IdentityOrganizationDbContext db, CancellationToken ct)
+    /// <summary>Public: active branches of one brand (<paramref name="tenantCode"/>) for guests/customers choosing where to order.</summary>
+    private static async Task<List<BranchResponse>> ListActiveAsync(string? tenantCode, IdentityOrganizationDbContext db, CancellationToken ct)
     {
+        if (string.IsNullOrWhiteSpace(tenantCode))
+        {
+            throw new ValidationFailedException(nameof(tenantCode), "tenantCode (the brand identifier) is required.");
+        }
+
+        var code = Tenant.NormalizeCode(tenantCode);
         var branches = await db.Branches.AsNoTracking()
-            .Where(b => b.Status == BranchStatus.Active)
+            .Where(b => b.Status == BranchStatus.Active
+                && db.Tenants.Any(t => t.Id == b.TenantId && t.Code == code && t.Status == TenantStatus.Active))
             .OrderBy(b => b.Name)
             .ToListAsync(ct);
         return branches.Select(BranchResponse.From).ToList();
@@ -78,23 +88,26 @@ public static class BranchEndpoints
     private static async Task<BranchResponse> GetAsync(
         Guid id, IdentityOrganizationDbContext db, ICurrentUser currentUser, CancellationToken ct)
     {
-        if (currentUser.IsInRole(AicosRoles.Manager) && currentUser.BranchId != id)
+        if (currentUser.IsInRole(AicosRoles.BranchManager) && currentUser.BranchId != id)
         {
-            throw new ForbiddenException("Managers can only view the branch they are assigned to.");
+            throw new ForbiddenException("Branch managers can only view the branch they are assigned to.");
         }
 
-        var branch = await db.Branches.AsNoTracking().FirstOrDefaultAsync(b => b.Id == id, ct)
+        var tenantId = Tenancy.Require(currentUser);
+        var branch = await db.Branches.AsNoTracking().FirstOrDefaultAsync(b => b.Id == id && b.TenantId == tenantId, ct)
             ?? throw new NotFoundException("Branch", id);
 
         return BranchResponse.From(branch);
     }
 
-    private static async Task<IResult> CreateAsync(BranchRequest request, IdentityOrganizationDbContext db, CancellationToken ct)
+    private static async Task<IResult> CreateAsync(
+        BranchRequest request, IdentityOrganizationDbContext db, ICurrentUser currentUser, CancellationToken ct)
     {
         BranchRequestValidator.EnsureValid(request);
-        await EnsureNameIsUniqueAsync(db, request.Name!, excludeId: null, ct);
+        var tenantId = Tenancy.Require(currentUser);
+        await EnsureNameIsUniqueAsync(db, tenantId, request.Name!, excludeId: null, ct);
 
-        var branch = new Branch(request.Name!, request.Address, request.Phone, request.OpeningTime, request.ClosingTime);
+        var branch = new Branch(tenantId, request.Name!, request.Address, request.Phone, request.OpeningTime, request.ClosingTime);
         db.Branches.Add(branch);
         await db.SaveChangesAsync(ct);
 
@@ -102,14 +115,15 @@ public static class BranchEndpoints
     }
 
     private static async Task<BranchResponse> UpdateAsync(
-        Guid id, BranchRequest request, IdentityOrganizationDbContext db, CancellationToken ct)
+        Guid id, BranchRequest request, IdentityOrganizationDbContext db, ICurrentUser currentUser, CancellationToken ct)
     {
         BranchRequestValidator.EnsureValid(request);
+        var tenantId = Tenancy.Require(currentUser);
 
-        var branch = await db.Branches.FirstOrDefaultAsync(b => b.Id == id, ct)
+        var branch = await db.Branches.FirstOrDefaultAsync(b => b.Id == id && b.TenantId == tenantId, ct)
             ?? throw new NotFoundException("Branch", id);
 
-        await EnsureNameIsUniqueAsync(db, request.Name!, excludeId: id, ct);
+        await EnsureNameIsUniqueAsync(db, tenantId, request.Name!, excludeId: id, ct);
 
         branch.Update(request.Name!, request.Address, request.Phone, request.OpeningTime, request.ClosingTime);
         await db.SaveChangesAsync(ct);
@@ -118,14 +132,15 @@ public static class BranchEndpoints
     }
 
     private static async Task<BranchResponse> ChangeStatusAsync(
-        Guid id, ChangeBranchStatusRequest request, IdentityOrganizationDbContext db, CancellationToken ct)
+        Guid id, ChangeBranchStatusRequest request, IdentityOrganizationDbContext db, ICurrentUser currentUser, CancellationToken ct)
     {
         if (request.Status is null)
         {
             throw new ValidationFailedException(nameof(request.Status), "Status is required (Active or Suspended).");
         }
 
-        var branch = await db.Branches.FirstOrDefaultAsync(b => b.Id == id, ct)
+        var tenantId = Tenancy.Require(currentUser);
+        var branch = await db.Branches.FirstOrDefaultAsync(b => b.Id == id && b.TenantId == tenantId, ct)
             ?? throw new NotFoundException("Branch", id);
 
         branch.ChangeStatus(request.Status.Value);
@@ -135,10 +150,10 @@ public static class BranchEndpoints
     }
 
     private static async Task EnsureNameIsUniqueAsync(
-        IdentityOrganizationDbContext db, string name, Guid? excludeId, CancellationToken ct)
+        IdentityOrganizationDbContext db, Guid tenantId, string name, Guid? excludeId, CancellationToken ct)
     {
         var normalized = name.Trim().ToLower();
-        var exists = await db.Branches.AnyAsync(b => b.Name.ToLower() == normalized && b.Id != excludeId, ct);
+        var exists = await db.Branches.AnyAsync(b => b.TenantId == tenantId && b.Name.ToLower() == normalized && b.Id != excludeId, ct);
         if (exists)
         {
             throw new ConflictException($"A branch named '{name.Trim()}' already exists.", "branch.duplicate_name");
