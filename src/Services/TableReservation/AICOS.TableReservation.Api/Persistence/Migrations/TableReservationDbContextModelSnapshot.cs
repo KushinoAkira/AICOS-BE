@@ -29,10 +29,9 @@ namespace AICOS.TableReservation.Api.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
-                    b.Property<string>("Area")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("area");
+                    b.Property<Guid>("AreaId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("area_id");
 
                     b.Property<Guid>("BranchId")
                         .HasColumnType("uuid")
@@ -58,6 +57,10 @@ namespace AICOS.TableReservation.Api.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("position_y");
 
+                    b.Property<DateTime>("QrIssuedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("qr_issued_at_utc");
+
                     b.Property<string>("QrToken")
                         .IsRequired()
                         .HasMaxLength(64)
@@ -76,6 +79,10 @@ namespace AICOS.TableReservation.Api.Persistence.Migrations
                         .HasColumnType("character varying(20)")
                         .HasColumnName("table_code");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("updated_at_utc");
@@ -87,9 +94,15 @@ namespace AICOS.TableReservation.Api.Persistence.Migrations
                     b.HasKey("Id")
                         .HasName("pk_dining_tables");
 
+                    b.HasIndex("AreaId")
+                        .HasDatabaseName("ix_dining_tables_area_id");
+
                     b.HasIndex("QrToken")
                         .IsUnique()
                         .HasDatabaseName("ix_dining_tables_qr_token");
+
+                    b.HasIndex("TenantId")
+                        .HasDatabaseName("ix_dining_tables_tenant_id");
 
                     b.HasIndex("BranchId", "TableCode")
                         .IsUnique()
@@ -98,7 +111,7 @@ namespace AICOS.TableReservation.Api.Persistence.Migrations
                     b.ToTable("dining_tables", "table_reservation");
                 });
 
-            modelBuilder.Entity("AICOS.TableReservation.Api.Domain.Reservation", b =>
+            modelBuilder.Entity("AICOS.TableReservation.Api.Domain.TableArea", b =>
                 {
                     b.Property<Guid>("Id")
                         .HasColumnType("uuid")
@@ -108,11 +121,6 @@ namespace AICOS.TableReservation.Api.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("branch_id");
 
-                    b.Property<string>("CancelReason")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)")
-                        .HasColumnName("cancel_reason");
-
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at_utc");
@@ -121,52 +129,19 @@ namespace AICOS.TableReservation.Api.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("created_by");
 
-                    b.Property<string>("CustomerName")
+                    b.Property<string>("Name")
                         .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("customer_name");
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("name");
 
-                    b.Property<string>("CustomerPhone")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("customer_phone");
-
-                    b.Property<Guid?>("CustomerUserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("customer_user_id");
-
-                    b.Property<int>("DurationMinutes")
+                    b.Property<int>("SortOrder")
                         .HasColumnType("integer")
-                        .HasColumnName("duration_minutes");
+                        .HasColumnName("sort_order");
 
-                    b.Property<DateTime>("EndsAtUtc")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("ends_at_utc");
-
-                    b.Property<string>("Note")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)")
-                        .HasColumnName("note");
-
-                    b.Property<int>("PartySize")
-                        .HasColumnType("integer")
-                        .HasColumnName("party_size");
-
-                    b.Property<DateTime>("ReservedAtUtc")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("reserved_at_utc");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("status");
-
-                    b.Property<Guid?>("TableId")
+                    b.Property<Guid>("TenantId")
                         .HasColumnType("uuid")
-                        .HasColumnName("table_id");
+                        .HasColumnName("tenant_id");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasColumnType("timestamp with time zone")
@@ -177,27 +152,26 @@ namespace AICOS.TableReservation.Api.Persistence.Migrations
                         .HasColumnName("updated_by");
 
                     b.HasKey("Id")
-                        .HasName("pk_reservations");
+                        .HasName("pk_table_areas");
 
-                    b.HasIndex("CustomerUserId")
-                        .HasDatabaseName("ix_reservations_customer_user_id");
+                    b.HasIndex("TenantId")
+                        .HasDatabaseName("ix_table_areas_tenant_id");
 
-                    b.HasIndex("BranchId", "ReservedAtUtc")
-                        .HasDatabaseName("ix_reservations_branch_id_reserved_at_utc");
+                    b.HasIndex("BranchId", "Name")
+                        .IsUnique()
+                        .HasDatabaseName("ix_table_areas_branch_id_name");
 
-                    b.HasIndex("TableId", "ReservedAtUtc")
-                        .HasDatabaseName("ix_reservations_table_id_reserved_at_utc");
-
-                    b.ToTable("reservations", "table_reservation");
+                    b.ToTable("table_areas", "table_reservation");
                 });
 
-            modelBuilder.Entity("AICOS.TableReservation.Api.Domain.Reservation", b =>
+            modelBuilder.Entity("AICOS.TableReservation.Api.Domain.DiningTable", b =>
                 {
-                    b.HasOne("AICOS.TableReservation.Api.Domain.DiningTable", null)
+                    b.HasOne("AICOS.TableReservation.Api.Domain.TableArea", null)
                         .WithMany()
-                        .HasForeignKey("TableId")
+                        .HasForeignKey("AreaId")
                         .OnDelete(DeleteBehavior.Restrict)
-                        .HasConstraintName("fk_reservations_dining_tables_table_id");
+                        .IsRequired()
+                        .HasConstraintName("fk_dining_tables_table_areas_area_id");
                 });
 #pragma warning restore 612, 618
         }

@@ -6,108 +6,341 @@ using AICOS.TableReservation.Api.Persistence;
 
 namespace AICOS.Services.IntegrationTests;
 
+/// <summary>UC-25 floor plan (areas and tables), UC-26 table QR codes and BR-18 QR tokens, with tenant and branch isolation.</summary>
 public sealed class TableTests : IDisposable
 {
+    private const string Areas = "/api/v1/tables/areas";
+    private const string Tables = "/api/v1/tables/dining-tables";
+    private const string PublicQr = "/api/v1/tables/public/qr";
+
     private readonly ServiceFactory<TableReservationService, TableReservationDbContext> _f = new();
-    private readonly Guid _branch = Guid.NewGuid();
+    private readonly Guid _tenant = ServiceFactory<TableReservationService, TableReservationDbContext>.DefaultTenantId;
+    private readonly Guid _otherTenant = Guid.NewGuid();
+    private readonly Guid _b1;
+    private readonly Guid _b2;
+    private readonly Guid _otherBranch;
+    private readonly HttpClient _admin;
+    private readonly HttpClient _otherAdmin;
     private readonly HttpClient _manager;
     private readonly HttpClient _cashier;
-    private readonly Guid _customerId = Guid.NewGuid();
-    private readonly HttpClient _customer;
 
     public TableTests()
     {
-        _manager = _f.As(AicosRoles.BranchManager, _branch);
-        _cashier = _f.As(AicosRoles.Cashier, _branch);
-        _customer = _f.As(AicosRoles.Customer, userId: _customerId);
+        _b1 = _f.Branches.Add(_tenant, name: "Quận 1");
+        _b2 = _f.Branches.Add(_tenant, name: "Quận 3");
+        _otherBranch = _f.Branches.Add(_otherTenant, name: "Foreign");
+        _admin = _f.As(AicosRoles.BrandAdmin);
+        _otherAdmin = _f.As(AicosRoles.BrandAdmin, tenantId: _otherTenant);
+        _manager = _f.As(AicosRoles.BranchManager, _b1);
+        _cashier = _f.As(AicosRoles.Cashier, _b1);
     }
 
     public void Dispose() => _f.Dispose();
 
+    // ------------------------------------------------------------------ areas (UC-25)
     [Fact]
-    public async Task Table_code_is_unique_per_branch_and_validated()
+    public async Task A_branch_manager_adds_areas_to_their_own_branch_and_names_are_unique_per_branch()
     {
-        var table = await _manager.PostOk("/api/v1/tables/dining-tables", new { tableCode = "t01", capacity = 4, area = "Tầng 1" });
-        table.GetProperty("tableCode").GetString().Should().Be("T01");
-        table.GetProperty("qrCodeUrl").GetString().Should().EndWith(table.GetProperty("qrToken").GetString());
+        var area = await _manager.PostOk(Areas, new { name = "Tầng 1", sortOrder = 1 });
+        area.GetProperty("branchId").GetGuid().Should().Be(_b1);
+        area.GetProperty("tableCount").GetInt32().Should().Be(0);
 
-        await _manager.Post("/api/v1/tables/dining-tables", new { tableCode = "T01", capacity = 2 }).ShouldBe(409, "table.duplicate_code");
-        await _manager.Post("/api/v1/tables/dining-tables", new { tableCode = "T 02", capacity = 0 }).ShouldBe(400);
-        await _cashier.Post("/api/v1/tables/dining-tables", new { tableCode = "T03", capacity = 2 }).ShouldBe(403);
+        await _manager.Post(Areas, new { name = "tầng 1" }).ShouldBe(409, "area.duplicate_name");
+        await _admin.PostOk(Areas, new { branchId = _b2, name = "Tầng 1" }); // another branch may reuse the name
     }
 
     [Fact]
-    public async Task Qr_lookup_is_public_and_regenerate_invalidates_old_code()
+    public async Task Area_input_is_validated_and_who_may_write_is_enforced()
     {
-        var table = await _manager.PostOk("/api/v1/tables/dining-tables", new { tableCode = "T01", capacity = 4 });
+        await _manager.Post(Areas, new { name = " ", sortOrder = -1 }).ShouldBe(400);
+        await _manager.Post(Areas, new { name = new string('x', 51) }).ShouldBe(400);
+        await _manager.Post(Areas, new { name = "X", sortOrder = 10_000 }).ShouldBe(400);
+        await _cashier.Post(Areas, new { name = "X" }).ShouldBe(403);
+        await _f.As(AicosRoles.Barista, _b1).Post(Areas, new { name = "X" }).ShouldBe(403);
+        await _f.As(AicosRoles.Customer).Post(Areas, new { name = "X" }).ShouldBe(403);
+        await _f.CreateClient().PostAsJsonAsync(Areas, new { name = "X" }).ShouldBe(401);
+    }
+
+    [Fact]
+    public async Task A_manager_cannot_use_another_branch_and_the_brand_admin_cannot_use_a_foreign_one()
+    {
+        await _manager.Post(Areas, new { branchId = _b2, name = "X" }).ShouldBe(403, "branch.forbidden");
+        await _admin.Post(Areas, new { branchId = _otherBranch, name = "X" }).ShouldBe(400);   // another brand's branch
+        await _admin.Post(Areas, new { branchId = Guid.NewGuid(), name = "X" }).ShouldBe(400);
+        await _admin.Post(Areas, new { name = "X" }).ShouldBe(400);                            // the brand admin must say which branch
+    }
+
+    [Fact]
+    public async Task A_suspended_branch_gets_no_new_areas_or_tables_BR08()
+    {
+        var area = await _admin.PostOk(Areas, new { branchId = _b2, name = "Tầng 1" });
+        _f.Branches.Suspend(_b2);
+
+        await _admin.Post(Areas, new { branchId = _b2, name = "Tầng 2" }).ShouldBe(422, "branch.suspended");
+        await _admin.Post(Tables, new { branchId = _b2, areaId = area.Id(), tableCode = "T1", capacity = 2 }).ShouldBe(422, "branch.suspended");
+    }
+
+    [Fact]
+    public async Task An_area_with_tables_cannot_be_deleted_but_can_be_renamed()
+    {
+        var area = await _manager.PostOk(Areas, new { name = "Tầng 1" });
+        await _manager.PostOk(Tables, new { areaId = area.Id(), tableCode = "T01", capacity = 4 });
+
+        await _manager.DeleteAsync($"{Areas}/{area.Id()}").ShouldBe(409, "area.has_tables");
+        var renamed = await _manager.Put($"{Areas}/{area.Id()}", new { name = "Tầng trệt", sortOrder = 2 });
+        (await renamed.Body()).GetProperty("name").GetString().Should().Be("Tầng trệt");
+        (await _manager.GetFromJsonAsync<JsonElement>($"{Areas}/{area.Id()}")).GetProperty("tableCount").GetInt32().Should().Be(1);
+
+        var empty = await _manager.PostOk(Areas, new { name = "Trống" });
+        await _manager.DeleteAsync($"{Areas}/{empty.Id()}").ShouldBe(204);
+    }
+
+    [Fact]
+    public async Task Areas_are_listed_in_order_for_the_branch_and_staff_see_only_their_own_branch()
+    {
+        await _manager.PostOk(Areas, new { name = "B", sortOrder = 2 });
+        await _manager.PostOk(Areas, new { name = "A", sortOrder = 1 });
+        await _admin.PostOk(Areas, new { branchId = _b2, name = "Other branch" });
+
+        (await _cashier.GetFromJsonAsync<JsonElement>(Areas)).EnumerateArray().Select(a => a.GetProperty("name").GetString())
+            .Should().Equal("A", "B");
+        (await _admin.GetFromJsonAsync<JsonElement>(Areas)).GetArrayLength().Should().Be(3);                  // the whole brand
+        (await _admin.GetFromJsonAsync<JsonElement>($"{Areas}?branchId={_b2}")).GetArrayLength().Should().Be(1);
+        await _cashier.GetAsync($"{Areas}?branchId={_b2}").ShouldBe(403, "branch.forbidden");
+    }
+
+    // ------------------------------------------------------------------ tables (UC-25)
+    [Fact]
+    public async Task Table_code_is_unique_per_branch_normalised_and_validated()
+    {
+        var area = await _manager.PostOk(Areas, new { name = "Tầng 1" });
+
+        var table = await _manager.PostOk(Tables, new { areaId = area.Id(), tableCode = "t01", capacity = 4, positionX = 10, positionY = 20 });
+        table.GetProperty("tableCode").GetString().Should().Be("T01");
+        table.GetProperty("areaName").GetString().Should().Be("Tầng 1");
+        table.GetProperty("status").GetString().Should().Be("Available");
+
+        await _manager.Post(Tables, new { areaId = area.Id(), tableCode = "T01", capacity = 2 }).ShouldBe(409, "table.duplicate_code");
+        await _manager.Post(Tables, new { areaId = area.Id(), tableCode = "T 02", capacity = 2 }).ShouldBe(400);
+        await _manager.Post(Tables, new { areaId = area.Id(), tableCode = "T02", capacity = 0 }).ShouldBe(400);
+        await _manager.Post(Tables, new { areaId = area.Id(), tableCode = "T02", capacity = 51 }).ShouldBe(400);
+        await _manager.Post(Tables, new { areaId = area.Id(), tableCode = "T02", capacity = 2, positionX = 10_001 }).ShouldBe(400);
+        await _manager.Post(Tables, new { tableCode = "T02", capacity = 2 }).ShouldBe(400);                       // area required
+        await _cashier.Post(Tables, new { areaId = area.Id(), tableCode = "T03", capacity = 2 }).ShouldBe(403);
+    }
+
+    [Fact]
+    public async Task A_table_must_sit_in_an_area_of_its_own_branch()
+    {
+        var mine = await _manager.PostOk(Areas, new { name = "Tầng 1" });
+        var otherBranchArea = await _admin.PostOk(Areas, new { branchId = _b2, name = "Tầng 1" });
+        var foreignArea = await _otherAdmin.PostOk(Areas, new { branchId = _otherBranch, name = "Foreign" });
+
+        await _manager.Post(Tables, new { areaId = otherBranchArea.Id(), tableCode = "T1", capacity = 2 }).ShouldBe(400);
+        await _manager.Post(Tables, new { areaId = foreignArea.Id(), tableCode = "T1", capacity = 2 }).ShouldBe(400);
+        await _manager.Post(Tables, new { areaId = Guid.NewGuid(), tableCode = "T1", capacity = 2 }).ShouldBe(400);
+
+        var table = await _manager.PostOk(Tables, new { areaId = mine.Id(), tableCode = "T1", capacity = 2 });
+        await _manager.Put($"{Tables}/{table.Id()}", new { areaId = otherBranchArea.Id(), tableCode = "T1", capacity = 2 }).ShouldBe(400);
+    }
+
+    [Fact]
+    public async Task A_table_can_be_edited_moved_between_areas_and_deleted()
+    {
+        var a1 = await _manager.PostOk(Areas, new { name = "Tầng 1" });
+        var a2 = await _manager.PostOk(Areas, new { name = "Sân vườn" });
+        var table = await _manager.PostOk(Tables, new { areaId = a1.Id(), tableCode = "T01", capacity = 4 });
+
+        var edited = await _manager.Put($"{Tables}/{table.Id()}", new { areaId = a2.Id(), tableCode = "G01", capacity = 6, positionX = 100, positionY = 200 });
+        var body = await edited.Body();
+        body.GetProperty("areaName").GetString().Should().Be("Sân vườn");
+        body.GetProperty("tableCode").GetString().Should().Be("G01");
+        body.GetProperty("capacity").GetInt32().Should().Be(6);
+        body.GetProperty("qrToken").GetString().Should().Be(table.GetProperty("qrToken").GetString()); // editing does not change the QR
+
+        await _manager.DeleteAsync($"{Tables}/{table.Id()}").ShouldBe(204);
+        await _manager.GetAsync($"{Tables}/{table.Id()}").ShouldBe(404);
+    }
+
+    [Fact]
+    public async Task Status_can_be_changed_by_staff_and_an_occupied_table_cannot_be_deleted()
+    {
+        var area = await _manager.PostOk(Areas, new { name = "Tầng 1" });
+        var table = await _manager.PostOk(Tables, new { areaId = area.Id(), tableCode = "T01", capacity = 4 });
+
+        await _cashier.Patch($"{Tables}/{table.Id()}/status", new { status = "Occupied" }).ShouldBe(200);
+        await _manager.DeleteAsync($"{Tables}/{table.Id()}").ShouldBe(409, "table.in_use");
+        await _cashier.Patch($"{Tables}/{table.Id()}/status", new { }).ShouldBe(400);
+        await _cashier.Patch($"{Tables}/{table.Id()}/status", new { status = "OutOfService" }).ShouldBe(200);
+        await _manager.DeleteAsync($"{Tables}/{table.Id()}").ShouldBe(204);
+    }
+
+    [Fact]
+    public async Task The_floor_plan_groups_the_tables_of_a_branch_by_area()
+    {
+        var a1 = await _manager.PostOk(Areas, new { name = "Tầng 1", sortOrder = 1 });
+        var a2 = await _manager.PostOk(Areas, new { name = "Sân vườn", sortOrder = 2 });
+        await _manager.PostOk(Tables, new { areaId = a1.Id(), tableCode = "T02", capacity = 4 });
+        await _manager.PostOk(Tables, new { areaId = a1.Id(), tableCode = "T01", capacity = 2 });
+        await _manager.PostOk(Tables, new { areaId = a2.Id(), tableCode = "G01", capacity = 6 });
+        var b2Area = await _admin.PostOk(Areas, new { branchId = _b2, name = "Other" });
+        await _admin.PostOk(Tables, new { branchId = _b2, areaId = b2Area.Id(), tableCode = "X1", capacity = 2 });
+
+        var plan = await _cashier.GetFromJsonAsync<JsonElement>("/api/v1/tables/floor-plan");
+
+        plan.GetProperty("branchId").GetGuid().Should().Be(_b1);
+        var areas = plan.GetProperty("areas").EnumerateArray().ToList();
+        areas.Select(a => a.GetProperty("name").GetString()).Should().Equal("Tầng 1", "Sân vườn");
+        areas[0].GetProperty("tables").EnumerateArray().Select(t => t.GetProperty("tableCode").GetString()).Should().Equal("T01", "T02");
+        areas[1].GetProperty("tables").GetArrayLength().Should().Be(1);
+
+        (await _admin.GetFromJsonAsync<JsonElement>($"/api/v1/tables/floor-plan?branchId={_b2}")).GetProperty("areas")[0]
+            .GetProperty("tables")[0].GetProperty("tableCode").GetString().Should().Be("X1");
+        await _admin.GetAsync("/api/v1/tables/floor-plan").ShouldBe(400);                 // the brand admin must pick a branch
+        await _cashier.GetAsync($"/api/v1/tables/floor-plan?branchId={_b2}").ShouldBe(403, "branch.forbidden");
+    }
+
+    [Fact]
+    public async Task The_table_list_filters_by_area_and_status_and_the_brand_admin_sees_every_branch()
+    {
+        var area = await _manager.PostOk(Areas, new { name = "Tầng 1" });
+        var t1 = await _manager.PostOk(Tables, new { areaId = area.Id(), tableCode = "T01", capacity = 4 });
+        await _manager.PostOk(Tables, new { areaId = area.Id(), tableCode = "T02", capacity = 4 });
+        await _manager.Patch($"{Tables}/{t1.Id()}/status", new { status = "OutOfService" }).ShouldBe(200);
+        var b2Area = await _admin.PostOk(Areas, new { branchId = _b2, name = "Tầng 1" });
+        await _admin.PostOk(Tables, new { branchId = _b2, areaId = b2Area.Id(), tableCode = "T01", capacity = 2 });
+
+        (await _cashier.GetFromJsonAsync<JsonElement>(Tables)).GetArrayLength().Should().Be(2);
+        (await _cashier.GetFromJsonAsync<JsonElement>($"{Tables}?status=OutOfService")).GetArrayLength().Should().Be(1);
+        (await _cashier.GetFromJsonAsync<JsonElement>($"{Tables}?areaId={area.Id()}")).GetArrayLength().Should().Be(2);
+        (await _admin.GetFromJsonAsync<JsonElement>(Tables)).GetArrayLength().Should().Be(3);
+    }
+
+    // ------------------------------------------------------------------ tenant isolation (BR-04) and branch scope (BR-05)
+    [Fact]
+    public async Task Another_brand_cannot_see_or_change_tables_and_gets_404()
+    {
+        var area = await _manager.PostOk(Areas, new { name = "Tầng 1" });
+        var table = await _manager.PostOk(Tables, new { areaId = area.Id(), tableCode = "T01", capacity = 4 });
+
+        (await _otherAdmin.GetFromJsonAsync<JsonElement>(Tables)).GetArrayLength().Should().Be(0);
+        (await _otherAdmin.GetFromJsonAsync<JsonElement>(Areas)).GetArrayLength().Should().Be(0);
+        await _otherAdmin.GetAsync($"{Tables}/{table.Id()}").ShouldBe(404);
+        await _otherAdmin.Put($"{Tables}/{table.Id()}", new { areaId = area.Id(), tableCode = "X", capacity = 1 }).ShouldBe(404);
+        await _otherAdmin.DeleteAsync($"{Tables}/{table.Id()}").ShouldBe(404);
+        await _otherAdmin.GetAsync($"{Tables}/{table.Id()}/qr.svg").ShouldBe(404);
+        await _otherAdmin.Post($"{Tables}/{table.Id()}/qr/regenerate", new { }).ShouldBe(404);
+        await _otherAdmin.GetAsync($"{Areas}/{area.Id()}").ShouldBe(404);
+        await _otherAdmin.DeleteAsync($"{Areas}/{area.Id()}").ShouldBe(404);
+        await _f.As(AicosRoles.SuperAdmin).GetAsync(Tables).ShouldBe(403);
+    }
+
+    [Fact]
+    public async Task Staff_of_another_branch_of_the_same_brand_are_forbidden()
+    {
+        var area = await _manager.PostOk(Areas, new { name = "Tầng 1" });
+        var table = await _manager.PostOk(Tables, new { areaId = area.Id(), tableCode = "T01", capacity = 4 });
+        var otherManager = _f.As(AicosRoles.BranchManager, _b2);
+
+        await otherManager.GetAsync($"{Tables}/{table.Id()}").ShouldBe(403, "branch.forbidden");
+        await otherManager.Put($"{Tables}/{table.Id()}", new { areaId = area.Id(), tableCode = "X", capacity = 1 }).ShouldBe(403, "branch.forbidden");
+        await otherManager.DeleteAsync($"{Tables}/{table.Id()}").ShouldBe(403, "branch.forbidden");
+        await otherManager.Post($"{Tables}/{table.Id()}/qr/regenerate", new { }).ShouldBe(403, "branch.forbidden");
+        await otherManager.GetAsync($"{Areas}/{area.Id()}").ShouldBe(403, "branch.forbidden");
+        await _f.As(AicosRoles.Cashier, _b2).Patch($"{Tables}/{table.Id()}/status", new { status = "Occupied" }).ShouldBe(403, "branch.forbidden");
+    }
+
+    // ------------------------------------------------------------------ QR codes (UC-26, BR-18)
+    [Fact]
+    public async Task The_qr_code_points_at_the_table_and_a_scan_resolves_brand_branch_and_table()
+    {
+        var area = await _manager.PostOk(Areas, new { name = "Tầng 1" });
+        var table = await _manager.PostOk(Tables, new { areaId = area.Id(), tableCode = "T01", capacity = 4 });
+        var token = table.GetProperty("qrToken").GetString()!;
+
+        token.Should().MatchRegex("^[0-9a-f]{32}$");
+        table.GetProperty("qrCodeUrl").GetString().Should().EndWith($"/qr/{token}");
+
+        var scan = await _f.CreateClient().GetFromJsonAsync<JsonElement>($"{PublicQr}/{token.ToUpperInvariant()}");   // case-insensitive
+        scan.GetProperty("tenantId").GetGuid().Should().Be(_tenant);
+        scan.GetProperty("branchId").GetGuid().Should().Be(_b1);
+        scan.GetProperty("tableId").GetGuid().Should().Be(table.Id());
+        scan.GetProperty("tableCode").GetString().Should().Be("T01");
+        scan.GetProperty("areaName").GetString().Should().Be("Tầng 1");
+        scan.GetProperty("canOrder").GetBoolean().Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Regenerating_the_qr_token_invalidates_the_old_code_at_once_BR18()
+    {
+        var area = await _manager.PostOk(Areas, new { name = "Tầng 1" });
+        var table = await _manager.PostOk(Tables, new { areaId = area.Id(), tableCode = "T01", capacity = 4 });
         var oldToken = table.GetProperty("qrToken").GetString();
         var anonymous = _f.CreateClient();
+        await anonymous.GetAsync($"{PublicQr}/{oldToken}").ShouldBe(200);
 
-        (await anonymous.GetFromJsonAsync<JsonElement>($"/api/v1/tables/public/qr/{oldToken}")).GetProperty("tableCode").GetString().Should().Be("T01");
+        var regenerated = await _manager.PostOk($"{Tables}/{table.Id()}/qr/regenerate", new { });
 
-        var regenerated = await _manager.PostOk($"/api/v1/tables/dining-tables/{table.Id()}/qr/regenerate", new { });
         regenerated.GetProperty("qrToken").GetString().Should().NotBe(oldToken);
-        await anonymous.GetAsync($"/api/v1/tables/public/qr/{oldToken}").ShouldBe(404);
+        await anonymous.GetAsync($"{PublicQr}/{oldToken}").ShouldBe(404);
+        await anonymous.GetAsync($"{PublicQr}/{regenerated.GetProperty("qrToken").GetString()}").ShouldBe(200);
+        regenerated.GetProperty("qrIssuedAtUtc").GetDateTime().Should().BeOnOrAfter(table.GetProperty("qrIssuedAtUtc").GetDateTime());
     }
 
     [Fact]
-    public async Task Overlapping_reservation_on_the_same_table_is_409_BR10()
+    public async Task Every_table_gets_its_own_token_and_unknown_tokens_are_404()
     {
-        var table = (await _manager.PostOk("/api/v1/tables/dining-tables", new { tableCode = "T01", capacity = 4 })).Id();
-        var at = _f.Clock.Now.AddDays(1);
+        var area = await _manager.PostOk(Areas, new { name = "Tầng 1" });
+        var tokens = new List<string?>();
+        for (var i = 0; i < 5; i++)
+        {
+            tokens.Add((await _manager.PostOk(Tables, new { areaId = area.Id(), tableCode = $"T{i}", capacity = 2 })).GetProperty("qrToken").GetString());
+        }
 
-        await _cashier.PostOk("/api/v1/tables/reservations", Booking(table, at, 120));
-        await _cashier.Post("/api/v1/tables/reservations", Booking(table, at.AddMinutes(90), 60)).ShouldBe(409, "reservation.table_unavailable");
-        await _cashier.PostOk("/api/v1/tables/reservations", Booking(table, at.AddMinutes(120), 60)); // back-to-back is fine
+        tokens.Distinct().Should().HaveCount(5);
+        await _f.CreateClient().GetAsync($"{PublicQr}/{new string('0', 32)}").ShouldBe(404);
+        await _f.CreateClient().GetAsync($"{PublicQr}/not-a-token").ShouldBe(404);
     }
 
     [Fact]
-    public async Task Party_larger_than_table_and_past_time_are_400()
+    public async Task A_table_out_of_service_still_resolves_but_cannot_take_orders()
     {
-        var table = (await _manager.PostOk("/api/v1/tables/dining-tables", new { tableCode = "T01", capacity = 2 })).Id();
+        var area = await _manager.PostOk(Areas, new { name = "Tầng 1" });
+        var table = await _manager.PostOk(Tables, new { areaId = area.Id(), tableCode = "T01", capacity = 4 });
+        await _manager.Patch($"{Tables}/{table.Id()}/status", new { status = "OutOfService" }).ShouldBe(200);
 
-        await _cashier.Post("/api/v1/tables/reservations", Booking(table, _f.Clock.Now.AddDays(1), 120, party: 5)).ShouldBe(400);
-        await _cashier.Post("/api/v1/tables/reservations", Booking(table, _f.Clock.Now.AddHours(-2), 120)).ShouldBe(400);
+        var scan = await _f.CreateClient().GetFromJsonAsync<JsonElement>($"{PublicQr}/{table.GetProperty("qrToken").GetString()}");
+
+        scan.GetProperty("canOrder").GetBoolean().Should().BeFalse();
     }
 
     [Fact]
-    public async Task Customer_books_online_then_cashier_confirms_seats_and_completes()
+    public async Task The_printable_qr_is_an_svg_that_only_managers_can_download()
     {
-        var table = (await _manager.PostOk("/api/v1/tables/dining-tables", new { tableCode = "T01", capacity = 4 })).Id();
+        var area = await _manager.PostOk(Areas, new { name = "Tầng 1" });
+        var table = await _manager.PostOk(Tables, new { areaId = area.Id(), tableCode = "T01", capacity = 4 });
 
-        await _customer.Post("/api/v1/tables/reservations", new { branchId = _branch, customerName = "An", customerPhone = "0901234567", partySize = 2, reservedAt = _f.Clock.Now.AddMinutes(5) })
-            .ShouldBe(400); // less than 15 minutes ahead
-        var booking = await _customer.PostOk("/api/v1/tables/reservations", new { branchId = _branch, customerName = "An", customerPhone = "0901234567", partySize = 2, reservedAt = _f.Clock.Now.AddHours(3) });
-        booking.GetProperty("status").GetString().Should().Be("Pending");
-        var id = booking.Id();
+        var response = await _manager.GetAsync($"{Tables}/{table.Id()}/qr.svg");
 
-        (await _customer.GetFromJsonAsync<JsonElement>("/api/v1/tables/reservations/mine")).GetArrayLength().Should().Be(1);
-        await _f.As(AicosRoles.Customer).GetAsync($"/api/v1/tables/reservations/{id}").ShouldBe(404); // other customer
-
-        await _cashier.Post($"/api/v1/tables/reservations/{id}/confirm", new { tableId = table }).ShouldBe(200);
-        await _cashier.Post($"/api/v1/tables/reservations/{id}/seat", new { }).ShouldBe(200);
-        (await _cashier.GetFromJsonAsync<JsonElement>($"/api/v1/tables/dining-tables/{table}")).GetProperty("status").GetString().Should().Be("Occupied");
-        await _cashier.Post($"/api/v1/tables/reservations/{id}/complete", new { }).ShouldBe(200);
-        await _customer.Post($"/api/v1/tables/reservations/{id}/cancel", new { }).ShouldBe(422, "reservation.invalid_status");
+        response.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
+        response.Content.Headers.ContentType!.MediaType.Should().Be("image/svg+xml");
+        (await response.Content.ReadAsStringAsync()).Should().StartWith("<svg").And.Contain("</svg>");
+        await _admin.GetAsync($"{Tables}/{table.Id()}/qr.svg").ShouldBe(200);
+        await _cashier.GetAsync($"{Tables}/{table.Id()}/qr.svg").ShouldBe(403);
+        await _f.CreateClient().GetAsync($"{Tables}/{table.Id()}/qr.svg").ShouldBe(401);
     }
 
     [Fact]
-    public async Task Availability_excludes_reserved_and_too_small_tables_and_delete_is_blocked()
+    public async Task Different_tokens_give_different_printable_codes()
     {
-        var small = (await _manager.PostOk("/api/v1/tables/dining-tables", new { tableCode = "T01", capacity = 2 })).Id();
-        var big = (await _manager.PostOk("/api/v1/tables/dining-tables", new { tableCode = "T02", capacity = 6 })).Id();
-        var big2 = (await _manager.PostOk("/api/v1/tables/dining-tables", new { tableCode = "T03", capacity = 6 })).Id();
-        var at = _f.Clock.Now.AddDays(1);
-        await _cashier.PostOk("/api/v1/tables/reservations", Booking(big, at, 120, party: 4));
+        var area = await _manager.PostOk(Areas, new { name = "Tầng 1" });
+        var one = await _manager.PostOk(Tables, new { areaId = area.Id(), tableCode = "T01", capacity = 4 });
+        var two = await _manager.PostOk(Tables, new { areaId = area.Id(), tableCode = "T02", capacity = 4 });
 
-        var free = await _f.CreateClient().GetFromJsonAsync<JsonElement>(
-            $"/api/v1/tables/availability?branchId={_branch}&at={Uri.EscapeDataString(at.AddMinutes(30).ToString("O"))}&partySize=4");
-        free.EnumerateArray().Select(t => t.GetProperty("id").GetGuid()).Should().BeEquivalentTo([big2]);
+        var svgOne = await _manager.GetStringAsync($"{Tables}/{one.Id()}/qr.svg");
+        var svgTwo = await _manager.GetStringAsync($"{Tables}/{two.Id()}/qr.svg");
 
-        await _manager.DeleteAsync($"/api/v1/tables/dining-tables/{big}").ShouldBe(409, "table.in_use");
-        await _manager.DeleteAsync($"/api/v1/tables/dining-tables/{small}").ShouldBe(204);
+        svgOne.Should().NotBe(svgTwo);
+        svgOne.Should().Be(await _manager.GetStringAsync($"{Tables}/{one.Id()}/qr.svg")); // stable until the token changes
     }
-
-    private static object Booking(Guid table, DateTimeOffset at, int minutes, int party = 2) =>
-        new { tableId = table, customerName = "Khách", customerPhone = "0901234567", partySize = party, reservedAt = at, durationMinutes = minutes };
 }

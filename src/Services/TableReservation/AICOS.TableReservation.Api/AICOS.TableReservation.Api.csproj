@@ -12,6 +12,7 @@
 
   <ItemGroup>
     <!-- Needed for `dotnet ef migrations add` -->
+    <PackageReference Include="QRCoder" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
