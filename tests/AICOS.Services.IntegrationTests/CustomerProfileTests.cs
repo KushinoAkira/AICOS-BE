@@ -14,13 +14,14 @@ public sealed class CustomerProfileTests : IDisposable
 
     private readonly ServiceFactory<CustomerEngagementService, CustomerEngagementDbContext> _f = new();
     private readonly Guid _userId = Guid.NewGuid();
+    private readonly Guid _tenant = ServiceFactory<CustomerEngagementService, CustomerEngagementDbContext>.DefaultTenantId;
     private readonly HttpClient _me;
 
     public CustomerProfileTests() => _me = _f.As(AicosRoles.Customer, userId: _userId);
 
     public void Dispose() => _f.Dispose();
 
-    private Task RegisterAsync() => _f.HandleAsync(new CustomerRegisteredEvent(_userId, "Nguyễn An", "an@example.com", "0901234567"));
+    private Task RegisterAsync() => _f.HandleAsync(new CustomerRegisteredEvent(_userId, "Nguyễn An", "an@example.com", "0901234567", _tenant));
 
     [Fact]
     public async Task A_new_customer_has_empty_preferences_and_can_save_them()

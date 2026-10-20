@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 using AICOS.BuildingBlocks.Exceptions;
+using AICOS.BuildingBlocks.Messaging;
 using AICOS.BuildingBlocks.Persistence;
 using AICOS.BuildingBlocks.Security;
 using AICOS.BuildingBlocks.Validation;
@@ -10,7 +11,10 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AICOS.CustomerEngagement.Api.Features.Vouchers;
 
-/// <summary><see cref="Code"/> is optional (generated when empty). Gift cards are always a fixed amount.</summary>
+/// <summary>
+/// <see cref="Code"/> is optional (generated when empty). <see cref="BranchId"/> is optional: empty means valid at every branch of
+/// the brand. Gift cards are always a fixed amount.
+/// </summary>
 public sealed record CreateVoucherRequest(
     Guid? BranchId, string? Code, VoucherType? Type, VoucherDiscountType? DiscountType, decimal? Value, decimal? MinOrderAmount,
     DateTimeOffset? ExpiresAt, string? IssuedToName, Guid? IssuedToCustomerId);
@@ -22,7 +26,7 @@ public sealed record ValidateVoucherRequest(string? Code, decimal? OrderAmount);
 public sealed record RedeemVoucherRequest(string? Code, decimal? OrderAmount, string? OrderReference);
 
 public sealed record VoucherResponse(
-    Guid Id, Guid BranchId, string Code, VoucherType Type, VoucherDiscountType DiscountType, decimal Value, decimal? MinOrderAmount,
+    Guid Id, Guid? BranchId, string Code, VoucherType Type, VoucherDiscountType DiscountType, decimal Value, decimal? MinOrderAmount,
     DateTime ExpiresAtUtc, bool IsExpired, VoucherStatus Status, string? IssuedToName, Guid? IssuedToCustomerId,
     DateTime? RedeemedAtUtc, string? RedeemedOrderReference, decimal? RedeemedDiscount, string? RevokeReason, DateTime CreatedAtUtc)
 {
@@ -34,9 +38,9 @@ public sealed record VoucherResponse(
 public sealed record VoucherQuoteResponse(string Code, decimal OrderAmount, decimal Discount, decimal AmountToPay);
 
 /// <summary>
-/// UC-41 Manage Gift Card / Voucher. Routes: /api/v1/customers/vouchers.
-/// Issue / list / revoke: BrandAdmin/Manager. Validate (preview) and redeem at the counter: all staff.
-/// BR-35: expired, redeemed or revoked codes are rejected (422).
+/// UC-17 Manage Vouchers. Routes: /api/v1/customers/vouchers. Issue and revoke: BrandAdmin only. List: BrandAdmin (whole brand) and
+/// BranchManager (vouchers valid at their branch). Validate (preview) and redeem at the counter: staff of the brand, for vouchers that
+/// are valid at their branch. BR-46: expired, redeemed or revoked codes are rejected (422).
 /// </summary>
 public static partial class VoucherEndpoints
 {
@@ -46,10 +50,24 @@ public static partial class VoucherEndpoints
 
         group.MapGet("/", ListAsync).RequireAuthorization(AicosPolicies.Management);
         group.MapGet("/{id:guid}", GetAsync).RequireAuthorization(AicosPolicies.Management).WithName("GetVoucher");
-        group.MapPost("/", CreateAsync).RequireAuthorization(AicosPolicies.Management);
-        group.MapPost("/{id:guid}/revoke", RevokeAsync).RequireAuthorization(AicosPolicies.Management);
+        group.MapPost("/", CreateAsync).RequireAuthorization(AicosPolicies.AdminOnly);
+        group.MapPost("/{id:guid}/revoke", RevokeAsync).RequireAuthorization(AicosPolicies.AdminOnly);
         group.MapPost("/validate", ValidateAsync).RequireAuthorization(AicosPolicies.Staff);
         group.MapPost("/redeem", RedeemAsync).RequireAuthorization(AicosPolicies.Staff);
+    }
+
+    /// <summary>The vouchers the caller may see: the brand, narrowed for a BranchManager to the ones valid at their branch.</summary>
+    private static IQueryable<Voucher> Scope(CustomerEngagementDbContext db, ICurrentUser user)
+    {
+        var tenantId = TenantScope.Require(user);
+        var query = db.Vouchers.Where(v => v.TenantId == tenantId);
+        if (user.IsInRole(AicosRoles.BranchManager))
+        {
+            var own = user.BranchId ?? throw new ForbiddenException("Your account is not assigned to a branch.");
+            query = query.Where(v => v.BranchId == null || v.BranchId == own);
+        }
+
+        return query;
     }
 
     private static Task<PagedResponse<VoucherResponse>> ListAsync(
@@ -57,11 +75,10 @@ public static partial class VoucherEndpoints
         string? search, int page = 1, int pageSize = 20, CancellationToken ct = default)
     {
         var now = clock.GetUtcNow().UtcDateTime;
-        var branch = BranchAccess.ResolveFilter(user, branchId);
-        var query = db.Vouchers.AsNoTracking();
-        if (branch is not null)
+        var query = Scope(db, user).AsNoTracking();
+        if (branchId is not null)
         {
-            query = query.Where(v => v.BranchId == branch);
+            query = query.Where(v => v.BranchId == branchId);
         }
 
         if (status is not null)
@@ -83,50 +100,62 @@ public static partial class VoucherEndpoints
         return query.OrderByDescending(v => v.CreatedAtUtc).ToPagedAsync(page, pageSize, v => VoucherResponse.From(v, now), ct);
     }
 
-    private static async Task<VoucherResponse> GetAsync(Guid id, CustomerEngagementDbContext db, ICurrentUser user, TimeProvider clock, CancellationToken ct)
-    {
-        var voucher = await db.Vouchers.FirstOrDefaultAsync(v => v.Id == id, ct) ?? throw new NotFoundException("Voucher", id);
-        BranchAccess.EnsureCanAccess(user, voucher.BranchId);
-        return VoucherResponse.From(voucher, clock.GetUtcNow().UtcDateTime);
-    }
+    private static async Task<VoucherResponse> GetAsync(Guid id, CustomerEngagementDbContext db, ICurrentUser user, TimeProvider clock, CancellationToken ct) =>
+        VoucherResponse.From(await FindAsync(db, user, id, ct), clock.GetUtcNow().UtcDateTime);
 
     private static async Task<IResult> CreateAsync(
-        CreateVoucherRequest r, CustomerEngagementDbContext db, ICurrentUser user, TimeProvider clock, CancellationToken ct)
+        CreateVoucherRequest r,
+        CustomerEngagementDbContext db,
+        ICurrentUser user,
+        IBranchDirectory directory,
+        TimeProvider clock,
+        IEventBus bus,
+        ILoggerFactory loggers,
+        CancellationToken ct)
     {
         var now = clock.GetUtcNow().UtcDateTime;
         Validate(r, now);
-        var branchId = BranchAccess.Resolve(user, r.BranchId);
+        var tenantId = TenantScope.Require(user);
+        if (r.BranchId is not null)
+        {
+            await BranchScope.EnsureUsableAsync(directory, r.BranchId.Value, requireActive: false, ct);
+        }
 
-        var code = string.IsNullOrWhiteSpace(r.Code) ? await NewCodeAsync(db, r.Type!.Value, ct) : r.Code.Trim().ToUpperInvariant();
-        if (await db.Vouchers.AnyAsync(v => v.Code == code, ct))
+        var code = string.IsNullOrWhiteSpace(r.Code) ? await NewCodeAsync(db, tenantId, r.Type!.Value, ct) : r.Code.Trim().ToUpperInvariant();
+        if (await db.Vouchers.AnyAsync(v => v.TenantId == tenantId && v.Code == code, ct))
         {
             throw new ConflictException($"Code '{code}' already exists.", "voucher.duplicate_code");
         }
 
-        if (r.IssuedToCustomerId is not null && !await db.Customers.AnyAsync(c => c.Id == r.IssuedToCustomerId, ct))
+        if (r.IssuedToCustomerId is not null && !await db.Customers.AnyAsync(c => c.Id == r.IssuedToCustomerId && c.TenantId == tenantId, ct))
         {
             throw new ValidationFailedException("IssuedToCustomerId", "Customer does not exist.");
         }
 
         var discountType = r.Type == VoucherType.GiftCard ? VoucherDiscountType.FixedAmount : r.DiscountType!.Value;
-        var voucher = new Voucher(branchId, code, r.Type!.Value, discountType, r.Value!.Value, r.MinOrderAmount, r.ExpiresAt!.Value.UtcDateTime,
-            r.IssuedToName, r.IssuedToCustomerId);
+        var voucher = new Voucher(
+            tenantId, r.BranchId, code, r.Type!.Value, discountType, r.Value!.Value, r.MinOrderAmount, r.ExpiresAt!.Value.UtcDateTime, r.IssuedToName, r.IssuedToCustomerId);
         db.Vouchers.Add(voucher);
         await db.SaveChangesAsync(ct);
+
+        await AuditTrail.PublishAsync(bus, user, loggers.CreateLogger("AICOS.Customer.Vouchers"), tenantId, "voucher.created", "Voucher", voucher.Id, after: Snapshot(voucher));
         return Results.CreatedAtRoute("GetVoucher", new { id = voucher.Id }, VoucherResponse.From(voucher, now));
     }
 
     private static async Task<VoucherResponse> RevokeAsync(
-        Guid id, RevokeVoucherRequest r, CustomerEngagementDbContext db, ICurrentUser user, TimeProvider clock, CancellationToken ct)
+        Guid id, RevokeVoucherRequest r, CustomerEngagementDbContext db, ICurrentUser user, TimeProvider clock, IEventBus bus, ILoggerFactory loggers, CancellationToken ct)
     {
         var errors = new ValidationErrors();
         CommonRules.Required(errors, "Reason", r.Reason, "Reason", 500);
         errors.ThrowIfAny();
 
-        var voucher = await db.Vouchers.FirstOrDefaultAsync(v => v.Id == id, ct) ?? throw new NotFoundException("Voucher", id);
-        BranchAccess.EnsureCanAccess(user, voucher.BranchId);
+        var voucher = await FindAsync(db, user, id, ct);
+        var before = Snapshot(voucher);
         voucher.Revoke(r.Reason!);
         await db.SaveChangesAsync(ct);
+
+        await AuditTrail.PublishAsync(
+            bus, user, loggers.CreateLogger("AICOS.Customer.Vouchers"), voucher.TenantId, "voucher.revoked", "Voucher", voucher.Id, before, Snapshot(voucher));
         return VoucherResponse.From(voucher, clock.GetUtcNow().UtcDateTime);
     }
 
@@ -141,14 +170,24 @@ public static partial class VoucherEndpoints
     }
 
     private static async Task<VoucherQuoteResponse> RedeemAsync(
-        RedeemVoucherRequest r, CustomerEngagementDbContext db, ICurrentUser user, TimeProvider clock, CancellationToken ct)
+        RedeemVoucherRequest r, CustomerEngagementDbContext db, ICurrentUser user, TimeProvider clock, IEventBus bus, ILoggerFactory loggers, CancellationToken ct)
     {
         ValidateUse(r.Code, r.OrderAmount, r.OrderReference);
         var voucher = await FindByCodeAsync(db, user, r.Code!, ct);
+        var before = Snapshot(voucher);
         var discount = voucher.Redeem(r.OrderAmount!.Value, r.OrderReference!, clock.GetUtcNow().UtcDateTime);
         await db.SaveChangesAsync(ct); // Version token: a parallel redeem of the same code fails with 409
+
+        await AuditTrail.PublishAsync(
+            bus, user, loggers.CreateLogger("AICOS.Customer.Vouchers"), voucher.TenantId, "voucher.redeemed", "Voucher", voucher.Id, before, Snapshot(voucher));
         return new VoucherQuoteResponse(voucher.Code, r.OrderAmount!.Value, discount, r.OrderAmount!.Value - discount);
     }
+
+    private static object Snapshot(Voucher v) => new
+    {
+        v.Code, Type = v.Type.ToString(), DiscountType = v.DiscountType.ToString(), v.Value, v.MinOrderAmount, v.BranchId, v.ExpiresAtUtc,
+        Status = v.Status.ToString(), v.RedeemedOrderReference, v.RedeemedDiscount,
+    };
 
     private static void Validate(CreateVoucherRequest r, DateTime nowUtc)
     {
@@ -207,12 +246,16 @@ public static partial class VoucherEndpoints
         errors.ThrowIfAny();
     }
 
-    /// <summary>Unknown codes and codes of other branches look the same to the caller (404).</summary>
+    /// <summary>A voucher of another brand, or one valid only at another branch, looks the same as an unknown code (404).</summary>
+    private static async Task<Voucher> FindAsync(CustomerEngagementDbContext db, ICurrentUser user, Guid id, CancellationToken ct) =>
+        await Scope(db, user).FirstOrDefaultAsync(v => v.Id == id, ct) ?? throw new NotFoundException("Voucher", id);
+
     private static async Task<Voucher> FindByCodeAsync(CustomerEngagementDbContext db, ICurrentUser user, string code, CancellationToken ct)
     {
+        var tenantId = TenantScope.Require(user);
         var normalized = code.Trim().ToUpperInvariant();
-        var voucher = await db.Vouchers.FirstOrDefaultAsync(v => v.Code == normalized, ct);
-        if (voucher is null || (!user.IsInRole(AicosRoles.BrandAdmin) && user.BranchId != voucher.BranchId))
+        var voucher = await db.Vouchers.FirstOrDefaultAsync(v => v.TenantId == tenantId && v.Code == normalized, ct);
+        if (voucher is null || (voucher.BranchId is not null && !user.IsInRole(AicosRoles.BrandAdmin) && user.BranchId != voucher.BranchId))
         {
             throw new NotFoundException("Voucher", normalized);
         }
@@ -220,12 +263,12 @@ public static partial class VoucherEndpoints
         return voucher;
     }
 
-    private static async Task<string> NewCodeAsync(CustomerEngagementDbContext db, VoucherType type, CancellationToken ct)
+    private static async Task<string> NewCodeAsync(CustomerEngagementDbContext db, Guid tenantId, VoucherType type, CancellationToken ct)
     {
         while (true)
         {
             var code = $"{(type == VoucherType.GiftCard ? "GC" : "VC")}-{Convert.ToHexString(RandomNumberGenerator.GetBytes(4))}";
-            if (!await db.Vouchers.AnyAsync(v => v.Code == code, ct))
+            if (!await db.Vouchers.AnyAsync(v => v.TenantId == tenantId && v.Code == code, ct))
             {
                 return code;
             }

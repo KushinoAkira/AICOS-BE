@@ -90,6 +90,10 @@ namespace AICOS.CustomerEngagement.Api.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("preferred_sugar_percent");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
                     b.Property<string>("Tier")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -114,11 +118,76 @@ namespace AICOS.CustomerEngagement.Api.Persistence.Migrations
                     b.HasIndex("Phone")
                         .HasDatabaseName("ix_customers_phone");
 
+                    b.HasIndex("TenantId")
+                        .HasDatabaseName("ix_customers_tenant_id");
+
                     b.HasIndex("UserId")
                         .IsUnique()
                         .HasDatabaseName("ix_customers_user_id");
 
                     b.ToTable("customers", "customer");
+                });
+
+            modelBuilder.Entity("AICOS.CustomerEngagement.Api.Domain.LoyaltyRule", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("AmountPerPoint")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("numeric(14,2)")
+                        .HasColumnName("amount_per_point");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by");
+
+                    b.Property<int>("GoldThreshold")
+                        .HasColumnType("integer")
+                        .HasColumnName("gold_threshold");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<int>("MinPointsToRedeem")
+                        .HasColumnType("integer")
+                        .HasColumnName("min_points_to_redeem");
+
+                    b.Property<decimal>("RedeemValuePerPoint")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("numeric(14,2)")
+                        .HasColumnName("redeem_value_per_point");
+
+                    b.Property<int>("SilverThreshold")
+                        .HasColumnType("integer")
+                        .HasColumnName("silver_threshold");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at_utc");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id")
+                        .HasName("pk_loyalty_rules");
+
+                    b.HasIndex("TenantId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_loyalty_rules_tenant_id");
+
+                    b.ToTable("loyalty_rules", "customer");
                 });
 
             modelBuilder.Entity("AICOS.CustomerEngagement.Api.Domain.LoyaltyTransaction", b =>
@@ -185,7 +254,7 @@ namespace AICOS.CustomerEngagement.Api.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
-                    b.Property<Guid>("BranchId")
+                    b.Property<Guid?>("BranchId")
                         .HasColumnType("uuid")
                         .HasColumnName("branch_id");
 
@@ -252,6 +321,10 @@ namespace AICOS.CustomerEngagement.Api.Persistence.Migrations
                         .HasColumnType("character varying(20)")
                         .HasColumnName("status");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
                     b.Property<string>("Type")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -279,12 +352,12 @@ namespace AICOS.CustomerEngagement.Api.Persistence.Migrations
                     b.HasKey("Id")
                         .HasName("pk_vouchers");
 
-                    b.HasIndex("Code")
+                    b.HasIndex("TenantId", "Code")
                         .IsUnique()
-                        .HasDatabaseName("ix_vouchers_code");
+                        .HasDatabaseName("ix_vouchers_tenant_id_code");
 
-                    b.HasIndex("BranchId", "Status")
-                        .HasDatabaseName("ix_vouchers_branch_id_status");
+                    b.HasIndex("TenantId", "BranchId", "Status")
+                        .HasDatabaseName("ix_vouchers_tenant_id_branch_id_status");
 
                     b.ToTable("vouchers", "customer");
                 });

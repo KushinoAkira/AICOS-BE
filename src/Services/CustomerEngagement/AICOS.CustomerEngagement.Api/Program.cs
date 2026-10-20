@@ -1,6 +1,7 @@
 using AICOS.BuildingBlocks.Hosting;
 using AICOS.BuildingBlocks.Messaging;
 using AICOS.BuildingBlocks.Persistence;
+using AICOS.BuildingBlocks.Security;
 using AICOS.Contracts.Events;
 using AICOS.CustomerEngagement.Api;
 using AICOS.CustomerEngagement.Api.Features.Customers;
@@ -15,6 +16,8 @@ builder.AddAicosPostgres<CustomerEngagementDbContext>(CustomerEngagementService.
 builder.AddAicosEventBus();
 
 builder.Services.Configure<LoyaltyOptions>(builder.Configuration.GetSection("Loyalty"));
+builder.Services.AddScoped<LoyaltyRulesService>();
+builder.Services.AddAicosBranchDirectory(builder.Configuration);   // asks Identity whether a branch belongs to the brand
 
 // Events from other services.
 builder.Services.AddIntegrationEventHandler<CustomerRegisteredEvent, CustomerRegisteredHandler>(); // Identity: new Customer account
@@ -29,5 +32,6 @@ app.UseAicosServiceDefaults();
 var api = app.MapAicosApiGroup();
 api.MapVoucherEndpoints();
 api.MapCustomerEndpoints();
+api.MapLoyaltyRuleEndpoints();
 
 await app.RunAsync();

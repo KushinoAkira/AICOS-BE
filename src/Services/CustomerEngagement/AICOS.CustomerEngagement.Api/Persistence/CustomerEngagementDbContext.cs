@@ -14,6 +14,8 @@ public sealed class CustomerEngagementDbContext(DbContextOptions<CustomerEngagem
     public DbSet<LoyaltyTransaction> LoyaltyTransactions => Set<LoyaltyTransaction>();
 
     public DbSet<Voucher> Vouchers => Set<Voucher>();
+
+    public DbSet<LoyaltyRule> LoyaltyRules => Set<LoyaltyRule>();
 }
 
 internal sealed class CustomerConfiguration : IEntityTypeConfiguration<Customer>
@@ -29,6 +31,7 @@ internal sealed class CustomerConfiguration : IEntityTypeConfiguration<Customer>
         builder.Property(c => c.PreferenceNotes).HasMaxLength(500);
         builder.Property(c => c.Tier).HasConversion<string>().HasMaxLength(20);
         builder.HasIndex(c => c.UserId).IsUnique();
+        builder.HasIndex(c => c.TenantId);
         builder.HasIndex(c => c.Phone);
     }
 }
@@ -64,7 +67,20 @@ internal sealed class VoucherConfiguration : IEntityTypeConfiguration<Voucher>
         builder.Property(v => v.RedeemedOrderReference).HasMaxLength(50);
         builder.Property(v => v.RevokeReason).HasMaxLength(500);
         builder.Property(v => v.Version).IsConcurrencyToken();
-        builder.HasIndex(v => v.Code).IsUnique();
-        builder.HasIndex(v => new { v.BranchId, v.Status });
+        builder.HasIndex(v => new { v.TenantId, v.Code }).IsUnique();
+        builder.HasIndex(v => new { v.TenantId, v.BranchId, v.Status });
+    }
+}
+
+internal sealed class LoyaltyRuleConfiguration : IEntityTypeConfiguration<LoyaltyRule>
+{
+    public void Configure(EntityTypeBuilder<LoyaltyRule> builder)
+    {
+        builder.ToTable("loyalty_rules");
+        builder.HasKey(r => r.Id);
+        builder.Property(r => r.Id).ValueGeneratedNever();
+        builder.Property(r => r.AmountPerPoint).HasPrecision(14, 2);
+        builder.Property(r => r.RedeemValuePerPoint).HasPrecision(14, 2);
+        builder.HasIndex(r => r.TenantId).IsUnique();
     }
 }

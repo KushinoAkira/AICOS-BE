@@ -73,7 +73,7 @@ internal static class AccountRules
     {
         try
         {
-            await bus.PublishAsync(new CustomerRegisteredEvent(user.Id, user.FullName, user.Email, user.Phone), ct);
+            await bus.PublishAsync(new CustomerRegisteredEvent(user.Id, user.FullName, user.Email, user.Phone, user.TenantId ?? Guid.Empty), ct);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
