@@ -23,7 +23,7 @@ public sealed class BranchEndpointsTests : IDisposable
     private readonly IdentityApiFactory _factory = new();
     private readonly HttpClient _admin;
 
-    public BranchEndpointsTests() => _admin = _factory.CreateClientAs(AicosRoles.SystemAdmin);
+    public BranchEndpointsTests() => _admin = _factory.CreateClientAs(AicosRoles.BrandAdmin);
 
     public void Dispose() => _factory.Dispose();
 
@@ -152,7 +152,9 @@ public sealed class BranchEndpointsTests : IDisposable
     }
 
     [Theory]
-    [InlineData(AicosRoles.Manager)]
+    [InlineData(AicosRoles.SuperAdmin)]
+    [InlineData(AicosRoles.BranchManager)]
+    [InlineData(AicosRoles.Barista)]
     [InlineData(AicosRoles.Cashier)]
     [InlineData(AicosRoles.Customer)]
     public async Task Non_admin_cannot_create_or_list(string role)
@@ -168,7 +170,7 @@ public sealed class BranchEndpointsTests : IDisposable
     {
         var own = await CreateAsync("AICOS Own");
         var other = await CreateAsync("AICOS Other");
-        using var manager = _factory.CreateClientAs(AicosRoles.Manager, own.Id);
+        using var manager = _factory.CreateClientAs(AicosRoles.BranchManager, own.Id);
 
         (await manager.GetAsync($"{Url}/{own.Id}")).StatusCode.Should().Be(HttpStatusCode.OK);
         (await manager.GetAsync($"{Url}/{other.Id}")).StatusCode.Should().Be(HttpStatusCode.Forbidden);

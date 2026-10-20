@@ -39,7 +39,7 @@ public sealed record PromotionResponse(
         p.Status, p.IsRunning(nowUtc), p.Products.Select(x => x.ProductId).ToList());
 }
 
-/// <summary>UC-14 Configure Promotional Campaign. Routes: /api/v1/menu/promotions. Read: staff. Write: SystemAdmin/Manager.</summary>
+/// <summary>UC-14 Configure Promotional Campaign. Routes: /api/v1/menu/promotions. Read: staff. Write: BrandAdmin/Manager.</summary>
 public static class PromotionEndpoints
 {
     public static void MapPromotionEndpoints(this RouteGroupBuilder api)

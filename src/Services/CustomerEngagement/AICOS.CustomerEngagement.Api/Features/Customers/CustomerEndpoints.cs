@@ -29,7 +29,7 @@ public sealed record LoyaltySummaryResponse(
 
 /// <summary>
 /// UC-44 Manage Customer Profile, UC-30 View Loyalty Points. Routes: /api/v1/customers.
-/// /me*: the signed-in Customer. Lookup by phone/name: all staff (POS). Manual points adjustment: SystemAdmin/Manager.
+/// /me*: the signed-in Customer. Lookup by phone/name: all staff (POS). Manual points adjustment: BrandAdmin/Manager.
 /// </summary>
 public static class CustomerEndpoints
 {

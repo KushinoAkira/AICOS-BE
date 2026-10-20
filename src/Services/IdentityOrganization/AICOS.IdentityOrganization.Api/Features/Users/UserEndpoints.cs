@@ -3,6 +3,7 @@ using AICOS.BuildingBlocks.Messaging;
 using AICOS.BuildingBlocks.Security;
 using AICOS.IdentityOrganization.Api.Domain;
 using AICOS.BuildingBlocks.Persistence;
+using AICOS.IdentityOrganization.Api.Features.Common;
 using AICOS.IdentityOrganization.Api.Infrastructure;
 using AICOS.IdentityOrganization.Api.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -10,17 +11,20 @@ using Microsoft.EntityFrameworkCore;
 namespace AICOS.IdentityOrganization.Api.Features.Users;
 
 /// <summary>
-/// UC-02 Manage User Accounts and Roles. Routes: /api/v1/identity/users. SystemAdmin only.
-/// Accounts are soft-deleted. An admin cannot change the role of, lock or delete their own account
-/// (this also guarantees at least one SystemAdmin always remains).
+/// UC-13 / UC-27 Manage accounts and roles. Routes: /api/v1/identity/users. Always inside the caller's tenant (BR-04).
+/// BrandAdmin manages every account of the brand. BranchManager manages only the Barista and Cashier of their own
+/// branch (BR-05). Accounts are soft-deleted; nobody can change the role of, lock or delete their own account.
 /// </summary>
 public static class UserEndpoints
 {
     private const int MaxPageSize = 100;
 
+    /// <summary>Roles a BranchManager may create or edit.</summary>
+    private static readonly string[] BranchManagerRoles = [AicosRoles.Barista, AicosRoles.Cashier];
+
     public static void MapUserEndpoints(this RouteGroupBuilder api)
     {
-        var users = api.MapGroup("/users").WithTags("Users").RequireAuthorization(AicosPolicies.AdminOnly);
+        var users = api.MapGroup("/users").WithTags("Users").RequireAuthorization(AicosPolicies.Management);
 
         users.MapGet("/", ListAsync);
         users.MapGet("/{id:guid}", GetAsync).WithName("GetUser");
@@ -30,8 +34,47 @@ public static class UserEndpoints
         users.MapDelete("/{id:guid}", DeleteAsync);
     }
 
+    /// <summary>The accounts the caller may see and manage: their tenant, narrowed to one branch's staff for a BranchManager.</summary>
+    private static IQueryable<User> Scope(IdentityOrganizationDbContext db, ICurrentUser currentUser)
+    {
+        var tenantId = Tenancy.Require(currentUser);
+        var query = db.Users.Where(u => u.TenantId == tenantId);
+
+        if (currentUser.IsInRole(AicosRoles.BranchManager))
+        {
+            var branchId = currentUser.BranchId ?? throw new ForbiddenException("Your account is not assigned to a branch.");
+            query = query.Where(u => u.BranchId == branchId && (u.Role == AicosRoles.Barista || u.Role == AicosRoles.Cashier));
+        }
+
+        return query;
+    }
+
+    /// <summary>BranchManager can only hand out the staff roles of their own branch; BrandAdmin is unrestricted.</summary>
+    private static (string Role, Guid? BranchId) ResolveTarget(ICurrentUser currentUser, string? requestedRole, Guid? requestedBranchId)
+    {
+        var role = UserRequestValidator.CanonicalRole(requestedRole) ?? requestedRole ?? string.Empty;
+        if (!currentUser.IsInRole(AicosRoles.BranchManager))
+        {
+            return (role, requestedBranchId);
+        }
+
+        var own = currentUser.BranchId ?? throw new ForbiddenException("Your account is not assigned to a branch.");
+        if (!BranchManagerRoles.Contains(role))
+        {
+            throw new ForbiddenException("A branch manager can only manage Barista and Cashier accounts.", "user.role_not_allowed");
+        }
+
+        if (requestedBranchId is not null && requestedBranchId != own)
+        {
+            throw new ForbiddenException("You can only manage staff of your own branch.", "branch.forbidden");
+        }
+
+        return (role, own);
+    }
+
     private static async Task<PagedResponse<UserResponse>> ListAsync(
         IdentityOrganizationDbContext db,
+        ICurrentUser currentUser,
         string? search,
         string? role,
         UserStatus? status,
@@ -43,7 +86,7 @@ public static class UserEndpoints
         page = Math.Max(page, 1);
         pageSize = Math.Clamp(pageSize, 1, MaxPageSize);
 
-        var query = db.Users.AsNoTracking();
+        var query = Scope(db, currentUser).AsNoTracking();
 
         if (!string.IsNullOrWhiteSpace(search))
         {
@@ -81,29 +124,34 @@ public static class UserEndpoints
         return new PagedResponse<UserResponse>(items.Select(UserResponse.From).ToList(), page, pageSize, total);
     }
 
-    private static async Task<UserResponse> GetAsync(Guid id, IdentityOrganizationDbContext db, CancellationToken ct) =>
-        UserResponse.From(await FindAsync(db, id, ct));
+    private static async Task<UserResponse> GetAsync(Guid id, IdentityOrganizationDbContext db, ICurrentUser currentUser, CancellationToken ct) =>
+        UserResponse.From(await FindAsync(db, currentUser, id, ct));
 
     private static async Task<IResult> CreateAsync(
         CreateUserRequest request,
         IdentityOrganizationDbContext db,
+        ICurrentUser currentUser,
         PasswordService passwords,
         IEventBus bus,
         ILoggerFactory loggers,
         CancellationToken ct)
     {
+        var tenantId = Tenancy.Require(currentUser);
+        var (role, branchId) = ResolveTarget(currentUser, request.Role, request.BranchId);
+        request = request with { Role = role, BranchId = branchId };
+
         UserRequestValidator.EnsureValid(request);
         await AccountRules.EnsureUniqueAsync(db, request.Email!, request.Username, excludeUserId: null, ct);
-        await AccountRules.EnsureBranchAssignableAsync(db, request.BranchId, ct);
+        await AccountRules.EnsureBranchAssignableAsync(db, tenantId, request.BranchId, ct);
 
-        var role = UserRequestValidator.CanonicalRole(request.Role)!;
-        var user = new User(request.FullName!, request.Email!, request.Username, request.Phone, role, request.BranchId);
+        var canonicalRole = UserRequestValidator.CanonicalRole(request.Role)!;
+        var user = new User(request.FullName!, request.Email!, request.Username, request.Phone, canonicalRole, request.BranchId, tenantId);
         user.SetPassword(passwords.Hash(user, request.Password!), mustChangePassword: true);
 
         db.Users.Add(user);
         await db.SaveChangesAsync(ct);
 
-        if (role == AicosRoles.Customer)
+        if (canonicalRole == AicosRoles.Customer)
         {
             await AccountRules.PublishCustomerRegisteredAsync(bus, loggers.CreateLogger("AICOS.Identity.Users"), user, ct);
         }
@@ -119,8 +167,13 @@ public static class UserEndpoints
         ICurrentUser currentUser,
         CancellationToken ct)
     {
+        var tenantId = Tenancy.Require(currentUser);
+        var user = await FindAsync(db, currentUser, id, ct);
+
+        var (targetRole, targetBranch) = ResolveTarget(currentUser, request.Role, request.BranchId);
+        request = request with { Role = targetRole, BranchId = targetBranch };
+
         UserRequestValidator.EnsureValid(request);
-        var user = await FindAsync(db, id, ct);
         var role = UserRequestValidator.CanonicalRole(request.Role)!;
 
         if (id == currentUser.UserId && role != user.Role)
@@ -131,7 +184,7 @@ public static class UserEndpoints
         await AccountRules.EnsureUniqueAsync(db, request.Email!, request.Username, excludeUserId: id, ct);
         if (request.BranchId != user.BranchId)
         {
-            await AccountRules.EnsureBranchAssignableAsync(db, request.BranchId, ct);
+            await AccountRules.EnsureBranchAssignableAsync(db, tenantId, request.BranchId, ct);
         }
 
         // "Role changes take effect on next login": end existing sessions so the new role is in the next token.
@@ -165,7 +218,7 @@ public static class UserEndpoints
             throw new ConflictException("You cannot change the status of your own account.", "user.self_action");
         }
 
-        var user = await FindAsync(db, id, ct);
+        var user = await FindAsync(db, currentUser, id, ct);
         if (request.Status == UserStatus.Locked)
         {
             await tokens.RevokeAllSessionsAsync(user.Id, ct);
@@ -190,7 +243,7 @@ public static class UserEndpoints
             throw new ConflictException("You cannot delete your own account.", "user.self_action");
         }
 
-        var user = await FindAsync(db, id, ct);
+        var user = await FindAsync(db, currentUser, id, ct);
         await tokens.RevokeAllSessionsAsync(user.Id, ct);
         user.MarkDeleted(clock.GetUtcNow().UtcDateTime);
         await db.SaveChangesAsync(ct);
@@ -198,6 +251,6 @@ public static class UserEndpoints
         return Results.NoContent();
     }
 
-    private static async Task<User> FindAsync(IdentityOrganizationDbContext db, Guid id, CancellationToken ct) =>
-        await db.Users.FirstOrDefaultAsync(u => u.Id == id, ct) ?? throw new NotFoundException("User", id);
+    private static async Task<User> FindAsync(IdentityOrganizationDbContext db, ICurrentUser currentUser, Guid id, CancellationToken ct) =>
+        await Scope(db, currentUser).FirstOrDefaultAsync(u => u.Id == id, ct) ?? throw new NotFoundException("User", id);
 }

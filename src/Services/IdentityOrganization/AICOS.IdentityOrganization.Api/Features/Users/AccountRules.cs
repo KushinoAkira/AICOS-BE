@@ -32,15 +32,15 @@ internal static class AccountRules
         }
     }
 
-    /// <summary>Staff can only be assigned to an existing, active branch.</summary>
-    public static async Task EnsureBranchAssignableAsync(IdentityOrganizationDbContext db, Guid? branchId, CancellationToken ct)
+    /// <summary>Staff can only be assigned to an existing, active branch of the same tenant.</summary>
+    public static async Task EnsureBranchAssignableAsync(IdentityOrganizationDbContext db, Guid tenantId, Guid? branchId, CancellationToken ct)
     {
         if (branchId is null)
         {
             return;
         }
 
-        var branch = await db.Branches.AsNoTracking().FirstOrDefaultAsync(b => b.Id == branchId, ct);
+        var branch = await db.Branches.AsNoTracking().FirstOrDefaultAsync(b => b.Id == branchId && b.TenantId == tenantId, ct);
         if (branch is null)
         {
             throw new ValidationFailedException("BranchId", $"Branch '{branchId}' does not exist.");

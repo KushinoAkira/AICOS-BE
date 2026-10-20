@@ -44,7 +44,15 @@ public static class AuthEndpoints
         AuthRequestValidator.EnsureValid(request);
         await AccountRules.EnsureUniqueAsync(db, request.Email!, username: null, excludeUserId: null, ct);
 
-        var user = new User(request.FullName!, request.Email!, username: null, request.Phone, AicosRoles.Customer, branchId: null);
+        var tenantCode = Tenant.NormalizeCode(request.TenantCode!);
+        var tenant = await db.Tenants.AsNoTracking().FirstOrDefaultAsync(t => t.Code == tenantCode, ct)
+            ?? throw new ValidationFailedException(nameof(request.TenantCode), $"Brand '{tenantCode}' does not exist.");
+        if (tenant.Status != TenantStatus.Active)
+        {
+            throw new ForbiddenException("This brand is suspended and cannot accept new members.", "tenant.suspended");
+        }
+
+        var user = new User(request.FullName!, request.Email!, username: null, request.Phone, AicosRoles.Customer, branchId: null, tenant.Id);
         user.SetPassword(passwords.Hash(user, request.Password!), mustChangePassword: false);
 
         db.Users.Add(user);
@@ -94,6 +102,7 @@ public static class AuthEndpoints
                 "auth.invalid_credentials");
         }
 
+        await EnsureTenantActiveAsync(db, user, ct);
         await EnsureBranchActiveAsync(db, user, ct);
 
         if (rehashed is not null)
@@ -134,6 +143,7 @@ public static class AuthEndpoints
             throw AccountLocked();
         }
 
+        await EnsureTenantActiveAsync(db, user, ct);
         await EnsureBranchActiveAsync(db, user, ct);
 
         var issued = tokens.RotateSession(session, user);
@@ -298,6 +308,21 @@ public static class AuthEndpoints
             throw new ForbiddenException(
                 $"Too many failed login attempts. Try again in {minutes} minute(s) or reset your password.",
                 "account.temporarily_locked");
+        }
+    }
+
+    /// <summary>BR-07: every user of a suspended tenant is denied login.</summary>
+    private static async Task EnsureTenantActiveAsync(IdentityOrganizationDbContext db, User user, CancellationToken ct)
+    {
+        if (user.TenantId is null)
+        {
+            return; // SuperAdmin
+        }
+
+        var status = await db.Tenants.Where(t => t.Id == user.TenantId).Select(t => (TenantStatus?)t.Status).FirstOrDefaultAsync(ct);
+        if (status != TenantStatus.Active)
+        {
+            throw new ForbiddenException("Your brand is suspended. Contact the platform administrator.", "tenant.suspended");
         }
     }
 

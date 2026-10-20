@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AICOS.MenuCatalog.Api.Features.Categories;
 
-/// <summary>Body of POST/PUT. <see cref="BranchId"/> is only read for a SystemAdmin; staff always use their own branch.</summary>
+/// <summary>Body of POST/PUT. <see cref="BranchId"/> is only read for a BrandAdmin; staff always use their own branch.</summary>
 public sealed record CategoryRequest(Guid? BranchId, string? Name, int? SortOrder);
 
 public sealed record ChangeCategoryStatusRequest(CategoryStatus? Status);
@@ -18,7 +18,7 @@ public sealed record CategoryResponse(Guid Id, Guid BranchId, string Name, int S
     public static CategoryResponse From(Category c, int productCount = 0) => new(c.Id, c.BranchId, c.Name, c.SortOrder, c.Status, productCount);
 }
 
-/// <summary>UC-06 Manage Menu - categories. Routes: /api/v1/menu/categories. Read: all staff. Write: SystemAdmin/Manager.</summary>
+/// <summary>UC-06 Manage Menu - categories. Routes: /api/v1/menu/categories. Read: all staff. Write: BrandAdmin/Manager.</summary>
 public static class CategoryEndpoints
 {
     public static void MapCategoryEndpoints(this RouteGroupBuilder api)

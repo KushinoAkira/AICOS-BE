@@ -10,7 +10,7 @@ public enum BranchStatus
     Suspended,
 }
 
-/// <summary>A coffee shop branch of the chain (UC-03). One chain, one owner - not a multi-tenant model.</summary>
+/// <summary>A coffee shop branch of a brand (UC-12). Belongs to exactly one tenant (BR-04).</summary>
 public sealed class Branch : AuditableEntity<Guid>
 {
     public const int NameMaxLength = 255;
@@ -21,12 +21,15 @@ public sealed class Branch : AuditableEntity<Guid>
     {
     }
 
-    public Branch(string name, string? address, string? phone, TimeOnly? openingTime, TimeOnly? closingTime)
+    public Branch(Guid tenantId, string name, string? address, string? phone, TimeOnly? openingTime, TimeOnly? closingTime)
     {
         Id = Guid.NewGuid();
+        TenantId = tenantId;
         Status = BranchStatus.Active;
         Update(name, address, phone, openingTime, closingTime);
     }
+
+    public Guid TenantId { get; private set; }
 
     public string Name { get; private set; } = string.Empty;
 

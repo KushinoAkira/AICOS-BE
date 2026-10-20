@@ -16,7 +16,7 @@ public sealed class CustomerTests : IDisposable
 
     public CustomerTests()
     {
-        _manager = _f.As(AicosRoles.Manager, _branch);
+        _manager = _f.As(AicosRoles.BranchManager, _branch);
         _cashier = _f.As(AicosRoles.Cashier, _branch);
     }
 

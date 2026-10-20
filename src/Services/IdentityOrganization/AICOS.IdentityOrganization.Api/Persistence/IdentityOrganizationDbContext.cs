@@ -8,6 +8,8 @@ public sealed class IdentityOrganizationDbContext(DbContextOptions<IdentityOrgan
 {
     protected override string Schema => IdentityOrganizationService.Info.Schema;
 
+    public DbSet<Tenant> Tenants => Set<Tenant>();
+
     public DbSet<Branch> Branches => Set<Branch>();
 
     public DbSet<User> Users => Set<User>();

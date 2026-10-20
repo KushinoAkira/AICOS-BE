@@ -21,7 +21,7 @@ public sealed class UserEndpointsTests : IDisposable
     private readonly Guid _adminId = Guid.NewGuid();
     private readonly HttpClient _admin;
 
-    public UserEndpointsTests() => _admin = _factory.CreateClientAs(AicosRoles.SystemAdmin, userId: _adminId);
+    public UserEndpointsTests() => _admin = _factory.CreateClientAs(AicosRoles.BrandAdmin, userId: _adminId);
 
     public void Dispose() => _factory.Dispose();
 
@@ -43,9 +43,9 @@ public sealed class UserEndpointsTests : IDisposable
     [Fact]
     public async Task Role_is_case_insensitive_and_stored_canonically()
     {
-        var response = await PostAsync(NewUser("a2@example.com", null, "systemadmin", null));
+        var response = await PostAsync(NewUser("a2@example.com", null, "brandadmin", null));
 
-        (await response.Content.ReadFromJsonAsync<UserResponse>(Json))!.Role.Should().Be(AicosRoles.SystemAdmin);
+        (await response.Content.ReadFromJsonAsync<UserResponse>(Json))!.Role.Should().Be(AicosRoles.BrandAdmin);
     }
 
     [Fact]
@@ -57,8 +57,8 @@ public sealed class UserEndpointsTests : IDisposable
     }
 
     [Theory]
-    [InlineData("Manager", false, "BranchId")]        // staff role without a branch
-    [InlineData("SystemAdmin", true, "BranchId")]     // admin must not have a branch
+    [InlineData("BranchManager", false, "BranchId")]        // staff role without a branch
+    [InlineData("BrandAdmin", true, "BranchId")]     // admin must not have a branch
     [InlineData("Customer", true, "BranchId")]        // customer must not have a branch
     [InlineData("Guest", false, "Role")]              // not assignable
     [InlineData("Owner", false, "Role")]              // unknown
@@ -119,11 +119,11 @@ public sealed class UserEndpointsTests : IDisposable
         var login = await LoginAsync("up@example.com");
 
         var response = await _admin.PutAsJsonAsync($"{Url}/{user.Id}",
-            new UpdateUserRequest("Updated Name", "up@example.com", "upuser", "0911111111", AicosRoles.Manager, branch.Id), Json);
+            new UpdateUserRequest("Updated Name", "up@example.com", "upuser", "0911111111", AicosRoles.BranchManager, branch.Id), Json);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var updated = (await response.Content.ReadFromJsonAsync<UserResponse>(Json))!;
-        updated.Role.Should().Be(AicosRoles.Manager);
+        updated.Role.Should().Be(AicosRoles.BranchManager);
         updated.FullName.Should().Be("Updated Name");
 
         // Role change takes effect on next login: the old refresh token is revoked.
@@ -171,7 +171,7 @@ public sealed class UserEndpointsTests : IDisposable
     public async Task List_filters_by_role_status_branch_and_search()
     {
         var branch = await CreateBranchAsync();
-        await CreateAsync(NewUser("m1@example.com", null, AicosRoles.Manager, branch.Id));
+        await CreateAsync(NewUser("m1@example.com", null, AicosRoles.BranchManager, branch.Id));
         await CreateAsync(NewUser("c1@example.com", null, AicosRoles.Cashier, branch.Id));
         var customer = await CreateAsync(NewUser("k1@example.com", null, AicosRoles.Customer, null));
         await _admin.PatchAsJsonAsync($"{Url}/{customer.Id}/status", new { status = "Locked" });
@@ -183,15 +183,16 @@ public sealed class UserEndpointsTests : IDisposable
     }
 
     [Theory]
-    [InlineData(AicosRoles.Manager)]
+    [InlineData(AicosRoles.SuperAdmin)]
+    [InlineData(AicosRoles.Barista)]
     [InlineData(AicosRoles.Cashier)]
     [InlineData(AicosRoles.Customer)]
-    public async Task Non_admin_gets_403(string role)
+    public async Task Non_management_roles_get_403(string role)
     {
         using var client = _factory.CreateClientAs(role);
 
         (await client.GetAsync(Url)).StatusCode.Should().Be(HttpStatusCode.Forbidden);
-        (await client.PostAsJsonAsync(Url, NewUser("h@example.com", null, AicosRoles.SystemAdmin, null), Json))
+        (await client.PostAsJsonAsync(Url, NewUser("h@example.com", null, AicosRoles.BrandAdmin, null), Json))
             .StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 

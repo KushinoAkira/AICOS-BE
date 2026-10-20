@@ -17,7 +17,7 @@ public sealed class TableTests : IDisposable
 
     public TableTests()
     {
-        _manager = _f.As(AicosRoles.Manager, _branch);
+        _manager = _f.As(AicosRoles.BranchManager, _branch);
         _cashier = _f.As(AicosRoles.Cashier, _branch);
         _customer = _f.As(AicosRoles.Customer, userId: _customerId);
     }

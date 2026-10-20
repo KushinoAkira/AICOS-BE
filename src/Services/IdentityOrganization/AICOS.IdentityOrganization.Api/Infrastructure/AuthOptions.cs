@@ -27,7 +27,7 @@ public sealed class AuthOptions
     [Range(0, 3600)]
     public int PasswordResetResendSeconds { get; set; } = 60;
 
-    /// <summary>First SystemAdmin, created at start-up when no admin exists. Leave Email empty to disable.</summary>
+    /// <summary>Platform SuperAdmin, created at start-up when none exists. Leave Email empty to disable.</summary>
     public SeedAdminOptions SeedAdmin { get; set; } = new();
 
     public sealed class SeedAdminOptions

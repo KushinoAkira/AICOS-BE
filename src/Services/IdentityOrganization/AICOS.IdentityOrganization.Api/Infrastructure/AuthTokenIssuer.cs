@@ -59,7 +59,7 @@ public sealed class AuthTokenIssuer(
 
     private IssuedTokens Issue(User user, string refreshToken, DateTime refreshExpires)
     {
-        var (accessToken, accessExpires) = jwt.CreateAccessToken(user.Id, user.FullName, user.Role, user.BranchId);
+        var (accessToken, accessExpires) = jwt.CreateAccessToken(user.Id, user.FullName, user.Role, user.BranchId, user.TenantId);
         return new IssuedTokens(accessToken, accessExpires, refreshToken, refreshExpires);
     }
 }

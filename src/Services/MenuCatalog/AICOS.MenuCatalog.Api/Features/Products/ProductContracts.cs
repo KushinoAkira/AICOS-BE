@@ -7,7 +7,7 @@ public sealed record ProductOptionRequest(string? Name, decimal? PriceDelta, boo
 
 public sealed record OptionGroupRequest(string? Name, SelectionType? SelectionType, bool IsRequired, int? SortOrder, List<ProductOptionRequest>? Options);
 
-/// <summary>Body of POST/PUT /products. <see cref="BranchId"/> is only read for a SystemAdmin.</summary>
+/// <summary>Body of POST/PUT /products. <see cref="BranchId"/> is only read for a BrandAdmin.</summary>
 public sealed record ProductRequest(
     Guid? BranchId,
     Guid? CategoryId,

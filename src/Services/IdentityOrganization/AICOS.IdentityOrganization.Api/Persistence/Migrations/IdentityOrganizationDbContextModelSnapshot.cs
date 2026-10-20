@@ -67,6 +67,10 @@ namespace AICOS.IdentityOrganization.Api.Persistence.Migrations
                         .HasColumnType("character varying(20)")
                         .HasColumnName("status");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("updated_at_utc");
@@ -78,12 +82,12 @@ namespace AICOS.IdentityOrganization.Api.Persistence.Migrations
                     b.HasKey("Id")
                         .HasName("pk_branches");
 
-                    b.HasIndex("Name")
-                        .IsUnique()
-                        .HasDatabaseName("ix_branches_name");
-
                     b.HasIndex("Status")
                         .HasDatabaseName("ix_branches_status");
+
+                    b.HasIndex("TenantId", "Name")
+                        .IsUnique()
+                        .HasDatabaseName("ix_branches_tenant_id_name");
 
                     b.ToTable("branches", "identity");
                 });
@@ -135,6 +139,56 @@ namespace AICOS.IdentityOrganization.Api.Persistence.Migrations
                         .HasDatabaseName("ix_otp_codes_target_purpose_created_at_utc");
 
                     b.ToTable("otp_codes", "identity");
+                });
+
+            modelBuilder.Entity("AICOS.IdentityOrganization.Api.Domain.Tenant", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("code");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at_utc");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id")
+                        .HasName("pk_tenants");
+
+                    b.HasIndex("Code")
+                        .IsUnique()
+                        .HasDatabaseName("ix_tenants_code");
+
+                    b.ToTable("tenants", "identity");
                 });
 
             modelBuilder.Entity("AICOS.IdentityOrganization.Api.Domain.User", b =>
@@ -210,6 +264,10 @@ namespace AICOS.IdentityOrganization.Api.Persistence.Migrations
                         .HasColumnType("character varying(20)")
                         .HasColumnName("status");
 
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("updated_at_utc");
@@ -235,6 +293,9 @@ namespace AICOS.IdentityOrganization.Api.Persistence.Migrations
 
                     b.HasIndex("Role")
                         .HasDatabaseName("ix_users_role");
+
+                    b.HasIndex("TenantId")
+                        .HasDatabaseName("ix_users_tenant_id");
 
                     b.HasIndex("Username")
                         .IsUnique()
@@ -298,6 +359,16 @@ namespace AICOS.IdentityOrganization.Api.Persistence.Migrations
                     b.ToTable("user_sessions", "identity");
                 });
 
+            modelBuilder.Entity("AICOS.IdentityOrganization.Api.Domain.Branch", b =>
+                {
+                    b.HasOne("AICOS.IdentityOrganization.Api.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_branches_tenants_tenant_id");
+                });
+
             modelBuilder.Entity("AICOS.IdentityOrganization.Api.Domain.User", b =>
                 {
                     b.HasOne("AICOS.IdentityOrganization.Api.Domain.Branch", null)
@@ -305,6 +376,12 @@ namespace AICOS.IdentityOrganization.Api.Persistence.Migrations
                         .HasForeignKey("BranchId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .HasConstraintName("fk_users_branches_branch_id");
+
+                    b.HasOne("AICOS.IdentityOrganization.Api.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_users_tenants_tenant_id");
                 });
 
             modelBuilder.Entity("AICOS.IdentityOrganization.Api.Domain.UserSession", b =>

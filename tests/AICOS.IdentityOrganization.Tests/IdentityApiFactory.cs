@@ -6,11 +6,13 @@ using AICOS.BuildingBlocks.Persistence;
 using AICOS.BuildingBlocks.Security;
 using AICOS.Contracts;
 using AICOS.IdentityOrganization.Api;
+using AICOS.IdentityOrganization.Api.Domain;
 using AICOS.IdentityOrganization.Api.Infrastructure;
 using AICOS.IdentityOrganization.Api.Persistence;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace AICOS.IdentityOrganization.Tests;
@@ -21,6 +23,11 @@ namespace AICOS.IdentityOrganization.Tests;
 /// </summary>
 public sealed class IdentityApiFactory : WebApplicationFactory<IdentityOrganizationService>
 {
+    /// <summary>The brand every test account belongs to unless a test says otherwise (see <see cref="SeedTenant"/>).</summary>
+    public static readonly Guid TenantId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+
+    public const string TenantCode = "test-brand";
+
     private readonly string _databaseName = $"identity-tests-{Guid.NewGuid():N}";
 
     public RecordingEventBus Events { get; } = new();
@@ -43,12 +50,31 @@ public sealed class IdentityApiFactory : WebApplicationFactory<IdentityOrganizat
         });
     }
 
+    protected override IHost CreateHost(IHostBuilder builder)
+    {
+        var host = base.CreateHost(builder);
+        SeedTenant(host.Services);
+        return host;
+    }
+
+    /// <summary>Adds the default test brand (id <see cref="TenantId"/>, code <see cref="TenantCode"/>).</summary>
+    private static void SeedTenant(IServiceProvider services)
+    {
+        using var scope = services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<IdentityOrganizationDbContext>();
+        var tenant = new Tenant("Test Brand", TenantCode);
+        typeof(Tenant).GetProperty(nameof(Tenant.Id))!.SetValue(tenant, TenantId);
+        db.Tenants.Add(tenant);
+        db.SaveChanges();
+    }
+
     /// <summary>A client carrying a /dev/token-style JWT (random user id, no account behind it).</summary>
-    public HttpClient CreateClientAs(string role, Guid? branchId = null, Guid? userId = null)
+    public HttpClient CreateClientAs(string role, Guid? branchId = null, Guid? userId = null, Guid? tenantId = null)
     {
         var client = CreateClient();
         var (token, _) = Services.GetRequiredService<JwtTokenService>()
-            .CreateAccessToken(userId ?? Guid.NewGuid(), $"Test {role}", role, branchId);
+            .CreateAccessToken(
+                userId ?? Guid.NewGuid(), $"Test {role}", role, branchId, role == AicosRoles.SuperAdmin ? null : tenantId ?? TenantId);
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
         return client;
     }

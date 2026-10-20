@@ -348,7 +348,7 @@ public static class ScheduleEndpoints
 
     private static async Task EnsureManagerOrOwnerAsync(WorkforceSchedulingDbContext db, ICurrentUser user, ShiftAssignment assignment, CancellationToken ct)
     {
-        if (user.IsInRole(AicosRoles.SystemAdmin) || user.IsInRole(AicosRoles.Manager))
+        if (user.IsInRole(AicosRoles.BrandAdmin) || user.IsInRole(AicosRoles.BranchManager))
         {
             return;
         }

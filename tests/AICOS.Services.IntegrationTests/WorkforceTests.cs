@@ -14,7 +14,7 @@ public sealed class WorkforceTests : IDisposable
     private readonly Guid _branch = Guid.NewGuid();
     private readonly HttpClient _manager;
 
-    public WorkforceTests() => _manager = _f.As(AicosRoles.Manager, _branch);
+    public WorkforceTests() => _manager = _f.As(AicosRoles.BranchManager, _branch);
 
     public void Dispose() => _f.Dispose();
 
