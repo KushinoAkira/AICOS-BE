@@ -42,6 +42,15 @@ public sealed class Customer : AuditableEntity<Guid>
     /// <summary>BR-34: campaigns are only sent to customers who opted in.</summary>
     public bool MarketingOptIn { get; private set; }
 
+    /// <summary>Declared drink preferences (UC-03), used by personalised recommendations when there is no purchase history (BR-38).</summary>
+    public int? PreferredSugarPercent { get; private set; }
+
+    public string? PreferredIce { get; private set; }
+
+    public List<string> FavoriteToppings { get; private set; } = [];
+
+    public string? PreferenceNotes { get; private set; }
+
     public int PointsBalance { get; private set; }
 
     /// <summary>All points ever earned (never decreases) - decides the tier.</summary>
@@ -55,6 +64,14 @@ public sealed class Customer : AuditableEntity<Guid>
         Phone = string.IsNullOrWhiteSpace(phone) ? null : phone.Trim();
         Birthday = birthday;
         MarketingOptIn = marketingOptIn;
+    }
+
+    public void SetPreferences(int? sugarPercent, string? ice, IEnumerable<string> favoriteToppings, string? notes)
+    {
+        PreferredSugarPercent = sugarPercent;
+        PreferredIce = string.IsNullOrWhiteSpace(ice) ? null : ice.Trim();
+        FavoriteToppings = favoriteToppings.Select(t => t.Trim()).ToList();
+        PreferenceNotes = string.IsNullOrWhiteSpace(notes) ? null : notes.Trim();
     }
 
     public void Earn(int points, LoyaltyTierThresholds thresholds)

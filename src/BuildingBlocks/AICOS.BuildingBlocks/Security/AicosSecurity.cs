@@ -31,6 +31,9 @@ public static class AicosPolicies
     /// <summary>BrandAdmin or BranchManager.</summary>
     public const string Management = nameof(Management);
 
+    /// <summary>Who may read the audit history: SuperAdmin (platform level) and BrandAdmin (own brand). See UC-11.</summary>
+    public const string AuditViewer = nameof(AuditViewer);
+
     /// <summary>Anyone who works for a brand: BrandAdmin, BranchManager, Barista, Cashier.</summary>
     public const string Staff = nameof(Staff);
 }

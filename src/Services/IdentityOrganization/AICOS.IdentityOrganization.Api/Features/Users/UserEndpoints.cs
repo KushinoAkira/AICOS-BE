@@ -132,6 +132,7 @@ public static class UserEndpoints
         IdentityOrganizationDbContext db,
         ICurrentUser currentUser,
         PasswordService passwords,
+        AuditLogger audit,
         IEventBus bus,
         ILoggerFactory loggers,
         CancellationToken ct)
@@ -149,6 +150,7 @@ public static class UserEndpoints
         user.SetPassword(passwords.Hash(user, request.Password!), mustChangePassword: true);
 
         db.Users.Add(user);
+        audit.RecordUser("user.created", user, after: AuditSnapshots.Of(user));
         await db.SaveChangesAsync(ct);
 
         if (canonicalRole == AicosRoles.Customer)
@@ -164,6 +166,7 @@ public static class UserEndpoints
         UpdateUserRequest request,
         IdentityOrganizationDbContext db,
         AuthTokenIssuer tokens,
+        AuditLogger audit,
         ICurrentUser currentUser,
         CancellationToken ct)
     {
@@ -193,8 +196,10 @@ public static class UserEndpoints
             await tokens.RevokeAllSessionsAsync(user.Id, ct);
         }
 
+        var before = AuditSnapshots.Of(user);
         user.UpdateProfile(request.FullName!, request.Email!, request.Username, request.Phone);
         user.AssignRole(role, request.BranchId);
+        audit.RecordUser("user.updated", user, before, AuditSnapshots.Of(user));
         await db.SaveChangesAsync(ct);
 
         return UserResponse.From(user);
@@ -205,6 +210,7 @@ public static class UserEndpoints
         ChangeUserStatusRequest request,
         IdentityOrganizationDbContext db,
         AuthTokenIssuer tokens,
+        AuditLogger audit,
         ICurrentUser currentUser,
         CancellationToken ct)
     {
@@ -224,7 +230,9 @@ public static class UserEndpoints
             await tokens.RevokeAllSessionsAsync(user.Id, ct);
         }
 
+        var before = AuditSnapshots.Of(user);
         user.ChangeStatus(request.Status.Value);
+        audit.RecordUser("user.status_changed", user, before, AuditSnapshots.Of(user));
         await db.SaveChangesAsync(ct);
 
         return UserResponse.From(user);
@@ -234,6 +242,7 @@ public static class UserEndpoints
         Guid id,
         IdentityOrganizationDbContext db,
         AuthTokenIssuer tokens,
+        AuditLogger audit,
         ICurrentUser currentUser,
         TimeProvider clock,
         CancellationToken ct)
@@ -245,6 +254,7 @@ public static class UserEndpoints
 
         var user = await FindAsync(db, currentUser, id, ct);
         await tokens.RevokeAllSessionsAsync(user.Id, ct);
+        audit.RecordUser("user.deleted", user, AuditSnapshots.Of(user));
         user.MarkDeleted(clock.GetUtcNow().UtcDateTime);
         await db.SaveChangesAsync(ct);
 

@@ -12,6 +12,14 @@ namespace AICOS.CustomerEngagement.Api.Features.Customers;
 
 public sealed record UpdateProfileRequest(string? FullName, string? Phone, DateOnly? Birthday, bool? MarketingOptIn);
 
+/// <summary>PUT /customers/me/preferences: replaces the whole preference set. Sugar is a percentage (0-100); Ice is NoIce, Less or Normal.</summary>
+public sealed record PreferencesRequest(int? SugarPercent, string? Ice, List<string>? FavoriteToppings, string? Notes);
+
+public sealed record PreferencesResponse(int? SugarPercent, string? Ice, IReadOnlyList<string> FavoriteToppings, string? Notes)
+{
+    public static PreferencesResponse From(Customer c) => new(c.PreferredSugarPercent, c.PreferredIce, c.FavoriteToppings, c.PreferenceNotes);
+}
+
 public sealed record PointsAdjustmentRequest(int? Points, string? Note);
 
 public sealed record CustomerResponse(
@@ -38,6 +46,8 @@ public static class CustomerEndpoints
         api.MapGet("/me", MeAsync).WithTags("Customers").RequireAuthorization();
         api.MapPut("/me", UpdateMeAsync).WithTags("Customers").RequireAuthorization();
         api.MapGet("/me/loyalty", MyLoyaltyAsync).WithTags("Customers").RequireAuthorization();
+        api.MapGet("/me/preferences", MyPreferencesAsync).WithTags("Customers").RequireAuthorization();
+        api.MapPut("/me/preferences", UpdateMyPreferencesAsync).WithTags("Customers").RequireAuthorization();
 
         api.MapGet("/", ListAsync).WithTags("Customers").RequireAuthorization(AicosPolicies.Staff);
         api.MapGet("/{id:guid}", GetAsync).WithTags("Customers").RequireAuthorization(AicosPolicies.Staff);
@@ -66,6 +76,52 @@ public static class CustomerEndpoints
         customer.UpdateProfile(r.FullName!, r.Phone, r.Birthday, r.MarketingOptIn ?? customer.MarketingOptIn);
         await db.SaveChangesAsync(ct);
         return CustomerResponse.From(customer);
+    }
+
+    private static readonly string[] IceLevels = ["NoIce", "Less", "Normal"];
+
+    private static async Task<PreferencesResponse> MyPreferencesAsync(CustomerEngagementDbContext db, ICurrentUser user, CancellationToken ct) =>
+        PreferencesResponse.From(await CurrentAsync(db, user, ct));
+
+    /// <summary>UC-03: declared drink preferences, the fallback input for recommendations when there is no purchase history (BR-38).</summary>
+    private static async Task<PreferencesResponse> UpdateMyPreferencesAsync(
+        PreferencesRequest r, CustomerEngagementDbContext db, ICurrentUser user, CancellationToken ct)
+    {
+        var errors = new ValidationErrors();
+        if (r.SugarPercent is < 0 or > 100)
+        {
+            errors.Add("SugarPercent", "Sugar level must be between 0 and 100 percent.");
+        }
+
+        var ice = IceLevels.FirstOrDefault(l => string.Equals(l, r.Ice?.Trim(), StringComparison.OrdinalIgnoreCase));
+        if (!string.IsNullOrWhiteSpace(r.Ice) && ice is null)
+        {
+            errors.Add("Ice", $"Ice must be one of: {string.Join(", ", IceLevels)}.");
+        }
+
+        var toppings = (r.FavoriteToppings ?? []).Where(t => !string.IsNullOrWhiteSpace(t)).Select(t => t.Trim()).ToList();
+        if (toppings.Count > 10)
+        {
+            errors.Add("FavoriteToppings", "At most 10 favourite toppings.");
+        }
+
+        if (toppings.Any(t => t.Length > 50))
+        {
+            errors.Add("FavoriteToppings", "Each topping name must be at most 50 characters.");
+        }
+
+        if (toppings.Distinct(StringComparer.OrdinalIgnoreCase).Count() != toppings.Count)
+        {
+            errors.Add("FavoriteToppings", "Toppings must not repeat.");
+        }
+
+        CommonRules.MaxLength(errors, "Notes", r.Notes, "Notes", 500);
+        errors.ThrowIfAny();
+
+        var customer = await CurrentAsync(db, user, ct);
+        customer.SetPreferences(r.SugarPercent, ice, toppings, r.Notes);
+        await db.SaveChangesAsync(ct);
+        return PreferencesResponse.From(customer);
     }
 
     private static async Task<LoyaltySummaryResponse> MyLoyaltyAsync(

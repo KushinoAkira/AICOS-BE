@@ -14,6 +14,9 @@ public sealed record LoginRequest(string? Login, string? Password);
 
 public sealed record RefreshTokenRequest(string? RefreshToken);
 
+/// <summary>UC-03: PUT /auth/me. Email and role cannot be changed here; <see cref="Username"/> is optional.</summary>
+public sealed record UpdateProfileRequest(string? FullName, string? Phone, string? Username);
+
 public sealed record ChangePasswordRequest(string? CurrentPassword, string? NewPassword, string? ConfirmNewPassword);
 
 public sealed record ForgotPasswordRequest(string? Email);
@@ -61,6 +64,15 @@ internal static class AuthRequestValidator
             errors.Add(nameof(r.Password), "Password is required.");
         }
 
+        errors.ThrowIfAny();
+    }
+
+    public static void EnsureValid(UpdateProfileRequest r)
+    {
+        var errors = new ValidationErrors();
+        CommonRules.Required(errors, nameof(r.FullName), r.FullName, "Full name", Domain.User.FullNameMaxLength);
+        CommonRules.Phone(errors, nameof(r.Phone), r.Phone);
+        InputRules.Username(errors, nameof(r.Username), r.Username);
         errors.ThrowIfAny();
     }
 

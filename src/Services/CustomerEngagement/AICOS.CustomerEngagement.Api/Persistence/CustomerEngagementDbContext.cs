@@ -25,6 +25,8 @@ internal sealed class CustomerConfiguration : IEntityTypeConfiguration<Customer>
         builder.Property(c => c.FullName).HasMaxLength(255).IsRequired();
         builder.Property(c => c.Email).HasMaxLength(255).IsRequired();
         builder.Property(c => c.Phone).HasMaxLength(20);
+        builder.Property(c => c.PreferredIce).HasMaxLength(20);
+        builder.Property(c => c.PreferenceNotes).HasMaxLength(500);
         builder.Property(c => c.Tier).HasConversion<string>().HasMaxLength(20);
         builder.HasIndex(c => c.UserId).IsUnique();
         builder.HasIndex(c => c.Phone);

@@ -2,6 +2,8 @@ using AICOS.BuildingBlocks.Hosting;
 using AICOS.BuildingBlocks.Messaging;
 using AICOS.BuildingBlocks.Persistence;
 using AICOS.IdentityOrganization.Api;
+using AICOS.Contracts.Events;
+using AICOS.IdentityOrganization.Api.Features.Audit;
 using AICOS.IdentityOrganization.Api.Features.Auth;
 using AICOS.IdentityOrganization.Api.Features.Branches;
 using AICOS.IdentityOrganization.Api.Features.Dev;
@@ -22,6 +24,8 @@ builder.Services.AddOptions<AuthOptions>()
     .ValidateOnStart();
 builder.Services.AddSingleton<PasswordService>();
 builder.Services.AddScoped<AuthTokenIssuer>();
+builder.Services.AddScoped<AuditLogger>();
+builder.Services.AddIntegrationEventHandler<AuditRecordedEvent, AuditRecordedHandler>(); // other services: sensitive changes for the audit history
 builder.Services.AddSingleton<IEmailSender, LoggingEmailSender>();
 
 var app = builder.Build();
@@ -35,6 +39,7 @@ api.MapAuthEndpoints();
 api.MapUserEndpoints();
 api.MapBranchEndpoints();
 api.MapTenantEndpoints();
+api.MapAuditEndpoints();
 
 if (app.Environment.IsDevelopment())
 {

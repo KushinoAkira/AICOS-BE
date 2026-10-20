@@ -3,6 +3,7 @@ using AICOS.BuildingBlocks.Security;
 using AICOS.IdentityOrganization.Api.Domain;
 using AICOS.BuildingBlocks.Persistence;
 using AICOS.IdentityOrganization.Api.Features.Common;
+using AICOS.IdentityOrganization.Api.Infrastructure;
 using AICOS.IdentityOrganization.Api.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -101,7 +102,7 @@ public static class BranchEndpoints
     }
 
     private static async Task<IResult> CreateAsync(
-        BranchRequest request, IdentityOrganizationDbContext db, ICurrentUser currentUser, CancellationToken ct)
+        BranchRequest request, IdentityOrganizationDbContext db, ICurrentUser currentUser, AuditLogger audit, CancellationToken ct)
     {
         BranchRequestValidator.EnsureValid(request);
         var tenantId = Tenancy.Require(currentUser);
@@ -109,13 +110,14 @@ public static class BranchEndpoints
 
         var branch = new Branch(tenantId, request.Name!, request.Address, request.Phone, request.OpeningTime, request.ClosingTime);
         db.Branches.Add(branch);
+        audit.Record(AuditScope.Tenant, tenantId, "branch.created", "Branch", branch.Id, after: AuditSnapshots.Of(branch));
         await db.SaveChangesAsync(ct);
 
         return Results.CreatedAtRoute("GetBranch", new { id = branch.Id }, BranchResponse.From(branch));
     }
 
     private static async Task<BranchResponse> UpdateAsync(
-        Guid id, BranchRequest request, IdentityOrganizationDbContext db, ICurrentUser currentUser, CancellationToken ct)
+        Guid id, BranchRequest request, IdentityOrganizationDbContext db, ICurrentUser currentUser, AuditLogger audit, CancellationToken ct)
     {
         BranchRequestValidator.EnsureValid(request);
         var tenantId = Tenancy.Require(currentUser);
@@ -125,14 +127,16 @@ public static class BranchEndpoints
 
         await EnsureNameIsUniqueAsync(db, tenantId, request.Name!, excludeId: id, ct);
 
+        var before = AuditSnapshots.Of(branch);
         branch.Update(request.Name!, request.Address, request.Phone, request.OpeningTime, request.ClosingTime);
+        audit.Record(AuditScope.Tenant, tenantId, "branch.updated", "Branch", branch.Id, before, AuditSnapshots.Of(branch));
         await db.SaveChangesAsync(ct);
 
         return BranchResponse.From(branch);
     }
 
     private static async Task<BranchResponse> ChangeStatusAsync(
-        Guid id, ChangeBranchStatusRequest request, IdentityOrganizationDbContext db, ICurrentUser currentUser, CancellationToken ct)
+        Guid id, ChangeBranchStatusRequest request, IdentityOrganizationDbContext db, ICurrentUser currentUser, AuditLogger audit, CancellationToken ct)
     {
         if (request.Status is null)
         {
@@ -143,7 +147,9 @@ public static class BranchEndpoints
         var branch = await db.Branches.FirstOrDefaultAsync(b => b.Id == id && b.TenantId == tenantId, ct)
             ?? throw new NotFoundException("Branch", id);
 
+        var before = AuditSnapshots.Of(branch);
         branch.ChangeStatus(request.Status.Value);
+        audit.Record(AuditScope.Tenant, tenantId, "branch.status_changed", "Branch", branch.Id, before, AuditSnapshots.Of(branch));
         await db.SaveChangesAsync(ct);
 
         return BranchResponse.From(branch);

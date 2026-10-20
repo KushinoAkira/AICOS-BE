@@ -5,3 +5,9 @@ namespace AICOS.Contracts.Events;
 /// Consumed by Customer Engagement to create the customer profile / loyalty wallet linked to <see cref="UserId"/>.
 /// </summary>
 public sealed record CustomerRegisteredEvent(Guid UserId, string FullName, string Email, string? Phone) : IntegrationEvent;
+
+/// <summary>
+/// Published by Identity Service when an account owner edits their own name or phone (UC-03).
+/// Consumed by Customer Engagement to keep the copy of the profile in sync (Customer accounts only).
+/// </summary>
+public sealed record UserProfileUpdatedEvent(Guid UserId, string FullName, string? Phone) : IntegrationEvent;

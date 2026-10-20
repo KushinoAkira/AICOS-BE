@@ -42,6 +42,13 @@ public sealed class ServiceFactory<TService, TDbContext>(Action<IServiceCollecti
                 .UseInMemoryDatabase(_databaseName)
                 .AddInterceptors(sp.GetRequiredService<AuditableEntityInterceptor>()));
 
+
+            // No Redis in tests: events are recorded by RecordingEventBus and handlers are invoked directly.
+            // Left running, the subscriber retries the connection for seconds and then stops the whole test host.
+            foreach (var subscriber in services.Where(s => s.ImplementationType?.Name == "RedisEventBusSubscriber").ToList())
+            {
+                services.Remove(subscriber);
+            }
             services.RemoveAll<IEventBus>();
             services.AddSingleton<IEventBus>(Events);
             services.RemoveAll<TimeProvider>();
