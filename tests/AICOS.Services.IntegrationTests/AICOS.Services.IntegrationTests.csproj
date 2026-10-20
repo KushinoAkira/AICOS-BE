@@ -22,7 +22,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Services\MenuCatalog\AICOS.MenuCatalog.Api\AICOS.MenuCatalog.Api.csproj" />
-    <ProjectReference Include="..\..\src\Services\InventoryPurchasing\AICOS.InventoryPurchasing.Api\AICOS.InventoryPurchasing.Api.csproj" />
     <ProjectReference Include="..\..\src\Services\TableReservation\AICOS.TableReservation.Api\AICOS.TableReservation.Api.csproj" />
     <ProjectReference Include="..\..\src\Services\WorkforceScheduling\AICOS.WorkforceScheduling.Api\AICOS.WorkforceScheduling.Api.csproj" />
     <ProjectReference Include="..\..\src\Services\CustomerEngagement\AICOS.CustomerEngagement.Api\AICOS.CustomerEngagement.Api.csproj" />

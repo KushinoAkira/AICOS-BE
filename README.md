@@ -38,7 +38,7 @@ Backend/
 │  ├─ Gateway/AICOS.Gateway/       YARP: routing, validate JWT, rate limit, CORS, correlation id
 │  └─ Services/
 │     ├─ IdentityOrganization/  MenuCatalog/  TableReservation/  Ordering/  Payments/
-│     ├─ InventoryPurchasing/   KitchenOperations/  WorkforceScheduling/
+│     ├─ KitchenOperations/  WorkforceScheduling/
 │     ├─ ReportingAnalytics/    CustomerEngagement/        (mỗi thư mục = 1 project AICOS.<Tên>.Api)
 │     └─ Ai/                    FastAPI (RAG chatbot, face-scan, forecast, summary) – hiện là skeleton 501
 ├─ tests/                         BuildingBlocks.Tests (unit) + Services.SmokeTests (boot 10 service + gateway)
@@ -55,7 +55,6 @@ Backend/
 | Table & Reservation        | TableReservation        | `/api/v1/tables`     | `table_reservation` | 5103 |
 | Order                      | Ordering                | `/api/v1/orders`     | `ordering`          | 5104 |
 | Payment                    | Payments                | `/api/v1/payments`   | `payment`           | 5105 |
-| Inventory & Purchasing     | InventoryPurchasing     | `/api/v1/inventory`  | `inventory`         | 5106 |
 | Kitchen Operations         | KitchenOperations       | `/api/v1/kitchen`    | `kitchen`           | 5107 |
 | Workforce & Scheduling     | WorkforceScheduling     | `/api/v1/workforce`  | `workforce`         | 5108 |
 | Reporting & Analytics      | ReportingAnalytics      | `/api/v1/reporting`  | `reporting`         | 5109 |
@@ -105,9 +104,9 @@ builder.Services.AddIntegrationEventHandler<OrderCreatedEvent, OrderCreatedHandl
 ```
 Event mới thêm vào `AICOS.Contracts` (đặt tên thì quá khứ: `XxxCreatedEvent`).
 
-**Gọi sync service khác** (vd. Order → Inventory, BR-06 < 500 ms):
+**Gọi sync service khác** (vd. Order → Menu, BR-06 < 500 ms):
 ```csharp
-builder.Services.AddAicosServiceClient<IInventoryClient, InventoryClient>(builder.Configuration, "Inventory",
+builder.Services.AddAicosServiceClient<IMenuClient, MenuClient>(builder.Configuration, "Menu",
     o => o.AttemptTimeout.Timeout = TimeSpan.FromMilliseconds(500));
 ```
 

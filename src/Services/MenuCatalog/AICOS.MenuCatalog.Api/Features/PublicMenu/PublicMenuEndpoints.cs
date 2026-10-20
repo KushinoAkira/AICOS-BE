@@ -21,7 +21,7 @@ public sealed record PublicCategoryResponse(Guid Id, string Name, List<PublicPro
 
 public sealed record PublicMenuResponse(Guid BranchId, List<PublicCategoryResponse> Categories);
 
-/// <summary>Minimal product info other services need (Inventory checks recipes against it).</summary>
+/// <summary>Minimal product info other services need.</summary>
 public sealed record ProductLookupResponse(Guid Id, Guid BranchId, string Name, decimal BasePrice, bool IsAvailable);
 
 /// <summary>
