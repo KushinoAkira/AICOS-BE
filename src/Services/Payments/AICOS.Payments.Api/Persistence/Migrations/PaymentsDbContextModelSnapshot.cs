@@ -23,6 +23,143 @@ namespace AICOS.Payments.Api.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("AICOS.Payments.Api.Domain.CancellationPolicy", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<bool>("AutoApproveWithinPolicy")
+                        .HasColumnType("boolean")
+                        .HasColumnName("auto_approve_within_policy");
+
+                    b.Property<int>("CancelRefundPercent")
+                        .HasColumnType("integer")
+                        .HasColumnName("cancel_refund_percent");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by");
+
+                    b.Property<string>("ExceptionApprover")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("exception_approver");
+
+                    b.Property<int>("NoShowAfterMinutes")
+                        .HasColumnType("integer")
+                        .HasColumnName("no_show_after_minutes");
+
+                    b.Property<int>("NoShowRefundPercent")
+                        .HasColumnType("integer")
+                        .HasColumnName("no_show_refund_percent");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<int>("UnpaidOrderTimeoutMinutes")
+                        .HasColumnType("integer")
+                        .HasColumnName("unpaid_order_timeout_minutes");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at_utc");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id")
+                        .HasName("pk_cancellation_policies");
+
+                    b.HasIndex("TenantId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_cancellation_policies_tenant_id");
+
+                    b.ToTable("cancellation_policies", "payment");
+                });
+
+            modelBuilder.Entity("AICOS.Payments.Api.Domain.MerchantSetting", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("AccountName")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("account_name");
+
+                    b.Property<string>("AccountNumberEncrypted")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("account_number_encrypted");
+
+                    b.Property<string>("AccountNumberHint")
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("account_number_hint");
+
+                    b.Property<string>("BankCode")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("bank_code");
+
+                    b.Property<Guid?>("BranchId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("branch_id");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by");
+
+                    b.Property<bool>("IsEnabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_enabled");
+
+                    b.Property<string>("MerchantCode")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("merchant_code");
+
+                    b.Property<string>("ProviderCode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("provider_code");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at_utc");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id")
+                        .HasName("pk_merchant_settings");
+
+                    b.HasIndex("TenantId", "BranchId", "ProviderCode")
+                        .IsUnique()
+                        .HasDatabaseName("ix_merchant_settings_tenant_id_branch_id_provider_code");
+
+                    b.ToTable("merchant_settings", "payment");
+                });
+
             modelBuilder.Entity("AICOS.Payments.Api.Domain.PaymentProvider", b =>
                 {
                     b.Property<Guid>("Id")
