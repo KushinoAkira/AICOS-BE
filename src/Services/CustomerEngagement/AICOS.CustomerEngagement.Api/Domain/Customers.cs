@@ -20,16 +20,20 @@ public sealed class Customer : AuditableEntity<Guid>
     {
     }
 
-    public Customer(Guid userId, string fullName, string email, string? phone)
+    public Customer(Guid userId, Guid tenantId, string fullName, string email, string? phone)
     {
         Id = Guid.NewGuid();
         UserId = userId;
+        TenantId = tenantId;
         Email = email.Trim().ToLowerInvariant();
         Tier = LoyaltyTier.Member;
         UpdateProfile(fullName, phone, birthday: null, marketingOptIn: false);
     }
 
     public Guid UserId { get; private set; }
+
+    /// <summary>The brand this customer belongs to; loyalty points belong to it too (BR-47, BR-72).</summary>
+    public Guid TenantId { get; private set; }
 
     public string FullName { get; private set; } = string.Empty;
 
@@ -65,6 +69,9 @@ public sealed class Customer : AuditableEntity<Guid>
         Birthday = birthday;
         MarketingOptIn = marketingOptIn;
     }
+
+    /// <summary>Applies new tier thresholds to the points this customer has already earned.</summary>
+    public void RecalculateTier(LoyaltyTierThresholds thresholds) => Tier = thresholds.TierFor(LifetimePoints);
 
     public void SetPreferences(int? sugarPercent, string? ice, IEnumerable<string> favoriteToppings, string? notes)
     {

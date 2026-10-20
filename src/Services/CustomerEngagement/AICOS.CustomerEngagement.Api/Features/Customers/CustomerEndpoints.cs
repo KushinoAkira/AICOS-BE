@@ -1,4 +1,5 @@
 using AICOS.BuildingBlocks.Exceptions;
+using AICOS.BuildingBlocks.Messaging;
 using AICOS.BuildingBlocks.Persistence;
 using AICOS.BuildingBlocks.Security;
 using AICOS.BuildingBlocks.Validation;
@@ -6,7 +7,6 @@ using AICOS.CustomerEngagement.Api.Domain;
 using AICOS.CustomerEngagement.Api.Features.Loyalty;
 using AICOS.CustomerEngagement.Api.Persistence;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 
 namespace AICOS.CustomerEngagement.Api.Features.Customers;
 
@@ -125,14 +125,18 @@ public static class CustomerEndpoints
     }
 
     private static async Task<LoyaltySummaryResponse> MyLoyaltyAsync(
-        CustomerEngagementDbContext db, ICurrentUser user, IOptions<LoyaltyOptions> options, int page = 1, int pageSize = 20, CancellationToken ct = default) =>
-        await SummaryAsync(db, await CurrentAsync(db, user, ct), options.Value, page, pageSize, ct);
-
-    /// <summary>POS lookup: search by phone, name or email.</summary>
-    private static Task<PagedResponse<CustomerResponse>> ListAsync(
-        CustomerEngagementDbContext db, string? search, LoyaltyTier? tier, int page = 1, int pageSize = 20, CancellationToken ct = default)
+        CustomerEngagementDbContext db, ICurrentUser user, LoyaltyRulesService rules, int page = 1, int pageSize = 20, CancellationToken ct = default)
     {
-        var query = db.Customers.AsNoTracking();
+        var customer = await CurrentAsync(db, user, ct);
+        return await SummaryAsync(db, customer, (await rules.ForTenantAsync(customer.TenantId, ct)).Thresholds, page, pageSize, ct);
+    }
+
+    /// <summary>POS lookup: search by phone, name or email, among the customers of the staff member own brand (BR-04).</summary>
+    private static Task<PagedResponse<CustomerResponse>> ListAsync(
+        CustomerEngagementDbContext db, ICurrentUser user, string? search, LoyaltyTier? tier, int page = 1, int pageSize = 20, CancellationToken ct = default)
+    {
+        var tenantId = TenantScope.Require(user);
+        var query = db.Customers.AsNoTracking().Where(c => c.TenantId == tenantId);
         if (!string.IsNullOrWhiteSpace(search))
         {
             var term = search.Trim().ToLower();
@@ -147,15 +151,26 @@ public static class CustomerEndpoints
         return query.OrderBy(c => c.FullName).ToPagedAsync(page, pageSize, CustomerResponse.From, ct);
     }
 
-    private static async Task<CustomerResponse> GetAsync(Guid id, CustomerEngagementDbContext db, CancellationToken ct) =>
-        CustomerResponse.From(await FindAsync(db, id, ct));
+    private static async Task<CustomerResponse> GetAsync(Guid id, CustomerEngagementDbContext db, ICurrentUser user, CancellationToken ct) =>
+        CustomerResponse.From(await FindAsync(db, user, id, ct));
 
     private static async Task<LoyaltySummaryResponse> LoyaltyAsync(
-        Guid id, CustomerEngagementDbContext db, IOptions<LoyaltyOptions> options, int page = 1, int pageSize = 20, CancellationToken ct = default) =>
-        await SummaryAsync(db, await FindAsync(db, id, ct), options.Value, page, pageSize, ct);
+        Guid id, CustomerEngagementDbContext db, ICurrentUser user, LoyaltyRulesService rules, int page = 1, int pageSize = 20, CancellationToken ct = default)
+    {
+        var customer = await FindAsync(db, user, id, ct);
+        return await SummaryAsync(db, customer, (await rules.ForTenantAsync(customer.TenantId, ct)).Thresholds, page, pageSize, ct);
+    }
 
+    /// <summary>A manual correction. It is recorded in the points history and in the audit history (FR-67).</summary>
     private static async Task<CustomerResponse> AdjustPointsAsync(
-        Guid id, PointsAdjustmentRequest r, CustomerEngagementDbContext db, IOptions<LoyaltyOptions> options, CancellationToken ct)
+        Guid id,
+        PointsAdjustmentRequest r,
+        CustomerEngagementDbContext db,
+        ICurrentUser user,
+        LoyaltyRulesService rules,
+        IEventBus bus,
+        ILoggerFactory loggers,
+        CancellationToken ct)
     {
         var errors = new ValidationErrors();
         if (r.Points is null or 0 or < -100_000 or > 100_000)
@@ -166,22 +181,28 @@ public static class CustomerEndpoints
         CommonRules.Required(errors, "Note", r.Note, "Reason for the adjustment", 500);
         errors.ThrowIfAny();
 
-        var customer = await FindAsync(db, id, ct);
-        customer.Adjust(r.Points!.Value, options.Value.Thresholds);
+        var customer = await FindAsync(db, user, id, ct);
+        var before = new { customer.PointsBalance, customer.LifetimePoints, Tier = customer.Tier.ToString() };
+
+        customer.Adjust(r.Points!.Value, (await rules.ForTenantAsync(customer.TenantId, ct)).Thresholds);
         db.LoyaltyTransactions.Add(new LoyaltyTransaction(customer.Id, null, r.Points.Value, LoyaltyTransactionType.Adjust, r.Note!.Trim()));
         await db.SaveChangesAsync(ct);
+
+        await AuditTrail.PublishAsync(
+            bus, user, loggers.CreateLogger("AICOS.Customer.Points"), customer.TenantId, "points.adjusted", "Customer", customer.Id, before,
+            new { customer.PointsBalance, customer.LifetimePoints, Tier = customer.Tier.ToString(), Points = r.Points.Value, Reason = r.Note!.Trim() });
         return CustomerResponse.From(customer);
     }
 
     private static async Task<LoyaltySummaryResponse> SummaryAsync(
-        CustomerEngagementDbContext db, Customer customer, LoyaltyOptions settings, int page, int pageSize, CancellationToken ct)
+        CustomerEngagementDbContext db, Customer customer, LoyaltyTierThresholds thresholds, int page, int pageSize, CancellationToken ct)
     {
         var history = await db.LoyaltyTransactions.AsNoTracking()
             .Where(t => t.CustomerId == customer.Id)
             .OrderByDescending(t => t.CreatedAtUtc)
             .ToPagedAsync(page, pageSize, t => new LoyaltyTransactionResponse(t.Id, t.OrderId, t.Points, t.Type, t.Note, t.CreatedAtUtc), ct);
 
-        var next = settings.Thresholds.NextThreshold(customer.Tier);
+        var next = thresholds.NextThreshold(customer.Tier);
         return new LoyaltySummaryResponse(customer.PointsBalance, customer.LifetimePoints, customer.Tier, next,
             next is null ? null : Math.Max(0, next.Value - customer.LifetimePoints), history);
     }
@@ -193,6 +214,10 @@ public static class CustomerEndpoints
             ?? throw new NotFoundException("Customer profile for user", userId); // created asynchronously after registration
     }
 
-    private static async Task<Customer> FindAsync(CustomerEngagementDbContext db, Guid id, CancellationToken ct) =>
-        await db.Customers.FirstOrDefaultAsync(c => c.Id == id, ct) ?? throw new NotFoundException("Customer", id);
+    /// <summary>A customer of another brand is reported as not found: its existence is not revealed (BR-04).</summary>
+    private static async Task<Customer> FindAsync(CustomerEngagementDbContext db, ICurrentUser user, Guid id, CancellationToken ct)
+    {
+        var tenantId = TenantScope.Require(user);
+        return await db.Customers.FirstOrDefaultAsync(c => c.Id == id && c.TenantId == tenantId, ct) ?? throw new NotFoundException("Customer", id);
+    }
 }

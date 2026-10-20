@@ -26,20 +26,21 @@ public enum VoucherStatus
 }
 
 /// <summary>
-/// Voucher / gift card issued by a branch (UC-41, FR-45). Single use. BR-35: an expired, redeemed or revoked code can
+/// Voucher / gift card issued by a brand (UC-17, FR-15). Single use. BR-35: an expired, redeemed or revoked code can
 /// never be used again. <see cref="Version"/> prevents two cashiers redeeming the same code at the same moment.
 /// </summary>
-public sealed class Voucher : AuditableEntity<Guid>, IBranchScoped
+public sealed class Voucher : AuditableEntity<Guid>
 {
     private Voucher()
     {
     }
 
     public Voucher(
-        Guid branchId, string code, VoucherType type, VoucherDiscountType discountType, decimal value, decimal? minOrderAmount,
+        Guid tenantId, Guid? branchId, string code, VoucherType type, VoucherDiscountType discountType, decimal value, decimal? minOrderAmount,
         DateTime expiresAtUtc, string? issuedToName, Guid? issuedToCustomerId)
     {
         Id = Guid.NewGuid();
+        TenantId = tenantId;
         BranchId = branchId;
         Code = code;
         Type = type;
@@ -52,7 +53,10 @@ public sealed class Voucher : AuditableEntity<Guid>, IBranchScoped
         Status = VoucherStatus.Active;
     }
 
-    public Guid BranchId { get; private set; }
+    public Guid TenantId { get; private set; }
+
+    /// <summary>Null means the voucher is valid at every branch of the brand.</summary>
+    public Guid? BranchId { get; private set; }
 
     public string Code { get; private set; } = string.Empty;
 

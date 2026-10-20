@@ -16,6 +16,11 @@ public sealed class LoyaltyOptions
 
     public int GoldThreshold { get; set; } = 5_000;
 
+    /// <summary>BR-73 default: 100 VND of discount per point redeemed.</summary>
+    public decimal RedeemValuePerPoint { get; set; } = 100m;
+
+    public int MinPointsToRedeem { get; set; } = 50;
+
     public LoyaltyTierThresholds Thresholds => new(SilverThreshold, GoldThreshold);
 }
 
@@ -30,7 +35,7 @@ public sealed class CustomerRegisteredHandler(CustomerEngagementDbContext db, IL
             return;
         }
 
-        db.Customers.Add(new Customer(@event.UserId, @event.FullName, @event.Email, @event.Phone));
+        db.Customers.Add(new Customer(@event.UserId, @event.TenantId, @event.FullName, @event.Email, @event.Phone));
         await db.SaveChangesAsync(cancellationToken);
         logger.LogInformation("Created customer profile for user {UserId}", @event.UserId);
     }
@@ -41,7 +46,7 @@ public sealed class CustomerRegisteredHandler(CustomerEngagementDbContext db, IL
 /// The event's CustomerId may be either the customer profile id or the customer's user id. Idempotent per order.
 /// </summary>
 public sealed class OrderCompletedHandler(
-    CustomerEngagementDbContext db, Microsoft.Extensions.Options.IOptions<LoyaltyOptions> options, ILogger<OrderCompletedHandler> logger)
+    CustomerEngagementDbContext db, LoyaltyRulesService rules, ILogger<OrderCompletedHandler> logger)
     : IIntegrationEventHandler<OrderCompletedEvent>
 {
     public async Task HandleAsync(OrderCompletedEvent @event, CancellationToken cancellationToken)
@@ -63,14 +68,19 @@ public sealed class OrderCompletedHandler(
             return;
         }
 
-        var settings = options.Value;
-        var points = (int)Math.Floor(@event.TotalAmount / settings.AmountPerPoint);
+        var rule = await rules.ForTenantAsync(customer.TenantId, cancellationToken); // the brand rules (BR-44, BR-47)
+        if (!rule.IsActive)
+        {
+            return;
+        }
+
+        var points = (int)Math.Floor(@event.TotalAmount / rule.AmountPerPoint);
         if (points <= 0)
         {
             return;
         }
 
-        customer.Earn(points, settings.Thresholds);
+        customer.Earn(points, rule.Thresholds);
         db.LoyaltyTransactions.Add(new LoyaltyTransaction(customer.Id, @event.OrderId, points, LoyaltyTransactionType.Earn, $"Order total {@event.TotalAmount:0.##}"));
         await db.SaveChangesAsync(cancellationToken);
     }
