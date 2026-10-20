@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using AICOS.BuildingBlocks.Caching;
 using AICOS.BuildingBlocks.Http;
 using AICOS.BuildingBlocks.Messaging;
 using AICOS.BuildingBlocks.Persistence;
@@ -33,6 +34,11 @@ public sealed class ServiceFactory<TService, TDbContext>(Action<IServiceCollecti
 
     public TestClock Clock { get; } = new();
 
+    public InMemoryCacheStore Cache { get; } = new();
+
+    /// <summary>The branches that exist, and the tenant each belongs to. Tests add the ones they use.</summary>
+    public BranchRegistry Branches { get; } = new();
+
     protected override void ConfigureWebHost(Microsoft.AspNetCore.Hosting.IWebHostBuilder builder)
     {
         builder.ConfigureServices(services =>
@@ -53,6 +59,13 @@ public sealed class ServiceFactory<TService, TDbContext>(Action<IServiceCollecti
             services.AddSingleton<IEventBus>(Events);
             services.RemoveAll<TimeProvider>();
             services.AddSingleton<TimeProvider>(Clock);
+
+            // Branch checks and the Redis cache have test doubles: no Identity service and no Redis in tests.
+            services.RemoveAll<ICacheStore>();
+            services.AddSingleton<ICacheStore>(Cache);
+            services.RemoveAll<IBranchDirectory>();
+            services.AddSingleton(Branches);
+            services.AddScoped<IBranchDirectory, FakeBranchDirectory>();
 
             configure?.Invoke(services);
         });
@@ -137,5 +150,36 @@ public static class Http
         {
             JsonDocument.Parse(text).RootElement.GetProperty("errorCode").GetString().Should().Be(errorCode);
         }
+    }
+}
+
+/// <summary>Stands in for the Identity service: which branches exist, the tenant they belong to, and whether they are active.</summary>
+public sealed class BranchRegistry
+{
+    private readonly ConcurrentDictionary<Guid, (Guid TenantId, string Name, bool IsActive)> _branches = new();
+
+    public Guid Add(Guid? tenantId = null, bool active = true, string? name = null, Guid? id = null)
+    {
+        var branchId = id ?? Guid.NewGuid();
+        _branches[branchId] = (tenantId ?? ServiceFactory<object, DbContext>.DefaultTenantId, name ?? $"Branch {branchId.ToString()[..4]}", active);
+        return branchId;
+    }
+
+    public void Suspend(Guid branchId) => _branches[branchId] = _branches[branchId] with { IsActive = false };
+
+    public bool TryGet(Guid branchId, out (Guid TenantId, string Name, bool IsActive) branch) => _branches.TryGetValue(branchId, out branch);
+}
+
+/// <summary>Like the real directory, a branch of another tenant does not exist as far as the caller is concerned.</summary>
+internal sealed class FakeBranchDirectory(BranchRegistry registry, ICurrentUser user) : IBranchDirectory
+{
+    public Task<BranchInfo> GetAsync(Guid branchId, CancellationToken cancellationToken = default)
+    {
+        if (!registry.TryGet(branchId, out var branch) || branch.TenantId != user.TenantId)
+        {
+            throw new AICOS.BuildingBlocks.Exceptions.ValidationFailedException("branchId", $"Branch '{branchId}' does not exist in your brand.");
+        }
+
+        return Task.FromResult(new BranchInfo(branchId, branch.Name, branch.IsActive));
     }
 }

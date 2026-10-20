@@ -14,7 +14,7 @@ internal sealed class CategoryConfiguration : IEntityTypeConfiguration<Category>
         builder.Property(c => c.Id).ValueGeneratedNever();
         builder.Property(c => c.Name).HasMaxLength(Category.NameMaxLength).IsRequired();
         builder.Property(c => c.Status).HasConversion<string>().HasMaxLength(20);
-        builder.HasIndex(c => new { c.BranchId, c.Name }).IsUnique();
+        builder.HasIndex(c => new { c.TenantId, c.Name }).IsUnique();
     }
 }
 
@@ -42,7 +42,8 @@ internal sealed class ProductConfiguration : IEntityTypeConfiguration<Product>
         builder.HasMany(p => p.OptionGroups).WithOne().HasForeignKey(g => g.ProductId).OnDelete(DeleteBehavior.Cascade);
         builder.Navigation(p => p.OptionGroups).HasField("_optionGroups");
 
-        builder.HasIndex(p => new { p.BranchId, p.Name });
+        builder.HasIndex(p => new { p.TenantId, p.Name });
+        builder.HasIndex(p => p.CategoryId);
         builder.HasQueryFilter(p => p.DeletedAtUtc == null);
     }
 }
@@ -55,6 +56,7 @@ internal sealed class OptionGroupConfiguration : IEntityTypeConfiguration<Option
         builder.HasKey(g => g.Id);
         builder.Property(g => g.Id).ValueGeneratedNever();
         builder.Property(g => g.Name).HasMaxLength(OptionGroup.NameMaxLength).IsRequired();
+        builder.Property(g => g.Kind).HasConversion<string>().HasMaxLength(10).IsRequired();
         builder.Property(g => g.SelectionType).HasConversion<string>().HasMaxLength(10);
         builder.HasMany(g => g.Options).WithOne().HasForeignKey(o => o.OptionGroupId).OnDelete(DeleteBehavior.Cascade);
         builder.Navigation(g => g.Options).HasField("_options");
@@ -70,33 +72,21 @@ internal sealed class ProductOptionConfiguration : IEntityTypeConfiguration<Prod
         builder.Property(o => o.Id).ValueGeneratedNever();
         builder.Property(o => o.Name).HasMaxLength(ProductOption.NameMaxLength).IsRequired();
         builder.Property(o => o.PriceDelta).HasPrecision(12, 2);
+        // No foreign key on RequiresOptionId: an edit rebuilds all option groups of a product together.
     }
 }
 
-internal sealed class PromotionConfiguration : IEntityTypeConfiguration<Promotion>
+internal sealed class BranchProductConfiguration : IEntityTypeConfiguration<BranchProduct>
 {
-    public void Configure(EntityTypeBuilder<Promotion> builder)
+    public void Configure(EntityTypeBuilder<BranchProduct> builder)
     {
-        builder.ToTable("promotions");
-        builder.HasKey(p => p.Id);
-        builder.Property(p => p.Id).ValueGeneratedNever();
-        builder.Property(p => p.Name).HasMaxLength(Promotion.NameMaxLength).IsRequired();
-        builder.Property(p => p.Description).HasMaxLength(2000);
-        builder.Property(p => p.DiscountType).HasConversion<string>().HasMaxLength(20);
-        builder.Property(p => p.DiscountValue).HasPrecision(12, 2);
-        builder.Property(p => p.Status).HasConversion<string>().HasMaxLength(20);
-        builder.HasMany(p => p.Products).WithOne().HasForeignKey(pp => pp.PromotionId).OnDelete(DeleteBehavior.Cascade);
-        builder.Navigation(p => p.Products).HasField("_products");
-        builder.HasIndex(p => new { p.BranchId, p.Status });
-    }
-}
+        builder.ToTable("branch_products");
+        builder.HasKey(b => b.Id);
+        builder.Property(b => b.Id).ValueGeneratedNever();
+        builder.Property(b => b.PriceOverride).HasPrecision(12, 2);
 
-internal sealed class PromotionProductConfiguration : IEntityTypeConfiguration<PromotionProduct>
-{
-    public void Configure(EntityTypeBuilder<PromotionProduct> builder)
-    {
-        builder.ToTable("promotion_products");
-        builder.HasKey(pp => new { pp.PromotionId, pp.ProductId });
-        builder.HasOne<Product>().WithMany().HasForeignKey(pp => pp.ProductId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasOne<Product>().WithMany().HasForeignKey(b => b.ProductId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasIndex(b => new { b.BranchId, b.ProductId }).IsUnique();
+        builder.HasIndex(b => new { b.TenantId, b.BranchId });
     }
 }

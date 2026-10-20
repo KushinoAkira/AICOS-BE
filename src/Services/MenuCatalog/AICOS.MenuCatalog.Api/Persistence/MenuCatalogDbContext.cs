@@ -12,5 +12,5 @@ public sealed class MenuCatalogDbContext(DbContextOptions<MenuCatalogDbContext> 
 
     public DbSet<Product> Products => Set<Product>();
 
-    public DbSet<Promotion> Promotions => Set<Promotion>();
+    public DbSet<BranchProduct> BranchProducts => Set<BranchProduct>();
 }

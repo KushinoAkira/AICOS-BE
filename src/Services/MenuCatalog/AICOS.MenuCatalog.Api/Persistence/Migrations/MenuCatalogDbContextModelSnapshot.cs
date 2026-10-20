@@ -23,7 +23,7 @@ namespace AICOS.MenuCatalog.Api.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("AICOS.MenuCatalog.Api.Domain.Category", b =>
+            modelBuilder.Entity("AICOS.MenuCatalog.Api.Domain.BranchProduct", b =>
                 {
                     b.Property<Guid>("Id")
                         .HasColumnType("uuid")
@@ -32,6 +32,65 @@ namespace AICOS.MenuCatalog.Api.Persistence.Migrations
                     b.Property<Guid>("BranchId")
                         .HasColumnType("uuid")
                         .HasColumnName("branch_id");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by");
+
+                    b.Property<bool>("IsAvailable")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_available");
+
+                    b.Property<bool>("IsPublished")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_published");
+
+                    b.Property<decimal?>("PriceOverride")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("price_override");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("product_id");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at_utc");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id")
+                        .HasName("pk_branch_products");
+
+                    b.HasIndex("ProductId")
+                        .HasDatabaseName("ix_branch_products_product_id");
+
+                    b.HasIndex("BranchId", "ProductId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_branch_products_branch_id_product_id");
+
+                    b.HasIndex("TenantId", "BranchId")
+                        .HasDatabaseName("ix_branch_products_tenant_id_branch_id");
+
+                    b.ToTable("branch_products", "menu");
+                });
+
+            modelBuilder.Entity("AICOS.MenuCatalog.Api.Domain.Category", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone")
@@ -57,6 +116,10 @@ namespace AICOS.MenuCatalog.Api.Persistence.Migrations
                         .HasColumnType("character varying(20)")
                         .HasColumnName("status");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("updated_at_utc");
@@ -68,9 +131,9 @@ namespace AICOS.MenuCatalog.Api.Persistence.Migrations
                     b.HasKey("Id")
                         .HasName("pk_categories");
 
-                    b.HasIndex("BranchId", "Name")
+                    b.HasIndex("TenantId", "Name")
                         .IsUnique()
-                        .HasDatabaseName("ix_categories_branch_id_name");
+                        .HasDatabaseName("ix_categories_tenant_id_name");
 
                     b.ToTable("categories", "menu");
                 });
@@ -84,6 +147,16 @@ namespace AICOS.MenuCatalog.Api.Persistence.Migrations
                     b.Property<bool>("IsRequired")
                         .HasColumnType("boolean")
                         .HasColumnName("is_required");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("kind");
+
+                    b.Property<int?>("MaxSelections")
+                        .HasColumnType("integer")
+                        .HasColumnName("max_selections");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -125,10 +198,6 @@ namespace AICOS.MenuCatalog.Api.Persistence.Migrations
                         .HasColumnType("numeric(12,2)")
                         .HasColumnName("base_price");
 
-                    b.Property<Guid>("BranchId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("branch_id");
-
                     b.Property<Guid>("CategoryId")
                         .HasColumnType("uuid")
                         .HasColumnName("category_id");
@@ -155,10 +224,6 @@ namespace AICOS.MenuCatalog.Api.Persistence.Migrations
                         .HasColumnType("character varying(1000)")
                         .HasColumnName("image_url");
 
-                    b.Property<bool>("IsAvailable")
-                        .HasColumnType("boolean")
-                        .HasColumnName("is_available");
-
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(255)
@@ -170,6 +235,10 @@ namespace AICOS.MenuCatalog.Api.Persistence.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)")
                         .HasColumnName("tags");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasColumnType("timestamp with time zone")
@@ -185,8 +254,8 @@ namespace AICOS.MenuCatalog.Api.Persistence.Migrations
                     b.HasIndex("CategoryId")
                         .HasDatabaseName("ix_products_category_id");
 
-                    b.HasIndex("BranchId", "Name")
-                        .HasDatabaseName("ix_products_branch_id_name");
+                    b.HasIndex("TenantId", "Name")
+                        .HasDatabaseName("ix_products_tenant_id_name");
 
                     b.ToTable("products", "menu");
                 });
@@ -216,6 +285,10 @@ namespace AICOS.MenuCatalog.Api.Persistence.Migrations
                         .HasColumnType("numeric(12,2)")
                         .HasColumnName("price_delta");
 
+                    b.Property<Guid?>("RequiresOptionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("requires_option_id");
+
                     b.HasKey("Id")
                         .HasName("pk_product_options");
 
@@ -225,94 +298,14 @@ namespace AICOS.MenuCatalog.Api.Persistence.Migrations
                     b.ToTable("product_options", "menu");
                 });
 
-            modelBuilder.Entity("AICOS.MenuCatalog.Api.Domain.Promotion", b =>
+            modelBuilder.Entity("AICOS.MenuCatalog.Api.Domain.BranchProduct", b =>
                 {
-                    b.Property<Guid>("Id")
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<Guid>("BranchId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("branch_id");
-
-                    b.Property<DateTime>("CreatedAtUtc")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at_utc");
-
-                    b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uuid")
-                        .HasColumnName("created_by");
-
-                    b.Property<string>("Description")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)")
-                        .HasColumnName("description");
-
-                    b.Property<string>("DiscountType")
+                    b.HasOne("AICOS.MenuCatalog.Api.Domain.Product", null)
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("discount_type");
-
-                    b.Property<decimal>("DiscountValue")
-                        .HasPrecision(12, 2)
-                        .HasColumnType("numeric(12,2)")
-                        .HasColumnName("discount_value");
-
-                    b.Property<DateTime>("EndDateUtc")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("end_date_utc");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(255)
-                        .HasColumnType("character varying(255)")
-                        .HasColumnName("name");
-
-                    b.Property<DateTime>("StartDateUtc")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("start_date_utc");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("status");
-
-                    b.Property<DateTime?>("UpdatedAtUtc")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at_utc");
-
-                    b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uuid")
-                        .HasColumnName("updated_by");
-
-                    b.HasKey("Id")
-                        .HasName("pk_promotions");
-
-                    b.HasIndex("BranchId", "Status")
-                        .HasDatabaseName("ix_promotions_branch_id_status");
-
-                    b.ToTable("promotions", "menu");
-                });
-
-            modelBuilder.Entity("AICOS.MenuCatalog.Api.Domain.PromotionProduct", b =>
-                {
-                    b.Property<Guid>("PromotionId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("promotion_id");
-
-                    b.Property<Guid>("ProductId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("product_id");
-
-                    b.HasKey("PromotionId", "ProductId")
-                        .HasName("pk_promotion_products");
-
-                    b.HasIndex("ProductId")
-                        .HasDatabaseName("ix_promotion_products_product_id");
-
-                    b.ToTable("promotion_products", "menu");
+                        .HasConstraintName("fk_branch_products_products_product_id");
                 });
 
             modelBuilder.Entity("AICOS.MenuCatalog.Api.Domain.OptionGroup", b =>
@@ -345,23 +338,6 @@ namespace AICOS.MenuCatalog.Api.Persistence.Migrations
                         .HasConstraintName("fk_product_options_option_groups_option_group_id");
                 });
 
-            modelBuilder.Entity("AICOS.MenuCatalog.Api.Domain.PromotionProduct", b =>
-                {
-                    b.HasOne("AICOS.MenuCatalog.Api.Domain.Product", null)
-                        .WithMany()
-                        .HasForeignKey("ProductId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_promotion_products_products_product_id");
-
-                    b.HasOne("AICOS.MenuCatalog.Api.Domain.Promotion", null)
-                        .WithMany("Products")
-                        .HasForeignKey("PromotionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_promotion_products_promotions_promotion_id");
-                });
-
             modelBuilder.Entity("AICOS.MenuCatalog.Api.Domain.OptionGroup", b =>
                 {
                     b.Navigation("Options");
@@ -370,11 +346,6 @@ namespace AICOS.MenuCatalog.Api.Persistence.Migrations
             modelBuilder.Entity("AICOS.MenuCatalog.Api.Domain.Product", b =>
                 {
                     b.Navigation("OptionGroups");
-                });
-
-            modelBuilder.Entity("AICOS.MenuCatalog.Api.Domain.Promotion", b =>
-                {
-                    b.Navigation("Products");
                 });
 #pragma warning restore 612, 618
         }

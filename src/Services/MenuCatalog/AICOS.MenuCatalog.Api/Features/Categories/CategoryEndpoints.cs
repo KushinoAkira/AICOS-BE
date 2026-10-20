@@ -1,24 +1,26 @@
 using AICOS.BuildingBlocks.Exceptions;
-using AICOS.BuildingBlocks.Persistence;
 using AICOS.BuildingBlocks.Security;
 using AICOS.BuildingBlocks.Validation;
 using AICOS.MenuCatalog.Api.Domain;
+using AICOS.MenuCatalog.Api.Infrastructure;
 using AICOS.MenuCatalog.Api.Persistence;
 using Microsoft.EntityFrameworkCore;
 
 namespace AICOS.MenuCatalog.Api.Features.Categories;
 
-/// <summary>Body of POST/PUT. <see cref="BranchId"/> is only read for a BrandAdmin; staff always use their own branch.</summary>
-public sealed record CategoryRequest(Guid? BranchId, string? Name, int? SortOrder);
+public sealed record CategoryRequest(string? Name, int? SortOrder);
 
 public sealed record ChangeCategoryStatusRequest(CategoryStatus? Status);
 
-public sealed record CategoryResponse(Guid Id, Guid BranchId, string Name, int SortOrder, CategoryStatus Status, int ProductCount)
+public sealed record CategoryResponse(Guid Id, string Name, int SortOrder, CategoryStatus Status, int ProductCount)
 {
-    public static CategoryResponse From(Category c, int productCount = 0) => new(c.Id, c.BranchId, c.Name, c.SortOrder, c.Status, productCount);
+    public static CategoryResponse From(Category c, int productCount = 0) => new(c.Id, c.Name, c.SortOrder, c.Status, productCount);
 }
 
-/// <summary>UC-06 Manage Menu - categories. Routes: /api/v1/menu/categories. Read: all staff. Write: BrandAdmin/Manager.</summary>
+/// <summary>
+/// UC-14 Manage Menu - categories of the brand. Routes: /api/v1/menu/categories. Read: every staff role of the brand.
+/// Write: BrandAdmin only (BR-12). A change reaches every branch menu that shows the category.
+/// </summary>
 public static class CategoryEndpoints
 {
     public static void MapCategoryEndpoints(this RouteGroupBuilder api)
@@ -27,22 +29,16 @@ public static class CategoryEndpoints
 
         group.MapGet("/", ListAsync).RequireAuthorization(AicosPolicies.Staff);
         group.MapGet("/{id:guid}", GetAsync).RequireAuthorization(AicosPolicies.Staff).WithName("GetCategory");
-        group.MapPost("/", CreateAsync).RequireAuthorization(AicosPolicies.Management);
-        group.MapPut("/{id:guid}", UpdateAsync).RequireAuthorization(AicosPolicies.Management);
-        group.MapPatch("/{id:guid}/status", ChangeStatusAsync).RequireAuthorization(AicosPolicies.Management);
-        group.MapDelete("/{id:guid}", DeleteAsync).RequireAuthorization(AicosPolicies.Management);
+        group.MapPost("/", CreateAsync).RequireAuthorization(AicosPolicies.AdminOnly);
+        group.MapPut("/{id:guid}", UpdateAsync).RequireAuthorization(AicosPolicies.AdminOnly);
+        group.MapPatch("/{id:guid}/status", ChangeStatusAsync).RequireAuthorization(AicosPolicies.AdminOnly);
+        group.MapDelete("/{id:guid}", DeleteAsync).RequireAuthorization(AicosPolicies.AdminOnly);
     }
 
-    private static async Task<List<CategoryResponse>> ListAsync(
-        MenuCatalogDbContext db, ICurrentUser user, Guid? branchId, CategoryStatus? status, CancellationToken ct)
+    private static async Task<List<CategoryResponse>> ListAsync(MenuCatalogDbContext db, ICurrentUser user, CategoryStatus? status, CancellationToken ct)
     {
-        var branch = BranchAccess.ResolveFilter(user, branchId);
-        var query = db.Categories.AsNoTracking();
-        if (branch is not null)
-        {
-            query = query.Where(c => c.BranchId == branch);
-        }
-
+        var tenantId = TenantScope.Require(user);
+        var query = db.Categories.AsNoTracking().Where(c => c.TenantId == tenantId);
         if (status is not null)
         {
             query = query.Where(c => c.Status == status);
@@ -59,37 +55,40 @@ public static class CategoryEndpoints
     private static async Task<CategoryResponse> GetAsync(Guid id, MenuCatalogDbContext db, ICurrentUser user, CancellationToken ct)
     {
         var category = await FindAsync(db, user, id, ct);
-        var count = await db.Products.CountAsync(p => p.CategoryId == id, ct);
-        return CategoryResponse.From(category, count);
+        return CategoryResponse.From(category, await db.Products.CountAsync(p => p.CategoryId == id, ct));
     }
 
-    private static async Task<IResult> CreateAsync(CategoryRequest request, MenuCatalogDbContext db, ICurrentUser user, CancellationToken ct)
+    private static async Task<IResult> CreateAsync(
+        CategoryRequest request, MenuCatalogDbContext db, ICurrentUser user, MenuChangeNotifier notifier, CancellationToken ct)
     {
         Validate(request);
-        var branchId = BranchAccess.Resolve(user, request.BranchId);
-        await EnsureNameUniqueAsync(db, branchId, request.Name!, null, ct);
+        var tenantId = TenantScope.Require(user);
+        await EnsureNameUniqueAsync(db, tenantId, request.Name!, null, ct);
 
-        var category = new Category(branchId, request.Name!, request.SortOrder ?? 0);
+        var category = new Category(tenantId, request.Name!, request.SortOrder ?? 0);
         db.Categories.Add(category);
         await db.SaveChangesAsync(ct);
 
+        await notifier.TenantChangedAsync(tenantId, "category.created", ct);
         return Results.CreatedAtRoute("GetCategory", new { id = category.Id }, CategoryResponse.From(category));
     }
 
     private static async Task<CategoryResponse> UpdateAsync(
-        Guid id, CategoryRequest request, MenuCatalogDbContext db, ICurrentUser user, CancellationToken ct)
+        Guid id, CategoryRequest request, MenuCatalogDbContext db, ICurrentUser user, MenuChangeNotifier notifier, CancellationToken ct)
     {
         Validate(request);
         var category = await FindAsync(db, user, id, ct);
-        await EnsureNameUniqueAsync(db, category.BranchId, request.Name!, id, ct);
+        await EnsureNameUniqueAsync(db, category.TenantId, request.Name!, id, ct);
 
         category.Update(request.Name!, request.SortOrder ?? category.SortOrder);
         await db.SaveChangesAsync(ct);
+
+        await notifier.TenantChangedAsync(category.TenantId, "category.updated", ct);
         return CategoryResponse.From(category, await db.Products.CountAsync(p => p.CategoryId == id, ct));
     }
 
     private static async Task<CategoryResponse> ChangeStatusAsync(
-        Guid id, ChangeCategoryStatusRequest request, MenuCatalogDbContext db, ICurrentUser user, CancellationToken ct)
+        Guid id, ChangeCategoryStatusRequest request, MenuCatalogDbContext db, ICurrentUser user, MenuChangeNotifier notifier, CancellationToken ct)
     {
         var errors = new ValidationErrors();
         CommonRules.RequiredEnum(errors, "Status", request.Status, "Status");
@@ -98,6 +97,8 @@ public static class CategoryEndpoints
         var category = await FindAsync(db, user, id, ct);
         category.ChangeStatus(request.Status!.Value);
         await db.SaveChangesAsync(ct);
+
+        await notifier.TenantChangedAsync(category.TenantId, "category.status_changed", ct);
         return CategoryResponse.From(category, await db.Products.CountAsync(p => p.CategoryId == id, ct));
     }
 
@@ -130,19 +131,19 @@ public static class CategoryEndpoints
         errors.ThrowIfAny();
     }
 
-    private static async Task EnsureNameUniqueAsync(MenuCatalogDbContext db, Guid branchId, string name, Guid? excludeId, CancellationToken ct)
+    private static async Task EnsureNameUniqueAsync(MenuCatalogDbContext db, Guid tenantId, string name, Guid? excludeId, CancellationToken ct)
     {
         var normalized = name.Trim().ToLower();
-        if (await db.Categories.AnyAsync(c => c.BranchId == branchId && c.Name.ToLower() == normalized && c.Id != excludeId, ct))
+        if (await db.Categories.AnyAsync(c => c.TenantId == tenantId && c.Name.ToLower() == normalized && c.Id != excludeId, ct))
         {
-            throw new ConflictException($"Category '{name.Trim()}' already exists in this branch.", "category.duplicate_name");
+            throw new ConflictException($"Category '{name.Trim()}' already exists in this brand.", "category.duplicate_name");
         }
     }
 
+    /// <summary>A category of another tenant is reported as not found, never as forbidden: its existence is not revealed.</summary>
     internal static async Task<Category> FindAsync(MenuCatalogDbContext db, ICurrentUser user, Guid id, CancellationToken ct)
     {
-        var category = await db.Categories.FirstOrDefaultAsync(c => c.Id == id, ct) ?? throw new NotFoundException("Category", id);
-        BranchAccess.EnsureCanAccess(user, category.BranchId);
-        return category;
+        var tenantId = TenantScope.Require(user);
+        return await db.Categories.FirstOrDefaultAsync(c => c.Id == id && c.TenantId == tenantId, ct) ?? throw new NotFoundException("Category", id);
     }
 }
