@@ -1,0 +1,214 @@
+using AICOS.BuildingBlocks.Exceptions;
+using AICOS.BuildingBlocks.Messaging;
+using AICOS.BuildingBlocks.Persistence;
+using AICOS.BuildingBlocks.Security;
+using AICOS.BuildingBlocks.Validation;
+using AICOS.Contracts.Events;
+using AICOS.WorkforceScheduling.Api.Domain;
+using AICOS.WorkforceScheduling.Api.Features.Scheduling;
+using AICOS.WorkforceScheduling.Api.Infrastructure;
+using AICOS.WorkforceScheduling.Api.Persistence;
+using Microsoft.EntityFrameworkCore;
+
+namespace AICOS.WorkforceScheduling.Api.Features.CashClosing;
+
+public sealed record SubmitCashClosingRequest(Guid? AssignmentId, decimal? CountedAmount, string? Note);
+
+public sealed record ConfirmCashClosingRequest(string? Note);
+
+public sealed record CashClosingResponse(
+    Guid Id,
+    Guid BranchId,
+    Guid AssignmentId,
+    Guid EmployeeId,
+    string EmployeeName,
+    DateOnly WorkDate,
+    TimeOnly StartTime,
+    TimeOnly EndTime,
+    decimal ExpectedAmount,
+    decimal CountedAmount,
+    decimal Difference,
+    string? CashierNote,
+    CashClosingStatus Status,
+    string? ManagerNote,
+    DateTime SubmittedAtUtc,
+    DateTime? ConfirmedAtUtc);
+
+/// <summary>
+/// UC-46 Reconcile End-of-Shift Cash (the Cashier counts the drawer) and UC-33 Confirm Shift Cash Closing (the Branch Manager reviews
+/// any difference and closes the shift). Routes: /api/v1/workforce/cash-closings. The expected amount is computed by the system from
+/// the cash recorded by that cashier during the shift (BR-55). A difference needs a note from the manager and is audited.
+/// </summary>
+public static class CashClosingEndpoints
+{
+    public static void MapCashClosingEndpoints(this RouteGroupBuilder api)
+    {
+        var group = api.MapGroup("/cash-closings").WithTags("Cash closing");
+
+        group.MapPost("/", SubmitAsync).RequireAuthorization(AicosPolicies.Staff);
+        group.MapGet("/mine", MineAsync).RequireAuthorization(AicosPolicies.Staff);
+        group.MapGet("/", ListAsync).RequireAuthorization(AicosPolicies.Management);
+        group.MapGet("/{id:guid}", GetAsync).RequireAuthorization(AicosPolicies.Staff).WithName("GetCashClosing");
+        group.MapPost("/{id:guid}/confirm", ConfirmAsync).RequireAuthorization(AicosPolicies.Management);
+    }
+
+    /// <summary>The Cashier records what was counted. The shift must have been worked (checked in), and each shift is closed once.</summary>
+    private static async Task<IResult> SubmitAsync(
+        SubmitCashClosingRequest r, WorkforceSchedulingDbContext db, ICurrentUser user, ShopClock shop, CancellationToken ct)
+    {
+        var errors = new ValidationErrors();
+        CommonRules.RequiredId(errors, "AssignmentId", r.AssignmentId, "Shift");
+        if (r.CountedAmount is null or < 0 or > 1_000_000_000m)
+        {
+            errors.Add("CountedAmount", "The counted amount must be between 0 and 1,000,000,000 VND.");
+        }
+
+        CommonRules.MaxLength(errors, "Note", r.Note, "Note", 500);
+        errors.ThrowIfAny();
+
+        if (!user.IsInRole(AicosRoles.Cashier))
+        {
+            throw new ForbiddenException("Only a Cashier counts the cash of a shift.", "cash_closing.cashier_only");
+        }
+
+        var assignment = await ScheduleEndpoints.FindOwnAsync(db, user, r.AssignmentId!.Value, ct);
+        if (!ShiftAssignment.ActiveStatuses.Contains(assignment.Status) || assignment.EffectiveCheckInUtc is null)
+        {
+            throw new BusinessRuleException("cash_closing.shift_not_worked", "You can only close the cash of a shift you checked in for.");
+        }
+
+        if (await db.CashClosings.AnyAsync(c => c.AssignmentId == assignment.Id, ct))
+        {
+            throw new ConflictException("The cash of this shift was already closed.", "cash_closing.duplicate");
+        }
+
+        var now = shop.UtcNow;
+        var since = assignment.EffectiveCheckInUtc.Value;
+        var expected = await db.CashTransactions.AsNoTracking()
+            .Where(t => t.TenantId == assignment.TenantId && t.BranchId == assignment.BranchId && t.CashierUserId == user.UserId
+                        && t.OccurredAtUtc >= since && t.OccurredAtUtc <= now)
+            .SumAsync(t => (decimal?)t.Amount, ct) ?? 0m;
+
+        var closing = new Domain.CashClosing(assignment.TenantId, assignment.BranchId, assignment.Id, assignment.EmployeeId, expected, r.CountedAmount!.Value, r.Note, now);
+        db.CashClosings.Add(closing);
+        await db.SaveChangesAsync(ct);
+        return Results.CreatedAtRoute("GetCashClosing", new { id = closing.Id }, (await MapAsync(db, [closing], ct))[0]);
+    }
+
+    private static async Task<List<CashClosingResponse>> MineAsync(WorkforceSchedulingDbContext db, ICurrentUser user, CancellationToken ct)
+    {
+        var me = await EmployeeLookup.CurrentAsync(db, user, ct);
+        var items = await db.CashClosings.AsNoTracking().Where(c => c.EmployeeId == me.Id).OrderByDescending(c => c.SubmittedAtUtc).Take(50).ToListAsync(ct);
+        return await MapAsync(db, items, ct);
+    }
+
+    private static async Task<PagedResponse<CashClosingResponse>> ListAsync(
+        WorkforceSchedulingDbContext db, ICurrentUser user, IBranchDirectory directory, Guid? branchId, CashClosingStatus? status, bool? withDifference,
+        DateOnly? from, DateOnly? to, int page = 1, int pageSize = 20, CancellationToken ct = default)
+    {
+        var tenantId = TenantScope.Require(user);
+        var branch = await WorkforceScope.FilterAsync(user, directory, branchId, ct);
+        var query = db.CashClosings.AsNoTracking().Where(c => c.TenantId == tenantId);
+        if (branch is not null)
+        {
+            query = query.Where(c => c.BranchId == branch);
+        }
+
+        if (status is not null)
+        {
+            query = query.Where(c => c.Status == status);
+        }
+
+        if (withDifference == true)
+        {
+            query = query.Where(c => c.Difference != 0);
+        }
+
+        if (from is not null)
+        {
+            var fromUtc = from.Value.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+            query = query.Where(c => c.SubmittedAtUtc >= fromUtc);
+        }
+
+        if (to is not null)
+        {
+            var toUtc = to.Value.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+            query = query.Where(c => c.SubmittedAtUtc < toUtc);
+        }
+
+        var paged = await query.OrderByDescending(c => c.SubmittedAtUtc).ToPagedAsync(page, pageSize, c => c, ct);
+        return new PagedResponse<CashClosingResponse>(await MapAsync(db, paged.Items, ct), paged.Page, paged.PageSize, paged.TotalCount);
+    }
+
+    private static async Task<CashClosingResponse> GetAsync(Guid id, WorkforceSchedulingDbContext db, ICurrentUser user, CancellationToken ct)
+    {
+        var tenantId = TenantScope.Require(user);
+        var closing = await db.CashClosings.FirstOrDefaultAsync(c => c.Id == id && c.TenantId == tenantId, ct) ?? throw new NotFoundException("Cash closing", id);
+
+        if (user.IsInRole(AicosRoles.BrandAdmin) || user.IsInRole(AicosRoles.BranchManager))
+        {
+            BranchAccess.EnsureCanAccess(user, closing.BranchId);
+        }
+        else if (closing.EmployeeId != (await EmployeeLookup.CurrentAsync(db, user, ct)).Id)
+        {
+            throw new NotFoundException("Cash closing", id); // a cashier only sees their own closings
+        }
+
+        return (await MapAsync(db, [closing], ct))[0];
+    }
+
+    /// <summary>BR-55: the Branch Manager reviews the difference and confirms; confirming a closing with a difference needs a note.</summary>
+    private static async Task<CashClosingResponse> ConfirmAsync(
+        Guid id, ConfirmCashClosingRequest r, WorkforceSchedulingDbContext db, ICurrentUser user, ShopClock shop, IEventBus bus, ILoggerFactory loggers, CancellationToken ct)
+    {
+        var errors = new ValidationErrors();
+        CommonRules.MaxLength(errors, "Note", r.Note, "Note", 500);
+        errors.ThrowIfAny();
+
+        var tenantId = TenantScope.Require(user);
+        var closing = await db.CashClosings.FirstOrDefaultAsync(c => c.Id == id && c.TenantId == tenantId, ct) ?? throw new NotFoundException("Cash closing", id);
+        BranchAccess.EnsureCanAccess(user, closing.BranchId);
+
+        var before = Snapshot(closing);
+        closing.Confirm(r.Note, user.UserId, shop.UtcNow);
+        await db.SaveChangesAsync(ct);
+
+        await AuditTrail.PublishAsync(
+            bus, user, loggers.CreateLogger("AICOS.Workforce.CashClosing"), closing.TenantId, "cash_closing.confirmed", "CashClosing", closing.Id, before, Snapshot(closing));
+        return (await MapAsync(db, [closing], ct))[0];
+    }
+
+    private static object Snapshot(Domain.CashClosing c) => new
+    {
+        c.ExpectedAmount, c.CountedAmount, c.Difference, Status = c.Status.ToString(), c.CashierNote, c.ManagerNote,
+    };
+
+    private static async Task<List<CashClosingResponse>> MapAsync(WorkforceSchedulingDbContext db, IReadOnlyList<Domain.CashClosing> items, CancellationToken ct)
+    {
+        var assignmentIds = items.Select(i => i.AssignmentId).ToList();
+        var employeeIds = items.Select(i => i.EmployeeId).Distinct().ToList();
+        var assignments = await db.ShiftAssignments.AsNoTracking().Where(a => assignmentIds.Contains(a.Id)).ToDictionaryAsync(a => a.Id, ct);
+        var names = await db.Employees.AsNoTracking().Where(e => employeeIds.Contains(e.Id)).ToDictionaryAsync(e => e.Id, e => e.FullName, ct);
+
+        return items.Select(c => new CashClosingResponse(
+            c.Id, c.BranchId, c.AssignmentId, c.EmployeeId, names.GetValueOrDefault(c.EmployeeId, string.Empty), assignments[c.AssignmentId].WorkDate,
+            assignments[c.AssignmentId].StartTime, assignments[c.AssignmentId].EndTime, c.ExpectedAmount, c.CountedAmount, c.Difference, c.CashierNote,
+            c.Status, c.ManagerNote, c.SubmittedAtUtc, c.ConfirmedAtUtc)).ToList();
+    }
+}
+
+/// <summary>Order / payment flow -> Workforce: keeps the cash ledger that cash closings are computed from. Idempotent on the event id.</summary>
+public sealed class CashPaymentRecordedHandler(WorkforceSchedulingDbContext db) : IIntegrationEventHandler<CashPaymentRecordedEvent>
+{
+    public async Task HandleAsync(CashPaymentRecordedEvent @event, CancellationToken cancellationToken)
+    {
+        if (await db.CashTransactions.AnyAsync(t => t.SourceEventId == @event.EventId, cancellationToken))
+        {
+            return;
+        }
+
+        db.CashTransactions.Add(new CashTransaction(
+            @event.EventId, @event.TenantId, @event.BranchId, @event.CashierUserId, @event.OrderId, @event.Amount, @event.OccurredAtUtc));
+        await db.SaveChangesAsync(cancellationToken);
+    }
+}

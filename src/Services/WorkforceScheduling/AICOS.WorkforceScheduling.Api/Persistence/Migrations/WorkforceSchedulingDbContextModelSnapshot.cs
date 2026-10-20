@@ -23,6 +23,148 @@ namespace AICOS.WorkforceScheduling.Api.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("AICOS.WorkforceScheduling.Api.Domain.CashClosing", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("AssignmentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("assignment_id");
+
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("branch_id");
+
+                    b.Property<string>("CashierNote")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("cashier_note");
+
+                    b.Property<DateTime?>("ConfirmedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("confirmed_at_utc");
+
+                    b.Property<Guid?>("ConfirmedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("confirmed_by");
+
+                    b.Property<decimal>("CountedAmount")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("numeric(14,2)")
+                        .HasColumnName("counted_amount");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by");
+
+                    b.Property<decimal>("Difference")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("numeric(14,2)")
+                        .HasColumnName("difference");
+
+                    b.Property<Guid>("EmployeeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("employee_id");
+
+                    b.Property<decimal>("ExpectedAmount")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("numeric(14,2)")
+                        .HasColumnName("expected_amount");
+
+                    b.Property<string>("ManagerNote")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("manager_note");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<DateTime>("SubmittedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("submitted_at_utc");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at_utc");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id")
+                        .HasName("pk_cash_closings");
+
+                    b.HasIndex("AssignmentId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_cash_closings_assignment_id");
+
+                    b.HasIndex("TenantId", "BranchId", "Status")
+                        .HasDatabaseName("ix_cash_closings_tenant_id_branch_id_status");
+
+                    b.ToTable("cash_closings", "workforce");
+                });
+
+            modelBuilder.Entity("AICOS.WorkforceScheduling.Api.Domain.CashTransaction", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("numeric(14,2)")
+                        .HasColumnName("amount");
+
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("branch_id");
+
+                    b.Property<Guid>("CashierUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("cashier_user_id");
+
+                    b.Property<DateTime>("OccurredAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("occurred_at_utc");
+
+                    b.Property<Guid?>("OrderId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("order_id");
+
+                    b.Property<Guid>("SourceEventId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("source_event_id");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_cash_transactions");
+
+                    b.HasIndex("SourceEventId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_cash_transactions_source_event_id");
+
+                    b.HasIndex("CashierUserId", "OccurredAtUtc")
+                        .HasDatabaseName("ix_cash_transactions_cashier_user_id_occurred_at_utc");
+
+                    b.ToTable("cash_transactions", "workforce");
+                });
+
             modelBuilder.Entity("AICOS.WorkforceScheduling.Api.Domain.Employee", b =>
                 {
                     b.Property<Guid>("Id")
@@ -33,6 +175,12 @@ namespace AICOS.WorkforceScheduling.Api.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("branch_id");
 
+                    b.Property<string>("ContractType")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("contract_type");
+
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at_utc");
@@ -40,11 +188,6 @@ namespace AICOS.WorkforceScheduling.Api.Persistence.Migrations
                     b.Property<Guid?>("CreatedBy")
                         .HasColumnType("uuid")
                         .HasColumnName("created_by");
-
-                    b.Property<decimal?>("FixedSalary")
-                        .HasPrecision(14, 2)
-                        .HasColumnType("numeric(14,2)")
-                        .HasColumnName("fixed_salary");
 
                     b.Property<string>("FullName")
                         .IsRequired()
@@ -56,27 +199,26 @@ namespace AICOS.WorkforceScheduling.Api.Persistence.Migrations
                         .HasColumnType("date")
                         .HasColumnName("hire_date");
 
-                    b.Property<decimal?>("HourlyRate")
-                        .HasPrecision(12, 2)
-                        .HasColumnType("numeric(12,2)")
-                        .HasColumnName("hourly_rate");
-
-                    b.Property<string>("PaymentType")
-                        .IsRequired()
-                        .HasMaxLength(10)
-                        .HasColumnType("character varying(10)")
-                        .HasColumnName("payment_type");
-
                     b.Property<string>("Position")
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)")
                         .HasColumnName("position");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("role");
 
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)")
                         .HasColumnName("status");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasColumnType("timestamp with time zone")
@@ -93,14 +235,223 @@ namespace AICOS.WorkforceScheduling.Api.Persistence.Migrations
                     b.HasKey("Id")
                         .HasName("pk_employees");
 
-                    b.HasIndex("BranchId")
-                        .HasDatabaseName("ix_employees_branch_id");
-
                     b.HasIndex("UserId")
                         .IsUnique()
                         .HasDatabaseName("ix_employees_user_id");
 
+                    b.HasIndex("TenantId", "BranchId")
+                        .HasDatabaseName("ix_employees_tenant_id_branch_id");
+
                     b.ToTable("employees", "workforce");
+                });
+
+            modelBuilder.Entity("AICOS.WorkforceScheduling.Api.Domain.PayRule", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by");
+
+                    b.Property<decimal>("FullTimeDayRate")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("numeric(14,2)")
+                        .HasColumnName("full_time_day_rate");
+
+                    b.Property<decimal>("OvertimeAfterHours")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)")
+                        .HasColumnName("overtime_after_hours");
+
+                    b.Property<decimal>("OvertimeMultiplier")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)")
+                        .HasColumnName("overtime_multiplier");
+
+                    b.Property<decimal>("PartTimeHourRate")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("numeric(14,2)")
+                        .HasColumnName("part_time_hour_rate");
+
+                    b.Property<decimal>("ReplacementHourRate")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("numeric(14,2)")
+                        .HasColumnName("replacement_hour_rate");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at_utc");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id")
+                        .HasName("pk_pay_rules");
+
+                    b.HasIndex("TenantId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_pay_rules_tenant_id");
+
+                    b.ToTable("pay_rules", "workforce");
+                });
+
+            modelBuilder.Entity("AICOS.WorkforceScheduling.Api.Domain.ReplacementApplication", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by");
+
+                    b.Property<Guid>("EmployeeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("employee_id");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("note");
+
+                    b.Property<Guid>("ReplacementShiftId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("replacement_shift_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at_utc");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id")
+                        .HasName("pk_replacement_applications");
+
+                    b.HasIndex("EmployeeId")
+                        .HasDatabaseName("ix_replacement_applications_employee_id");
+
+                    b.HasIndex("ReplacementShiftId", "EmployeeId")
+                        .HasDatabaseName("ix_replacement_applications_replacement_shift_id_employee_id");
+
+                    b.ToTable("replacement_applications", "workforce");
+                });
+
+            modelBuilder.Entity("AICOS.WorkforceScheduling.Api.Domain.ReplacementShift", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid?>("ApprovedAssignmentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("approved_assignment_id");
+
+                    b.Property<Guid?>("ApprovedEmployeeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("approved_employee_id");
+
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("branch_id");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DecidedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("decided_at_utc");
+
+                    b.Property<Guid?>("DecidedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("decided_by");
+
+                    b.Property<TimeOnly>("EndTime")
+                        .HasColumnType("time without time zone")
+                        .HasColumnName("end_time");
+
+                    b.Property<string>("ManagerNote")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("manager_note");
+
+                    b.Property<Guid?>("OriginalAssignmentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("original_assignment_id");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("reason");
+
+                    b.Property<TimeOnly>("StartTime")
+                        .HasColumnType("time without time zone")
+                        .HasColumnName("start_time");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at_utc");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by");
+
+                    b.Property<DateOnly>("WorkDate")
+                        .HasColumnType("date")
+                        .HasColumnName("work_date");
+
+                    b.Property<Guid?>("WorkShiftId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("work_shift_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_replacement_shifts");
+
+                    b.HasIndex("TenantId")
+                        .HasDatabaseName("ix_replacement_shifts_tenant_id");
+
+                    b.HasIndex("BranchId", "Status")
+                        .HasDatabaseName("ix_replacement_shifts_branch_id_status");
+
+                    b.ToTable("replacement_shifts", "workforce");
                 });
 
             modelBuilder.Entity("AICOS.WorkforceScheduling.Api.Domain.ShiftAssignment", b =>
@@ -108,6 +459,14 @@ namespace AICOS.WorkforceScheduling.Api.Persistence.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("uuid")
                         .HasColumnName("id");
+
+                    b.Property<DateTime?>("AdjustedCheckInAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("adjusted_check_in_at_utc");
+
+                    b.Property<DateTime?>("AdjustedCheckOutAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("adjusted_check_out_at_utc");
 
                     b.Property<Guid>("BranchId")
                         .HasColumnType("uuid")
@@ -142,6 +501,37 @@ namespace AICOS.WorkforceScheduling.Api.Persistence.Migrations
                         .HasColumnType("time without time zone")
                         .HasColumnName("end_time");
 
+                    b.Property<bool>("IsAbsent")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_absent");
+
+                    b.Property<bool>("IsReplacement")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_replacement");
+
+                    b.Property<Guid?>("ReplacementShiftId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("replacement_shift_id");
+
+                    b.Property<string>("ReviewNote")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("review_note");
+
+                    b.Property<string>("ReviewStatus")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("review_status");
+
+                    b.Property<DateTime?>("ReviewedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("reviewed_at_utc");
+
+                    b.Property<Guid?>("ReviewedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reviewed_by");
+
                     b.Property<TimeOnly>("StartTime")
                         .HasColumnType("time without time zone")
                         .HasColumnName("start_time");
@@ -151,6 +541,10 @@ namespace AICOS.WorkforceScheduling.Api.Persistence.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)")
                         .HasColumnName("status");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasColumnType("timestamp with time zone")
@@ -164,12 +558,15 @@ namespace AICOS.WorkforceScheduling.Api.Persistence.Migrations
                         .HasColumnType("date")
                         .HasColumnName("work_date");
 
-                    b.Property<Guid>("WorkShiftId")
+                    b.Property<Guid?>("WorkShiftId")
                         .HasColumnType("uuid")
                         .HasColumnName("work_shift_id");
 
                     b.HasKey("Id")
                         .HasName("pk_employee_shifts");
+
+                    b.HasIndex("TenantId")
+                        .HasDatabaseName("ix_employee_shifts_tenant_id");
 
                     b.HasIndex("WorkShiftId")
                         .HasDatabaseName("ix_employee_shifts_work_shift_id");
@@ -181,81 +578,6 @@ namespace AICOS.WorkforceScheduling.Api.Persistence.Migrations
                         .HasDatabaseName("ix_employee_shifts_employee_id_work_date");
 
                     b.ToTable("employee_shifts", "workforce");
-                });
-
-            modelBuilder.Entity("AICOS.WorkforceScheduling.Api.Domain.ShiftSwapRequest", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<Guid>("AssignmentId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("assignment_id");
-
-                    b.Property<Guid>("BranchId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("branch_id");
-
-                    b.Property<DateTime>("CreatedAtUtc")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at_utc");
-
-                    b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uuid")
-                        .HasColumnName("created_by");
-
-                    b.Property<DateTime?>("DecidedAtUtc")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("decided_at_utc");
-
-                    b.Property<Guid?>("DecidedBy")
-                        .HasColumnType("uuid")
-                        .HasColumnName("decided_by");
-
-                    b.Property<string>("ManagerNote")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)")
-                        .HasColumnName("manager_note");
-
-                    b.Property<string>("Reason")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)")
-                        .HasColumnName("reason");
-
-                    b.Property<Guid>("RequesterEmployeeId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("requester_employee_id");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("status");
-
-                    b.Property<Guid>("TargetEmployeeId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("target_employee_id");
-
-                    b.Property<DateTime?>("UpdatedAtUtc")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at_utc");
-
-                    b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uuid")
-                        .HasColumnName("updated_by");
-
-                    b.HasKey("Id")
-                        .HasName("pk_shift_swap_requests");
-
-                    b.HasIndex("AssignmentId")
-                        .HasDatabaseName("ix_shift_swap_requests_assignment_id");
-
-                    b.HasIndex("BranchId", "Status")
-                        .HasDatabaseName("ix_shift_swap_requests_branch_id_status");
-
-                    b.ToTable("shift_swap_requests", "workforce");
                 });
 
             modelBuilder.Entity("AICOS.WorkforceScheduling.Api.Domain.WorkShift", b =>
@@ -294,6 +616,10 @@ namespace AICOS.WorkforceScheduling.Api.Persistence.Migrations
                         .HasColumnType("time without time zone")
                         .HasColumnName("start_time");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("updated_at_utc");
@@ -305,11 +631,41 @@ namespace AICOS.WorkforceScheduling.Api.Persistence.Migrations
                     b.HasKey("Id")
                         .HasName("pk_work_shifts");
 
+                    b.HasIndex("TenantId")
+                        .HasDatabaseName("ix_work_shifts_tenant_id");
+
                     b.HasIndex("BranchId", "Name")
                         .IsUnique()
                         .HasDatabaseName("ix_work_shifts_branch_id_name");
 
                     b.ToTable("work_shifts", "workforce");
+                });
+
+            modelBuilder.Entity("AICOS.WorkforceScheduling.Api.Domain.CashClosing", b =>
+                {
+                    b.HasOne("AICOS.WorkforceScheduling.Api.Domain.ShiftAssignment", null)
+                        .WithMany()
+                        .HasForeignKey("AssignmentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_cash_closings_shift_assignments_assignment_id");
+                });
+
+            modelBuilder.Entity("AICOS.WorkforceScheduling.Api.Domain.ReplacementApplication", b =>
+                {
+                    b.HasOne("AICOS.WorkforceScheduling.Api.Domain.Employee", null)
+                        .WithMany()
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_replacement_applications_employees_employee_id");
+
+                    b.HasOne("AICOS.WorkforceScheduling.Api.Domain.ReplacementShift", null)
+                        .WithMany()
+                        .HasForeignKey("ReplacementShiftId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_replacement_applications_replacement_shifts_replacement_shi");
                 });
 
             modelBuilder.Entity("AICOS.WorkforceScheduling.Api.Domain.ShiftAssignment", b =>
@@ -325,18 +681,7 @@ namespace AICOS.WorkforceScheduling.Api.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("WorkShiftId")
                         .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
                         .HasConstraintName("fk_employee_shifts_work_shifts_work_shift_id");
-                });
-
-            modelBuilder.Entity("AICOS.WorkforceScheduling.Api.Domain.ShiftSwapRequest", b =>
-                {
-                    b.HasOne("AICOS.WorkforceScheduling.Api.Domain.ShiftAssignment", null)
-                        .WithMany()
-                        .HasForeignKey("AssignmentId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_shift_swap_requests_employee_shifts_assignment_id");
                 });
 #pragma warning restore 612, 618
         }
