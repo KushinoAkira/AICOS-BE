@@ -39,6 +39,9 @@ public sealed class ServiceFactory<TService, TDbContext>(Action<IServiceCollecti
     /// <summary>The branches that exist, and the tenant each belongs to. Tests add the ones they use.</summary>
     public BranchRegistry Branches { get; } = new();
 
+    /// <summary>The login accounts that exist (see <see cref="UserRegistry"/>).</summary>
+    public UserRegistry Users { get; } = new();
+
     protected override void ConfigureWebHost(Microsoft.AspNetCore.Hosting.IWebHostBuilder builder)
     {
         builder.ConfigureServices(services =>
@@ -66,6 +69,9 @@ public sealed class ServiceFactory<TService, TDbContext>(Action<IServiceCollecti
             services.RemoveAll<IBranchDirectory>();
             services.AddSingleton(Branches);
             services.AddScoped<IBranchDirectory, FakeBranchDirectory>();
+            services.RemoveAll<IUserDirectory>();
+            services.AddSingleton(Users);
+            services.AddScoped<IUserDirectory, FakeUserDirectory>();
 
             configure?.Invoke(services);
         });
@@ -181,5 +187,43 @@ internal sealed class FakeBranchDirectory(BranchRegistry registry, ICurrentUser 
         }
 
         return Task.FromResult(new BranchInfo(branchId, branch.Name, branch.IsActive));
+    }
+}
+
+/// <summary>Stands in for the Identity service: which login accounts exist, their role, branch and tenant.</summary>
+public sealed class UserRegistry
+{
+    private readonly ConcurrentDictionary<Guid, (Guid TenantId, string FullName, string Role, Guid? BranchId, bool IsActive)> _users = new();
+
+    public Guid Add(string role, Guid? branchId, string fullName, Guid? tenantId = null, bool active = true, Guid? id = null)
+    {
+        var userId = id ?? Guid.NewGuid();
+        _users[userId] = (tenantId ?? ServiceFactory<object, DbContext>.DefaultTenantId, fullName, role, branchId, active);
+        return userId;
+    }
+
+    public bool TryGet(Guid userId, out (Guid TenantId, string FullName, string Role, Guid? BranchId, bool IsActive) user) => _users.TryGetValue(userId, out user);
+}
+
+/// <summary>
+/// Like Identity: an account of another tenant does not exist for the caller, and a BranchManager only sees the Barista and Cashier
+/// accounts of their own branch.
+/// </summary>
+internal sealed class FakeUserDirectory(UserRegistry registry, ICurrentUser caller) : IUserDirectory
+{
+    public Task<UserInfo> GetAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        var visible = registry.TryGet(userId, out var user) && user.TenantId == caller.TenantId;
+        if (visible && caller.IsInRole(AicosRoles.BranchManager))
+        {
+            visible = user.BranchId == caller.BranchId && user.Role is AicosRoles.Barista or AicosRoles.Cashier;
+        }
+
+        if (!visible)
+        {
+            throw new AICOS.BuildingBlocks.Exceptions.ValidationFailedException("userId", $"User account '{userId}' does not exist (or is not one of your staff).");
+        }
+
+        return Task.FromResult(new UserInfo(userId, user.FullName, user.Role, user.BranchId, user.IsActive));
     }
 }
