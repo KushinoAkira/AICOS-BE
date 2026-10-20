@@ -2,6 +2,7 @@ using AICOS.BuildingBlocks.Exceptions;
 using AICOS.BuildingBlocks.Persistence;
 using AICOS.BuildingBlocks.Security;
 using AICOS.IdentityOrganization.Api.Domain;
+using AICOS.IdentityOrganization.Api.Features.Subscriptions;
 using AICOS.IdentityOrganization.Api.Features.Users;
 using AICOS.IdentityOrganization.Api.Infrastructure;
 using AICOS.IdentityOrganization.Api.Persistence;
@@ -55,7 +56,7 @@ public static class TenantEndpoints
         TenantResponse.From(await FindAsync(db, id, ct));
 
     private static async Task<IResult> CreateAsync(
-        CreateTenantRequest request, IdentityOrganizationDbContext db, PasswordService passwords, AuditLogger audit, CancellationToken ct)
+        CreateTenantRequest request, IdentityOrganizationDbContext db, PasswordService passwords, AuditLogger audit, TimeProvider clock, CancellationToken ct)
     {
         TenantRequestValidator.EnsureValid(request);
 
@@ -75,6 +76,12 @@ public static class TenantEndpoints
         db.Tenants.Add(tenant);
         db.Users.Add(brandAdmin);
         audit.Record(AuditScope.Platform, tenant.Id, "tenant.created", "Tenant", tenant.Id, after: AuditSnapshots.Of(tenant));
+
+        if (request.PlanId is not null)
+        {
+            await TenantSubscriptionEndpoints.AssignPlanAsync(db, audit, tenant, request.PlanId.Value, startDate: null, clock, ct);
+        }
+
         await db.SaveChangesAsync(ct);
 
         return Results.CreatedAtRoute("GetTenant", new { id = tenant.Id }, TenantResponse.From(tenant));

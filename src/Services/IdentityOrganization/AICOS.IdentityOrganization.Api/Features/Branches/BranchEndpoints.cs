@@ -3,6 +3,7 @@ using AICOS.BuildingBlocks.Security;
 using AICOS.IdentityOrganization.Api.Domain;
 using AICOS.BuildingBlocks.Persistence;
 using AICOS.IdentityOrganization.Api.Features.Common;
+using AICOS.IdentityOrganization.Api.Features.Subscriptions;
 using AICOS.IdentityOrganization.Api.Infrastructure;
 using AICOS.IdentityOrganization.Api.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -107,6 +108,7 @@ public static class BranchEndpoints
         BranchRequestValidator.EnsureValid(request);
         var tenantId = Tenancy.Require(currentUser);
         await EnsureNameIsUniqueAsync(db, tenantId, request.Name!, excludeId: null, ct);
+        await SubscriptionRules.EnsureCanAddBranchAsync(db, tenantId, ct);
 
         var branch = new Branch(tenantId, request.Name!, request.Address, request.Phone, request.OpeningTime, request.ClosingTime);
         db.Branches.Add(branch);
@@ -146,6 +148,10 @@ public static class BranchEndpoints
         var tenantId = Tenancy.Require(currentUser);
         var branch = await db.Branches.FirstOrDefaultAsync(b => b.Id == id && b.TenantId == tenantId, ct)
             ?? throw new NotFoundException("Branch", id);
+        if (request.Status == BranchStatus.Active && branch.Status != BranchStatus.Active)
+        {
+            await SubscriptionRules.EnsureCanAddBranchAsync(db, tenantId, ct); // re-activating counts like adding one
+        }
 
         var before = AuditSnapshots.Of(branch);
         branch.ChangeStatus(request.Status.Value);

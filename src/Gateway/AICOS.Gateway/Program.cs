@@ -10,6 +10,9 @@ builder.AddAicosLogging("gateway");
 builder.Services.AddAicosCore();
 builder.Services.AddAicosAuthentication(builder.Configuration);
 builder.Services.AddHealthChecks();
+builder.Services.AddSingleton<GatewayMetrics>();
+builder.Services.AddSingleton<RoutePrefixMap>();
+builder.Services.AddHttpClient(PlatformHealthEndpoints.HttpClientName);
 
 // CORS for the React dashboard and Flutter web builds.
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
@@ -48,13 +51,16 @@ var app = builder.Build();
 app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseSerilogRequestLogging();
 app.UseExceptionHandler();
+app.UseMiddleware<RequestMetricsMiddleware>();
 app.UseCors();
 app.UseRateLimiter();
 app.UseAuthentication();
 app.UseMiddleware<BearerTokenValidationMiddleware>();
+app.UseAuthorization();
 
 app.MapGet("/", () => Results.Ok(new { service = "gateway", name = "AICOS API Gateway" }));
 app.MapHealthChecks("/health/live");
+app.MapPlatformHealth();
 app.MapReverseProxy();
 
 await app.RunAsync();

@@ -4,6 +4,7 @@ using AICOS.BuildingBlocks.Security;
 using AICOS.IdentityOrganization.Api.Domain;
 using AICOS.BuildingBlocks.Persistence;
 using AICOS.IdentityOrganization.Api.Features.Common;
+using AICOS.IdentityOrganization.Api.Features.Subscriptions;
 using AICOS.IdentityOrganization.Api.Infrastructure;
 using AICOS.IdentityOrganization.Api.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -144,6 +145,7 @@ public static class UserEndpoints
         UserRequestValidator.EnsureValid(request);
         await AccountRules.EnsureUniqueAsync(db, request.Email!, request.Username, excludeUserId: null, ct);
         await AccountRules.EnsureBranchAssignableAsync(db, tenantId, request.BranchId, ct);
+        await SubscriptionRules.EnsureCanAddStaffAsync(db, tenantId, UserRequestValidator.CanonicalRole(request.Role)!, ct);
 
         var canonicalRole = UserRequestValidator.CanonicalRole(request.Role)!;
         var user = new User(request.FullName!, request.Email!, request.Username, request.Phone, canonicalRole, request.BranchId, tenantId);
@@ -185,6 +187,11 @@ public static class UserEndpoints
         }
 
         await AccountRules.EnsureUniqueAsync(db, request.Email!, request.Username, excludeUserId: id, ct);
+        if (!SubscriptionRules.IsStaff(user.Role))
+        {
+            await SubscriptionRules.EnsureCanAddStaffAsync(db, tenantId, role, ct); // e.g. a Customer promoted to staff
+        }
+
         if (request.BranchId != user.BranchId)
         {
             await AccountRules.EnsureBranchAssignableAsync(db, tenantId, request.BranchId, ct);

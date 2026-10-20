@@ -197,6 +197,7 @@ services:
     environment:
       <<: *dotnet-env
       ConnectionStrings__Default: Host=postgres;Port=5432;Database=${POSTGRES_DB:-aicos};Username=payment_svc;Password=${SERVICE_DB_PASSWORD:-aicos_dev}
+      Payments__SecretKey: ${PAYMENTS_SECRET_KEY:-K5sBcoL3/VUg+nD5wzlABy60/fQaywUNlKzjDNeMTA0=}
     ports: ["5105:8080"]
 
   # ------------------------------------------------------------------ OPERATIONS

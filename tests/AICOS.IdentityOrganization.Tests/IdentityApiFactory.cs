@@ -34,6 +34,8 @@ public sealed class IdentityApiFactory : WebApplicationFactory<IdentityOrganizat
 
     public CapturingEmailSender Emails { get; } = new();
 
+    public TestClock Clock { get; } = new();
+
     protected override void ConfigureWebHost(Microsoft.AspNetCore.Hosting.IWebHostBuilder builder)
     {
         builder.ConfigureServices(services =>
@@ -50,6 +52,9 @@ public sealed class IdentityApiFactory : WebApplicationFactory<IdentityOrganizat
             {
                 services.Remove(subscriber);
             }
+            services.RemoveAll<TimeProvider>();
+            services.AddSingleton<TimeProvider>(Clock);
+
             services.RemoveAll<IEventBus>();
             services.AddSingleton<IEventBus>(Events);
             services.RemoveAll<IEmailSender>();
@@ -79,7 +84,8 @@ public sealed class IdentityApiFactory : WebApplicationFactory<IdentityOrganizat
     public HttpClient CreateClientAs(string role, Guid? branchId = null, Guid? userId = null, Guid? tenantId = null)
     {
         var client = CreateClient();
-        var (token, _) = Services.GetRequiredService<JwtTokenService>()
+        // Real clock: moving Clock forward must never make test tokens "not yet valid".
+        var (token, _) = new JwtTokenService(Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<JwtOptions>>(), TimeProvider.System)
             .CreateAccessToken(
                 userId ?? Guid.NewGuid(), $"Test {role}", role, branchId, role == AicosRoles.SuperAdmin ? null : tenantId ?? TenantId);
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
@@ -114,4 +120,14 @@ public sealed partial class CapturingEmailSender : IEmailSender
 
     [GeneratedRegex(@"\b\d{6}\b")]
     private static partial Regex SixDigits();
+}
+
+/// <summary>Real time plus an offset the tests can move forward, so billing dates can be crossed without waiting.</summary>
+public sealed class TestClock : TimeProvider
+{
+    public TimeSpan Offset { get; private set; }
+
+    public void Advance(TimeSpan by) => Offset += by;
+
+    public override DateTimeOffset GetUtcNow() => DateTimeOffset.UtcNow + Offset;
 }
