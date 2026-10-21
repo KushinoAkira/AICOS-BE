@@ -84,11 +84,12 @@ public sealed record OrderSummary(
     RefundStatus RefundStatus,
     int ItemCount,
     DateTime? PaidAtUtc,
+    DateTime? CancelledAtUtc,
     DateTime CreatedAtUtc)
 {
     public static OrderSummary From(Order o) => new(
         o.Id, o.OrderCode, o.BranchId, o.Type, o.Status, o.PaymentStatus, o.PaymentProvider, o.TableNumber, o.OriginalAmount, o.DiscountAmount, o.FinalAmount,
-        o.RefundedAmount, o.RefundStatus, o.Items.Count, o.PaidAtUtc, o.CreatedAtUtc);
+        o.RefundedAmount, o.RefundStatus, o.Items.Count, o.PaidAtUtc, o.CancelledAtUtc, o.CreatedAtUtc);
 }
 
 /// <summary>The result of checking an order's payment (SCRUM-60): what Payment reported, in one small answer.</summary>

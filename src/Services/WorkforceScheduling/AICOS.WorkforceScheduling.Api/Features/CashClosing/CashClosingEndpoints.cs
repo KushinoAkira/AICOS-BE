@@ -14,7 +14,22 @@ namespace AICOS.WorkforceScheduling.Api.Features.CashClosing;
 
 public sealed record SubmitCashClosingRequest(Guid? AssignmentId, decimal? CountedAmount, string? Note);
 
-public sealed record ConfirmCashClosingRequest(string? Note);
+/// <summary>
+/// <c>AcknowledgeExceptions</c>: the manager confirms although some order exceptions of the shift are still open (a refund pending or failed);
+/// it is recorded in the audit history.
+/// </summary>
+public sealed record ConfirmCashClosingRequest(string? Note, bool? AcknowledgeExceptions = null);
+
+public sealed record CashTransactionLine(Guid? OrderId, decimal Amount, DateTime OccurredAtUtc, bool IsRefund);
+
+/// <summary>What a manager reviews before closing a shift (SCRUM-49, 62): the cash that moved, and the orders cancelled after payment during the shift.</summary>
+public sealed record CashClosingDetailsResponse(
+    CashClosingResponse Closing,
+    decimal CashReceived,
+    decimal CashRefunded,
+    List<CashTransactionLine> CashTransactions,
+    List<OrderException> OrderExceptions,
+    int UnresolvedExceptions);
 
 public sealed record CashClosingResponse(
     Guid Id,
@@ -49,6 +64,7 @@ public static class CashClosingEndpoints
         group.MapGet("/mine", MineAsync).RequireAuthorization(AicosPolicies.Staff);
         group.MapGet("/", ListAsync).RequireAuthorization(AicosPolicies.Management);
         group.MapGet("/{id:guid}", GetAsync).RequireAuthorization(AicosPolicies.Staff).WithName("GetCashClosing");
+        group.MapGet("/{id:guid}/details", DetailsAsync).RequireAuthorization(AicosPolicies.Management);
         group.MapPost("/{id:guid}/confirm", ConfirmAsync).RequireAuthorization(AicosPolicies.Management);
     }
 
@@ -157,9 +173,61 @@ public static class CashClosingEndpoints
         return (await MapAsync(db, [closing], ct))[0];
     }
 
-    /// <summary>BR-55: the Branch Manager reviews the difference and confirms; confirming a closing with a difference needs a note.</summary>
+    /// <summary>The cash movements and the order exceptions of a shift, for the manager who reviews the closing (SCRUM-49, 62).</summary>
+    private static async Task<CashClosingDetailsResponse> DetailsAsync(
+        Guid id, WorkforceSchedulingDbContext db, ICurrentUser user, ShopClock shop, IOrderExceptionDirectory orders, CancellationToken ct)
+    {
+        var tenantId = TenantScope.Require(user);
+        var closing = await db.CashClosings.AsNoTracking().FirstOrDefaultAsync(c => c.Id == id && c.TenantId == tenantId, ct) ?? throw new NotFoundException("Cash closing", id);
+        BranchAccess.EnsureCanAccess(user, closing.BranchId);
+
+        var (since, until, cashierUserId) = await ShiftWindowAsync(db, closing, ct);
+        var cash = await db.CashTransactions.AsNoTracking()
+            .Where(t => t.TenantId == closing.TenantId && t.BranchId == closing.BranchId && t.CashierUserId == cashierUserId && t.OccurredAtUtc >= since && t.OccurredAtUtc <= until)
+            .OrderBy(t => t.OccurredAtUtc).ToListAsync(ct);
+        var exceptions = await ExceptionsOfShiftAsync(orders, closing.BranchId, since, until, shop, ct);
+
+        return new CashClosingDetailsResponse(
+            (await MapAsync(db, [closing], ct))[0],
+            cash.Where(t => t.Amount > 0).Sum(t => t.Amount),
+            -cash.Where(t => t.Amount < 0).Sum(t => t.Amount),
+            cash.Select(t => new CashTransactionLine(t.OrderId, t.Amount, t.OccurredAtUtc, t.Amount < 0)).ToList(),
+            exceptions,
+            exceptions.Count(e => e.IsUnresolved));
+    }
+
+    /// <summary>The window of a closing: from the check-in of the cashier to the moment the cash was counted.</summary>
+    private static async Task<(DateTime Since, DateTime Until, Guid? CashierUserId)> ShiftWindowAsync(WorkforceSchedulingDbContext db, Domain.CashClosing closing, CancellationToken ct)
+    {
+        var assignment = await db.ShiftAssignments.AsNoTracking().FirstAsync(a => a.Id == closing.AssignmentId, ct);
+        var employee = await db.Employees.AsNoTracking().FirstAsync(e => e.Id == closing.EmployeeId, ct);
+        return (assignment.EffectiveCheckInUtc ?? closing.SubmittedAtUtc, closing.SubmittedAtUtc, employee.UserId);
+    }
+
+    /// <summary>Orders cancelled after payment at this branch during the shift. The Order service filters by day, so one day either side is asked for.</summary>
+    private static async Task<List<OrderException>> ExceptionsOfShiftAsync(
+        IOrderExceptionDirectory orders, Guid branchId, DateTime since, DateTime until, ShopClock shop, CancellationToken ct)
+    {
+        var from = DateOnly.FromDateTime(shop.ToLocal(since)).AddDays(-1);
+        var to = DateOnly.FromDateTime(shop.ToLocal(until));
+        var all = await orders.ListAsync(branchId, from, to, ct);
+        return all.Where(e => e.CancelledAtUtc is not null && e.CancelledAtUtc >= since && e.CancelledAtUtc <= until).OrderBy(e => e.CancelledAtUtc).ToList();
+    }
+
+    /// <summary>
+    /// BR-55: the Branch Manager reviews the difference and confirms; confirming a closing with a difference needs a note. A shift with order
+    /// exceptions still open (money not yet paid back) is only confirmed when the manager says so (<c>AcknowledgeExceptions</c>).
+    /// </summary>
     private static async Task<CashClosingResponse> ConfirmAsync(
-        Guid id, ConfirmCashClosingRequest r, WorkforceSchedulingDbContext db, ICurrentUser user, ShopClock shop, IEventBus bus, ILoggerFactory loggers, CancellationToken ct)
+        Guid id,
+        ConfirmCashClosingRequest r,
+        WorkforceSchedulingDbContext db,
+        ICurrentUser user,
+        ShopClock shop,
+        IOrderExceptionDirectory orders,
+        IEventBus bus,
+        ILoggerFactory loggers,
+        CancellationToken ct)
     {
         var errors = new ValidationErrors();
         CommonRules.MaxLength(errors, "Note", r.Note, "Note", 500);
@@ -169,12 +237,22 @@ public static class CashClosingEndpoints
         var closing = await db.CashClosings.FirstOrDefaultAsync(c => c.Id == id && c.TenantId == tenantId, ct) ?? throw new NotFoundException("Cash closing", id);
         BranchAccess.EnsureCanAccess(user, closing.BranchId);
 
+        var (since, until, _) = await ShiftWindowAsync(db, closing, ct);
+        var open = (await ExceptionsOfShiftAsync(orders, closing.BranchId, since, until, shop, ct)).Count(e => e.IsUnresolved);
+        if (open > 0 && r.AcknowledgeExceptions != true)
+        {
+            throw new BusinessRuleException(
+                "cash_closing.exceptions_unresolved",
+                $"{open} order exception(s) of this shift still wait for a refund. Resolve them, or confirm with acknowledgeExceptions=true.");
+        }
+
         var before = Snapshot(closing);
         closing.Confirm(r.Note, user.UserId, shop.UtcNow);
         await db.SaveChangesAsync(ct);
 
         await AuditTrail.PublishAsync(
-            bus, user, loggers.CreateLogger("AICOS.Workforce.CashClosing"), closing.TenantId, "cash_closing.confirmed", "CashClosing", closing.Id, before, Snapshot(closing));
+            bus, user, loggers.CreateLogger("AICOS.Workforce.CashClosing"), closing.TenantId, "cash_closing.confirmed", "CashClosing", closing.Id, before,
+            new { Closing = Snapshot(closing), OpenExceptionsAcknowledged = open });
         return (await MapAsync(db, [closing], ct))[0];
     }
 
