@@ -34,3 +34,11 @@ public record PaymentCompletedIntegrationEvent(
     decimal Amount,
     string PaymentMethod,
     DateTime PaidAtUtc) : IntegrationEvent;
+
+public record KitchenOrderReadyIntegrationEvent(
+    Guid TicketId,
+    Guid OrderId,
+    string OrderCode,
+    Guid BranchId,
+    string? TableNumber,
+    DateTime ReadyAtUtc) : IntegrationEvent;

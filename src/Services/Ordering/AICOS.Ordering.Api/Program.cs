@@ -19,6 +19,10 @@ builder.Services.AddSingleton<IEventBus, FakeEventBus>();
 // Đăng ký In-Memory FakeRepository để dùng tạm khi chưa có DB PostgreSQL
 builder.Services.AddSingleton<IOrderRepository, FakeOrderRepository>();
 
+// Đăng ký Repository & Redis Cart Service cho Guest QR Ordering (SCRUM-66 -> SCRUM-117)
+builder.Services.AddSingleton<IQrOrderingRepository, FakeQrOrderingRepository>();
+builder.Services.AddSingleton<IRedisCartService, RedisCartService>();
+
 // Đăng ký các Mock Service Client (MenuCatalog kiểm tra cờ IsAvailable, CustomerEngagement kiểm tra Voucher)
 builder.Services.AddScoped<IMenuCatalogServiceClient, MockMenuCatalogServiceClient>();
 builder.Services.AddScoped<ICustomerEngagementServiceClient, MockCustomerEngagementServiceClient>();
@@ -40,5 +44,6 @@ app.UseAicosServiceDefaults();
 
 var api = app.MapAicosApiGroup();
 api.MapOrderingEndpoints(); // Đăng ký các endpoint cho POS: UC_POS_01 -> UC_POS_04
+api.MapQrGuestEndpoints();   // Đăng ký các endpoint cho Guest QR: SCRUM-66 -> SCRUM-117
 
 await app.RunAsync();
