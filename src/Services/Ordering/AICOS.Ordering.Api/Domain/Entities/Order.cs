@@ -246,14 +246,15 @@ public class Order : AuditableEntity<Guid>, IBranchScoped
             throw new ConflictException("This order is already cancelled.", "order.already_cancelled");
         }
 
-        if (!IsPaid || PaymentStatus == PaymentStatus.Refunded)
+        if (!IsPaid)
         {
-            throw new BusinessRuleException("order.not_paid", "Only a paid order that was not fully refunded is handled as an exception.");
+            throw new BusinessRuleException("order.not_paid", "Only a paid order is handled as an exception.");
         }
 
         Cancel(reason, now);
         ExceptionBy = by;
-        RefundStatus = RefundStatus.RefundPending;
+        // The refund can be paid back before this order is saved as cancelled (the refund event is fast): then it is already done.
+        RefundStatus = RefundedAmount > 0 ? RefundStatus.Refunded : RefundStatus.RefundPending;
     }
 
     private void Cancel(string reason, DateTime now)

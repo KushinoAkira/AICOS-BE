@@ -301,6 +301,9 @@ public static class OrderEndpoints
         }
 
         await payments.RequestRefundAsync(order.PaymentId.Value, kind, r.Amount, r.Reason!.Trim(), ct);
+
+        // The refund event may already have reached this service and updated the order while the request was open: look at the order as it is now.
+        await db.Entry(order).ReloadAsync(ct);
         order.CancelPaidOrderAsException(r.Reason!, user.UserId, clock.UtcNow);
         await db.SaveChangesAsync(ct);
         await events.CancelledAsync(order, wasPaid: true, ct);
