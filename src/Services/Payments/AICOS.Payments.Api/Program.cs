@@ -3,7 +3,9 @@ using AICOS.BuildingBlocks.Messaging;
 using AICOS.BuildingBlocks.Persistence;
 using AICOS.BuildingBlocks.Security;
 using AICOS.Payments.Api;
+using AICOS.Payments.Api.Domain;
 using AICOS.Payments.Api.Features.Merchants;
+using AICOS.Payments.Api.Features.Payments;
 using AICOS.Payments.Api.Features.Policies;
 using AICOS.Payments.Api.Features.Providers;
 using AICOS.Payments.Api.Infrastructure;
@@ -17,6 +19,10 @@ builder.AddAicosEventBus();
 
 builder.Services.Configure<PaymentOptions>(builder.Configuration.GetSection(PaymentOptions.SectionName));
 builder.Services.AddSingleton<SecretProtector>();
+builder.Services.AddSingleton(new GatewayRegistry(PaymentProvider.SupportedCodes.Select(c => (IPaymentGateway)new SimulatedGateway(c))));
+builder.Services.AddScoped<PaymentProcessor>();
+builder.Services.AddScoped<RefundProcessor>();
+builder.Services.AddHostedService<PaymentExpiryJob>();
 builder.Services.AddAicosBranchDirectory(builder.Configuration);   // asks Identity whether a branch belongs to the brand
 
 // builder.Services.AddIntegrationEventHandler<SomeEvent, SomeEventHandler>();   // consume events from other services
@@ -32,5 +38,9 @@ var api = app.MapAicosApiGroup();
 api.MapProviderEndpoints();
 api.MapCancellationPolicyEndpoints();
 api.MapMerchantSettingEndpoints();
+api.MapPaymentEndpoints();
+api.MapWebhookEndpoints();
+api.MapRefundEndpoints();
+api.MapReconciliationEndpoints();
 
 await app.RunAsync();
