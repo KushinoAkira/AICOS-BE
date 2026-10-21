@@ -18,6 +18,8 @@ public sealed class ShopClock(TimeProvider clock, IConfiguration configuration)
 
     public DateTime LocalNow => TimeZoneInfo.ConvertTimeFromUtc(UtcNow, _zone);
 
+    public DateTime ToLocal(DateTime utc) => TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(utc, DateTimeKind.Utc), _zone);
+
     public DateOnly Today => DateOnly.FromDateTime(LocalNow);
 
     public DateTime ToUtc(DateOnly date, TimeOnly time) =>

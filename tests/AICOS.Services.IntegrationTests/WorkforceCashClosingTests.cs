@@ -131,7 +131,7 @@ public sealed class WorkforceCashClosingTests : WorkforceTestBase
         confirmed.GetProperty("managerNote").GetString().Should().Be("Đã trừ vào lương, nhân viên đồng ý");
         await Manager.Post($"{Closings}/{closing.Id()}/confirm", new { note = "again" }).ShouldBe(422, "cash_closing.already_confirmed");
 
-        var audit = F.Events.Published.OfType<AuditRecordedEvent>().Single();
+        var audit = F.Events.Published.OfType<AuditRecordedEvent>().Where(e => !e.Action.StartsWith("attendance.checked_")).Single();
         audit.Action.Should().Be("cash_closing.confirmed");
         audit.EntityType.Should().Be("CashClosing");
         audit.TenantId.Should().Be(Tenant);

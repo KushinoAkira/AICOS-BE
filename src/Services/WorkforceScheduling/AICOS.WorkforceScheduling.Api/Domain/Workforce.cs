@@ -609,3 +609,41 @@ public sealed class CashTransaction : Entity<Guid>
 
     public DateTime OccurredAtUtc { get; private set; }
 }
+
+/// <summary>
+/// A manual correction to someone's pay for a period: a bonus, a deduction, or a fix for a mistake (FR-67, BR-56: payroll adjustments are
+/// audited). It is added to the employee's total in the payroll summary of the period its <see cref="WorkDate"/> falls in.
+/// </summary>
+public sealed class PayrollAdjustment : AuditableEntity<Guid>, IBranchScoped
+{
+    public const int ReasonMaxLength = 300;
+
+    private PayrollAdjustment()
+    {
+    }
+
+    public PayrollAdjustment(Guid tenantId, Guid branchId, Guid employeeId, DateOnly workDate, decimal amount, string reason)
+    {
+        Id = Guid.NewGuid();
+        TenantId = tenantId;
+        BranchId = branchId;
+        EmployeeId = employeeId;
+        WorkDate = workDate;
+        Amount = amount;
+        Reason = reason;
+    }
+
+    public Guid TenantId { get; private set; }
+
+    public Guid BranchId { get; private set; }
+
+    public Guid EmployeeId { get; private set; }
+
+    /// <summary>The day the adjustment belongs to; it counts in the payroll period that covers this date.</summary>
+    public DateOnly WorkDate { get; private set; }
+
+    /// <summary>VND; positive adds to the pay, negative deducts.</summary>
+    public decimal Amount { get; private set; }
+
+    public string Reason { get; private set; } = string.Empty;
+}

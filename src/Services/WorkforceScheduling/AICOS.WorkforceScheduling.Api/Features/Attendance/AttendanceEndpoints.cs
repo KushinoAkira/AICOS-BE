@@ -88,7 +88,7 @@ public static class AttendanceEndpoints
 
     // ------------------------------------------------------------------ employee: check in / out
     private static async Task<ShiftAssignmentResponse> CheckInAsync(
-        AttendanceRequest r, WorkforceSchedulingDbContext db, ICurrentUser user, ShopClock shop, CancellationToken ct)
+        AttendanceRequest r, WorkforceSchedulingDbContext db, ICurrentUser user, ShopClock shop, IEventBus bus, ILoggerFactory loggers, CancellationToken ct)
     {
         var assignment = await FindOwnAsync(db, user, r, ct);
         if (!ShiftAssignment.ActiveStatuses.Contains(assignment.Status))
@@ -115,11 +115,12 @@ public static class AttendanceEndpoints
         await EnsureMinIntervalAsync(db, assignment.EmployeeId, now, ct);
         assignment.CheckIn(now);
         await db.SaveChangesAsync(ct);
+        await AuditTrail.PublishAsync(bus, user, loggers.CreateLogger("AICOS.Workforce.Attendance"), assignment.TenantId, "attendance.checked_in", "ShiftAssignment", assignment.Id, null, new { assignment.EmployeeId, assignment.WorkDate, CheckInAtUtc = now });
         return (await ScheduleEndpoints.MapAsync(db, [assignment], ct))[0];
     }
 
     private static async Task<ShiftAssignmentResponse> CheckOutAsync(
-        AttendanceRequest r, WorkforceSchedulingDbContext db, ICurrentUser user, ShopClock shop, CancellationToken ct)
+        AttendanceRequest r, WorkforceSchedulingDbContext db, ICurrentUser user, ShopClock shop, IEventBus bus, ILoggerFactory loggers, CancellationToken ct)
     {
         var assignment = await FindOwnAsync(db, user, r, ct);
         if (assignment.CheckInAtUtc is null)
@@ -136,6 +137,7 @@ public static class AttendanceEndpoints
         await EnsureMinIntervalAsync(db, assignment.EmployeeId, now, ct);
         assignment.CheckOut(now);
         await db.SaveChangesAsync(ct);
+        await AuditTrail.PublishAsync(bus, user, loggers.CreateLogger("AICOS.Workforce.Attendance"), assignment.TenantId, "attendance.checked_out", "ShiftAssignment", assignment.Id, null, new { assignment.EmployeeId, assignment.WorkDate, CheckOutAtUtc = now });
         return (await ScheduleEndpoints.MapAsync(db, [assignment], ct))[0];
     }
 
