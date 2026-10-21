@@ -5,7 +5,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict Ai4lrQgUvUlpnBjywtCle8P8C5dVqTwgFZKJRFRBdwDLAxGXKnc7sCET5NK6Lfq
+\restrict jqiXYfwPoLPcnwraqXVpVZNWfOxyEcjMpvLztgW3KIZk6qDEc3NfZVz9bTzdXrA
 
 -- Dumped from database version 16.15 (Debian 16.15-1.pgdg12+2)
 -- Dumped by pg_dump version 16.15 (Debian 16.15-1.pgdg12+2)
@@ -416,6 +416,65 @@ CREATE TABLE kitchen.__ef_migrations_history (
 
 
 --
+-- Name: cup_stickers; Type: TABLE; Schema: kitchen; Owner: -
+--
+
+CREATE TABLE kitchen.cup_stickers (
+    id uuid NOT NULL,
+    ticket_id uuid NOT NULL,
+    order_id uuid NOT NULL,
+    order_code character varying(40) NOT NULL,
+    table_number character varying(20),
+    product_name character varying(200) NOT NULL,
+    cup_index integer NOT NULL,
+    total_cups_in_order integer NOT NULL,
+    customizations character varying(300),
+    printed_at_utc timestamp with time zone NOT NULL
+);
+
+
+--
+-- Name: kitchen_ticket_items; Type: TABLE; Schema: kitchen; Owner: -
+--
+
+CREATE TABLE kitchen.kitchen_ticket_items (
+    id uuid NOT NULL,
+    ticket_id uuid NOT NULL,
+    product_id uuid NOT NULL,
+    product_name character varying(200) NOT NULL,
+    quantity integer NOT NULL,
+    note character varying(300),
+    CONSTRAINT ck_kitchen_ticket_items_quantity CHECK ((quantity > 0))
+);
+
+
+--
+-- Name: kitchen_tickets; Type: TABLE; Schema: kitchen; Owner: -
+--
+
+CREATE TABLE kitchen.kitchen_tickets (
+    id uuid NOT NULL,
+    tenant_id uuid NOT NULL,
+    order_id uuid NOT NULL,
+    order_code character varying(40) NOT NULL,
+    branch_id uuid NOT NULL,
+    table_number character varying(20),
+    order_type character varying(20) NOT NULL,
+    status character varying(20) NOT NULL,
+    is_paid boolean NOT NULL,
+    scheduled_pickup_time_utc timestamp with time zone,
+    brewing_started_at_utc timestamp with time zone,
+    ready_at_utc timestamp with time zone,
+    completed_at_utc timestamp with time zone,
+    cancelled_at_utc timestamp with time zone,
+    created_at_utc timestamp with time zone NOT NULL,
+    created_by uuid,
+    updated_at_utc timestamp with time zone,
+    updated_by uuid
+);
+
+
+--
 -- Name: __ef_migrations_history; Type: TABLE; Schema: menu; Owner: -
 --
 
@@ -521,6 +580,66 @@ CREATE TABLE menu.products (
 CREATE TABLE ordering.__ef_migrations_history (
     migration_id character varying(150) NOT NULL,
     product_version character varying(32) NOT NULL
+);
+
+
+--
+-- Name: order_items; Type: TABLE; Schema: ordering; Owner: -
+--
+
+CREATE TABLE ordering.order_items (
+    id uuid NOT NULL,
+    order_id uuid NOT NULL,
+    product_id uuid NOT NULL,
+    product_name character varying(200) NOT NULL,
+    unit_price numeric(18,0) NOT NULL,
+    quantity integer NOT NULL,
+    note character varying(300),
+    CONSTRAINT ck_order_items_quantity_price CHECK (((quantity > 0) AND (unit_price >= (0)::numeric)))
+);
+
+
+--
+-- Name: orders; Type: TABLE; Schema: ordering; Owner: -
+--
+
+CREATE TABLE ordering.orders (
+    id uuid NOT NULL,
+    tenant_id uuid NOT NULL,
+    order_code character varying(40) NOT NULL,
+    branch_id uuid NOT NULL,
+    cashier_id uuid,
+    customer_id uuid,
+    table_id uuid,
+    table_number character varying(20),
+    delivery_address character varying(300),
+    type character varying(20) NOT NULL,
+    status character varying(20) NOT NULL,
+    payment_status character varying(20) NOT NULL,
+    payment_method character varying(20),
+    payment_provider character varying(20),
+    payment_id uuid,
+    paid_at_utc timestamp with time zone,
+    ready_at_utc timestamp with time zone,
+    delivered_at_utc timestamp with time zone,
+    delivered_by uuid,
+    completed_at_utc timestamp with time zone,
+    cancelled_at_utc timestamp with time zone,
+    cancelled_reason character varying(300),
+    note character varying(500),
+    promotion_code character varying(40),
+    discount_amount numeric(18,0) NOT NULL,
+    refunded_amount numeric(18,0) NOT NULL,
+    refund_status character varying(20) NOT NULL,
+    exception_by uuid,
+    is_printed boolean NOT NULL,
+    printed_count integer NOT NULL,
+    last_printed_at_utc timestamp with time zone,
+    created_at_utc timestamp with time zone NOT NULL,
+    created_by uuid,
+    updated_at_utc timestamp with time zone,
+    updated_by uuid,
+    CONSTRAINT ck_orders_amounts CHECK (((discount_amount >= (0)::numeric) AND (refunded_amount >= (0)::numeric)))
 );
 
 
@@ -704,6 +823,31 @@ CREATE TABLE payment.payments (
 CREATE TABLE reporting.__ef_migrations_history (
     migration_id character varying(150) NOT NULL,
     product_version character varying(32) NOT NULL
+);
+
+
+--
+-- Name: order_facts; Type: TABLE; Schema: reporting; Owner: -
+--
+
+CREATE TABLE reporting.order_facts (
+    id uuid NOT NULL,
+    tenant_id uuid NOT NULL,
+    branch_id uuid NOT NULL,
+    order_type character varying(20) NOT NULL,
+    total_amount numeric(18,0) NOT NULL,
+    placed_at_utc timestamp with time zone,
+    paid_at_utc timestamp with time zone,
+    payment_method character varying(20),
+    paid_amount numeric(18,0) NOT NULL,
+    refunded_amount numeric(18,0) NOT NULL,
+    cancelled_at_utc timestamp with time zone,
+    completed_at_utc timestamp with time zone,
+    created_at_utc timestamp with time zone NOT NULL,
+    created_by uuid,
+    updated_at_utc timestamp with time zone,
+    updated_by uuid,
+    CONSTRAINT ck_order_facts_amounts CHECK (((total_amount >= (0)::numeric) AND (paid_amount >= (0)::numeric) AND (refunded_amount >= (0)::numeric)))
 );
 
 
@@ -1098,6 +1242,30 @@ ALTER TABLE ONLY kitchen.__ef_migrations_history
 
 
 --
+-- Name: cup_stickers pk_cup_stickers; Type: CONSTRAINT; Schema: kitchen; Owner: -
+--
+
+ALTER TABLE ONLY kitchen.cup_stickers
+    ADD CONSTRAINT pk_cup_stickers PRIMARY KEY (id);
+
+
+--
+-- Name: kitchen_ticket_items pk_kitchen_ticket_items; Type: CONSTRAINT; Schema: kitchen; Owner: -
+--
+
+ALTER TABLE ONLY kitchen.kitchen_ticket_items
+    ADD CONSTRAINT pk_kitchen_ticket_items PRIMARY KEY (id);
+
+
+--
+-- Name: kitchen_tickets pk_kitchen_tickets; Type: CONSTRAINT; Schema: kitchen; Owner: -
+--
+
+ALTER TABLE ONLY kitchen.kitchen_tickets
+    ADD CONSTRAINT pk_kitchen_tickets PRIMARY KEY (id);
+
+
+--
 -- Name: __ef_migrations_history pk___ef_migrations_history; Type: CONSTRAINT; Schema: menu; Owner: -
 --
 
@@ -1151,6 +1319,22 @@ ALTER TABLE ONLY menu.products
 
 ALTER TABLE ONLY ordering.__ef_migrations_history
     ADD CONSTRAINT pk___ef_migrations_history PRIMARY KEY (migration_id);
+
+
+--
+-- Name: order_items pk_order_items; Type: CONSTRAINT; Schema: ordering; Owner: -
+--
+
+ALTER TABLE ONLY ordering.order_items
+    ADD CONSTRAINT pk_order_items PRIMARY KEY (id);
+
+
+--
+-- Name: orders pk_orders; Type: CONSTRAINT; Schema: ordering; Owner: -
+--
+
+ALTER TABLE ONLY ordering.orders
+    ADD CONSTRAINT pk_orders PRIMARY KEY (id);
 
 
 --
@@ -1223,6 +1407,14 @@ ALTER TABLE ONLY payment.payments
 
 ALTER TABLE ONLY reporting.__ef_migrations_history
     ADD CONSTRAINT pk___ef_migrations_history PRIMARY KEY (migration_id);
+
+
+--
+-- Name: order_facts pk_order_facts; Type: CONSTRAINT; Schema: reporting; Owner: -
+--
+
+ALTER TABLE ONLY reporting.order_facts
+    ADD CONSTRAINT pk_order_facts PRIMARY KEY (id);
 
 
 --
@@ -1561,6 +1753,34 @@ CREATE UNIQUE INDEX ix_users_username ON identity.users USING btree (username);
 
 
 --
+-- Name: ix_cup_stickers_ticket_id; Type: INDEX; Schema: kitchen; Owner: -
+--
+
+CREATE INDEX ix_cup_stickers_ticket_id ON kitchen.cup_stickers USING btree (ticket_id);
+
+
+--
+-- Name: ix_kitchen_ticket_items_ticket_id; Type: INDEX; Schema: kitchen; Owner: -
+--
+
+CREATE INDEX ix_kitchen_ticket_items_ticket_id ON kitchen.kitchen_ticket_items USING btree (ticket_id);
+
+
+--
+-- Name: ix_kitchen_tickets_tenant_id_branch_id_status_created_at_utc; Type: INDEX; Schema: kitchen; Owner: -
+--
+
+CREATE INDEX ix_kitchen_tickets_tenant_id_branch_id_status_created_at_utc ON kitchen.kitchen_tickets USING btree (tenant_id, branch_id, status, created_at_utc);
+
+
+--
+-- Name: ix_kitchen_tickets_tenant_id_order_id; Type: INDEX; Schema: kitchen; Owner: -
+--
+
+CREATE UNIQUE INDEX ix_kitchen_tickets_tenant_id_order_id ON kitchen.kitchen_tickets USING btree (tenant_id, order_id);
+
+
+--
 -- Name: ix_branch_products_branch_id_product_id; Type: INDEX; Schema: menu; Owner: -
 --
 
@@ -1614,6 +1834,48 @@ CREATE INDEX ix_products_category_id ON menu.products USING btree (category_id);
 --
 
 CREATE INDEX ix_products_tenant_id_name ON menu.products USING btree (tenant_id, name);
+
+
+--
+-- Name: ix_order_items_order_id; Type: INDEX; Schema: ordering; Owner: -
+--
+
+CREATE INDEX ix_order_items_order_id ON ordering.order_items USING btree (order_id);
+
+
+--
+-- Name: ix_orders_customer_id; Type: INDEX; Schema: ordering; Owner: -
+--
+
+CREATE INDEX ix_orders_customer_id ON ordering.orders USING btree (customer_id);
+
+
+--
+-- Name: ix_orders_payment_id; Type: INDEX; Schema: ordering; Owner: -
+--
+
+CREATE INDEX ix_orders_payment_id ON ordering.orders USING btree (payment_id);
+
+
+--
+-- Name: ix_orders_tenant_id_branch_id_created_at_utc; Type: INDEX; Schema: ordering; Owner: -
+--
+
+CREATE INDEX ix_orders_tenant_id_branch_id_created_at_utc ON ordering.orders USING btree (tenant_id, branch_id, created_at_utc);
+
+
+--
+-- Name: ix_orders_tenant_id_branch_id_status; Type: INDEX; Schema: ordering; Owner: -
+--
+
+CREATE INDEX ix_orders_tenant_id_branch_id_status ON ordering.orders USING btree (tenant_id, branch_id, status);
+
+
+--
+-- Name: ix_orders_tenant_id_order_code; Type: INDEX; Schema: ordering; Owner: -
+--
+
+CREATE UNIQUE INDEX ix_orders_tenant_id_order_code ON ordering.orders USING btree (tenant_id, order_code);
 
 
 --
@@ -1712,6 +1974,20 @@ CREATE INDEX ix_payments_tenant_id_order_id ON payment.payments USING btree (ten
 --
 
 CREATE UNIQUE INDEX ix_payments_transaction_ref ON payment.payments USING btree (transaction_ref);
+
+
+--
+-- Name: ix_order_facts_tenant_id_branch_id_paid_at_utc; Type: INDEX; Schema: reporting; Owner: -
+--
+
+CREATE INDEX ix_order_facts_tenant_id_branch_id_paid_at_utc ON reporting.order_facts USING btree (tenant_id, branch_id, paid_at_utc);
+
+
+--
+-- Name: ix_order_facts_tenant_id_branch_id_placed_at_utc; Type: INDEX; Schema: reporting; Owner: -
+--
+
+CREATE INDEX ix_order_facts_tenant_id_branch_id_placed_at_utc ON reporting.order_facts USING btree (tenant_id, branch_id, placed_at_utc);
 
 
 --
@@ -1961,6 +2237,22 @@ ALTER TABLE ONLY identity.users
 
 
 --
+-- Name: cup_stickers fk_cup_stickers_kitchen_tickets_ticket_id; Type: FK CONSTRAINT; Schema: kitchen; Owner: -
+--
+
+ALTER TABLE ONLY kitchen.cup_stickers
+    ADD CONSTRAINT fk_cup_stickers_kitchen_tickets_ticket_id FOREIGN KEY (ticket_id) REFERENCES kitchen.kitchen_tickets(id) ON DELETE CASCADE;
+
+
+--
+-- Name: kitchen_ticket_items fk_kitchen_ticket_items_kitchen_tickets_ticket_id; Type: FK CONSTRAINT; Schema: kitchen; Owner: -
+--
+
+ALTER TABLE ONLY kitchen.kitchen_ticket_items
+    ADD CONSTRAINT fk_kitchen_ticket_items_kitchen_tickets_ticket_id FOREIGN KEY (ticket_id) REFERENCES kitchen.kitchen_tickets(id) ON DELETE CASCADE;
+
+
+--
 -- Name: branch_products fk_branch_products_products_product_id; Type: FK CONSTRAINT; Schema: menu; Owner: -
 --
 
@@ -1990,6 +2282,14 @@ ALTER TABLE ONLY menu.product_options
 
 ALTER TABLE ONLY menu.products
     ADD CONSTRAINT fk_products_categories_category_id FOREIGN KEY (category_id) REFERENCES menu.categories(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: order_items fk_order_items_orders_order_id; Type: FK CONSTRAINT; Schema: ordering; Owner: -
+--
+
+ALTER TABLE ONLY ordering.order_items
+    ADD CONSTRAINT fk_order_items_orders_order_id FOREIGN KEY (order_id) REFERENCES ordering.orders(id) ON DELETE CASCADE;
 
 
 --
@@ -2044,5 +2344,5 @@ ALTER TABLE ONLY workforce.replacement_applications
 -- PostgreSQL database dump complete
 --
 
-\unrestrict Ai4lrQgUvUlpnBjywtCle8P8C5dVqTwgFZKJRFRBdwDLAxGXKnc7sCET5NK6Lfq
+\unrestrict jqiXYfwPoLPcnwraqXVpVZNWfOxyEcjMpvLztgW3KIZk6qDEc3NfZVz9bTzdXrA
 

@@ -60,6 +60,9 @@ public sealed class FakePayments : IPaymentClient
 
     public Exception? Fail { get; set; }
 
+    /// <summary>Runs while the request is open, like a refund event that arrives before the answer does.</summary>
+    public Func<Task>? WhileOpen { get; set; }
+
     public Task<RefundRequestResult> RequestRefundAsync(Guid paymentId, string kind, decimal? amount, string reason, CancellationToken ct)
     {
         if (Fail is not null)
@@ -68,6 +71,7 @@ public sealed class FakePayments : IPaymentClient
         }
 
         Refunds.Add((paymentId, kind, amount, reason));
+        WhileOpen?.Invoke().GetAwaiter().GetResult();
         return Task.FromResult(new RefundRequestResult("Succeeded"));
     }
 }
@@ -480,6 +484,20 @@ public sealed class OrderTests : IDisposable
         (await GetAsync(order.Id())).GetProperty("paymentStatus").GetString().Should().Be("Refunded");                  // all of it
     }
 
+
+    [Fact]
+    public async Task A_refund_that_is_paid_back_before_the_exception_is_saved_still_ends_as_refunded()
+    {
+        var order = await NewOrderAsync();
+        var paymentId = Guid.NewGuid();
+        await _f.HandleAsync(Paid(order, "Cash", paymentId));
+        _payments.WhileOpen = () => _f.HandleAsync(new PaymentRefundedEvent(_tenant, _b1, paymentId, Guid.NewGuid(), order.Id(), 139_000, 139_000, "Cash"));
+
+        var cancelled = await _manager.PostOk($"{Orders}/{order.Id()}/exception", new { reason = "Wrong order" });
+
+        (cancelled.GetProperty("status").GetString(), cancelled.GetProperty("refundStatus").GetString(), cancelled.GetProperty("paymentStatus").GetString()).Should().Be(("Cancelled", "Refunded", "Refunded"));
+        (await GetAsync(order.Id())).GetProperty("refundStatus").GetString().Should().Be("Refunded");
+    }
     [Fact]
     public async Task A_refund_that_fails_or_is_rejected_shows_on_the_order()
     {
