@@ -192,6 +192,55 @@ public sealed class WorkforcePayrollAdjustmentTests : WorkforceTestBase
         await F.As(AicosRoles.Cashier, B1).GetAsync($"{Payroll}/records/export?from={D(Monday)}&to={D(Monday)}").ShouldBe(403);
     }
 
+    // ------------------------------------------------------------------ Excel export (SCRUM-129)
+    [Fact]
+    public async Task The_payroll_can_be_downloaded_as_an_excel_workbook_with_real_numbers_and_text_that_cannot_run()
+    {
+        var shift = await NewShiftAsync("Sáng", "07:00", "12:00");
+        var (user, employee) = await NewEmployeeAsync("=HYPERLINK(\"http://evil\")", AicosRoles.Barista, "FullTime");
+        var assignment = await AssignAsync(employee, shift, Monday);
+        await WorkAsync(Staff(user), assignment, Monday, 7, 12);
+        SetLocal(Monday.AddDays(2), 9);
+        await Manager.PostOk($"{Api}/attendance/approve-range", new { from = D(Monday), to = D(Monday) });
+        await Manager.PostOk(Adjustments, Adj(employee, Monday, 20_000, "Thưởng"));
+
+        var response = await Manager.GetAsync($"{Payroll}/export?from={D(Monday)}&to={D(Monday.AddDays(6))}&format=xlsx");
+
+        response.Content.Headers.ContentType!.MediaType.Should().Be("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        response.Content.Headers.ContentDisposition!.FileName.Should().EndWith(".xlsx");
+        using var workbook = new ClosedXML.Excel.XLWorkbook(await response.Content.ReadAsStreamAsync());
+        var sheet = workbook.Worksheet("Payroll");
+        sheet.Cell(1, 1).GetString().Should().Be("Employee");
+        sheet.Cell(2, 1).DataType.Should().Be(ClosedXML.Excel.XLDataType.Text);
+        sheet.Cell(2, 1).HasFormula.Should().BeFalse();
+        sheet.Cell(2, 1).GetString().Should().Be("=HYPERLINK(\"http://evil\")");        // stored as text, shown as text
+        sheet.Cell(2, 9).GetDouble().Should().Be(300_000);                              // base pay is a number
+        sheet.Cell(2, 12).GetDouble().Should().Be(20_000);
+        sheet.Cell(2, 13).GetDouble().Should().Be(320_000);
+        sheet.Cell(3, 1).GetString().Should().Be("TOTAL");
+        sheet.Cell(3, 13).GetDouble().Should().Be(320_000);
+    }
+
+    [Fact]
+    public async Task The_work_records_can_be_downloaded_as_an_excel_workbook()
+    {
+        var shift = await NewShiftAsync("Sáng", "07:00", "12:00");
+        var (user, employee) = await NewEmployeeAsync("Em", AicosRoles.Cashier);
+        var assignment = await AssignAsync(employee, shift, Monday);
+        await WorkAsync(Staff(user, AicosRoles.Cashier), assignment, Monday, 7, 12);
+
+        var response = await Manager.GetAsync($"{Payroll}/records/export?from={D(Monday)}&to={D(Monday)}&format=XLSX");
+
+        response.Content.Headers.ContentType!.MediaType.Should().Be("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        using var workbook = new ClosedXML.Excel.XLWorkbook(await response.Content.ReadAsStreamAsync());
+        var sheet = workbook.Worksheet("Work records");
+        sheet.Cell(2, 2).GetString().Should().Be("Em");
+        sheet.Cell(2, 9).GetDouble().Should().Be(5);
+        sheet.Cell(2, 11).GetString().Should().Be("Unreviewed");
+        await F.As(AicosRoles.Cashier, B1).GetAsync($"{Payroll}/export?from={D(Monday)}&to={D(Monday)}&format=xlsx").ShouldBe(403);
+        await Manager.GetAsync($"{Payroll}/export?from={D(Monday)}&format=xlsx").ShouldBe(400);
+    }
+
     // ------------------------------------------------------------------ attendance audit (SCRUM-63)
     [Fact]
     public async Task Check_in_and_check_out_are_recorded_in_the_audit_history()
