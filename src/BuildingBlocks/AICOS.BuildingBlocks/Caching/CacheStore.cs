@@ -84,6 +84,9 @@ public sealed class InMemoryCacheStore : ICacheStore
 
     public int Reads { get; private set; }
 
+    /// <summary>Every key in use (values and counters), for tests that check how keys are named.</summary>
+    public IReadOnlyCollection<string> Keys => [.. _values.Keys, .. _counters.Keys];
+
     public int Hits { get; private set; }
 
     public Task<string?> GetAsync(string key, CancellationToken cancellationToken = default)
