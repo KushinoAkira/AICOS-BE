@@ -45,6 +45,13 @@ public static class AuthenticationExtensions
                     OnMessageReceived = context =>
                     {
                         context.Token = ExtractToken(context.Request.Headers.Authorization.ToString());
+
+                        // Browsers cannot set headers on a WebSocket, so SignalR sends the token in the query string; only for the hub paths.
+                        if (string.IsNullOrEmpty(context.Token) && context.HttpContext.Request.Path.StartsWithSegments("/hubs"))
+                        {
+                            context.Token = context.Request.Query["access_token"].ToString();
+                        }
+
                         return Task.CompletedTask;
                     },
                     OnAuthenticationFailed = context =>

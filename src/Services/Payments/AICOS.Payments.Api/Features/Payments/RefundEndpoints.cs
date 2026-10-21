@@ -166,6 +166,7 @@ public static class RefundEndpoints
         {
             refund.Fail("The payment can no longer cover this refund.", user.UserId, refunds.UtcNow);
             await db.SaveChangesAsync(ct);
+            await bus.PublishAsync(new PaymentRefundFailedEvent(refund.TenantId, refund.BranchId, refund.PaymentId, refund.Id, refund.OrderId, refund.DecisionNote ?? "The refund failed."), ct);
             throw new BusinessRuleException("refund.exceeds_payment", "The payment can no longer cover this refund.");
         }
 
@@ -195,6 +196,7 @@ public static class RefundEndpoints
 
         refund.Reject(r.Note!.Trim(), user.UserId ?? throw new UnauthorizedException("Not signed in."), refunds.UtcNow);
         await db.SaveChangesAsync(ct);
+        await bus.PublishAsync(new PaymentRefundFailedEvent(refund.TenantId, refund.BranchId, refund.PaymentId, refund.Id, refund.OrderId, refund.DecisionNote ?? "The refund was rejected."), ct);
         await AuditTrail.PublishAsync(bus, user, loggers.CreateLogger("AICOS.Payments.Refunds"), refund.TenantId, "refund.rejected", "PaymentRefund", refund.Id, null, Snapshot(refund));
         return RefundResponse.From(refund);
     }
@@ -226,6 +228,7 @@ public sealed class RefundProcessor(PaymentsDbContext db, GatewayRegistry gatewa
             {
                 refund.Fail(result.FailureReason ?? "The provider refused the refund.", actor, UtcNow);
                 await db.SaveChangesAsync(ct);
+                await bus.PublishAsync(new PaymentRefundFailedEvent(payment.TenantId, payment.BranchId, payment.Id, refund.Id, payment.OrderId, refund.DecisionNote ?? "The refund failed."), ct);
                 return;
             }
 

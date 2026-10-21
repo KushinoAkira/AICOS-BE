@@ -27,6 +27,7 @@
     <ProjectReference Include="..\..\src\Services\CustomerEngagement\AICOS.CustomerEngagement.Api\AICOS.CustomerEngagement.Api.csproj" />
     <ProjectReference Include="..\..\src\Services\Payments\AICOS.Payments.Api\AICOS.Payments.Api.csproj" />
     <ProjectReference Include="..\..\src\Services\Ordering\AICOS.Ordering.Api\AICOS.Ordering.Api.csproj" />
+    <ProjectReference Include="..\..\src\Services\KitchenOperations\AICOS.KitchenOperations.Api\AICOS.KitchenOperations.Api.csproj" />
   </ItemGroup>
 
 </Project>
