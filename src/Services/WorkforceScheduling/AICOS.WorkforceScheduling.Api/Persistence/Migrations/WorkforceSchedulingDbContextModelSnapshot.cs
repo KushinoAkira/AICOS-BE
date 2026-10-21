@@ -306,6 +306,67 @@ namespace AICOS.WorkforceScheduling.Api.Persistence.Migrations
                     b.ToTable("pay_rules", "workforce");
                 });
 
+            modelBuilder.Entity("AICOS.WorkforceScheduling.Api.Domain.PayrollAdjustment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(14)
+                        .HasColumnType("numeric(14,0)")
+                        .HasColumnName("amount");
+
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("branch_id");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by");
+
+                    b.Property<Guid>("EmployeeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("employee_id");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("reason");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at_utc");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by");
+
+                    b.Property<DateOnly>("WorkDate")
+                        .HasColumnType("date")
+                        .HasColumnName("work_date");
+
+                    b.HasKey("Id")
+                        .HasName("pk_payroll_adjustments");
+
+                    b.HasIndex("EmployeeId", "WorkDate")
+                        .HasDatabaseName("ix_payroll_adjustments_employee_id_work_date");
+
+                    b.HasIndex("TenantId", "BranchId", "WorkDate")
+                        .HasDatabaseName("ix_payroll_adjustments_tenant_id_branch_id_work_date");
+
+                    b.ToTable("payroll_adjustments", "workforce");
+                });
+
             modelBuilder.Entity("AICOS.WorkforceScheduling.Api.Domain.ReplacementApplication", b =>
                 {
                     b.Property<Guid>("Id")

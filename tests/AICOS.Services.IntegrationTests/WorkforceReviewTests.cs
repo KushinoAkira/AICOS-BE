@@ -132,7 +132,7 @@ public sealed class WorkforceReviewTests : WorkforceTestBase
         corrected.GetProperty("adjustedCheckOutAtUtc").GetDateTime().Should().Be(checkOut.UtcDateTime);
         corrected.GetProperty("checkOutAtUtc").ValueKind.Should().Be(JsonValueKind.Null);   // what the employee recorded stays untouched
 
-        var audit = F.Events.Published.OfType<AuditRecordedEvent>().Single();
+        var audit = F.Events.Published.OfType<AuditRecordedEvent>().Where(e => !e.Action.StartsWith("attendance.checked_")).Single();
         audit.Action.Should().Be("attendance.adjusted");
         audit.EntityType.Should().Be("ShiftAssignment");
         audit.TenantId.Should().Be(Tenant);
@@ -182,7 +182,7 @@ public sealed class WorkforceReviewTests : WorkforceTestBase
         absent.GetProperty("workedHours").GetDouble().Should().Be(0);
         (await ReportAsync()).GetProperty("summary")[0].GetProperty("absences").GetInt32().Should().Be(1);
 
-        F.Events.Published.OfType<AuditRecordedEvent>().Single().Action.Should().Be("attendance.absence_recorded");
+        F.Events.Published.OfType<AuditRecordedEvent>().Where(e => !e.Action.StartsWith("attendance.checked_")).Single().Action.Should().Be("attendance.absence_recorded");
     }
 
     [Fact]

@@ -251,8 +251,8 @@ public sealed class WorkforcePayrollTests : WorkforceTestBase
         bytes.Take(3).Should().Equal(0xEF, 0xBB, 0xBF);                              // UTF-8 byte-order mark
         var lines = Encoding.UTF8.GetString(bytes).TrimStart('﻿').Split('\n', StringSplitOptions.RemoveEmptyEntries).Select(l => l.TrimEnd('\r')).ToList();
         lines[0].Should().StartWith("Employee,Contract,Worked days");
-        lines[1].Should().StartWith("\"'=HYPERLINK(\"\"http://evil\"\")\",FullTime,1,5,0,0,0,0,300000,0,0,300000");
-        lines[2].Should().StartWith("TOTAL").And.EndWith("300000,0,0,300000");
+        lines[1].Should().StartWith("\"'=HYPERLINK(\"\"http://evil\"\")\",FullTime,1,5,0,0,0,0,300000,0,0,0,300000");
+        lines[2].Should().StartWith("TOTAL").And.EndWith("300000,0,0,0,300000");
 
         await Manager.GetAsync($"{Payroll}/export").ShouldBe(400);
     }
@@ -283,7 +283,7 @@ public sealed class WorkforcePayrollTests : WorkforceTestBase
     private static readonly PayRule Rule = new(Guid.NewGuid(), 300_000, 30_000, 45_000, 8, 1.5m);
 
     [Fact]
-    public void The_calculator_pays_full_time_by_day_whatever_the_hours_of_that_day()
+    public void The_calculator_pays_full_time_the_day_rate_plus_overtime_beyond_the_daily_threshold()
     {
         var e = EmployeeOf(ContractType.FullTime);
         var records = new[] { Worked(Tenant, e, Monday, 7, 9), Worked(Tenant, e, Monday.AddDays(1), 7, 17) };
@@ -292,8 +292,9 @@ public sealed class WorkforcePayrollTests : WorkforceTestBase
 
         line.WorkedDays.Should().Be(2);
         line.BasePay.Should().Be(600_000);
-        line.OvertimePay.Should().Be(0);                   // no overtime multiplier for day pay
-        line.TotalPay.Should().Be(600_000);
+        line.OvertimeHours.Should().Be(2);                 // the 10-hour day
+        line.OvertimePay.Should().Be(112_500);             // 2 h x (300,000 / 8) x 1.5
+        line.TotalPay.Should().Be(712_500);
     }
 
     [Fact]

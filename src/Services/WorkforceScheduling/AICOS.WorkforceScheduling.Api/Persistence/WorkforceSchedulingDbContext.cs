@@ -24,6 +24,8 @@ public sealed class WorkforceSchedulingDbContext(DbContextOptions<WorkforceSched
     public DbSet<CashClosing> CashClosings => Set<CashClosing>();
 
     public DbSet<CashTransaction> CashTransactions => Set<CashTransaction>();
+
+    public DbSet<PayrollAdjustment> PayrollAdjustments => Set<PayrollAdjustment>();
 }
 
 internal sealed class EmployeeConfiguration : IEntityTypeConfiguration<Employee>
@@ -149,5 +151,19 @@ internal sealed class CashTransactionConfiguration : IEntityTypeConfiguration<Ca
         builder.Property(t => t.Amount).HasPrecision(14, 2);
         builder.HasIndex(t => t.SourceEventId).IsUnique();
         builder.HasIndex(t => new { t.CashierUserId, t.OccurredAtUtc });
+    }
+}
+
+internal sealed class PayrollAdjustmentConfiguration : IEntityTypeConfiguration<PayrollAdjustment>
+{
+    public void Configure(EntityTypeBuilder<PayrollAdjustment> builder)
+    {
+        builder.ToTable("payroll_adjustments");
+        builder.HasKey(a => a.Id);
+        builder.Property(a => a.Id).ValueGeneratedNever();
+        builder.Property(a => a.Amount).HasPrecision(14, 0);
+        builder.Property(a => a.Reason).HasMaxLength(PayrollAdjustment.ReasonMaxLength).IsRequired();
+        builder.HasIndex(a => new { a.TenantId, a.BranchId, a.WorkDate });
+        builder.HasIndex(a => new { a.EmployeeId, a.WorkDate });
     }
 }

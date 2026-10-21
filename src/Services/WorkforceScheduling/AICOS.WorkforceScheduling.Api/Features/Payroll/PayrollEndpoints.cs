@@ -37,9 +37,19 @@ public sealed record PayrollLine(
     decimal BasePay,
     decimal OvertimePay,
     decimal ReplacementPay,
+    decimal Adjustments,
     decimal TotalPay);
 
-public sealed record PayrollTotals(decimal BasePay, decimal OvertimePay, decimal ReplacementPay, decimal TotalPay, int UnreviewedRecords);
+/// <summary>POST /payroll/adjustments. Amount is whole VND: positive adds to the pay, negative deducts.</summary>
+public sealed record PayrollAdjustmentRequest(Guid? EmployeeId, DateOnly? WorkDate, decimal? Amount, string? Reason);
+
+public sealed record PayrollAdjustmentResponse(Guid Id, Guid EmployeeId, string EmployeeName, Guid BranchId, DateOnly WorkDate, decimal Amount, string Reason, DateTime CreatedAtUtc, Guid? CreatedBy)
+{
+    public static PayrollAdjustmentResponse From(PayrollAdjustment a, string employeeName) =>
+        new(a.Id, a.EmployeeId, employeeName, a.BranchId, a.WorkDate, a.Amount, a.Reason, a.CreatedAtUtc, a.CreatedBy);
+}
+
+public sealed record PayrollTotals(decimal BasePay, decimal OvertimePay, decimal ReplacementPay, decimal Adjustments, decimal TotalPay, int UnreviewedRecords);
 
 public sealed record PayrollSummaryResponse(DateOnly From, DateOnly To, Guid? BranchId, PayRuleResponse Rules, List<PayrollLine> Lines, PayrollTotals Totals);
 
@@ -50,7 +60,8 @@ public sealed record PayrollSummaryResponse(DateOnly From, DateOnly To, Guid? Br
 /// </summary>
 public static class PayrollCalculator
 {
-    public static PayrollLine Calculate(Employee employee, IReadOnlyList<ShiftAssignment> records, PayRule rules, Func<ShiftAssignment, bool> hasEnded)
+    public static PayrollLine Calculate(
+        Employee employee, IReadOnlyList<ShiftAssignment> records, PayRule rules, Func<ShiftAssignment, bool> hasEnded, decimal adjustments = 0)
     {
         var payable = records.Where(a => a.CountsForPayroll && !a.IsAbsent && a.WorkedHours > 0).ToList();
         var regularByDate = payable.Where(a => !a.IsReplacement).GroupBy(a => a.WorkDate).ToDictionary(g => g.Key, g => g.Sum(a => a.WorkedHours));
@@ -58,22 +69,24 @@ public static class PayrollCalculator
 
         var days = regularByDate.Count;
         double regular = 0, overtime = 0;
-        decimal basePay, overtimePay = 0;
+        decimal basePay, overtimePay;
+
+        // Hours beyond the daily threshold are overtime for everyone (BR-53, "applicable overtime requirements").
+        var threshold = (double)rules.OvertimeAfterHours;
+        foreach (var hours in regularByDate.Values)
+        {
+            regular += Math.Min(hours, threshold);
+            overtime += Math.Max(0, hours - threshold);
+        }
 
         if (employee.ContractType == ContractType.FullTime)
         {
-            regular = regularByDate.Values.Sum();
+            // The day rate covers the first threshold hours of the day; overtime is paid at the hourly equivalent of that rate.
             basePay = days * rules.FullTimeDayRate;
+            overtimePay = (decimal)overtime * (rules.FullTimeDayRate / rules.OvertimeAfterHours) * rules.OvertimeMultiplier;
         }
         else
         {
-            var threshold = (double)rules.OvertimeAfterHours;
-            foreach (var hours in regularByDate.Values)
-            {
-                regular += Math.Min(hours, threshold);
-                overtime += Math.Max(0, hours - threshold);
-            }
-
             basePay = (decimal)regular * rules.PartTimeHourRate;
             overtimePay = (decimal)overtime * rules.PartTimeHourRate * rules.OvertimeMultiplier;
         }
@@ -97,7 +110,8 @@ public static class PayrollCalculator
             basePay,
             overtimePay,
             replacementPay,
-            basePay + overtimePay + replacementPay);
+            adjustments,
+            basePay + overtimePay + replacementPay + adjustments);
     }
 
     private static decimal Money(decimal value) => Math.Round(value, 0, MidpointRounding.AwayFromZero);
@@ -121,6 +135,10 @@ public static class PayrollEndpoints
         var payroll = api.MapGroup("/payroll").WithTags("Payroll");
         payroll.MapGet("/summary", SummaryAsync).RequireAuthorization(AicosPolicies.Management);
         payroll.MapGet("/export", ExportAsync).RequireAuthorization(AicosPolicies.Management);
+        payroll.MapGet("/records/export", ExportRecordsAsync).RequireAuthorization(AicosPolicies.Management);
+        payroll.MapGet("/adjustments", ListAdjustmentsAsync).RequireAuthorization(AicosPolicies.Management);
+        payroll.MapPost("/adjustments", AddAdjustmentAsync).RequireAuthorization(AicosPolicies.Management);
+        payroll.MapDelete("/adjustments/{id:guid}", RemoveAdjustmentAsync).RequireAuthorization(AicosPolicies.Management);
     }
 
     // ------------------------------------------------------------------ pay rules
@@ -198,16 +216,16 @@ public static class PayrollEndpoints
         var summary = await BuildAsync(db, user, directory, shop, branchId, from, to, ct);
 
         var csv = new StringBuilder();
-        csv.AppendLine("Employee,Contract,Worked days,Regular hours,Overtime hours,Replacement hours,Absences,Unreviewed records,Base pay,Overtime pay,Replacement pay,Total pay");
+        csv.AppendLine("Employee,Contract,Worked days,Regular hours,Overtime hours,Replacement hours,Absences,Unreviewed records,Base pay,Overtime pay,Replacement pay,Adjustments,Total pay");
         foreach (var l in summary.Lines)
         {
             csv.AppendLine(string.Join(',',
                 Escape(l.EmployeeName), l.ContractType, l.WorkedDays, Number(l.RegularHours), Number(l.OvertimeHours), Number(l.ReplacementHours),
-                l.Absences, l.UnreviewedRecords, Number(l.BasePay), Number(l.OvertimePay), Number(l.ReplacementPay), Number(l.TotalPay)));
+                l.Absences, l.UnreviewedRecords, Number(l.BasePay), Number(l.OvertimePay), Number(l.ReplacementPay), Number(l.Adjustments), Number(l.TotalPay)));
         }
 
         csv.AppendLine(string.Join(',', "TOTAL", "", "", "", "", "", "", summary.Totals.UnreviewedRecords, Number(summary.Totals.BasePay), Number(summary.Totals.OvertimePay),
-            Number(summary.Totals.ReplacementPay), Number(summary.Totals.TotalPay)));
+            Number(summary.Totals.ReplacementPay), Number(summary.Totals.Adjustments), Number(summary.Totals.TotalPay)));
 
         var bytes = Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(csv.ToString())).ToArray();
         return Results.File(bytes, "text/csv; charset=utf-8", $"payroll-{summary.From:yyyyMMdd}-{summary.To:yyyyMMdd}.csv");
@@ -244,18 +262,153 @@ public static class PayrollEndpoints
         }
 
         var assignments = await query.ToListAsync(ct);
-        var employeeIds = assignments.Select(a => a.EmployeeId).Distinct().ToList();
+        var adjustmentQuery = db.PayrollAdjustments.AsNoTracking().Where(a => a.TenantId == tenantId && a.WorkDate >= from && a.WorkDate <= to);
+        if (branch is not null)
+        {
+            adjustmentQuery = adjustmentQuery.Where(a => a.BranchId == branch);
+        }
+
+        var adjustments = await adjustmentQuery.ToListAsync(ct);
+        var employeeIds = assignments.Select(a => a.EmployeeId).Concat(adjustments.Select(a => a.EmployeeId)).Distinct().ToList();
         var employees = await db.Employees.AsNoTracking().Where(e => employeeIds.Contains(e.Id)).ToListAsync(ct);
         var now = shop.UtcNow;
 
         var lines = employees
-            .Select(e => PayrollCalculator.Calculate(e, assignments.Where(a => a.EmployeeId == e.Id).ToList(), rules, a => shop.ToUtc(a.WorkDate, a.EndTime) <= now))
+            .Select(e => PayrollCalculator.Calculate(e, assignments.Where(a => a.EmployeeId == e.Id).ToList(), rules, a => shop.ToUtc(a.WorkDate, a.EndTime) <= now, adjustments.Where(x => x.EmployeeId == e.Id).Sum(x => x.Amount)))
             .OrderBy(l => l.EmployeeName)
             .ToList();
 
         var totals = new PayrollTotals(
-            lines.Sum(l => l.BasePay), lines.Sum(l => l.OvertimePay), lines.Sum(l => l.ReplacementPay), lines.Sum(l => l.TotalPay), lines.Sum(l => l.UnreviewedRecords));
+            lines.Sum(l => l.BasePay), lines.Sum(l => l.OvertimePay), lines.Sum(l => l.ReplacementPay), lines.Sum(l => l.Adjustments), lines.Sum(l => l.TotalPay), lines.Sum(l => l.UnreviewedRecords));
         return new PayrollSummaryResponse(from!.Value, to!.Value, branch, PayRuleResponse.From(rules), lines, totals);
+    }
+
+    // ------------------------------------------------------------------ work records export (FR-28)
+    /// <summary>One CSV row per scheduled shift of the period: what was scheduled, what was recorded, how it was reviewed and whether it is paid.</summary>
+    private static async Task<IResult> ExportRecordsAsync(
+        WorkforceSchedulingDbContext db, ICurrentUser user, IBranchDirectory directory, ShopClock shop, Guid? branchId, DateOnly? from, DateOnly? to, CancellationToken ct)
+    {
+        ValidatePeriod(from, to);
+        var tenantId = TenantScope.Require(user);
+        var branch = await WorkforceScope.FilterAsync(user, directory, branchId, ct);
+        var query = db.ShiftAssignments.AsNoTracking().Where(a => a.TenantId == tenantId && a.WorkDate >= from && a.WorkDate <= to);
+        if (branch is not null)
+        {
+            query = query.Where(a => a.BranchId == branch);
+        }
+
+        var assignments = await query.OrderBy(a => a.WorkDate).ThenBy(a => a.StartTime).ToListAsync(ct);
+        var employeeIds = assignments.Select(a => a.EmployeeId).Distinct().ToList();
+        var names = await db.Employees.AsNoTracking().Where(e => employeeIds.Contains(e.Id)).ToDictionaryAsync(e => e.Id, e => e.FullName, ct);
+
+        var csv = new StringBuilder();
+        csv.AppendLine("Date,Employee,Shift start,Shift end,Assignment,Replacement,Check-in,Check-out,Worked hours,Absent,Review,Counts for payroll");
+        foreach (var a in assignments)
+        {
+            csv.AppendLine(string.Join(',',
+                a.WorkDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), Escape(names.GetValueOrDefault(a.EmployeeId, "?")),
+                a.StartTime.ToString("HH:mm", CultureInfo.InvariantCulture), a.EndTime.ToString("HH:mm", CultureInfo.InvariantCulture), a.Status,
+                a.IsReplacement ? "yes" : "no", Local(shop, a.EffectiveCheckInUtc), Local(shop, a.EffectiveCheckOutUtc), Number(a.WorkedHours),
+                a.IsAbsent ? "yes" : "no", a.ReviewStatus, a.CountsForPayroll ? "yes" : "no"));
+        }
+
+        var bytes = Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(csv.ToString())).ToArray();
+        return Results.File(bytes, "text/csv; charset=utf-8", $"work-records-{from:yyyyMMdd}-{to:yyyyMMdd}.csv");
+    }
+
+    private static string Local(ShopClock shop, DateTime? utc) =>
+        utc is null ? string.Empty : shop.ToLocal(utc.Value).ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
+
+    // ------------------------------------------------------------------ payroll adjustments (BR-56)
+    private static async Task<List<PayrollAdjustmentResponse>> ListAdjustmentsAsync(
+        WorkforceSchedulingDbContext db, ICurrentUser user, IBranchDirectory directory, Guid? branchId, Guid? employeeId, DateOnly? from, DateOnly? to, CancellationToken ct)
+    {
+        ValidatePeriod(from, to);
+        var tenantId = TenantScope.Require(user);
+        var branch = await WorkforceScope.FilterAsync(user, directory, branchId, ct);
+        var query = db.PayrollAdjustments.AsNoTracking().Where(a => a.TenantId == tenantId && a.WorkDate >= from && a.WorkDate <= to);
+        if (branch is not null)
+        {
+            query = query.Where(a => a.BranchId == branch);
+        }
+
+        if (employeeId is not null)
+        {
+            query = query.Where(a => a.EmployeeId == employeeId);
+        }
+
+        var rows = await query.OrderBy(a => a.WorkDate).ThenBy(a => a.CreatedAtUtc).ToListAsync(ct);
+        var ids = rows.Select(a => a.EmployeeId).Distinct().ToList();
+        var names = await db.Employees.AsNoTracking().Where(e => ids.Contains(e.Id)).ToDictionaryAsync(e => e.Id, e => e.FullName, ct);
+        return rows.Select(a => PayrollAdjustmentResponse.From(a, names.GetValueOrDefault(a.EmployeeId, "?"))).ToList();
+    }
+
+    /// <summary>A bonus or deduction for one employee on one day. Counts in the payroll of the period that covers the day. Audited.</summary>
+    private static async Task<IResult> AddAdjustmentAsync(
+        PayrollAdjustmentRequest r, WorkforceSchedulingDbContext db, ICurrentUser user, ShopClock shop, IEventBus bus, ILoggerFactory loggers, CancellationToken ct)
+    {
+        var errors = new ValidationErrors();
+        CommonRules.RequiredId(errors, "EmployeeId", r.EmployeeId, "Employee");
+        CommonRules.Required(errors, "Reason", r.Reason, "Reason", PayrollAdjustment.ReasonMaxLength);
+        if (r.WorkDate is null)
+        {
+            errors.Add("WorkDate", "WorkDate is required (yyyy-MM-dd).");
+        }
+        else if (r.WorkDate > shop.Today)
+        {
+            errors.Add("WorkDate", "An adjustment cannot be dated in the future.");
+        }
+
+        if (r.Amount is null or 0 || Math.Abs(r.Amount.Value) > MaxAdjustment || r.Amount != decimal.Truncate(r.Amount.Value))
+        {
+            errors.Add("Amount", $"Amount is a whole number of VND, not 0, and at most {MaxAdjustment:N0} up or down.");
+        }
+
+        errors.ThrowIfAny();
+
+        var tenantId = TenantScope.Require(user);
+        var employee = await db.Employees.AsNoTracking().FirstOrDefaultAsync(e => e.Id == r.EmployeeId && e.TenantId == tenantId, ct)
+            ?? throw new NotFoundException("Employee", r.EmployeeId!);
+        BranchAccess.EnsureCanAccess(user, employee.BranchId);
+
+        var adjustment = new PayrollAdjustment(tenantId, employee.BranchId, employee.Id, r.WorkDate!.Value, r.Amount!.Value, r.Reason!.Trim());
+        db.PayrollAdjustments.Add(adjustment);
+        await db.SaveChangesAsync(ct);
+        await AuditTrail.PublishAsync(
+            bus, user, loggers.CreateLogger("AICOS.Workforce.Payroll"), tenantId, "payroll_adjustment.added", "PayrollAdjustment", adjustment.Id, null, AdjustmentSnapshot(adjustment));
+
+        return Results.Created($"/api/v1/workforce/payroll/adjustments/{adjustment.Id}", PayrollAdjustmentResponse.From(adjustment, employee.FullName));
+    }
+
+    private static async Task<IResult> RemoveAdjustmentAsync(
+        Guid id, WorkforceSchedulingDbContext db, ICurrentUser user, IEventBus bus, ILoggerFactory loggers, CancellationToken ct)
+    {
+        var tenantId = TenantScope.Require(user);
+        var adjustment = await db.PayrollAdjustments.FirstOrDefaultAsync(a => a.Id == id && a.TenantId == tenantId, ct) ?? throw new NotFoundException("Payroll adjustment", id);
+        BranchAccess.EnsureCanAccess(user, adjustment.BranchId);
+
+        var before = AdjustmentSnapshot(adjustment);
+        db.PayrollAdjustments.Remove(adjustment);
+        await db.SaveChangesAsync(ct);
+        await AuditTrail.PublishAsync(bus, user, loggers.CreateLogger("AICOS.Workforce.Payroll"), tenantId, "payroll_adjustment.removed", "PayrollAdjustment", id, before);
+        return Results.NoContent();
+    }
+
+    private static object AdjustmentSnapshot(PayrollAdjustment a) => new { a.EmployeeId, a.BranchId, a.WorkDate, a.Amount, a.Reason };
+
+    private const decimal MaxAdjustment = 50_000_000m;
+
+    private static void ValidatePeriod(DateOnly? from, DateOnly? to)
+    {
+        if (from is null || to is null)
+        {
+            throw new ValidationFailedException("from", "Both from and to dates are required (yyyy-MM-dd).");
+        }
+
+        if (from > to || to.Value.DayNumber - from.Value.DayNumber >= MaxPeriodDays)
+        {
+            throw new ValidationFailedException("from", $"The period must be ordered and at most {MaxPeriodDays} days.");
+        }
     }
 
     private static string Number(decimal value) => value.ToString("0.##", CultureInfo.InvariantCulture);
