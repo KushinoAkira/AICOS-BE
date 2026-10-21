@@ -1,4 +1,7 @@
-# AICOS - local development stack.
+# AICOS - local stack (Docker Compose).
+#
+#   First time: scripts/init-env.ps1 (Windows) or scripts/init-env.sh - writes .env with random secrets.
+#   Nothing secret has a default: compose stops with a clear message when a value in .env is missing.
 #
 #   docker compose up -d postgres redis      # infrastructure only (run services from the IDE)
 #   docker compose up -d --build             # everything: infra + gateway + 11 services
@@ -6,13 +9,15 @@
 #
 # Everything is reachable through the gateway: http://localhost:8080/api/v1/{orders|menu|...}/...
 # Each service is ALSO exposed directly on 5101-5111 for debugging (Swagger: http://localhost:510x/swagger).
-# All credentials below are DEV defaults - override via .env (see .env.example).
+# Postgres, Redis and pgAdmin listen on 127.0.0.1 only. See .env.example for every variable.
 
 x-dotnet-env: &dotnet-env
-  ASPNETCORE_ENVIRONMENT: Development
+  ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
+  Swagger__Enabled: ${SWAGGER_ENABLED:-false}
+  Payments__AllowSimulation: ${PAYMENTS_ALLOW_SIMULATION:-false}
   Database__MigrateOnStartup: "true"
-  ConnectionStrings__Redis: redis:6379
-  Jwt__SigningKey: ${JWT_SIGNING_KEY:-dev-only-signing-key-change-me-0123456789abcdef}
+  ConnectionStrings__Redis: redis:6379,password=${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env - run scripts/init-env first}
+  Jwt__SigningKey: ${JWT_SIGNING_KEY:?Set JWT_SIGNING_KEY in .env - run scripts/init-env first}
   Services__Identity__BaseUrl: http://identity:8080
   Services__Menu__BaseUrl: http://menu:8080
   Services__Table__BaseUrl: http://table:8080
@@ -41,10 +46,10 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-aicos}
       POSTGRES_USER: ${POSTGRES_USER:-aicos_admin}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aicos_admin_dev}
-      SERVICE_DB_PASSWORD: ${SERVICE_DB_PASSWORD:-aicos_dev}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env - run scripts/init-env first}
+      SERVICE_DB_PASSWORD: ${SERVICE_DB_PASSWORD:?Set SERVICE_DB_PASSWORD in .env - run scripts/init-env first}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
@@ -58,13 +63,13 @@ services:
     image: redis:7-alpine
     container_name: aicos-redis
     restart: unless-stopped
-    command: ["redis-server", "--appendonly", "yes"]
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env - run scripts/init-env first}"]
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis-data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "redis-cli -a $${REDIS_PASSWORD} --no-auth-warning ping | grep -q PONG"]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -74,12 +79,12 @@ services:
     container_name: aicos-pgadmin
     profiles: ["tools"]
     environment:
-      PGADMIN_DEFAULT_EMAIL: admin@aicos.local
-      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@aicos.local}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:?Set PGADMIN_PASSWORD in .env - run scripts/init-env first}
       PGADMIN_CONFIG_SERVER_MODE: "False"
       PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
     ports:
-      - "5050:80"
+      - "127.0.0.1:5050:80"
     depends_on:
       postgres:
         condition: service_healthy
@@ -96,8 +101,10 @@ services:
         PROJECT: src/Gateway/AICOS.Gateway
         ASSEMBLY: AICOS.Gateway
     environment:
-      ASPNETCORE_ENVIRONMENT: Development
-      Jwt__SigningKey: ${JWT_SIGNING_KEY:-dev-only-signing-key-change-me-0123456789abcdef}
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
+      Swagger__Enabled: ${SWAGGER_ENABLED:-false}
+      Payments__AllowSimulation: ${PAYMENTS_ALLOW_SIMULATION:-false}
+      Jwt__SigningKey: ${JWT_SIGNING_KEY:?Set JWT_SIGNING_KEY in .env - run scripts/init-env first}
       ReverseProxy__Clusters__identity__Destinations__primary__Address: http://identity:8080
       ReverseProxy__Clusters__menu__Destinations__primary__Address: http://menu:8080
       ReverseProxy__Clusters__table__Destinations__primary__Address: http://table:8080
@@ -135,7 +142,9 @@ services:
         ASSEMBLY: AICOS.IdentityOrganization.Api
     environment:
       <<: *dotnet-env
-      ConnectionStrings__Default: Host=postgres;Port=5432;Database=${POSTGRES_DB:-aicos};Username=identity_svc;Password=${SERVICE_DB_PASSWORD:-aicos_dev}
+      ConnectionStrings__Default: Host=postgres;Port=5432;Database=${POSTGRES_DB:-aicos};Username=identity_svc;Password=${SERVICE_DB_PASSWORD:?Set SERVICE_DB_PASSWORD in .env - run scripts/init-env first}
+      Auth__SeedAdmin__Email: ${SEED_ADMIN_EMAIL:-admin@aicos.local}
+      Auth__SeedAdmin__Password: ${SEED_ADMIN_PASSWORD:?Set SEED_ADMIN_PASSWORD in .env - run scripts/init-env first}
     ports: ["5101:8080"]
 
   # ------------------------------------------------------------------ COMMERCE
@@ -151,7 +160,7 @@ services:
         ASSEMBLY: AICOS.MenuCatalog.Api
     environment:
       <<: *dotnet-env
-      ConnectionStrings__Default: Host=postgres;Port=5432;Database=${POSTGRES_DB:-aicos};Username=menu_svc;Password=${SERVICE_DB_PASSWORD:-aicos_dev}
+      ConnectionStrings__Default: Host=postgres;Port=5432;Database=${POSTGRES_DB:-aicos};Username=menu_svc;Password=${SERVICE_DB_PASSWORD:?Set SERVICE_DB_PASSWORD in .env - run scripts/init-env first}
     ports: ["5102:8080"]
 
   table:
@@ -166,7 +175,7 @@ services:
         ASSEMBLY: AICOS.TableReservation.Api
     environment:
       <<: *dotnet-env
-      ConnectionStrings__Default: Host=postgres;Port=5432;Database=${POSTGRES_DB:-aicos};Username=table_reservation_svc;Password=${SERVICE_DB_PASSWORD:-aicos_dev}
+      ConnectionStrings__Default: Host=postgres;Port=5432;Database=${POSTGRES_DB:-aicos};Username=table_reservation_svc;Password=${SERVICE_DB_PASSWORD:?Set SERVICE_DB_PASSWORD in .env - run scripts/init-env first}
     ports: ["5103:8080"]
 
   order:
@@ -181,7 +190,7 @@ services:
         ASSEMBLY: AICOS.Ordering.Api
     environment:
       <<: *dotnet-env
-      ConnectionStrings__Default: Host=postgres;Port=5432;Database=${POSTGRES_DB:-aicos};Username=ordering_svc;Password=${SERVICE_DB_PASSWORD:-aicos_dev}
+      ConnectionStrings__Default: Host=postgres;Port=5432;Database=${POSTGRES_DB:-aicos};Username=ordering_svc;Password=${SERVICE_DB_PASSWORD:?Set SERVICE_DB_PASSWORD in .env - run scripts/init-env first}
     ports: ["5104:8080"]
 
   payment:
@@ -196,8 +205,8 @@ services:
         ASSEMBLY: AICOS.Payments.Api
     environment:
       <<: *dotnet-env
-      ConnectionStrings__Default: Host=postgres;Port=5432;Database=${POSTGRES_DB:-aicos};Username=payment_svc;Password=${SERVICE_DB_PASSWORD:-aicos_dev}
-      Payments__SecretKey: ${PAYMENTS_SECRET_KEY:-K5sBcoL3/VUg+nD5wzlABy60/fQaywUNlKzjDNeMTA0=}
+      ConnectionStrings__Default: Host=postgres;Port=5432;Database=${POSTGRES_DB:-aicos};Username=payment_svc;Password=${SERVICE_DB_PASSWORD:?Set SERVICE_DB_PASSWORD in .env - run scripts/init-env first}
+      Payments__SecretKey: ${PAYMENTS_SECRET_KEY:?Set PAYMENTS_SECRET_KEY in .env - run scripts/init-env first}
     ports: ["5105:8080"]
 
   # ------------------------------------------------------------------ OPERATIONS
@@ -213,7 +222,7 @@ services:
         ASSEMBLY: AICOS.KitchenOperations.Api
     environment:
       <<: *dotnet-env
-      ConnectionStrings__Default: Host=postgres;Port=5432;Database=${POSTGRES_DB:-aicos};Username=kitchen_svc;Password=${SERVICE_DB_PASSWORD:-aicos_dev}
+      ConnectionStrings__Default: Host=postgres;Port=5432;Database=${POSTGRES_DB:-aicos};Username=kitchen_svc;Password=${SERVICE_DB_PASSWORD:?Set SERVICE_DB_PASSWORD in .env - run scripts/init-env first}
     ports: ["5107:8080"]
 
   workforce:
@@ -228,7 +237,7 @@ services:
         ASSEMBLY: AICOS.WorkforceScheduling.Api
     environment:
       <<: *dotnet-env
-      ConnectionStrings__Default: Host=postgres;Port=5432;Database=${POSTGRES_DB:-aicos};Username=workforce_svc;Password=${SERVICE_DB_PASSWORD:-aicos_dev}
+      ConnectionStrings__Default: Host=postgres;Port=5432;Database=${POSTGRES_DB:-aicos};Username=workforce_svc;Password=${SERVICE_DB_PASSWORD:?Set SERVICE_DB_PASSWORD in .env - run scripts/init-env first}
     ports: ["5108:8080"]
 
   # ------------------------------------------------------------------ INSIGHT
@@ -244,7 +253,7 @@ services:
         ASSEMBLY: AICOS.ReportingAnalytics.Api
     environment:
       <<: *dotnet-env
-      ConnectionStrings__Default: Host=postgres;Port=5432;Database=${POSTGRES_DB:-aicos};Username=reporting_svc;Password=${SERVICE_DB_PASSWORD:-aicos_dev}
+      ConnectionStrings__Default: Host=postgres;Port=5432;Database=${POSTGRES_DB:-aicos};Username=reporting_svc;Password=${SERVICE_DB_PASSWORD:?Set SERVICE_DB_PASSWORD in .env - run scripts/init-env first}
     ports: ["5109:8080"]
 
   customer:
@@ -259,7 +268,7 @@ services:
         ASSEMBLY: AICOS.CustomerEngagement.Api
     environment:
       <<: *dotnet-env
-      ConnectionStrings__Default: Host=postgres;Port=5432;Database=${POSTGRES_DB:-aicos};Username=customer_svc;Password=${SERVICE_DB_PASSWORD:-aicos_dev}
+      ConnectionStrings__Default: Host=postgres;Port=5432;Database=${POSTGRES_DB:-aicos};Username=customer_svc;Password=${SERVICE_DB_PASSWORD:?Set SERVICE_DB_PASSWORD in .env - run scripts/init-env first}
     ports: ["5110:8080"]
 
   # ------------------------------------------------------------------ AI (Python)
@@ -270,9 +279,9 @@ services:
     build:
       context: ./src/Services/Ai
     environment:
-      DATABASE_URL: postgresql://ai_svc:${SERVICE_DB_PASSWORD:-aicos_dev}@postgres:5432/${POSTGRES_DB:-aicos}
-      REDIS_URL: redis://redis:6379/0
-      JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:-dev-only-signing-key-change-me-0123456789abcdef}
+      DATABASE_URL: postgresql://ai_svc:${SERVICE_DB_PASSWORD:?Set SERVICE_DB_PASSWORD in .env - run scripts/init-env first}@postgres:5432/${POSTGRES_DB:-aicos}
+      REDIS_URL: redis://:${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env - run scripts/init-env first}@redis:6379/0
+      JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:?Set JWT_SIGNING_KEY in .env - run scripts/init-env first}
       GROQ_API_KEY: ${GROQ_API_KEY:-}
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
     ports: ["5111:8000"]
