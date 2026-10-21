@@ -32,12 +32,12 @@ sh scripts/smoke-docker.sh
 dotnet test AICOS.sln
 ```
 
-Chạy 1 service từ IDE: `docker compose up -d postgres redis`, rồi đặt secret **một lần** bằng user-secrets dùng chung (mật khẩu DB, khóa JWT; các service đã có sẵn phần còn lại trong `appsettings.Development.json`):
+Chạy 1 service từ IDE: `docker compose up -d postgres redis`, rồi đặt secret **một lần** vào kho user-secrets dùng chung `aicos-be` (mọi service đọc chung; phần còn lại đã có trong `appsettings.Development.json`):
 
 ```powershell
-dotnet user-secrets set "Database:Password" "<SERVICE_DB_PASSWORD trong .env>" --project src/Services/Ordering/AICOS.Ordering.Api
-dotnet user-secrets set "Jwt:SigningKey" "<JWT_SIGNING_KEY trong .env>" --project src/Services/Ordering/AICOS.Ordering.Api
-dotnet user-secrets set "ConnectionStrings:Redis" "localhost:6379,password=<REDIS_PASSWORD>" --project src/Services/Ordering/AICOS.Ordering.Api
+dotnet user-secrets set "Database:Password" "<SERVICE_DB_PASSWORD trong .env>" --id aicos-be
+dotnet user-secrets set "Jwt:SigningKey" "<JWT_SIGNING_KEY trong .env>" --id aicos-be
+dotnet user-secrets set "ConnectionStrings:Redis" "localhost:6379,password=<REDIS_PASSWORD>" --id aicos-be
 dotnet run --project src/Services/Ordering/AICOS.Ordering.Api
 ```
 
