@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using System.Security.Cryptography;
 using System.Text.Json;
 using AICOS.BuildingBlocks.Security;
@@ -23,6 +24,7 @@ public abstract class PaymentTestBase : IDisposable
 
     protected static readonly string TestKey = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
 
+    protected readonly FakeOrderDirectory Orders = new();
     protected readonly ServiceFactory<PaymentsService, PaymentsDbContext> F;
     protected readonly Guid Tenant = ServiceFactory<PaymentsService, PaymentsDbContext>.DefaultTenantId;
     protected readonly Guid OtherTenant = Guid.NewGuid();
@@ -45,8 +47,11 @@ public abstract class PaymentTestBase : IDisposable
         F = new ServiceFactory<PaymentsService, PaymentsDbContext>(services =>
         {
             services.Configure<PaymentOptions>(o => o.SecretKey = TestKey);
+            services.RemoveAll<AICOS.Payments.Api.Infrastructure.IOrderDirectory>();
+            services.AddSingleton<AICOS.Payments.Api.Infrastructure.IOrderDirectory>(Orders);
             configure?.Invoke(services);
         });
+        F.Observer = RegisterOrderAsync;
         B1 = F.Branches.Add(Tenant, name: "Quận 1");
         B2 = F.Branches.Add(Tenant, name: "Quận 3");
         ForeignBranch = F.Branches.Add(OtherTenant, name: "Foreign");
@@ -63,6 +68,50 @@ public abstract class PaymentTestBase : IDisposable
     }
 
     public void Dispose() => F.Dispose();
+
+    /// <summary>Makes the order a payment request names exist, with the amount and branch of the request, unless the test registered it already.</summary>
+    private async Task RegisterOrderAsync(HttpRequestMessage request)
+    {
+        var path = request.RequestUri?.AbsolutePath ?? string.Empty;
+        if (request.Method != HttpMethod.Post || request.Content is null || !(path.EndsWith("/transactions") || path.EndsWith("/transactions/cash")))
+        {
+            return;
+        }
+
+        try
+        {
+            var body = JsonDocument.Parse(await request.Content.ReadAsStringAsync()).RootElement;
+            if (!body.TryGetProperty("orderId", out var id) || !body.TryGetProperty("amount", out var amount) || id.ValueKind != JsonValueKind.String || amount.ValueKind != JsonValueKind.Number)
+            {
+                return;
+            }
+
+            var branch = body.TryGetProperty("branchId", out var b) && b.ValueKind == JsonValueKind.String ? b.GetGuid() : BranchOfToken(request);
+            if (!Orders.Knows(id.GetGuid()) && branch is not null && amount.GetDecimal() > 0 && amount.GetDecimal() == decimal.Truncate(amount.GetDecimal()))
+            {
+                Orders.Set(id.GetGuid(), branch.Value, amount.GetDecimal());
+            }
+        }
+        catch (Exception ex) when (ex is JsonException or FormatException or InvalidOperationException)
+        {
+            // a malformed request: let the endpoint answer it
+        }
+    }
+
+    private static Guid? BranchOfToken(HttpRequestMessage request)
+    {
+        var token = request.Headers.Authorization?.Parameter;
+        var parts = token?.Split('.');
+        if (parts is not { Length: 3 })
+        {
+            return null;
+        }
+
+        var payload = parts[1].Replace('-', '+').Replace('_', '/');
+        payload = payload.PadRight(payload.Length + (4 - payload.Length % 4) % 4, '=');
+        var claims = JsonDocument.Parse(Convert.FromBase64String(payload)).RootElement;
+        return claims.TryGetProperty("branch_id", out var branch) && Guid.TryParse(branch.GetString(), out var id) ? id : null;
+    }
 
     protected async Task SetProviderEnabledAsync(string code, bool enabled)
     {
@@ -130,7 +179,7 @@ public sealed class PaymentFlowTests : PaymentTestBase
     }
 
     [Fact]
-    public async Task Pressing_pay_twice_returns_the_same_payment_and_a_new_amount_replaces_the_old_attempt()
+    public async Task Pressing_pay_twice_returns_the_same_payment_and_another_method_replaces_the_old_attempt()
     {
         var order = Guid.NewGuid();
         var first = await PayOnlineAsync(order, 50_000);
@@ -139,7 +188,8 @@ public sealed class PaymentFlowTests : PaymentTestBase
         again.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
         (await again.Body()).Id().Should().Be(first.Id());
 
-        var changed = await PayOnlineAsync(order, 60_000);
+        await EnableVietQrAsync();
+        var changed = await PayOnlineAsync(order, 50_000, provider: "VietQR");
         changed.Id().Should().NotBe(first.Id());
         (await GetAsync(Customer, $"{Tx}/{first.Id()}")).GetProperty("status").GetString().Should().Be("Cancelled");
     }
@@ -428,7 +478,7 @@ public sealed class PaymentFlowTests : PaymentTestBase
         await F.As(AicosRoles.Barista, B1).Post($"{Tx}/cash", new { orderId = order, amount = 50_000 }).ShouldBe(403);
         await Admin.Post($"{Tx}/cash", new { orderId = order, amount = 50_000 }).ShouldBe(400);                                  // a brand admin names the branch
         await Admin.Post($"{Tx}/cash", new { orderId = order, amount = 50_000, branchId = ForeignBranch }).ShouldBe(400);
-        await Admin.Post($"{Tx}/cash", new { orderId = order, amount = 50_000, branchId = B2 }).ShouldBe(201);
+        await Admin.Post($"{Tx}/cash", new { orderId = Guid.NewGuid(), amount = 50_000, branchId = B2 }).ShouldBe(201);
 
         F.Branches.Suspend(B1);
         await Cashier1.Post($"{Tx}/cash", new { orderId = Guid.NewGuid(), amount = 50_000 }).ShouldBe(201);                      // staff of a suspended branch are not checked against Identity

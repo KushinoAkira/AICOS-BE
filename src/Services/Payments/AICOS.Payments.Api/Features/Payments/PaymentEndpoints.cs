@@ -52,6 +52,7 @@ public static class PaymentEndpoints
         SecretProtector protector,
         ICurrentUser user,
         IBranchDirectory directory,
+        IOrderDirectory orders,
         CancellationToken ct)
     {
         var errors = new ValidationErrors();
@@ -68,6 +69,7 @@ public static class PaymentEndpoints
 
         var tenantId = TenantScope.Require(user);
         var branchId = await ResolveBranchAsync(user, directory, r.BranchId, ct);
+        await OrderChecks.EnsurePayableAsync(orders, r.OrderId!.Value, branchId, r.Amount!.Value, ct);
         var merchant = await MerchantResolver.ResolveAsync(db, tenantId, branchId, code!, ct)
             ?? throw new BusinessRuleException("payment.method_unavailable", $"{code} is not available at this branch.");
 
@@ -111,7 +113,7 @@ public static class PaymentEndpoints
     }
 
     private static async Task<IResult> RecordCashAsync(
-        CashPaymentRequest r, PaymentsDbContext db, PaymentProcessor processor, IEventBus bus, ICurrentUser user, IBranchDirectory directory, CancellationToken ct)
+        CashPaymentRequest r, PaymentsDbContext db, PaymentProcessor processor, IEventBus bus, ICurrentUser user, IBranchDirectory directory, IOrderDirectory orders, CancellationToken ct)
     {
         var errors = new ValidationErrors();
         CommonRules.RequiredId(errors, "OrderId", r.OrderId, "Order");
@@ -125,6 +127,7 @@ public static class PaymentEndpoints
 
         var tenantId = TenantScope.Require(user);
         var branchId = await BranchScope.ResolveAsync(user, directory, r.BranchId, requireActive: true, ct);
+        await OrderChecks.EnsurePayableAsync(orders, r.OrderId!.Value, branchId, r.Amount!.Value, ct);
         var orderId = r.OrderId!.Value;
         var existing = await db.Payments.Where(p => p.TenantId == tenantId && p.OrderId == orderId).ToListAsync(ct);
         if (existing.Any(p => p.IsPaid))

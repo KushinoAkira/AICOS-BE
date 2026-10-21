@@ -132,6 +132,7 @@ public static class OrderEndpoints
         PaymentStatus? paymentStatus,
         DateOnly? from,
         DateOnly? to,
+        bool? includePaid,
         int? limit,
         int? offset,
         CancellationToken ct)
@@ -154,7 +155,7 @@ public static class OrderEndpoints
             query = query.Where(o => o.PaymentStatus == paymentStatus);
         }
 
-        query = ApplyRange(query, clock, from, to);
+        query = ApplyRange(query, clock, from, to, includePaid == true);
 
         var orders = await query.OrderByDescending(o => o.CreatedAtUtc)
             .Skip(Math.Max(0, offset ?? 0)).Take(Math.Clamp(limit ?? 50, 1, MaxPageSize)).AsSplitQuery().ToListAsync(ct);
@@ -323,25 +324,23 @@ public static class OrderEndpoints
             query = query.Where(o => o.RefundStatus == refundStatus);
         }
 
-        query = ApplyRange(query, clock, from, to);
+        query = ApplyRange(query, clock, from, to, false);
         var orders = await query.OrderByDescending(o => o.CreatedAtUtc).Take(MaxPageSize).AsSplitQuery().ToListAsync(ct);
         return orders.Select(OrderSummary.From).ToList();
     }
 
-    private static IQueryable<Order> ApplyRange(IQueryable<Order> query, ShopTime clock, DateOnly? from, DateOnly? to)
+    /// <summary>Orders created in the period; with <paramref name="includePaid"/> also those paid in it (used by reconciliation with Payment).</summary>
+    private static IQueryable<Order> ApplyRange(IQueryable<Order> query, ShopTime clock, DateOnly? from, DateOnly? to, bool includePaid)
     {
-        if (from is not null)
+        var start = from is null ? DateTime.MinValue : clock.StartOfDayUtc(from.Value);
+        var end = to is null ? DateTime.MaxValue : clock.StartOfDayUtc(to.Value.AddDays(1));
+        if (from is null && to is null)
         {
-            var start = clock.StartOfDayUtc(from.Value);
-            query = query.Where(o => o.CreatedAtUtc >= start);
+            return query;
         }
 
-        if (to is not null)
-        {
-            var end = clock.StartOfDayUtc(to.Value.AddDays(1));
-            query = query.Where(o => o.CreatedAtUtc < end);
-        }
-
-        return query;
+        return includePaid
+            ? query.Where(o => (o.CreatedAtUtc >= start && o.CreatedAtUtc < end) || (o.PaidAtUtc != null && o.PaidAtUtc >= start && o.PaidAtUtc < end))
+            : query.Where(o => o.CreatedAtUtc >= start && o.CreatedAtUtc < end);
     }
 }

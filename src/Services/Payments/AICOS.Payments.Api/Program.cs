@@ -1,4 +1,6 @@
 using AICOS.BuildingBlocks.Hosting;
+using AICOS.BuildingBlocks.Http;
+using AICOS.Contracts.Events;
 using AICOS.BuildingBlocks.Messaging;
 using AICOS.BuildingBlocks.Persistence;
 using AICOS.BuildingBlocks.Security;
@@ -24,6 +26,8 @@ builder.Services.AddScoped<PaymentProcessor>();
 builder.Services.AddScoped<RefundProcessor>();
 builder.Services.AddHostedService<PaymentExpiryJob>();
 builder.Services.AddAicosBranchDirectory(builder.Configuration);   // asks Identity whether a branch belongs to the brand
+builder.Services.AddAicosServiceClient<IOrderDirectory, HttpOrderDirectory>(builder.Configuration, "Order");   // checks the order before taking money for it
+builder.Services.AddIntegrationEventHandler<OrderCancelledIntegrationEvent, PaymentOrderCancelledHandler>();
 
 // builder.Services.AddIntegrationEventHandler<SomeEvent, SomeEventHandler>();   // consume events from other services
 // builder.Services.AddAicosServiceClient<IOtherClient, OtherClient>(builder.Configuration, "Other");   // sync REST call to another service
