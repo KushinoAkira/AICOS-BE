@@ -203,4 +203,63 @@ public sealed class WorkforceCashClosingTests : WorkforceTestBase
         (await Admin.GetFromJsonAsync<JsonElement>($"{Closings}?branchId={B2}")).GetProperty("totalCount").GetInt32().Should().Be(0);
         await F.CreateClient().GetAsync(Closings).ShouldBe(401);
     }
+
+    // ------------------------------------------------------------------ order exceptions of the shift (SCRUM-49, 62)
+    [Fact]
+    public async Task The_manager_sees_the_cash_movements_and_the_order_exceptions_of_the_shift()
+    {
+        var (user, _, assignment, cashier) = await CashierOnShiftAsync();
+        SetLocal(Monday, 8, 0);
+        await CashAsync(user, 120_000);
+        await CashAsync(user, 80_000);
+        await CashAsync(user, -30_000);
+        OrderExceptions.Add("ORD-IN", 90_000, "RefundPending", F.Clock.Now.UtcDateTime.AddMinutes(30));
+        OrderExceptions.Add("ORD-DONE", 40_000, "Refunded", F.Clock.Now.UtcDateTime.AddMinutes(40), refunded: 40_000);
+        OrderExceptions.Add("ORD-BEFORE", 10_000, "RefundPending", F.Clock.Now.UtcDateTime.AddHours(-3));               // another shift
+        OrderExceptions.Add("ORD-AFTER", 10_000, "RefundPending", F.Clock.Now.UtcDateTime.AddHours(8));
+        SetLocal(Monday, 12, 0);
+        var closing = await cashier.PostOk(Closings, new { assignmentId = assignment, countedAmount = 170_000 });
+
+        var details = await Manager.GetFromJsonAsync<JsonElement>($"{Closings}/{closing.Id()}/details");
+
+        details.GetProperty("cashReceived").GetDecimal().Should().Be(200_000);
+        details.GetProperty("cashRefunded").GetDecimal().Should().Be(30_000);
+        details.GetProperty("cashTransactions").EnumerateArray().Select(t => t.GetProperty("isRefund").GetBoolean()).Should().Equal(false, false, true);
+        details.GetProperty("orderExceptions").EnumerateArray().Select(e => e.GetProperty("orderCode").GetString()).Should().BeEquivalentTo("ORD-IN", "ORD-DONE");
+        details.GetProperty("unresolvedExceptions").GetInt32().Should().Be(1);
+        OrderExceptions.LastQuery!.Value.Branch.Should().Be(B1);
+        await Manager2.GetAsync($"{Closings}/{closing.Id()}/details").ShouldBe(403, "branch.forbidden");
+        await OtherAdmin.GetAsync($"{Closings}/{closing.Id()}/details").ShouldBe(404);
+        await cashier.GetAsync($"{Closings}/{closing.Id()}/details").ShouldBe(403);
+    }
+
+    [Fact]
+    public async Task A_shift_with_an_open_order_exception_is_only_confirmed_when_the_manager_acknowledges_it()
+    {
+        var (user, _, assignment, cashier) = await CashierOnShiftAsync();
+        SetLocal(Monday, 8, 0);
+        await CashAsync(user, 100_000);
+        OrderExceptions.Add("ORD-OPEN", 50_000, "RefundFailed", F.Clock.Now.UtcDateTime.AddMinutes(20));
+        SetLocal(Monday, 12, 0);
+        var closing = await cashier.PostOk(Closings, new { assignmentId = assignment, countedAmount = 100_000 });
+
+        await Manager.Post($"{Closings}/{closing.Id()}/confirm", new { }).ShouldBe(422, "cash_closing.exceptions_unresolved");
+        var confirmed = await Manager.PostOk($"{Closings}/{closing.Id()}/confirm", new { note = "Refund handled by hand", acknowledgeExceptions = true });
+
+        confirmed.GetProperty("status").GetString().Should().Be("Confirmed");
+        F.Events.Published.OfType<AuditRecordedEvent>().Single(e => e.Action == "cash_closing.confirmed").After.Should().Contain("\"openExceptionsAcknowledged\":1");
+    }
+
+    [Fact]
+    public async Task A_shift_whose_exceptions_are_all_resolved_is_confirmed_normally()
+    {
+        var (user, _, assignment, cashier) = await CashierOnShiftAsync();
+        SetLocal(Monday, 8, 0);
+        await CashAsync(user, 100_000);
+        OrderExceptions.Add("ORD-OK", 50_000, "Refunded", F.Clock.Now.UtcDateTime.AddMinutes(20), refunded: 50_000);
+        SetLocal(Monday, 12, 0);
+        var closing = await cashier.PostOk(Closings, new { assignmentId = assignment, countedAmount = 100_000 });
+
+        (await Manager.PostOk($"{Closings}/{closing.Id()}/confirm", new { })).GetProperty("status").GetString().Should().Be("Confirmed");
+    }
 }

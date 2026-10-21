@@ -1,6 +1,8 @@
 using System.Net.Http.Json;
 using System.Text.Json;
 using AICOS.BuildingBlocks.Security;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using AICOS.WorkforceScheduling.Api;
 using AICOS.WorkforceScheduling.Api.Persistence;
 
@@ -17,7 +19,8 @@ public abstract class WorkforceTestBase : IDisposable
     /// <summary>A Monday, so that weekly-hour rules start from a known day.</summary>
     protected static readonly DateOnly Monday = new(2026, 11, 2);
 
-    protected readonly ServiceFactory<WorkforceSchedulingService, WorkforceSchedulingDbContext> F = new();
+    protected readonly FakeOrderExceptions OrderExceptions = new();
+    protected readonly ServiceFactory<WorkforceSchedulingService, WorkforceSchedulingDbContext> F;
     protected readonly Guid Tenant = ServiceFactory<WorkforceSchedulingService, WorkforceSchedulingDbContext>.DefaultTenantId;
     protected readonly Guid OtherTenant = Guid.NewGuid();
     protected readonly Guid B1;
@@ -30,6 +33,11 @@ public abstract class WorkforceTestBase : IDisposable
 
     protected WorkforceTestBase()
     {
+        F = new ServiceFactory<WorkforceSchedulingService, WorkforceSchedulingDbContext>(services =>
+        {
+            services.RemoveAll<AICOS.WorkforceScheduling.Api.Infrastructure.IOrderExceptionDirectory>();
+            services.AddSingleton<AICOS.WorkforceScheduling.Api.Infrastructure.IOrderExceptionDirectory>(OrderExceptions);
+        });
         B1 = F.Branches.Add(Tenant, name: "Quận 1");
         B2 = F.Branches.Add(Tenant, name: "Quận 3");
         OtherBranch = F.Branches.Add(OtherTenant, name: "Foreign");
@@ -74,4 +82,21 @@ public abstract class WorkforceTestBase : IDisposable
     protected HttpClient Staff(Guid userId, string role = AicosRoles.Barista, Guid? branch = null) => F.As(role, branch ?? B1, userId);
 
     protected async Task<JsonElement> GetAssignmentAsync(Guid id) => await Manager.GetFromJsonAsync<JsonElement>($"{Api}/shift-assignments/{id}");
+}
+
+/// <summary>Stands in for the Order service: the orders cancelled after payment that a test wants a cash closing to see.</summary>
+public sealed class FakeOrderExceptions : AICOS.WorkforceScheduling.Api.Infrastructure.IOrderExceptionDirectory
+{
+    public List<AICOS.WorkforceScheduling.Api.Infrastructure.OrderException> Items { get; } = [];
+
+    public (Guid Branch, DateOnly From, DateOnly To)? LastQuery { get; private set; }
+
+    public void Add(string code, decimal amount, string refundStatus, DateTime cancelledAtUtc, decimal refunded = 0) =>
+        Items.Add(new AICOS.WorkforceScheduling.Api.Infrastructure.OrderException(Guid.NewGuid(), code, amount, refunded, "Cancelled", refundStatus, "Cash", cancelledAtUtc));
+
+    public Task<IReadOnlyList<AICOS.WorkforceScheduling.Api.Infrastructure.OrderException>> ListAsync(Guid branchId, DateOnly from, DateOnly to, CancellationToken ct)
+    {
+        LastQuery = (branchId, from, to);
+        return Task.FromResult<IReadOnlyList<AICOS.WorkforceScheduling.Api.Infrastructure.OrderException>>(Items.ToList());
+    }
 }
