@@ -211,9 +211,14 @@ public static class PayrollEndpoints
 
     /// <summary>The same figures as a CSV file (UTF-8 with a byte-order mark, so Excel reads the Vietnamese names correctly).</summary>
     private static async Task<IResult> ExportAsync(
-        WorkforceSchedulingDbContext db, ICurrentUser user, IBranchDirectory directory, ShopClock shop, Guid? branchId, DateOnly? from, DateOnly? to, CancellationToken ct)
+        WorkforceSchedulingDbContext db, ICurrentUser user, IBranchDirectory directory, ShopClock shop, Guid? branchId, DateOnly? from, DateOnly? to, string? format, CancellationToken ct)
     {
         var summary = await BuildAsync(db, user, directory, shop, branchId, from, to, ct);
+
+        if (IsExcel(format))
+        {
+            return Results.File(ExcelExport.Payroll(summary), ExcelExport.ContentType, $"payroll-{summary.From:yyyyMMdd}-{summary.To:yyyyMMdd}.xlsx");
+        }
 
         var csv = new StringBuilder();
         csv.AppendLine("Employee,Contract,Worked days,Regular hours,Overtime hours,Replacement hours,Absences,Unreviewed records,Base pay,Overtime pay,Replacement pay,Adjustments,Total pay");
@@ -286,7 +291,7 @@ public static class PayrollEndpoints
     // ------------------------------------------------------------------ work records export (FR-28)
     /// <summary>One CSV row per scheduled shift of the period: what was scheduled, what was recorded, how it was reviewed and whether it is paid.</summary>
     private static async Task<IResult> ExportRecordsAsync(
-        WorkforceSchedulingDbContext db, ICurrentUser user, IBranchDirectory directory, ShopClock shop, Guid? branchId, DateOnly? from, DateOnly? to, CancellationToken ct)
+        WorkforceSchedulingDbContext db, ICurrentUser user, IBranchDirectory directory, ShopClock shop, Guid? branchId, DateOnly? from, DateOnly? to, string? format, CancellationToken ct)
     {
         ValidatePeriod(from, to);
         var tenantId = TenantScope.Require(user);
@@ -300,6 +305,14 @@ public static class PayrollEndpoints
         var assignments = await query.OrderBy(a => a.WorkDate).ThenBy(a => a.StartTime).ToListAsync(ct);
         var employeeIds = assignments.Select(a => a.EmployeeId).Distinct().ToList();
         var names = await db.Employees.AsNoTracking().Where(e => employeeIds.Contains(e.Id)).ToDictionaryAsync(e => e.Id, e => e.FullName, ct);
+
+        if (IsExcel(format))
+        {
+            var records = assignments.Select(a => new ExcelExport.RecordRow(
+                a.WorkDate, names.GetValueOrDefault(a.EmployeeId, "?"), a.StartTime.ToString("HH:mm", CultureInfo.InvariantCulture), a.EndTime.ToString("HH:mm", CultureInfo.InvariantCulture),
+                a.Status, a.IsReplacement, Local(shop, a.EffectiveCheckInUtc), Local(shop, a.EffectiveCheckOutUtc), a.WorkedHours, a.IsAbsent, a.ReviewStatus, a.CountsForPayroll)).ToList();
+            return Results.File(ExcelExport.Records(records), ExcelExport.ContentType, $"work-records-{from:yyyyMMdd}-{to:yyyyMMdd}.xlsx");
+        }
 
         var csv = new StringBuilder();
         csv.AppendLine("Date,Employee,Shift start,Shift end,Assignment,Replacement,Check-in,Check-out,Worked hours,Absent,Review,Counts for payroll");
@@ -315,6 +328,8 @@ public static class PayrollEndpoints
         var bytes = Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(csv.ToString())).ToArray();
         return Results.File(bytes, "text/csv; charset=utf-8", $"work-records-{from:yyyyMMdd}-{to:yyyyMMdd}.csv");
     }
+
+    private static bool IsExcel(string? format) => string.Equals(format, "xlsx", StringComparison.OrdinalIgnoreCase);
 
     private static string Local(ShopClock shop, DateTime? utc) =>
         utc is null ? string.Empty : shop.ToLocal(utc.Value).ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
