@@ -77,10 +77,13 @@ public sealed class ServiceFactory<TService, TDbContext>(Action<IServiceCollecti
         });
     }
 
+    /// <summary>Called with every request made through a client from <see cref="As"/>, before it is sent (tests use it to register orders on the fly).</summary>
+    public Func<HttpRequestMessage, Task>? Observer { get; set; }
+
     /// <summary>Client with a JWT for the given role. Tokens use the real clock so moving <see cref="Clock"/> never invalidates them.</summary>
     public HttpClient As(string role, Guid? branchId = null, Guid? userId = null, Guid? tenantId = null)
     {
-        var client = CreateClient();
+        var client = Observer is null ? CreateClient() : CreateDefaultClient(new ObservingHandler(() => Observer));
         var jwt = new JwtTokenService(Services.GetRequiredService<IOptions<JwtOptions>>(), TimeProvider.System);
         var (token, _) = jwt.CreateAccessToken(userId ?? Guid.NewGuid(), $"Test {role}", role, branchId, role == AicosRoles.SuperAdmin ? null : tenantId ?? DefaultTenantId);
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
@@ -226,4 +229,52 @@ internal sealed class FakeUserDirectory(UserRegistry registry, ICurrentUser call
 
         return Task.FromResult(new UserInfo(userId, user.FullName, user.Role, user.BranchId, user.IsActive));
     }
+}
+
+internal sealed class ObservingHandler(Func<Func<HttpRequestMessage, Task>?> observer) : DelegatingHandler
+{
+    protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        if (request.Content is not null)
+        {
+            await request.Content.LoadIntoBufferAsync();
+        }
+
+        var current = observer();
+        if (current is not null)
+        {
+            await current(request);
+        }
+
+        return await base.SendAsync(request, cancellationToken);
+    }
+}
+
+/// <summary>
+/// Stands in for the Order service in Payment tests. An order that nobody registered is created on the fly from the first payment request that
+/// names it (see <see cref="PaymentTestBase"/>), so a test only registers an order when it wants a specific amount, status or branch.
+/// </summary>
+public sealed class FakeOrderDirectory : AICOS.Payments.Api.Infrastructure.IOrderDirectory
+{
+    private readonly Dictionary<Guid, AICOS.Payments.Api.Infrastructure.OrderInfo> _orders = [];
+
+    public List<AICOS.Payments.Api.Features.Payments.OrderForReconciliation> Listed { get; } = [];
+
+    public int Lookups { get; private set; }
+
+    public void Set(Guid id, Guid branchId, decimal amount, string status = "Pending", string paymentStatus = "Unpaid") =>
+        _orders[id] = new AICOS.Payments.Api.Infrastructure.OrderInfo(id, branchId, amount, status, paymentStatus);
+
+    public bool Knows(Guid id) => _orders.ContainsKey(id);
+
+    public Task<AICOS.Payments.Api.Infrastructure.OrderInfo> GetAsync(Guid orderId, CancellationToken ct)
+    {
+        Lookups++;
+        return _orders.TryGetValue(orderId, out var order)
+            ? Task.FromResult(order)
+            : throw new AICOS.BuildingBlocks.Exceptions.BusinessRuleException("payment.order_not_found", "That order does not exist, or it is not yours to pay.");
+    }
+
+    public Task<IReadOnlyList<AICOS.Payments.Api.Features.Payments.OrderForReconciliation>> ListForReconciliationAsync(Guid? branchId, DateOnly from, DateOnly to, CancellationToken ct) =>
+        Task.FromResult<IReadOnlyList<AICOS.Payments.Api.Features.Payments.OrderForReconciliation>>(Listed.ToList());
 }

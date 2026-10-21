@@ -2,6 +2,7 @@ using AICOS.BuildingBlocks.Exceptions;
 using AICOS.BuildingBlocks.Security;
 using AICOS.BuildingBlocks.Validation;
 using AICOS.Payments.Api.Domain;
+using AICOS.Payments.Api.Infrastructure;
 using AICOS.Payments.Api.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -49,6 +50,7 @@ public static class ReconciliationEndpoints
 
         group.MapGet("/", ReportAsync);
         group.MapPost("/orders", CompareOrdersAsync);
+        group.MapGet("/auto", AutoAsync);
     }
 
     private static async Task<ReconciliationReport> ReportAsync(
@@ -135,7 +137,48 @@ public static class ReconciliationEndpoints
         var branch = BranchAccess.ResolveFilter(user, r.BranchId);
         var (_, _, startUtc, endUtc) = Range(options.Value, clock, r.From, r.To);
 
-        var ids = r.Orders!.Select(o => o.OrderId!.Value).ToList();
+        return await CompareAsync(db, tenantId, branch, startUtc, endUtc, r.Orders!, ct);
+    }
+
+    /// <summary>
+    /// Automatic reconciliation (SCRUM-89): fetches the orders created or paid in the period from the Order service with the token of the caller and
+    /// compares them with the payments. Nothing has to be sent.
+    /// </summary>
+    private static async Task<OrderReconciliationReport> AutoAsync(
+        PaymentsDbContext db, ICurrentUser user, IBranchDirectory directory, IOrderDirectory orderDirectory, IOptions<Infrastructure.PaymentOptions> options, TimeProvider clock,
+        Guid? branchId, DateOnly? from, DateOnly? to, CancellationToken ct)
+    {
+        var tenantId = TenantScope.Require(user);
+        var branch = BranchAccess.ResolveFilter(user, branchId);
+        if (branch is not null && user.IsInRole(AicosRoles.BrandAdmin))
+        {
+            await BranchScope.EnsureUsableAsync(directory, branch.Value, requireActive: false, ct);
+        }
+
+        var (fromDate, toDate, startUtc, endUtc) = Range(options.Value, clock, from, to);
+        var orders = await orderDirectory.ListForReconciliationAsync(branch, fromDate, toDate, ct);
+        if (orders.Count == 0)
+        {
+            return new OrderReconciliationReport(0, 0, await OrphanPaymentsAsync(db, tenantId, branch, startUtc, endUtc, ct));
+        }
+
+        return await CompareAsync(db, tenantId, branch, startUtc, endUtc, orders, ct);
+    }
+
+    private static async Task<IReadOnlyList<Discrepancy>> OrphanPaymentsAsync(PaymentsDbContext db, Guid tenantId, Guid? branch, DateTime startUtc, DateTime endUtc, CancellationToken ct)
+    {
+        var paid = await db.Payments.AsNoTracking()
+            .Where(p => p.TenantId == tenantId && (branch == null || p.BranchId == branch) && p.CreatedAtUtc >= startUtc && p.CreatedAtUtc < endUtc)
+            .ToListAsync(ct);
+        return paid.Where(p => p.IsPaid)
+            .Select(p => new Discrepancy("payment_without_order", "A paid payment whose order was not in the list.", p.Id, p.OrderId, p.Amount)).ToList();
+    }
+
+    /// <summary>The comparison itself: used with a list the caller sends, and with the list fetched from the Order service.</summary>
+    internal static async Task<OrderReconciliationReport> CompareAsync(
+        PaymentsDbContext db, Guid tenantId, Guid? branch, DateTime startUtc, DateTime endUtc, IReadOnlyList<OrderForReconciliation> orders, CancellationToken ct)
+    {
+        var ids = orders.Select(o => o.OrderId!.Value).ToList();
         var payments = await db.Payments.AsNoTracking()
             .Where(p => p.TenantId == tenantId && (branch == null || p.BranchId == branch)
                 && ((p.CreatedAtUtc >= startUtc && p.CreatedAtUtc < endUtc) || ids.Contains(p.OrderId)))
@@ -144,7 +187,7 @@ public static class ReconciliationEndpoints
 
         var discrepancies = new List<Discrepancy>();
         var matched = 0;
-        foreach (var order in r.Orders!)
+        foreach (var order in orders)
         {
             var orderId = order.OrderId!.Value;
             var paid = paidByOrder.GetValueOrDefault(orderId);
@@ -173,7 +216,7 @@ public static class ReconciliationEndpoints
             discrepancies.Add(new Discrepancy("payment_without_order", "A paid payment whose order was not in the list.", p.Id, p.OrderId, p.Amount));
         }
 
-        return new OrderReconciliationReport(r.Orders.Count, matched, discrepancies);
+        return new OrderReconciliationReport(orders.Count, matched, discrepancies);
     }
 
     private static IQueryable<Payment> InRange(PaymentsDbContext db, Guid tenantId, Guid? branch, DateTime startUtc, DateTime endUtc) =>
