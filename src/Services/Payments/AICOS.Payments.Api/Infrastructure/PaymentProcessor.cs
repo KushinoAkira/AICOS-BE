@@ -54,7 +54,7 @@ public sealed class PaymentProcessor(PaymentsDbContext db, IEventBus bus, TimePr
 
         payment.MarkExpired();
         await db.SaveChangesAsync(ct);
-        await PublishFailedAsync(payment, "Not paid in time.", ct);
+        await PublishFailedAsync(payment, "Not paid in time.", ct, timedOut: true);
         return true;
     }
 
@@ -71,7 +71,7 @@ public sealed class PaymentProcessor(PaymentsDbContext db, IEventBus bus, TimePr
         await db.SaveChangesAsync(ct);
         foreach (var payment in due)
         {
-            await PublishFailedAsync(payment, "Not paid in time.", ct);
+            await PublishFailedAsync(payment, "Not paid in time.", ct, timedOut: true);
         }
 
         return due.Count;
@@ -80,8 +80,8 @@ public sealed class PaymentProcessor(PaymentsDbContext db, IEventBus bus, TimePr
     public Task PublishSucceededAsync(Payment p, CancellationToken ct) =>
         bus.PublishAsync(new PaymentSucceededEvent(p.TenantId, p.BranchId, p.Id, p.OrderId, p.Amount, p.Method, p.PaidAtUtc ?? UtcNow), ct);
 
-    public Task PublishFailedAsync(Payment p, string reason, CancellationToken ct) =>
-        bus.PublishAsync(new PaymentFailedEvent(p.TenantId, p.BranchId, p.Id, p.OrderId, p.Method, reason), ct);
+    public Task PublishFailedAsync(Payment p, string reason, CancellationToken ct, bool timedOut = false) =>
+        bus.PublishAsync(new PaymentFailedEvent(p.TenantId, p.BranchId, p.Id, p.OrderId, p.Method, reason, timedOut), ct);
 }
 
 /// <summary>Expires unpaid online payments on a timer so the held order slot is released even when nobody asks about the payment (BR-25, BR-60).</summary>
