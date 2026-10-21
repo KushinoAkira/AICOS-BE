@@ -17,6 +17,6 @@ public static class PublicMenuEndpoints
         group.MapGet("/branches/{branchId:guid}/menu", GetMenuAsync);
     }
 
-    private static Task<BranchMenuResponse> GetMenuAsync(Guid branchId, MenuCatalogDbContext db, MenuCache cache, CancellationToken ct) =>
-        cache.GetOrBuildAsync(branchId, "public", () => MenuViews.BuildAsync(db, branchId, includeSoldOut: false, ct), ct);
+    private static async Task<BranchMenuResponse> GetMenuAsync(Guid branchId, MenuCatalogDbContext db, MenuCache cache, CancellationToken ct) =>
+        await cache.GetOrBuildAsync(await cache.TenantOfBranchAsync(branchId, ct), branchId, "public", () => MenuViews.BuildAsync(db, branchId, includeSoldOut: false, ct), ct);
 }

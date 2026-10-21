@@ -27,20 +27,27 @@ builder.Services.AddCors(options => options.AddDefaultPolicy(policy =>
     }
 }));
 
-// Per-client-IP rate limiting at the edge.
+// Per-client-IP rate limiting at the edge. Sign-in, sign-up, password reset and chatbot calls get a much smaller budget than normal
+// traffic (NFR-11); each of those groups counts separately so a busy chat never locks a user out of signing in.
 var permitLimit = builder.Configuration.GetValue("RateLimiting:PermitLimitPerMinute", 600);
+var authLimit = builder.Configuration.GetValue("RateLimiting:AuthPermitLimitPerMinute", 10);
+var chatLimit = builder.Configuration.GetValue("RateLimiting:ChatPermitLimitPerMinute", 20);
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.OnRejected = (context, _) =>
+    {
+        context.HttpContext.Response.Headers.RetryAfter = "60";
+        return ValueTask.CompletedTask;
+    };
     options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
-        RateLimitPartition.GetFixedWindowLimiter(
-            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-            _ => new FixedWindowRateLimiterOptions
-            {
-                PermitLimit = permitLimit,
-                Window = TimeSpan.FromMinutes(1),
-                QueueLimit = 0,
-            }));
+    {
+        var ip = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        var (group, limit) = RateLimitGroups.Classify(context.Request.Method, context.Request.Path, permitLimit, authLimit, chatLimit);
+        return RateLimitPartition.GetFixedWindowLimiter(
+            $"{group}:{ip}",
+            _ => new FixedWindowRateLimiterOptions { PermitLimit = limit, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 });
+    });
 });
 
 builder.Services.AddReverseProxy()

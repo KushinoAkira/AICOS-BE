@@ -49,7 +49,7 @@ public static class BranchMenuEndpoints
         Guid branchId, MenuCatalogDbContext db, MenuCache cache, ICurrentUser user, IBranchDirectory directory, CancellationToken ct)
     {
         await BranchScope.ResolveAsync(user, directory, branchId, requireActive: false, ct);
-        return await cache.GetOrBuildAsync(branchId, "staff", () => MenuViews.BuildAsync(db, branchId, includeSoldOut: true, ct), ct);
+        return await cache.GetOrBuildAsync(TenantScope.Require(user), branchId, "staff", () => MenuViews.BuildAsync(db, branchId, includeSoldOut: true, ct), ct);
     }
 
     private static async Task<BranchProductResponse> SetBranchProductAsync(

@@ -35,7 +35,7 @@ public static class IdentitySeeder
         var email = User.NormalizeLogin(seed.Email);
         if (await db.Users.IgnoreQueryFilters().AnyAsync(u => u.Email == email || u.Username == "admin"))
         {
-            app.Logger.LogWarning("SuperAdmin seed skipped: email {Email} or username admin is already used by another account.", email);
+            app.Logger.LogWarning("SuperAdmin seed skipped: email {Email} or username admin is already used by another account.", LoggingEmailSender.Mask(email));
             return;
         }
 
@@ -44,6 +44,6 @@ public static class IdentitySeeder
         db.Users.Add(admin);
         await db.SaveChangesAsync();
 
-        app.Logger.LogWarning("Seeded SuperAdmin account {Email} - change its password outside development.", admin.Email);
+        app.Logger.LogWarning("Seeded SuperAdmin account {Email} - change its password outside development.", LoggingEmailSender.Mask(admin.Email));
     }
 }

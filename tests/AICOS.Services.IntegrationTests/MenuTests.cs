@@ -507,7 +507,7 @@ public sealed class MenuTests : IDisposable
         await anonymous.GetStringAsync(Url());
         var hitsBefore = _f.Cache.Hits;
         await anonymous.GetStringAsync(Url());
-        _f.Cache.Hits.Should().Be(hitsBefore + 1, "the second read comes from the cache");
+        _f.Cache.Hits.Should().Be(hitsBefore + 2, "the second read finds the brand of the branch and the menu itself in the cache");
 
         await _f.As(AicosRoles.BranchManager, _b1).Patch($"{Menu}/branches/{_b1}/products/{product.Id()}/availability", new { isAvailable = false }).ShouldBe(200);
         Products(await anonymous.GetFromJsonAsync<JsonElement>(Url())).Should().BeEmpty();                                  // sold out shows at once
@@ -521,6 +521,22 @@ public sealed class MenuTests : IDisposable
 
         await _admin.Patch($"{Menu}/categories/{category.Id()}/status", new { status = "Hidden" }).ShouldBe(200);
         (await anonymous.GetFromJsonAsync<JsonElement>(Url())).GetProperty("categories").GetArrayLength().Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Every_cache_key_starts_with_the_brand_it_belongs_to()
+    {
+        var category = await _admin.PostOk($"{Menu}/categories", new { name = "Cà phê" });
+        var product = await PublishedProductAsync(category.Id(), "Bạc xỉu", _b1);
+        await _f.CreateClient().GetStringAsync($"{Menu}/public/branches/{_b1}/menu");                                            // anonymous: the brand is looked up from the branch
+        await _f.As(AicosRoles.BranchManager, _b1).GetAsync($"{Menu}/branches/{_b1}/menu").ShouldBe(200);                          // staff view
+        await _f.As(AicosRoles.BranchManager, _b1).Patch($"{Menu}/branches/{_b1}/products/{product.Id()}/availability", new { isAvailable = false }).ShouldBe(200);
+
+        var menuKeys = _f.Cache.Keys.Where(k => k.Contains("menu:")).ToList();
+
+        menuKeys.Should().NotBeEmpty().And.OnlyContain(k => k.StartsWith($"t:{_tenant}:menu:"));
+        menuKeys.Should().Contain(k => k.Contains(":menu:public:")).And.Contain(k => k.Contains(":menu:staff:")).And.Contain(k => k.Contains(":menu:version:"));
+        _f.Cache.Keys.Should().OnlyContain(k => k.StartsWith("t:") || k.StartsWith("branch-tenant:"));
     }
 
     [Fact]

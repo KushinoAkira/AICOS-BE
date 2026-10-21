@@ -9,16 +9,18 @@ namespace AICOS.MenuCatalog.Api.Infrastructure;
 
 /// <summary>
 /// The published menu of a branch is read far more often than it changes, so it is cached in Redis (UC-15, NFR-25).
-/// Each branch has a version counter; bumping it makes the cached copies obsolete at once, with no key scanning.
+/// Every key starts with the brand (<c>t:{tenantId}:</c>), so one brand's cache is recognisable, can be purged on its own and can never be
+/// mistaken for another's. Each branch has a version counter; bumping it makes the cached copies obsolete at once, with no key scanning.
 /// </summary>
-public sealed class MenuCache(ICacheStore store)
+public sealed class MenuCache(ICacheStore store, MenuCatalogDbContext db)
 {
     private static readonly TimeSpan TimeToLive = TimeSpan.FromMinutes(10); // safety net; changes invalidate immediately
+    private static readonly TimeSpan TenantLookupTtl = TimeSpan.FromHours(6); // a branch never moves to another brand
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
-    public async Task<T> GetOrBuildAsync<T>(Guid branchId, string view, Func<Task<T>> build, CancellationToken ct)
+    public async Task<T> GetOrBuildAsync<T>(Guid tenantId, Guid branchId, string view, Func<Task<T>> build, CancellationToken ct)
     {
-        var key = await KeyAsync(branchId, view, ct);
+        var key = await KeyAsync(tenantId, branchId, view, ct);
         var cached = await store.GetAsync(key, ct);
         if (cached is not null)
         {
@@ -34,12 +36,31 @@ public sealed class MenuCache(ICacheStore store)
         return value;
     }
 
-    public Task InvalidateBranchAsync(Guid branchId, CancellationToken ct) => store.IncrementAsync(VersionKey(branchId), ct);
+    /// <summary>The brand a branch sells for, for the anonymous menu that has no token. Empty when nothing is published there yet.</summary>
+    public async Task<Guid> TenantOfBranchAsync(Guid branchId, CancellationToken ct)
+    {
+        var lookupKey = $"branch-tenant:{branchId}";
+        var cached = await store.GetAsync(lookupKey, ct);
+        if (Guid.TryParse(cached, out var known))
+        {
+            return known;
+        }
 
-    private async Task<string> KeyAsync(Guid branchId, string view, CancellationToken ct) =>
-        $"menu:{view}:{branchId}:v{await store.GetCounterAsync(VersionKey(branchId), ct)}";
+        var tenantId = await db.BranchProducts.AsNoTracking().Where(b => b.BranchId == branchId).Select(b => b.TenantId).FirstOrDefaultAsync(ct);
+        if (tenantId != Guid.Empty)
+        {
+            await store.SetAsync(lookupKey, tenantId.ToString(), TenantLookupTtl, ct);
+        }
 
-    private static string VersionKey(Guid branchId) => $"menu:version:{branchId}";
+        return tenantId;
+    }
+
+    public Task InvalidateBranchAsync(Guid tenantId, Guid branchId, CancellationToken ct) => store.IncrementAsync(VersionKey(tenantId, branchId), ct);
+
+    private async Task<string> KeyAsync(Guid tenantId, Guid branchId, string view, CancellationToken ct) =>
+        $"t:{tenantId}:menu:{view}:{branchId}:v{await store.GetCounterAsync(VersionKey(tenantId, branchId), ct)}";
+
+    private static string VersionKey(Guid tenantId, Guid branchId) => $"t:{tenantId}:menu:version:{branchId}";
 }
 
 /// <summary>
@@ -51,7 +72,7 @@ public sealed class MenuChangeNotifier(MenuCache cache, MenuCatalogDbContext db,
     /// <summary>One branch changed (publication, price, sold out).</summary>
     public async Task BranchChangedAsync(Guid tenantId, Guid branchId, string reason, CancellationToken ct)
     {
-        await cache.InvalidateBranchAsync(branchId, ct);
+        await cache.InvalidateBranchAsync(tenantId, branchId, ct);
         await PublishAsync(tenantId, branchId, reason, ct);
     }
 
@@ -66,7 +87,7 @@ public sealed class MenuChangeNotifier(MenuCache cache, MenuCatalogDbContext db,
 
         foreach (var branchId in branches)
         {
-            await cache.InvalidateBranchAsync(branchId, ct);
+            await cache.InvalidateBranchAsync(tenantId, branchId, ct);
         }
 
         await PublishAsync(tenantId, null, reason, ct);
