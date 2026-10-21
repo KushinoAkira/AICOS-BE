@@ -83,7 +83,10 @@ namespace AICOS.MenuCatalog.Api.Persistence.Migrations
                     b.HasIndex("TenantId", "BranchId")
                         .HasDatabaseName("ix_branch_products_tenant_id_branch_id");
 
-                    b.ToTable("branch_products", "menu");
+                    b.ToTable("branch_products", "menu", t =>
+                        {
+                            t.HasCheckConstraint("ck_branch_products_price_override_positive", "price_override IS NULL OR price_override > 0");
+                        });
                 });
 
             modelBuilder.Entity("AICOS.MenuCatalog.Api.Domain.Category", b =>
@@ -257,7 +260,10 @@ namespace AICOS.MenuCatalog.Api.Persistence.Migrations
                     b.HasIndex("TenantId", "Name")
                         .HasDatabaseName("ix_products_tenant_id_name");
 
-                    b.ToTable("products", "menu");
+                    b.ToTable("products", "menu", t =>
+                        {
+                            t.HasCheckConstraint("ck_products_base_price_positive", "base_price > 0");
+                        });
                 });
 
             modelBuilder.Entity("AICOS.MenuCatalog.Api.Domain.ProductOption", b =>

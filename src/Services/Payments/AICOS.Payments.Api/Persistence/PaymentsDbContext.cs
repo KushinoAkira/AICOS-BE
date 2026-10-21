@@ -26,7 +26,11 @@ internal sealed class PaymentConfiguration : IEntityTypeConfiguration<Payment>
 {
     public void Configure(EntityTypeBuilder<Payment> builder)
     {
-        builder.ToTable("payments");
+        builder.ToTable("payments", t =>
+        {
+            t.HasCheckConstraint("ck_payments_amount_positive", "amount > 0");
+            t.HasCheckConstraint("ck_payments_refunded_range", "refunded_amount >= 0 AND refunded_amount <= amount");
+        });
         builder.HasKey(p => p.Id);
         builder.Property(p => p.Id).ValueGeneratedNever();
         builder.Property(p => p.Amount).HasPrecision(18, 0);
@@ -55,7 +59,10 @@ internal sealed class PaymentRefundConfiguration : IEntityTypeConfiguration<Paym
 {
     public void Configure(EntityTypeBuilder<PaymentRefund> builder)
     {
-        builder.ToTable("payment_refunds");
+        builder.ToTable("payment_refunds", t =>
+        {
+            t.HasCheckConstraint("ck_payment_refunds_amount_positive", "amount > 0");
+        });
         builder.HasKey(r => r.Id);
         builder.Property(r => r.Id).ValueGeneratedNever();
         builder.Property(r => r.Amount).HasPrecision(18, 0);
@@ -66,6 +73,7 @@ internal sealed class PaymentRefundConfiguration : IEntityTypeConfiguration<Paym
         builder.Property(r => r.ProviderReference).HasMaxLength(100);
 
         builder.HasIndex(r => r.PaymentId);
+        builder.HasIndex(r => new { r.TenantId, r.OrderId });
         builder.HasIndex(r => new { r.TenantId, r.BranchId, r.Status });
     }
 }
@@ -86,6 +94,7 @@ internal sealed class PaymentWebhookEventConfiguration : IEntityTypeConfiguratio
 
         builder.HasIndex(e => new { e.ProviderCode, e.EventId }).IsUnique();
         builder.HasIndex(e => new { e.TenantId, e.ReceivedAtUtc });
+        builder.HasIndex(e => e.PaymentId);
     }
 }
 
@@ -115,7 +124,11 @@ internal sealed class CancellationPolicyConfiguration : IEntityTypeConfiguration
 {
     public void Configure(EntityTypeBuilder<CancellationPolicy> builder)
     {
-        builder.ToTable("cancellation_policies");
+        builder.ToTable("cancellation_policies", t =>
+        {
+            t.HasCheckConstraint("ck_cancellation_policies_refund_percent", "cancel_refund_percent BETWEEN 0 AND 100 AND no_show_refund_percent BETWEEN 0 AND 100");
+            t.HasCheckConstraint("ck_cancellation_policies_minutes", "no_show_after_minutes BETWEEN 5 AND 240 AND unpaid_order_timeout_minutes BETWEEN 5 AND 120");
+        });
         builder.HasKey(p => p.Id);
         builder.Property(p => p.Id).ValueGeneratedNever();
         builder.Property(p => p.ExceptionApprover).HasConversion<string>().HasMaxLength(20).IsRequired();

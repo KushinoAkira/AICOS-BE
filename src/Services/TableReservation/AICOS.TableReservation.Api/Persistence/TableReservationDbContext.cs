@@ -31,7 +31,10 @@ internal sealed class DiningTableConfiguration : IEntityTypeConfiguration<Dining
 {
     public void Configure(EntityTypeBuilder<DiningTable> builder)
     {
-        builder.ToTable("dining_tables");
+        builder.ToTable("dining_tables", t =>
+        {
+            t.HasCheckConstraint("ck_dining_tables_capacity_positive", "capacity > 0");
+        });
         builder.Property(t => t.Id).ValueGeneratedNever();
         builder.Property(t => t.TableCode).HasMaxLength(DiningTable.CodeMaxLength).IsRequired();
         builder.Property(t => t.Status).HasConversion<string>().HasMaxLength(20);

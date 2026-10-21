@@ -280,7 +280,10 @@ namespace AICOS.IdentityOrganization.Api.Persistence.Migrations
                     b.HasIndex("TenantId")
                         .HasDatabaseName("ix_subscription_payments_tenant_id");
 
-                    b.ToTable("subscription_payments", "identity");
+                    b.ToTable("subscription_payments", "identity", t =>
+                        {
+                            t.HasCheckConstraint("ck_subscription_payments_amount_positive", "amount > 0");
+                        });
                 });
 
             modelBuilder.Entity("AICOS.IdentityOrganization.Api.Domain.SubscriptionPlan", b =>
@@ -355,7 +358,12 @@ namespace AICOS.IdentityOrganization.Api.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("ix_subscription_plans_name");
 
-                    b.ToTable("subscription_plans", "identity");
+                    b.ToTable("subscription_plans", "identity", t =>
+                        {
+                            t.HasCheckConstraint("ck_subscription_plans_fee_non_negative", "fee >= 0");
+
+                            t.HasCheckConstraint("ck_subscription_plans_limits_positive", "(max_branches IS NULL OR max_branches > 0) AND (max_staff_accounts IS NULL OR max_staff_accounts > 0)");
+                        });
                 });
 
             modelBuilder.Entity("AICOS.IdentityOrganization.Api.Domain.Tenant", b =>

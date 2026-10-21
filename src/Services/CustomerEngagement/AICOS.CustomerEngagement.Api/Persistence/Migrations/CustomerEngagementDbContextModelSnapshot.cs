@@ -125,7 +125,12 @@ namespace AICOS.CustomerEngagement.Api.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("ix_customers_user_id");
 
-                    b.ToTable("customers", "customer");
+                    b.ToTable("customers", "customer", t =>
+                        {
+                            t.HasCheckConstraint("ck_customers_points_non_negative", "points_balance >= 0 AND lifetime_points >= 0");
+
+                            t.HasCheckConstraint("ck_customers_sugar_percent_range", "preferred_sugar_percent IS NULL OR preferred_sugar_percent BETWEEN 0 AND 100");
+                        });
                 });
 
             modelBuilder.Entity("AICOS.CustomerEngagement.Api.Domain.LoyaltyRule", b =>
@@ -187,7 +192,12 @@ namespace AICOS.CustomerEngagement.Api.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("ix_loyalty_rules_tenant_id");
 
-                    b.ToTable("loyalty_rules", "customer");
+                    b.ToTable("loyalty_rules", "customer", t =>
+                        {
+                            t.HasCheckConstraint("ck_loyalty_rules_rates_positive", "amount_per_point > 0 AND redeem_value_per_point > 0 AND min_points_to_redeem >= 1");
+
+                            t.HasCheckConstraint("ck_loyalty_rules_tier_order", "silver_threshold >= 1 AND gold_threshold > silver_threshold");
+                        });
                 });
 
             modelBuilder.Entity("AICOS.CustomerEngagement.Api.Domain.LoyaltyTransaction", b =>
@@ -352,6 +362,9 @@ namespace AICOS.CustomerEngagement.Api.Persistence.Migrations
                     b.HasKey("Id")
                         .HasName("pk_vouchers");
 
+                    b.HasIndex("IssuedToCustomerId")
+                        .HasDatabaseName("ix_vouchers_issued_to_customer_id");
+
                     b.HasIndex("TenantId", "Code")
                         .IsUnique()
                         .HasDatabaseName("ix_vouchers_tenant_id_code");
@@ -359,7 +372,12 @@ namespace AICOS.CustomerEngagement.Api.Persistence.Migrations
                     b.HasIndex("TenantId", "BranchId", "Status")
                         .HasDatabaseName("ix_vouchers_tenant_id_branch_id_status");
 
-                    b.ToTable("vouchers", "customer");
+                    b.ToTable("vouchers", "customer", t =>
+                        {
+                            t.HasCheckConstraint("ck_vouchers_min_order_non_negative", "min_order_amount IS NULL OR min_order_amount >= 0");
+
+                            t.HasCheckConstraint("ck_vouchers_value_positive", "value > 0");
+                        });
                 });
 
             modelBuilder.Entity("AICOS.CustomerEngagement.Api.Domain.LoyaltyTransaction", b =>
