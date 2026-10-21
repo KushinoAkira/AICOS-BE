@@ -9,23 +9,42 @@ Kiến trúc bám theo sơ đồ `AICOS_Architecture_Diagram.png`: API Gateway +
 
 ## Chạy nhanh
 
+Không có secret nào nằm trong repository. Lần đầu phải tạo `.env` với giá trị ngẫu nhiên (file `.env` bị git bỏ qua):
+
 ```powershell
-# 1. Hạ tầng (PostgreSQL+pgvector, Redis)
-docker compose up -d postgres redis
+powershell -ExecutionPolicy Bypass -File scripts/init-env.ps1     # Windows
+# sh scripts/init-env.sh                                          # Linux / macOS / Git Bash
+```
 
-# 2. Chạy 1 service từ IDE / CLI (port theo bảng bên dưới, tự bật Swagger ở /swagger)
-dotnet run --project src/Services/Ordering/AICOS.Ordering.Api
-dotnet run --project src/Gateway/AICOS.Gateway
+Thiếu giá trị nào trong `.env`, `docker compose` dừng lại và báo rõ biến nào còn thiếu (không có mật khẩu mặc định).
 
-# hoặc chạy cả hệ thống trong Docker (qua gateway: http://localhost:8080)
+```powershell
+# Toàn bộ hệ thống trong Docker (qua gateway: http://localhost:8080)
 docker compose up -d --build
 
-# Test
+# Demo: bật Swagger và giả lập nhà cung cấp thanh toán (mặc định tắt, môi trường Production)
+#   đặt trong .env: ASPNETCORE_ENVIRONMENT=Development, SWAGGER_ENABLED=true, PAYMENTS_ALLOW_SIMULATION=true
+
+# Kiểm thử thật trên stack đang chạy (đăng nhập, tạo brand/chi nhánh, thanh toán, hoàn tiền, lương...)
+sh scripts/smoke-docker.sh
+
+# Test tự động (xUnit, không cần Docker)
 dotnet test AICOS.sln
 ```
 
+Chạy 1 service từ IDE: `docker compose up -d postgres redis`, rồi đặt secret **một lần** bằng user-secrets dùng chung (mật khẩu DB, khóa JWT; các service đã có sẵn phần còn lại trong `appsettings.Development.json`):
+
+```powershell
+dotnet user-secrets set "Database:Password" "<SERVICE_DB_PASSWORD trong .env>" --project src/Services/Ordering/AICOS.Ordering.Api
+dotnet user-secrets set "Jwt:SigningKey" "<JWT_SIGNING_KEY trong .env>" --project src/Services/Ordering/AICOS.Ordering.Api
+dotnet user-secrets set "ConnectionStrings:Redis" "localhost:6379,password=<REDIS_PASSWORD>" --project src/Services/Ordering/AICOS.Ordering.Api
+dotnet run --project src/Services/Ordering/AICOS.Ordering.Api
+```
+
+(Hoặc đặt biến môi trường `Database__Password`, `Jwt__SigningKey`, `ConnectionStrings__Redis`.) Service Payments cần thêm `Payments__SecretKey`, Identity cần `Auth__SeedAdmin__Password`.
+
 Kiểm tra: `GET http://localhost:8080/api/v1/orders/_info`, health: `/health/live`, `/health/ready` (mỗi service).
-Mọi giá trị mặc định là **dev-only**; đổi qua `.env` (xem `.env.example`).
+Sơ đồ cơ sở dữ liệu thật (DDL sinh từ migration trên PostgreSQL 16): `docs/database/schema.sql` (tạo lại bằng `scripts/dump-schema.sh`).
 
 ## Cấu trúc
 
@@ -123,6 +142,6 @@ builder.Services.AddAicosServiceClient<IMenuClient, MenuClient>(builder.Configur
 
 1. **Redis Pub/Sub là at-most-once**: consumer đang tắt thì mất event, và nếu chạy nhiều instance của cùng service thì mỗi instance nhận 1 bản. Đủ cho demo đồ án (đúng sơ đồ); nếu cần đảm bảo cho `PaymentConfirmed`/`OrderCompleted` thì chuyển sang Redis Streams + consumer group (chỉ cần thay `RedisEventBus*`, `IEventBus` giữ nguyên) và thêm Outbox pattern.
 2. **Kitchen real-time (WebSocket)**: YARP proxy WebSocket được; khi làm FE-09 chỉ cần thêm SignalR vào KitchenOperations.
-3. **Mật khẩu/khoá JWT là dev-only**; production cần secret riêng cho từng service và rotate key.
+3. **Secret**: không có trong repo (xem `.env.example`). Mật khẩu role DB dùng chung một giá trị `SERVICE_DB_PASSWORD`; production nên có mật khẩu riêng từng service và quy trình xoay khóa. Lịch sử git cũ vẫn còn các giá trị dev trước đây: coi chúng là đã lộ và không dùng lại.
 4. **CI (GitHub Actions)** chưa được thêm vì chưa rõ repo root là `Backend/` hay thư mục `Project/`. Lệnh cần chạy: `dotnet build -p:TreatWarningsAsErrors=true` và `dotnet test`, và `pytest` trong `src/Services/Ai`.
 5. Khi Identity service được code: đăng ký `JwtTokenService` đã có sẵn trong DI để phát token; các service khác không cần sửa gì.

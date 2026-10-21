@@ -108,7 +108,10 @@ namespace AICOS.TableReservation.Api.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("ix_dining_tables_branch_id_table_code");
 
-                    b.ToTable("dining_tables", "table_reservation");
+                    b.ToTable("dining_tables", "table_reservation", t =>
+                        {
+                            t.HasCheckConstraint("ck_dining_tables_capacity_positive", "capacity > 0");
+                        });
                 });
 
             modelBuilder.Entity("AICOS.TableReservation.Api.Domain.TableArea", b =>

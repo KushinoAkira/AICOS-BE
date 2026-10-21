@@ -113,7 +113,11 @@ internal sealed class PayRuleConfiguration : IEntityTypeConfiguration<PayRule>
 {
     public void Configure(EntityTypeBuilder<PayRule> builder)
     {
-        builder.ToTable("pay_rules");
+        builder.ToTable("pay_rules", t =>
+        {
+            t.HasCheckConstraint("ck_pay_rules_rates_positive", "full_time_day_rate > 0 AND part_time_hour_rate > 0 AND replacement_hour_rate > 0");
+            t.HasCheckConstraint("ck_pay_rules_overtime_range", "overtime_after_hours BETWEEN 1 AND 24 AND overtime_multiplier BETWEEN 1 AND 5");
+        });
         builder.Property(r => r.Id).ValueGeneratedNever();
         builder.Property(r => r.FullTimeDayRate).HasPrecision(14, 2);
         builder.Property(r => r.PartTimeHourRate).HasPrecision(14, 2);
@@ -158,7 +162,10 @@ internal sealed class PayrollAdjustmentConfiguration : IEntityTypeConfiguration<
 {
     public void Configure(EntityTypeBuilder<PayrollAdjustment> builder)
     {
-        builder.ToTable("payroll_adjustments");
+        builder.ToTable("payroll_adjustments", t =>
+        {
+            t.HasCheckConstraint("ck_payroll_adjustments_amount_not_zero", "amount <> 0");
+        });
         builder.HasKey(a => a.Id);
         builder.Property(a => a.Id).ValueGeneratedNever();
         builder.Property(a => a.Amount).HasPrecision(14, 0);

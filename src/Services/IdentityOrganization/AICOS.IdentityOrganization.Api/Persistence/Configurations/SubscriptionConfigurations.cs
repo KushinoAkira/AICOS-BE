@@ -8,7 +8,11 @@ internal sealed class SubscriptionPlanConfiguration : IEntityTypeConfiguration<S
 {
     public void Configure(EntityTypeBuilder<SubscriptionPlan> builder)
     {
-        builder.ToTable("subscription_plans");
+        builder.ToTable("subscription_plans", t =>
+        {
+            t.HasCheckConstraint("ck_subscription_plans_fee_non_negative", "fee >= 0");
+            t.HasCheckConstraint("ck_subscription_plans_limits_positive", "(max_branches IS NULL OR max_branches > 0) AND (max_staff_accounts IS NULL OR max_staff_accounts > 0)");
+        });
         builder.HasKey(p => p.Id);
         builder.Property(p => p.Id).ValueGeneratedNever();
 
@@ -51,7 +55,10 @@ internal sealed class SubscriptionPaymentConfiguration : IEntityTypeConfiguratio
 {
     public void Configure(EntityTypeBuilder<SubscriptionPayment> builder)
     {
-        builder.ToTable("subscription_payments");
+        builder.ToTable("subscription_payments", t =>
+        {
+            t.HasCheckConstraint("ck_subscription_payments_amount_positive", "amount > 0");
+        });
         builder.HasKey(p => p.Id);
         builder.Property(p => p.Id).ValueGeneratedNever();
 

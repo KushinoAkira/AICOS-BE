@@ -76,7 +76,10 @@ namespace AICOS.Ordering.Api.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("ix_pickup_slot_settings_tenant_id_branch_id");
 
-                    b.ToTable("pickup_slot_settings", "ordering");
+                    b.ToTable("pickup_slot_settings", "ordering", t =>
+                        {
+                            t.HasCheckConstraint("ck_pickup_slot_settings_ranges", "slot_minutes BETWEEN 5 AND 120 AND capacity_per_slot BETWEEN 1 AND 500 AND cutoff_minutes BETWEEN 0 AND 240 AND advance_days BETWEEN 0 AND 14");
+                        });
                 });
 #pragma warning restore 612, 618
         }

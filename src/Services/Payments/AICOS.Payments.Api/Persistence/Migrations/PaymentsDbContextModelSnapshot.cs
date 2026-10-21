@@ -82,7 +82,12 @@ namespace AICOS.Payments.Api.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("ix_cancellation_policies_tenant_id");
 
-                    b.ToTable("cancellation_policies", "payment");
+                    b.ToTable("cancellation_policies", "payment", t =>
+                        {
+                            t.HasCheckConstraint("ck_cancellation_policies_minutes", "no_show_after_minutes BETWEEN 5 AND 240 AND unpaid_order_timeout_minutes BETWEEN 5 AND 120");
+
+                            t.HasCheckConstraint("ck_cancellation_policies_refund_percent", "cancel_refund_percent BETWEEN 0 AND 100 AND no_show_refund_percent BETWEEN 0 AND 100");
+                        });
                 });
 
             modelBuilder.Entity("AICOS.Payments.Api.Domain.MerchantSetting", b =>
@@ -281,7 +286,12 @@ namespace AICOS.Payments.Api.Persistence.Migrations
                     b.HasIndex("TenantId", "BranchId", "CreatedAtUtc")
                         .HasDatabaseName("ix_payments_tenant_id_branch_id_created_at_utc");
 
-                    b.ToTable("payments", "payment");
+                    b.ToTable("payments", "payment", t =>
+                        {
+                            t.HasCheckConstraint("ck_payments_amount_positive", "amount > 0");
+
+                            t.HasCheckConstraint("ck_payments_refunded_range", "refunded_amount >= 0 AND refunded_amount <= amount");
+                        });
                 });
 
             modelBuilder.Entity("AICOS.Payments.Api.Domain.PaymentProvider", b =>
@@ -451,10 +461,16 @@ namespace AICOS.Payments.Api.Persistence.Migrations
                     b.HasIndex("PaymentId")
                         .HasDatabaseName("ix_payment_refunds_payment_id");
 
+                    b.HasIndex("TenantId", "OrderId")
+                        .HasDatabaseName("ix_payment_refunds_tenant_id_order_id");
+
                     b.HasIndex("TenantId", "BranchId", "Status")
                         .HasDatabaseName("ix_payment_refunds_tenant_id_branch_id_status");
 
-                    b.ToTable("payment_refunds", "payment");
+                    b.ToTable("payment_refunds", "payment", t =>
+                        {
+                            t.HasCheckConstraint("ck_payment_refunds_amount_positive", "amount > 0");
+                        });
                 });
 
             modelBuilder.Entity("AICOS.Payments.Api.Domain.PaymentWebhookEvent", b =>
@@ -512,6 +528,9 @@ namespace AICOS.Payments.Api.Persistence.Migrations
 
                     b.HasKey("Id")
                         .HasName("pk_payment_webhook_events");
+
+                    b.HasIndex("PaymentId")
+                        .HasDatabaseName("ix_payment_webhook_events_payment_id");
 
                     b.HasIndex("ProviderCode", "EventId")
                         .IsUnique()

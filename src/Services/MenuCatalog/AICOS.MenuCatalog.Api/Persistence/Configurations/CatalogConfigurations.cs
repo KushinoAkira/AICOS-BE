@@ -22,7 +22,10 @@ internal sealed class ProductConfiguration : IEntityTypeConfiguration<Product>
 {
     public void Configure(EntityTypeBuilder<Product> builder)
     {
-        builder.ToTable("products");
+        builder.ToTable("products", t =>
+        {
+            t.HasCheckConstraint("ck_products_base_price_positive", "base_price > 0");
+        });
         builder.HasKey(p => p.Id);
         builder.Property(p => p.Id).ValueGeneratedNever();
         builder.Property(p => p.Name).HasMaxLength(Product.NameMaxLength).IsRequired();
@@ -80,7 +83,10 @@ internal sealed class BranchProductConfiguration : IEntityTypeConfiguration<Bran
 {
     public void Configure(EntityTypeBuilder<BranchProduct> builder)
     {
-        builder.ToTable("branch_products");
+        builder.ToTable("branch_products", t =>
+        {
+            t.HasCheckConstraint("ck_branch_products_price_override_positive", "price_override IS NULL OR price_override > 0");
+        });
         builder.HasKey(b => b.Id);
         builder.Property(b => b.Id).ValueGeneratedNever();
         builder.Property(b => b.PriceOverride).HasPrecision(12, 2);

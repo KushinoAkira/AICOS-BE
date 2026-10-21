@@ -22,7 +22,11 @@ internal sealed class CustomerConfiguration : IEntityTypeConfiguration<Customer>
 {
     public void Configure(EntityTypeBuilder<Customer> builder)
     {
-        builder.ToTable("customers");
+        builder.ToTable("customers", t =>
+        {
+            t.HasCheckConstraint("ck_customers_points_non_negative", "points_balance >= 0 AND lifetime_points >= 0");
+            t.HasCheckConstraint("ck_customers_sugar_percent_range", "preferred_sugar_percent IS NULL OR preferred_sugar_percent BETWEEN 0 AND 100");
+        });
         builder.Property(c => c.Id).ValueGeneratedNever();
         builder.Property(c => c.FullName).HasMaxLength(255).IsRequired();
         builder.Property(c => c.Email).HasMaxLength(255).IsRequired();
@@ -54,7 +58,11 @@ internal sealed class VoucherConfiguration : IEntityTypeConfiguration<Voucher>
 {
     public void Configure(EntityTypeBuilder<Voucher> builder)
     {
-        builder.ToTable("vouchers");
+        builder.ToTable("vouchers", t =>
+        {
+            t.HasCheckConstraint("ck_vouchers_value_positive", "value > 0");
+            t.HasCheckConstraint("ck_vouchers_min_order_non_negative", "min_order_amount IS NULL OR min_order_amount >= 0");
+        });
         builder.Property(v => v.Id).ValueGeneratedNever();
         builder.Property(v => v.Code).HasMaxLength(30).IsRequired();
         builder.Property(v => v.Type).HasConversion<string>().HasMaxLength(20);
@@ -69,6 +77,7 @@ internal sealed class VoucherConfiguration : IEntityTypeConfiguration<Voucher>
         builder.Property(v => v.Version).IsConcurrencyToken();
         builder.HasIndex(v => new { v.TenantId, v.Code }).IsUnique();
         builder.HasIndex(v => new { v.TenantId, v.BranchId, v.Status });
+        builder.HasIndex(v => v.IssuedToCustomerId);
     }
 }
 
@@ -76,7 +85,11 @@ internal sealed class LoyaltyRuleConfiguration : IEntityTypeConfiguration<Loyalt
 {
     public void Configure(EntityTypeBuilder<LoyaltyRule> builder)
     {
-        builder.ToTable("loyalty_rules");
+        builder.ToTable("loyalty_rules", t =>
+        {
+            t.HasCheckConstraint("ck_loyalty_rules_rates_positive", "amount_per_point > 0 AND redeem_value_per_point > 0 AND min_points_to_redeem >= 1");
+            t.HasCheckConstraint("ck_loyalty_rules_tier_order", "silver_threshold >= 1 AND gold_threshold > silver_threshold");
+        });
         builder.HasKey(r => r.Id);
         builder.Property(r => r.Id).ValueGeneratedNever();
         builder.Property(r => r.AmountPerPoint).HasPrecision(14, 2);

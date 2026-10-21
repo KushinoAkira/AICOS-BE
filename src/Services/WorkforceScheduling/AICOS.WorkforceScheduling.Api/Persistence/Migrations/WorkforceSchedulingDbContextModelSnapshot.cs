@@ -303,7 +303,12 @@ namespace AICOS.WorkforceScheduling.Api.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("ix_pay_rules_tenant_id");
 
-                    b.ToTable("pay_rules", "workforce");
+                    b.ToTable("pay_rules", "workforce", t =>
+                        {
+                            t.HasCheckConstraint("ck_pay_rules_overtime_range", "overtime_after_hours BETWEEN 1 AND 24 AND overtime_multiplier BETWEEN 1 AND 5");
+
+                            t.HasCheckConstraint("ck_pay_rules_rates_positive", "full_time_day_rate > 0 AND part_time_hour_rate > 0 AND replacement_hour_rate > 0");
+                        });
                 });
 
             modelBuilder.Entity("AICOS.WorkforceScheduling.Api.Domain.PayrollAdjustment", b =>
@@ -364,7 +369,10 @@ namespace AICOS.WorkforceScheduling.Api.Persistence.Migrations
                     b.HasIndex("TenantId", "BranchId", "WorkDate")
                         .HasDatabaseName("ix_payroll_adjustments_tenant_id_branch_id_work_date");
 
-                    b.ToTable("payroll_adjustments", "workforce");
+                    b.ToTable("payroll_adjustments", "workforce", t =>
+                        {
+                            t.HasCheckConstraint("ck_payroll_adjustments_amount_not_zero", "amount <> 0");
+                        });
                 });
 
             modelBuilder.Entity("AICOS.WorkforceScheduling.Api.Domain.ReplacementApplication", b =>
