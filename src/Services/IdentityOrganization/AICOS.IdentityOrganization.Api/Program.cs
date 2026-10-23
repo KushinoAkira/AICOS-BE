@@ -50,6 +50,7 @@ api.MapTenantEndpoints();
 api.MapAuditEndpoints();
 api.MapPlanEndpoints();
 api.MapTenantSubscriptionEndpoints();
+api.MapMySubscriptionEndpoints();
 api.MapPlatformEndpoints();
 
 if (app.Environment.IsDevelopment())

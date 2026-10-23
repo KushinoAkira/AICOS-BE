@@ -21,9 +21,10 @@ public sealed record CreateVoucherRequest(
 
 public sealed record RevokeVoucherRequest(string? Reason);
 
-public sealed record ValidateVoucherRequest(string? Code, decimal? OrderAmount);
+/// <summary><c>BranchId</c> and <c>CustomerId</c> (the customer profile id or user id) of the order let a voucher of another branch or another member be refused.</summary>
+public sealed record ValidateVoucherRequest(string? Code, decimal? OrderAmount, Guid? BranchId = null, Guid? CustomerId = null);
 
-public sealed record RedeemVoucherRequest(string? Code, decimal? OrderAmount, string? OrderReference);
+public sealed record RedeemVoucherRequest(string? Code, decimal? OrderAmount, string? OrderReference, Guid? BranchId = null, Guid? CustomerId = null);
 
 public sealed record VoucherResponse(
     Guid Id, Guid? BranchId, string Code, VoucherType Type, VoucherDiscountType DiscountType, decimal Value, decimal? MinOrderAmount,
@@ -165,6 +166,7 @@ public static partial class VoucherEndpoints
     {
         ValidateUse(r.Code, r.OrderAmount, orderReference: "-");
         var voucher = await FindByCodeAsync(db, user, r.Code!, ct);
+        await EnsureUsableByAsync(db, voucher, r.BranchId, r.CustomerId, ct);
         var discount = voucher.CalculateDiscount(r.OrderAmount!.Value, clock.GetUtcNow().UtcDateTime);
         return new VoucherQuoteResponse(voucher.Code, r.OrderAmount!.Value, discount, r.OrderAmount!.Value - discount);
     }
@@ -174,6 +176,7 @@ public static partial class VoucherEndpoints
     {
         ValidateUse(r.Code, r.OrderAmount, r.OrderReference);
         var voucher = await FindByCodeAsync(db, user, r.Code!, ct);
+        await EnsureUsableByAsync(db, voucher, r.BranchId, r.CustomerId, ct);
         var before = Snapshot(voucher);
         var discount = voucher.Redeem(r.OrderAmount!.Value, r.OrderReference!, clock.GetUtcNow().UtcDateTime);
         await db.SaveChangesAsync(ct); // Version token: a parallel redeem of the same code fails with 409
@@ -261,6 +264,31 @@ public static partial class VoucherEndpoints
         }
 
         return voucher;
+    }
+
+    /// <summary>
+    /// A voucher valid at one branch is refused at another, and a voucher issued to a member (for example one bought with points) can only be
+    /// used on that member's order (SCRUM-133, SCRUM-134). The member may be named by profile id or by account id.
+    /// </summary>
+    private static async Task EnsureUsableByAsync(CustomerEngagementDbContext db, Voucher voucher, Guid? branchId, Guid? customerId, CancellationToken ct)
+    {
+        if (voucher.BranchId is not null && branchId is not null && voucher.BranchId != branchId)
+        {
+            throw new BusinessRuleException("voucher.wrong_branch", "This code is not valid at this branch.");
+        }
+
+        if (voucher.IssuedToCustomerId is null)
+        {
+            return;
+        }
+
+        var owner = customerId is null
+            ? null
+            : await db.Customers.AsNoTracking().FirstOrDefaultAsync(c => c.TenantId == voucher.TenantId && (c.Id == customerId || c.UserId == customerId), ct);
+        if (owner is null || owner.Id != voucher.IssuedToCustomerId)
+        {
+            throw new BusinessRuleException("voucher.not_yours", "This code was issued to another member.");
+        }
     }
 
     private static async Task<string> NewCodeAsync(CustomerEngagementDbContext db, Guid tenantId, VoucherType type, CancellationToken ct)

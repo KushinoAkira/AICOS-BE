@@ -44,7 +44,7 @@ Lỗi: `401 auth.invalid_credentials`; `403 account.temporarily_locked` (sai 5 l
 |---|---|---|---|
 | Làm mới token | `POST /auth/refresh` | `{ "refreshToken": "…" }` | như đăng nhập |
 | Đăng xuất | `POST /auth/logout` | `{ "refreshToken": "…" }` | 204 |
-| Khách đăng ký | `POST /auth/register` | `{ "tenantCode": "demo-coffee", "fullName": "Khách A", "email": "a@x.com", "phone": "0900000009", "password": "Customer@123", "confirmPassword": "Customer@123" }` | 201 như đăng nhập |
+| Khách đăng ký | `POST /auth/register` | `{ "tenantCode": "demo-coffee", "fullName": "Khách A", "email": "a@x.com", "phone": "0900000009", "password": "Customer@123", "confirmPassword": "Customer@123" }` | 201 trả hồ sơ người dùng `{ "id", "fullName", "email", "role": "Customer", "tenantId", "status", … }` (không có token): gọi tiếp `POST /auth/login` |
 | Hồ sơ của tôi | `GET /auth/me` | | `{ "id", "fullName", "email", "username", "phone", "role", … }` |
 | Sửa hồ sơ | `PUT /auth/me` | `{ "fullName": "…", "phone": "0900000009", "username": "cashier1" }` | hồ sơ mới |
 | Đổi mật khẩu | `POST /auth/change-password` | `{ "currentPassword": "…", "newPassword": "…", "confirmNewPassword": "…" }` | 200 |
@@ -60,6 +60,16 @@ Lỗi: `401 auth.invalid_credentials`; `403 account.temporarily_locked` (sai 5 l
 | Chi nhánh đang hoạt động | `GET /branches/active` (công khai) | | danh sách |
 | Tài khoản nhân viên | `GET/POST /users`, `PUT /users/{id}`, `PATCH /users/{id}/status`, `DELETE /users/{id}` | `{ "fullName": "Thu Ngân", "email": "c@demo.com", "username": "cashier1", "phone": "090…", "password": "Brand@12345", "role": "Cashier", "branchId": "…" }` | status `Active \| Locked`; Manager chỉ tạo Barista/Cashier của chi nhánh mình |
 | Nhật ký (audit) | `GET /audit-logs?…` | | phân trang; BrandAdmin xem brand, SuperAdmin xem nền tảng [SCRUM-106] |
+
+### Gói thuê bao của Brand Admin [SCRUM-132] (chỉ `BrandAdmin`, luôn là gói của chính brand)
+
+| Chức năng | Method và endpoint | Body | Response |
+|---|---|---|---|
+| Xem trạng thái gói | `GET /identity/subscription` | | `{ "subscription": { "planName", "fee", "billingPeriod": "Monthly\|Quarterly\|Yearly", "status", "periodStartUtc", "periodEndUtc", "paymentStatus": "Unpaid\|Paid", "paidAmount", "outstanding", "health": "Current\|DueSoon\|GracePeriod\|Overdue", "daysUntilRenewal", "activeBranches", "staffAccounts", "maxBranches", "maxStaffAccounts" }, "canRenew": true, "renewableFromUtc": null, "amountToPay": 500000 }` |
+| Thanh toán / gia hạn mô phỏng | `POST /identity/subscription/renew` | `{}` | `{ "action": "PaidOutstanding\|Renewed", "amountPaid": 500000, "payment": { "id", "amount", "method": "Simulated", "reference", "paidAtUtc" }, "subscription": { …như trên } }` |
+| Lịch sử thanh toán | `GET /identity/subscription/payments?page=&pageSize=` | | phân trang `{ "items": [ { "id", "amount", "paidAtUtc", "method", "reference", "periodStartUtc" } ], … }` |
+
+Quy tắc cho FE: nút thanh toán/gia hạn bật khi `canRenew = true`, hiển thị `amountToPay`; khi `canRenew = false` và có `renewableFromUtc` thì hiện "Gia hạn từ ngày …". Kỳ chưa trả: renew chỉ thanh toán kỳ hiện tại. Kỳ đã trả: chỉ gia hạn được khi còn ≤ 7 ngày hoặc quá hạn, nếu không `422 subscription.renewal_not_open`. Brand chưa có gói: `404`. Không có tiền thật chuyển đi (mô phỏng).
 
 ### Nền tảng (SuperAdmin) [SCRUM-38, 39, 40, 109, 110, 111]
 
@@ -119,16 +129,32 @@ Lỗi: `401 auth.invalid_credentials`; `403 account.temporarily_locked` (sai 5 l
 
 ---
 
+### Đổi điểm sang voucher, voucher và điểm quanh đơn hàng [SCRUM-133, 134]
+
+| Chức năng | Method và endpoint | Quyền | Body | Response |
+|---|---|---|---|---|
+| Đổi điểm sang voucher (khách tự đổi) | `POST /customers/me/redemptions` | Customer | `{ "points": 50 }` | 201 `{ "voucher": { "id", "code": "PT-9F3A1C2B", "value": 50000, "discountType": "FixedAmount", "expiresAtUtc" }, "pointsSpent": 50, "pointsBalance": 20 }` |
+| Đổi điểm hộ khách tại quầy | `POST /customers/{customerId}/redemptions` | Cashier, Manager, Admin | `{ "points": 50 }` | như trên |
+| Voucher của tôi | `GET /customers/me/vouchers?status=Active&page=&pageSize=` | Customer | | phân trang `{ "items": [ { "id", "code", "type", "discountType", "value", "minOrderAmount", "expiresAtUtc", "status": "Active\|Redeemed\|Revoked", "isExpired", "branchId" } ], … }` |
+| Kiểm tra voucher cho đơn | `POST /customers/vouchers/validate` | Staff | `{ "code": "PT-9F3A1C2B", "orderAmount": 70000, "branchId": "…", "customerId": "…" }` | `{ "code", "orderAmount", "discount": 50000, "amountToPay": 20000 }` |
+| Dùng voucher (thường do Order gọi) | `POST /customers/vouchers/redeem` | Staff | `{ "code": "…", "orderAmount": 70000, "orderReference": "ORD-…", "branchId": "…", "customerId": "…" }` | như validate |
+
+Quy tắc đổi điểm: `giá trị = points x redeemValuePerPoint` (quy tắc brand, `GET /customers/loyalty/rules`); tối thiểu `minPointsToRedeem`; tối đa 100 000 điểm một lần; voucher hạn 90 ngày và **chỉ chủ điểm dùng được**. Lỗi: `422 loyalty.below_minimum`, `422 loyalty.insufficient_points`, `422 loyalty.rules_inactive`, `400` points ≤ 0 hoặc quá lớn.
+
+Cách dùng voucher khi đặt hàng: gửi `promotionCode` (và `customerId` của thành viên) trong `POST /orders`; xem mục 5. Lỗi voucher: `422 voucher.not_yours` (của thành viên khác), `voucher.wrong_branch`, `voucher.already_redeemed`, `voucher.expired`, `voucher.revoked`, `voucher.min_order_not_met`.
+
+**Điểm thưởng sau thanh toán:** điểm chỉ được cộng khi đơn **đã thanh toán**, theo `amountPerPoint` của brand, cho đơn có `customerId`. FE không gọi gì thêm: sau 1 đến 2 giây `GET /customers/me/loyalty` có `pointsBalance` mới và dòng lịch sử `Earn`. Đơn đã trả bị quản lý hủy ngoại lệ thì có dòng `Reverse` (âm) và điểm bị trừ lại. Đơn chưa trả bị hủy hoặc quá hạn thanh toán thì voucher đã dùng cho đơn đó trở lại `Active`. Loại dòng lịch sử: `Earn | Adjust | Redeem | Reverse`.
+
 ## 5. Đơn hàng (`AICOS.Ordering.Api`, prefix `orders`) [SCRUM-59, 60, 61, 49]
 
 Giá và tên món luôn lấy từ Menu: FE chỉ gửi `productId`, `quantity`, `note`.
 
 **Tạo đơn tại quầy [SCRUM-59]**: `POST /api/v1/orders` (Cashier, Manager, BrandAdmin)
 ```json
-{ "type": "Takeaway", "branchId": null, "tableNumber": null, "deliveryAddress": null, "note": "ít đá", "promotionCode": "SAVE10",
+{ "type": "Takeaway", "branchId": null, "customerId": null, "tableNumber": null, "deliveryAddress": null, "note": "ít đá", "promotionCode": "SAVE10",
   "items": [ { "productId": "…", "quantity": 2, "note": "ít đường" } ] }
 ```
-(`branchId` chỉ BrandAdmin cần; `type`: `DineIn | Takeaway | Delivery`.) Response 201:
+(`branchId` chỉ BrandAdmin cần; `customerId` = id tài khoản hoặc hồ sơ của thành viên để đơn được cộng điểm và dùng voucher riêng của họ; `type`: `DineIn | Takeaway | Delivery`.) Response 201:
 ```json
 { "id": "…", "orderCode": "ORD-20261102-A1B2C3", "branchId": "…", "cashierId": "…", "type": "Takeaway", "status": "Pending", "paymentStatus": "Unpaid",
   "originalAmount": 110000, "promotionCode": "SAVE10", "discountAmount": 11000, "finalAmount": 99000, "refundedAmount": 0, "refundStatus": "None",

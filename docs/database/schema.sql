@@ -5,7 +5,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict jqiXYfwPoLPcnwraqXVpVZNWfOxyEcjMpvLztgW3KIZk6qDEc3NfZVz9bTzdXrA
+\restrict TrMg4X18aTAyh3GtnlY11ZuAAQF2NoD58mk03obd7fI2fC68fMF8gC4OLr4u0Sb
 
 -- Dumped from database version 16.15 (Debian 16.15-1.pgdg12+2)
 -- Dumped by pg_dump version 16.15 (Debian 16.15-1.pgdg12+2)
@@ -135,6 +135,7 @@ CREATE TABLE customer.customers (
     preferred_ice character varying(20),
     preferred_sugar_percent integer,
     tenant_id uuid DEFAULT '00000000-0000-0000-0000-00000000a1c0'::uuid NOT NULL,
+    version integer DEFAULT 0 NOT NULL,
     CONSTRAINT ck_customers_points_non_negative CHECK (((points_balance >= 0) AND (lifetime_points >= 0))),
     CONSTRAINT ck_customers_sugar_percent_range CHECK (((preferred_sugar_percent IS NULL) OR ((preferred_sugar_percent >= 0) AND (preferred_sugar_percent <= 100))))
 );
@@ -1557,10 +1558,10 @@ CREATE INDEX ix_loyalty_transactions_customer_id ON customer.loyalty_transaction
 
 
 --
--- Name: ix_loyalty_transactions_order_id; Type: INDEX; Schema: customer; Owner: -
+-- Name: ix_loyalty_transactions_order_id_type; Type: INDEX; Schema: customer; Owner: -
 --
 
-CREATE UNIQUE INDEX ix_loyalty_transactions_order_id ON customer.loyalty_transactions USING btree (order_id);
+CREATE UNIQUE INDEX ix_loyalty_transactions_order_id_type ON customer.loyalty_transactions USING btree (order_id, type);
 
 
 --
@@ -2344,5 +2345,5 @@ ALTER TABLE ONLY workforce.replacement_applications
 -- PostgreSQL database dump complete
 --
 
-\unrestrict jqiXYfwPoLPcnwraqXVpVZNWfOxyEcjMpvLztgW3KIZk6qDEc3NfZVz9bTzdXrA
+\unrestrict TrMg4X18aTAyh3GtnlY11ZuAAQF2NoD58mk03obd7fI2fC68fMF8gC4OLr4u0Sb
 

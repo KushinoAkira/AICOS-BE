@@ -39,16 +39,16 @@ public sealed class FakeVouchers : IVoucherClient
 {
     public Dictionary<string, decimal> Percent { get; } = [];
 
-    public List<(string Code, decimal Amount, string Reference)> Redeemed { get; } = [];
+    public List<(string Code, decimal Amount, string Reference, Guid Branch, Guid? Customer)> Redeemed { get; } = [];
 
-    public Task<VoucherQuote> RedeemAsync(string code, decimal orderAmount, string orderReference, CancellationToken ct)
+    public Task<VoucherQuote> RedeemAsync(string code, decimal orderAmount, string orderReference, Guid branchId, Guid? customerId, CancellationToken ct)
     {
         if (!Percent.TryGetValue(code, out var percent) || Redeemed.Any(r => r.Code == code))
         {
             throw new BusinessRuleException("voucher.invalid", "The voucher is not valid.");
         }
 
-        Redeemed.Add((code, orderAmount, orderReference));
+        Redeemed.Add((code, orderAmount, orderReference, branchId, customerId));
         return Task.FromResult(new VoucherQuote(code, Math.Round(orderAmount * percent / 100)));
     }
 }
@@ -376,6 +376,77 @@ public sealed class OrderTests : IDisposable
         var read = await GetAsync(order.Id());
         (read.GetProperty("status").GetString(), read.GetProperty("paymentStatus").GetString(), read.GetProperty("refundStatus").GetString()).Should().Be(("Cancelled", "Paid", "Needed"));
         (await _manager.GetFromJsonAsync<JsonElement>($"{Orders}/exceptions")).GetArrayLength().Should().Be(1);
+    }
+
+    // ------------------------------------------------------------------ voucher and points around the order (SCRUM-133)
+    [Fact]
+    public async Task The_voucher_is_redeemed_for_this_branch_and_this_member()
+    {
+        _vouchers.Percent["MEMBER10"] = 10;
+        var member = Guid.NewGuid();
+
+        var order = await _cashier.PostOk(Orders, new { type = "Takeaway", customerId = member, promotionCode = "MEMBER10", items = new[] { new { productId = _latte, quantity = 1 } } });
+
+        _vouchers.Redeemed.Should().ContainSingle().Which.Should().Be(("MEMBER10", 55_000m, order.GetProperty("orderCode").GetString()!, _b1, (Guid?)member));
+    }
+
+    [Fact]
+    public async Task A_payment_makes_one_paid_event_with_the_member_and_the_amount_to_pay()
+    {
+        _vouchers.Percent["SAVE10"] = 10;
+        var member = Guid.NewGuid();
+        var order = await _cashier.PostOk(Orders, Body(promo: "SAVE10", customerId: member));
+        var paid = Paid(order, "Momo");
+
+        await _f.HandleAsync(paid);
+        await _f.HandleAsync(paid);                                                                 // delivered twice
+
+        var ev = _f.Events.Published.OfType<OrderPaidIntegrationEvent>().Single();
+        (ev.TenantId, ev.OrderId, ev.CustomerId, ev.Amount, ev.OrderCode).Should().Be((_tenant, order.Id(), (Guid?)member, 125_100m, order.GetProperty("orderCode").GetString()));
+    }
+
+    [Fact]
+    public async Task Money_for_an_order_that_was_already_cancelled_earns_no_points()
+    {
+        var order = await NewOrderAsync(customerId: Guid.NewGuid());
+        await _cashier.PostOk($"{Orders}/{order.Id()}/cancel", new { reason = "x" });
+
+        await _f.HandleAsync(Paid(order, "Momo"));
+
+        _f.Events.Published.OfType<OrderPaidIntegrationEvent>().Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Cancelling_or_timing_out_an_unpaid_order_tells_Customer_which_voucher_to_give_back()
+    {
+        _vouchers.Percent["A"] = 10;
+        _vouchers.Percent["B"] = 10;
+        var cancelled = await _cashier.PostOk(Orders, Body(promo: "A", customerId: Guid.NewGuid()));
+        var timedOut = await _cashier.PostOk(Orders, Body(promo: "B"));
+
+        await _cashier.PostOk($"{Orders}/{cancelled.Id()}/cancel", new { reason = "Customer left" });
+        await _f.HandleAsync(new PaymentFailedEvent(_tenant, _b1, Guid.NewGuid(), timedOut.Id(), "Momo", "Not paid in time.", TimedOut: true));
+
+        var events = _f.Events.Published.OfType<OrderCancelledIntegrationEvent>().ToList();
+        events.Select(e => (e.PromotionCode, e.OrderCode, e.WasPaid)).Should().BeEquivalentTo(new[]
+        {
+            ("A", cancelled.GetProperty("orderCode").GetString(), false),
+            ("B", timedOut.GetProperty("orderCode").GetString(), false),
+        });
+        events.First().CustomerId.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task A_paid_order_cancelled_as_an_exception_tells_Customer_to_take_the_points_back()
+    {
+        var member = Guid.NewGuid();
+        var order = await NewOrderAsync(customerId: member);
+        await _f.HandleAsync(Paid(order, "Cash"));
+
+        await _manager.PostOk($"{Orders}/{order.Id()}/exception", new { reason = "Wrong drink" });
+
+        var ev = _f.Events.Published.OfType<OrderCancelledIntegrationEvent>().Single();
+        (ev.WasPaid, ev.CustomerId, ev.TotalAmount).Should().Be((true, (Guid?)member, 139_000m));
     }
 
     // ------------------------------------------------------------------ kitchen and hand-over (SCRUM-58, 61)

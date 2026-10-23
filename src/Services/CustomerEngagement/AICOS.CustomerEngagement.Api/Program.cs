@@ -21,7 +21,8 @@ builder.Services.AddAicosBranchDirectory(builder.Configuration);   // asks Ident
 
 // Events from other services.
 builder.Services.AddIntegrationEventHandler<CustomerRegisteredEvent, CustomerRegisteredHandler>(); // Identity: new Customer account
-builder.Services.AddIntegrationEventHandler<OrderCompletedEvent, OrderCompletedHandler>();         // Order: BR-25 loyalty points
+builder.Services.AddIntegrationEventHandler<OrderPaidIntegrationEvent, OrderPaidHandler>();                    // Order: BR-25 points after payment
+builder.Services.AddIntegrationEventHandler<OrderCancelledIntegrationEvent, OrderCancelledLoyaltyHandler>();      // Order: voucher back / points taken back
 builder.Services.AddIntegrationEventHandler<UserProfileUpdatedEvent, UserProfileUpdatedHandler>();   // Identity: name/phone edited (UC-03)
 
 var app = builder.Build();
@@ -32,6 +33,7 @@ app.UseAicosServiceDefaults();
 var api = app.MapAicosApiGroup();
 api.MapVoucherEndpoints();
 api.MapCustomerEndpoints();
+api.MapRedemptionEndpoints();
 api.MapLoyaltyRuleEndpoints();
 
 await app.RunAsync();

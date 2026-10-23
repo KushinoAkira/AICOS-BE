@@ -20,7 +20,8 @@ public sealed record VoucherQuote(string Code, decimal Discount);
 /// <summary>Customer Service vouchers. Redeeming happens when the order is placed, so one voucher cannot pay two orders.</summary>
 public interface IVoucherClient
 {
-    Task<VoucherQuote> RedeemAsync(string code, decimal orderAmount, string orderReference, CancellationToken ct);
+    /// <summary>The branch and the customer of the order let Customer Service refuse a voucher of another branch or of another member.</summary>
+    Task<VoucherQuote> RedeemAsync(string code, decimal orderAmount, string orderReference, Guid branchId, Guid? customerId, CancellationToken ct);
 }
 
 public sealed record RefundRequestResult(string Status);
@@ -108,10 +109,10 @@ internal sealed class HttpMenuCatalogClient(HttpClient http) : IMenuCatalogClien
 
 internal sealed class HttpVoucherClient(HttpClient http) : IVoucherClient
 {
-    public async Task<VoucherQuote> RedeemAsync(string code, decimal orderAmount, string orderReference, CancellationToken ct)
+    public async Task<VoucherQuote> RedeemAsync(string code, decimal orderAmount, string orderReference, Guid branchId, Guid? customerId, CancellationToken ct)
     {
         using var response = await ServiceCall.SendAsync(
-            "customer", () => http.PostAsJsonAsync("/api/v1/customers/vouchers/redeem", new { code, orderAmount, orderReference }, ct), ct);
+            "customer", () => http.PostAsJsonAsync("/api/v1/customers/vouchers/redeem", new { code, orderAmount, orderReference, branchId, customerId }, ct), ct);
         if (!response.IsSuccessStatusCode)
         {
             throw await ServiceCall.ErrorAsync("customer", "voucher.invalid", response, ct);

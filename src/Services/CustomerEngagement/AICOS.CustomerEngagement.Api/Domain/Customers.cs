@@ -57,6 +57,9 @@ public sealed class Customer : AuditableEntity<Guid>
 
     public int PointsBalance { get; private set; }
 
+    /// <summary>Bumped by every change of the points, so two changes at the same time cannot both succeed (no double spending).</summary>
+    public int Version { get; private set; }
+
     /// <summary>All points ever earned (never decreases) - decides the tier.</summary>
     public int LifetimePoints { get; private set; }
 
@@ -84,10 +87,34 @@ public sealed class Customer : AuditableEntity<Guid>
     public void Earn(int points, LoyaltyTierThresholds thresholds)
     {
         PointsBalance += points;
+        Version++;
         LifetimePoints += points;
         Tier = thresholds.TierFor(LifetimePoints);
     }
 
+
+    /// <summary>Points spent on a voucher. Only the balance goes down: the lifetime points, which decide the tier, stay.</summary>
+    public void Redeem(int points)
+    {
+        if (points > PointsBalance)
+        {
+            throw new BusinessRuleException("loyalty.insufficient_points", $"The customer only has {PointsBalance} points.");
+        }
+
+        PointsBalance -= points;
+        Version++;
+    }
+
+    /// <summary>Takes back points earned on an order that was then cancelled after payment. Never below zero; returns the points really taken.</summary>
+    public int Reverse(int points, LoyaltyTierThresholds thresholds)
+    {
+        var taken = Math.Min(points, PointsBalance);
+        PointsBalance -= taken;
+        Version++;
+        LifetimePoints = Math.Max(0, LifetimePoints - points);
+        Tier = thresholds.TierFor(LifetimePoints);
+        return taken;
+    }
     /// <summary>Manual correction by a manager. Positive adjustments also count towards the tier.</summary>
     public void Adjust(int points, LoyaltyTierThresholds thresholds)
     {
@@ -97,6 +124,7 @@ public sealed class Customer : AuditableEntity<Guid>
         }
 
         PointsBalance += points;
+        Version++;
         if (points > 0)
         {
             LifetimePoints += points;
@@ -125,6 +153,12 @@ public enum LoyaltyTransactionType
 
     /// <summary>Manual correction by a manager.</summary>
     Adjust,
+
+    /// <summary>Points spent on a voucher.</summary>
+    Redeem,
+
+    /// <summary>Points taken back because the paid order was cancelled.</summary>
+    Reverse,
 }
 
 public sealed class LoyaltyTransaction : AuditableEntity<Guid>

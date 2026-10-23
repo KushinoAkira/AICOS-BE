@@ -111,7 +111,7 @@ public static class OrderEndpoints
 
         if (!string.IsNullOrWhiteSpace(r.PromotionCode))
         {
-            var quote = await vouchers.RedeemAsync(r.PromotionCode.Trim(), order.OriginalAmount, order.OrderCode, ct);
+            var quote = await vouchers.RedeemAsync(r.PromotionCode.Trim(), order.OriginalAmount, order.OrderCode, branchId, r.CustomerId, ct);
             order.ApplyPromotion(quote.Code, quote.Discount);
         }
 

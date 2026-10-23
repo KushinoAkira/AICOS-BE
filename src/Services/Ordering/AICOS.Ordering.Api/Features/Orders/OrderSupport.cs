@@ -60,7 +60,11 @@ public sealed class OrderEventPublisher(IEventBus bus, ILogger<OrderEventPublish
         o.TenantId, o.Id, o.OrderCode, o.BranchId, o.CashierId, o.CustomerId, o.TableId, o.TableNumber, o.Type.ToString(), o.FinalAmount, o.IsPaid, null, Items(o), o.CreatedAtUtc), ct);
 
     public Task CancelledAsync(Order o, bool wasPaid, CancellationToken ct) => SafeAsync(new OrderCancelledIntegrationEvent(
-        o.TenantId, o.Id, o.BranchId, o.TableId, o.CancelledReason ?? string.Empty, wasPaid, Items(o), o.CancelledAtUtc ?? DateTime.UtcNow), ct);
+        o.TenantId, o.Id, o.BranchId, o.TableId, o.CancelledReason ?? string.Empty, wasPaid, Items(o), o.CancelledAtUtc ?? DateTime.UtcNow,
+        o.OrderCode, o.CustomerId, o.PromotionCode, o.FinalAmount), ct);
+
+    public Task PaidAsync(Order o, CancellationToken ct) => SafeAsync(new OrderPaidIntegrationEvent(
+        o.TenantId, o.Id, o.OrderCode, o.BranchId, o.CustomerId, o.FinalAmount, o.PaidAtUtc ?? DateTime.UtcNow), ct);
 
     public Task CompletedAsync(Order o, CancellationToken ct) => SafeAsync(new OrderCompletedIntegrationEvent(
         o.TenantId, o.Id, o.BranchId, o.TableId, o.FinalAmount, o.CompletedAtUtc ?? DateTime.UtcNow), ct);
