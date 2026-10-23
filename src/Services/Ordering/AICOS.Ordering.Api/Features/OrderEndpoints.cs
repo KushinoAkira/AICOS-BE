@@ -13,7 +13,9 @@ public static class OrderEndpoints
 {
     public static void MapOrderingEndpoints(this RouteGroupBuilder api)
     {
-        var group = api.MapGroup("/orders").WithTags("Orders");
+        var group = api.MapGroup("/orders")
+            .WithTags("Orders")
+            .RequireAuthorization(AicosPolicies.Staff);
 
         // -------------------------------------------------------------
         // UC_POS_01: Tạo đơn hàng tại quầy

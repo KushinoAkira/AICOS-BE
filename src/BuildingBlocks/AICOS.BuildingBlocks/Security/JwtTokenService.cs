@@ -12,7 +12,7 @@ public sealed class JwtTokenService(IOptions<JwtOptions> options, TimeProvider c
     private readonly JwtOptions _options = options.Value;
     private readonly JwtSecurityTokenHandler _handler = new();
 
-    public (string Token, DateTime ExpiresAtUtc) CreateAccessToken(Guid userId, string name, string role, Guid? branchId = null)
+    public (string Token, DateTime ExpiresAtUtc) CreateAccessToken(Guid userId, string name, string role, Guid? branchId = null, Guid? tenantId = null)
     {
         var now = clock.GetUtcNow().UtcDateTime;
         var expires = now.AddMinutes(_options.ExpiryMinutes);
@@ -27,6 +27,10 @@ public sealed class JwtTokenService(IOptions<JwtOptions> options, TimeProvider c
         if (branchId is not null)
         {
             claims.Add(new Claim(AicosClaimTypes.BranchId, branchId.Value.ToString()));
+        }
+        if (tenantId is not null)
+        {
+            claims.Add(new Claim(AicosClaimTypes.TenantId, tenantId.Value.ToString()));
         }
 
         var credentials = new SigningCredentials(

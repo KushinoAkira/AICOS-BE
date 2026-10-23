@@ -2,23 +2,31 @@ using AICOS.BuildingBlocks.Hosting;
 using AICOS.BuildingBlocks.Messaging;
 using AICOS.BuildingBlocks.Persistence;
 using AICOS.CustomerEngagement.Api;
-using AICOS.CustomerEngagement.Api.Persistence;
+using AICOS.Ordering.Api.Features;
+using AICOS.Ordering.Api.Persistence;
+using AICOS.Ordering.Api.Services.Takeaway;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.AddAicosServiceDefaults(CustomerEngagementService.Info);
-builder.AddAicosPostgres<CustomerEngagementDbContext>(CustomerEngagementService.Info);
+builder.AddAicosPostgres<OrderingDbContext>(CustomerEngagementService.Info);
 builder.AddAicosEventBus();
-
-// builder.Services.AddIntegrationEventHandler<SomeEvent, SomeEventHandler>();   // consume events from other services
-// builder.Services.AddAicosServiceClient<IOtherClient, OtherClient>(builder.Configuration, "Other");   // sync REST call to another service
+builder.Services.AddScoped<CustomerProfileService>();
 
 var app = builder.Build();
 
-await app.MigrateDatabaseAsync<CustomerEngagementDbContext>();
+try
+{
+    await app.MigrateDatabaseAsync<OrderingDbContext>();
+}
+catch (Exception ex)
+{
+    app.Logger.LogWarning("Chưa kết nối PostgreSQL ({Message}).", ex.Message);
+}
+
 app.UseAicosServiceDefaults();
 
 var api = app.MapAicosApiGroup();
-// api.MapCustomerEngagementEndpoints();   // feature endpoints go here (see Features/)
+api.MapCustomerProfileEndpoints();
 
 await app.RunAsync();

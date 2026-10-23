@@ -46,7 +46,8 @@ public static class AuthenticationExtensions
             .AddPolicy(AicosPolicies.AdminOnly, p => p.RequireRole(AicosRoles.SystemAdmin))
             .AddPolicy(AicosPolicies.Management, p => p.RequireRole(AicosRoles.SystemAdmin, AicosRoles.Manager))
             .AddPolicy(AicosPolicies.Staff, p => p.RequireRole(
-                AicosRoles.SystemAdmin, AicosRoles.Manager, AicosRoles.Cashier, AicosRoles.WarehouseStaff));
+                AicosRoles.SystemAdmin, AicosRoles.Manager, AicosRoles.Cashier, AicosRoles.WarehouseStaff))
+            .AddPolicy(AicosPolicies.Customer, p => p.RequireRole(AicosRoles.Customer));
 
         return services;
     }

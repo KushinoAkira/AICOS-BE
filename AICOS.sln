@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 17
-VisualStudioVersion = 17.0.31903.59
+# Visual Studio Version 18
+VisualStudioVersion = 18.6.11819.183 stable
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "BuildingBlocks", "BuildingBlocks", "{96B7CD0F-7628-48EA-85CF-E8A05F932439}"
 EndProject
@@ -45,9 +45,6 @@ Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
 		Release|Any CPU = Release|Any CPU
-	EndGlobalSection
-	GlobalSection(SolutionProperties) = preSolution
-		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{A31FEBAD-1A72-4158-A221-9BE6A4AC2247}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
@@ -111,6 +108,9 @@ Global
 		{F67F4262-E1D9-4BF9-86E6-FA9D4D90FBC5}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{F67F4262-E1D9-4BF9-86E6-FA9D4D90FBC5}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{A31FEBAD-1A72-4158-A221-9BE6A4AC2247} = {96B7CD0F-7628-48EA-85CF-E8A05F932439}
 		{6358D899-633A-4D31-9270-10C39DA514DF} = {96B7CD0F-7628-48EA-85CF-E8A05F932439}
@@ -127,5 +127,8 @@ Global
 		{1749E351-B32A-40AC-B21A-E0237722286C} = {D994EA88-CB72-40C3-A7A5-5DD1EE3716F2}
 		{DA4D7E98-0D41-4403-852E-E598FC63916E} = {3D43BC88-7676-4F10-91C5-2BC212F5FCB9}
 		{F67F4262-E1D9-4BF9-86E6-FA9D4D90FBC5} = {3D43BC88-7676-4F10-91C5-2BC212F5FCB9}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {3078F842-04EF-4E2F-88C9-9CD7AB43864E}
 	EndGlobalSection
 EndGlobal

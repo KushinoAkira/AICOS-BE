@@ -25,6 +25,9 @@ public static class AicosPolicies
 
     /// <summary>Anyone who works in a branch: SystemAdmin, Manager, Cashier, WarehouseStaff.</summary>
     public const string Staff = nameof(Staff);
+
+    /// <summary>Registered customer (mobile app).</summary>
+    public const string Customer = nameof(Customer);
 }
 
 /// <summary>Claim names used in our JWTs (raw JWT names, no WS-* claim mapping).</summary>
@@ -34,4 +37,5 @@ public static class AicosClaimTypes
     public const string Name = "name";
     public const string Role = "role";
     public const string BranchId = "branch_id";
+    public const string TenantId = "tenant_id";
 }

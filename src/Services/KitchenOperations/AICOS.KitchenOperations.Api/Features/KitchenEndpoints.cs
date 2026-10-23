@@ -13,7 +13,9 @@ public static class KitchenEndpoints
 {
     public static void MapKitchenOperationsEndpoints(this RouteGroupBuilder api)
     {
-        var group = api.MapGroup("/kitchen").WithTags("Kitchen Operations");
+        var group = api.MapGroup("/kitchen")
+            .WithTags("Kitchen Operations")
+            .RequireAuthorization(AicosPolicies.Staff);
 
         // -------------------------------------------------------------
         // UC_KITCHEN_01: Lấy hàng đợi pha chế (FIFO + Priority - BR-41)
