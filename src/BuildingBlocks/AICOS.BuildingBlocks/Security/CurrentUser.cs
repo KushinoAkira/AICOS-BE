@@ -8,7 +8,10 @@ public interface ICurrentUser
     string? Name { get; }
     string? Role { get; }
 
-    /// <summary>Branch the user is assigned to. Null for chain-wide roles (SystemAdmin) and customers.</summary>
+    /// <summary>Tenant (brand) the user belongs to. Null for the SuperAdmin and anonymous callers.</summary>
+    Guid? TenantId { get; }
+
+    /// <summary>Branch the user is assigned to. Null for chain-wide roles (BrandAdmin) and customers.</summary>
     Guid? BranchId { get; }
 
     bool IsInRole(string role);
@@ -25,6 +28,8 @@ internal sealed class CurrentUser(IHttpContextAccessor accessor) : ICurrentUser
     public string? Name => Principal?.FindFirst(AicosClaimTypes.Name)?.Value;
 
     public string? Role => Principal?.FindFirst(AicosClaimTypes.Role)?.Value;
+
+    public Guid? TenantId => ParseGuid(AicosClaimTypes.TenantId);
 
     public Guid? BranchId => ParseGuid(AicosClaimTypes.BranchId);
 

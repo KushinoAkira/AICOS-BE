@@ -1,0 +1,238 @@
+using AICOS.BuildingBlocks.Domain;
+using AICOS.BuildingBlocks.Exceptions;
+using AICOS.KitchenOperations.Api.Domain.Enums;
+
+namespace AICOS.KitchenOperations.Api.Domain.Entities;
+
+/// <summary>
+/// A preparation ticket: one per order, created from the order event. It belongs to a brand and a branch. A takeaway or delivery order is
+/// only shown to the bar once paid; a dine-in order is shown at once (BR-43).
+/// </summary>
+public class KitchenTicket : AuditableEntity<Guid>, IBranchScoped
+{
+    public Guid TenantId { get; private set; }
+
+    public Guid OrderId { get; private set; }
+
+    public string OrderCode { get; private set; } = string.Empty;
+
+    public Guid BranchId { get; private set; }
+
+    public string? TableNumber { get; private set; }
+
+    /// <summary>DineIn, Takeaway or Delivery.</summary>
+    public string OrderType { get; private set; } = string.Empty;
+
+    public KitchenTicketStatus Status { get; private set; }
+
+    public bool IsPaid { get; private set; }
+
+    public DateTime? ScheduledPickupTimeUtc { get; private set; }
+
+    public bool IsPriority => ScheduledPickupTimeUtc.HasValue;
+
+    public DateTime? BrewingStartedAtUtc { get; private set; }
+
+    public DateTime? ReadyAtUtc { get; private set; }
+
+    public DateTime? CompletedAtUtc { get; private set; }
+
+    public DateTime? CancelledAtUtc { get; private set; }
+
+    private readonly List<KitchenTicketItem> _items = [];
+
+    public IReadOnlyCollection<KitchenTicketItem> Items => _items.AsReadOnly();
+
+    private readonly List<CupSticker> _stickers = [];
+
+    public IReadOnlyCollection<CupSticker> Stickers => _stickers.AsReadOnly();
+
+    public int TotalCups => _items.Sum(i => i.Quantity);
+
+    /// <summary>BR-43: the bar sees and prints stickers for a paid order or a dine-in order.</summary>
+    public bool IsEligibleForBar => IsPaid || OrderType.Equals("DineIn", StringComparison.OrdinalIgnoreCase);
+
+    protected KitchenTicket()
+    {
+    }
+
+    public KitchenTicket(
+        Guid tenantId, Guid orderId, string orderCode, Guid branchId, string? tableNumber, string orderType, bool isPaid, DateTime? scheduledPickupTimeUtc = null)
+    {
+        Id = Guid.NewGuid();
+        TenantId = tenantId;
+        OrderId = orderId;
+        OrderCode = orderCode;
+        BranchId = branchId;
+        TableNumber = tableNumber;
+        OrderType = orderType;
+        IsPaid = isPaid;
+        ScheduledPickupTimeUtc = scheduledPickupTimeUtc;
+        Status = KitchenTicketStatus.Pending;
+    }
+
+    public void AddItem(Guid productId, string productName, int quantity, string? note = null)
+    {
+        if (Status != KitchenTicketStatus.Pending)
+        {
+            throw new BusinessRuleException("ticket.not_pending", "Items can only be added while the ticket is pending.");
+        }
+
+        _items.Add(new KitchenTicketItem(Id, productId, productName, quantity, note));
+    }
+
+    public void StartBrewing(DateTime now)
+    {
+        if (Status != KitchenTicketStatus.Pending)
+        {
+            throw new BusinessRuleException("ticket.not_pending", "Only a pending ticket can start brewing.");
+        }
+
+        Status = KitchenTicketStatus.Brewing;
+        BrewingStartedAtUtc = now;
+    }
+
+    public void MarkReadyForPickup(DateTime now)
+    {
+        if (Status is not (KitchenTicketStatus.Brewing or KitchenTicketStatus.Pending))
+        {
+            throw new BusinessRuleException("ticket.not_brewing", "Only a ticket being brewed can be marked ready.");
+        }
+
+        Status = KitchenTicketStatus.ReadyForPickup;
+        ReadyAtUtc = now;
+    }
+
+    public void Complete(DateTime now)
+    {
+        if (Status != KitchenTicketStatus.ReadyForPickup)
+        {
+            throw new BusinessRuleException("ticket.not_ready", "Only a ready ticket can be completed.");
+        }
+
+        Status = KitchenTicketStatus.Completed;
+        CompletedAtUtc = now;
+    }
+
+    public void Cancel(DateTime now)
+    {
+        if (Status == KitchenTicketStatus.Completed)
+        {
+            throw new BusinessRuleException("ticket.completed", "A completed ticket cannot be cancelled.");
+        }
+
+        if (Status == KitchenTicketStatus.Cancelled)
+        {
+            return;
+        }
+
+        Status = KitchenTicketStatus.Cancelled;
+        CancelledAtUtc = now;
+    }
+
+    /// <summary>The money arrived. Returns true when this made the ticket visible to the bar for the first time.</summary>
+    public bool MarkAsPaid()
+    {
+        var wasEligible = IsEligibleForBar;
+        IsPaid = true;
+        return !wasEligible;
+    }
+
+    /// <summary>Creates one sticker per cup once the ticket is eligible. Idempotent: the same stickers are returned afterwards.</summary>
+    public bool TryGenerateCupStickers(DateTime now, out IReadOnlyList<CupSticker> stickers)
+    {
+        if (!IsEligibleForBar)
+        {
+            stickers = [];
+            return false;
+        }
+
+        if (_stickers.Count == 0)
+        {
+            var total = TotalCups;
+            var index = 1;
+            foreach (var item in _items)
+            {
+                for (var i = 0; i < item.Quantity; i++)
+                {
+                    _stickers.Add(new CupSticker(Id, OrderId, OrderCode, TableNumber, item.ProductName, index++, total, item.Note, now));
+                }
+            }
+        }
+
+        stickers = _stickers.AsReadOnly();
+        return true;
+    }
+}
+
+public class KitchenTicketItem : Entity<Guid>
+{
+    public Guid TicketId { get; private set; }
+
+    public Guid ProductId { get; private set; }
+
+    public string ProductName { get; private set; } = string.Empty;
+
+    public int Quantity { get; private set; }
+
+    public string? Note { get; private set; }
+
+    protected KitchenTicketItem()
+    {
+    }
+
+    public KitchenTicketItem(Guid ticketId, Guid productId, string productName, int quantity, string? note = null)
+    {
+        if (quantity <= 0)
+        {
+            throw new ArgumentException("Quantity must be greater than 0.", nameof(quantity));
+        }
+
+        Id = Guid.NewGuid();
+        TicketId = ticketId;
+        ProductId = productId;
+        ProductName = productName;
+        Quantity = quantity;
+        Note = note;
+    }
+}
+
+public class CupSticker : Entity<Guid>
+{
+    public Guid TicketId { get; private set; }
+
+    public Guid OrderId { get; private set; }
+
+    public string OrderCode { get; private set; } = string.Empty;
+
+    public string? TableNumber { get; private set; }
+
+    public string ProductName { get; private set; } = string.Empty;
+
+    public int CupIndex { get; private set; }
+
+    public int TotalCupsInOrder { get; private set; }
+
+    public string? Customizations { get; private set; }
+
+    public DateTime PrintedAtUtc { get; private set; }
+
+    protected CupSticker()
+    {
+    }
+
+    public CupSticker(
+        Guid ticketId, Guid orderId, string orderCode, string? tableNumber, string productName, int cupIndex, int totalCupsInOrder, string? customizations, DateTime now)
+    {
+        Id = Guid.NewGuid();
+        TicketId = ticketId;
+        OrderId = orderId;
+        OrderCode = orderCode;
+        TableNumber = tableNumber;
+        ProductName = productName;
+        CupIndex = cupIndex;
+        TotalCupsInOrder = totalCupsInOrder;
+        Customizations = customizations;
+        PrintedAtUtc = now;
+    }
+}

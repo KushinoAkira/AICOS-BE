@@ -1,5 +1,8 @@
 using AICOS.BuildingBlocks.Persistence;
+using AICOS.Ordering.Api.Domain;
+using AICOS.Ordering.Api.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace AICOS.Ordering.Api.Persistence;
 
@@ -7,5 +10,81 @@ public sealed class OrderingDbContext(DbContextOptions<OrderingDbContext> option
 {
     protected override string Schema => OrderingService.Info.Schema;
 
-    // public DbSet<Something> Somethings => Set<Something>();
+    public DbSet<PickupSlotSetting> PickupSlotSettings => Set<PickupSlotSetting>();
+
+    public DbSet<Order> Orders => Set<Order>();
+
+    public DbSet<OrderItem> OrderItems => Set<OrderItem>();
+}
+
+internal sealed class PickupSlotSettingConfiguration : IEntityTypeConfiguration<PickupSlotSetting>
+{
+    public void Configure(EntityTypeBuilder<PickupSlotSetting> builder)
+    {
+        builder.ToTable("pickup_slot_settings", t =>
+        {
+            t.HasCheckConstraint("ck_pickup_slot_settings_ranges", "slot_minutes BETWEEN 5 AND 120 AND capacity_per_slot BETWEEN 1 AND 500 AND cutoff_minutes BETWEEN 0 AND 240 AND advance_days BETWEEN 0 AND 14");
+        });
+        builder.HasKey(s => s.Id);
+        builder.Property(s => s.Id).ValueGeneratedNever();
+        builder.HasIndex(s => new { s.TenantId, s.BranchId }).IsUnique();
+    }
+}
+
+internal sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
+{
+    public void Configure(EntityTypeBuilder<Order> builder)
+    {
+        builder.ToTable("orders", t =>
+        {
+            t.HasCheckConstraint("ck_orders_amounts", "discount_amount >= 0 AND refunded_amount >= 0");
+        });
+        builder.HasKey(o => o.Id);
+        builder.Property(o => o.Id).ValueGeneratedNever();
+        builder.Property(o => o.OrderCode).HasMaxLength(40).IsRequired();
+        builder.Property(o => o.TableNumber).HasMaxLength(20);
+        builder.Property(o => o.DeliveryAddress).HasMaxLength(300);
+        builder.Property(o => o.Type).HasConversion<string>().HasMaxLength(20).IsRequired();
+        builder.Property(o => o.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
+        builder.Property(o => o.PaymentStatus).HasConversion<string>().HasMaxLength(20).IsRequired();
+        builder.Property(o => o.PaymentMethod).HasConversion<string>().HasMaxLength(20);
+        builder.Property(o => o.PaymentProvider).HasMaxLength(20);
+        builder.Property(o => o.RefundStatus).HasConversion<string>().HasMaxLength(20).IsRequired();
+        builder.Property(o => o.CancelledReason).HasMaxLength(300);
+        builder.Property(o => o.Note).HasMaxLength(Order.NoteMaxLength);
+        builder.Property(o => o.PromotionCode).HasMaxLength(40);
+        builder.Property(o => o.DiscountAmount).HasPrecision(18, 0);
+        builder.Property(o => o.RefundedAmount).HasPrecision(18, 0);
+        builder.Ignore(o => o.OriginalAmount);
+        builder.Ignore(o => o.FinalAmount);
+        builder.Ignore(o => o.TotalAmount);
+        builder.Ignore(o => o.IsPaid);
+
+        builder.HasMany(o => o.Items).WithOne().HasForeignKey(i => i.OrderId).OnDelete(DeleteBehavior.Cascade);
+        builder.Navigation(o => o.Items).UsePropertyAccessMode(PropertyAccessMode.Field).HasField("_items");
+
+        builder.HasIndex(o => new { o.TenantId, o.OrderCode }).IsUnique();
+        builder.HasIndex(o => new { o.TenantId, o.BranchId, o.CreatedAtUtc });
+        builder.HasIndex(o => new { o.TenantId, o.BranchId, o.Status });
+        builder.HasIndex(o => o.PaymentId);
+        builder.HasIndex(o => o.CustomerId);
+    }
+}
+
+internal sealed class OrderItemConfiguration : IEntityTypeConfiguration<OrderItem>
+{
+    public void Configure(EntityTypeBuilder<OrderItem> builder)
+    {
+        builder.ToTable("order_items", t =>
+        {
+            t.HasCheckConstraint("ck_order_items_quantity_price", "quantity > 0 AND unit_price >= 0");
+        });
+        builder.HasKey(i => i.Id);
+        builder.Property(i => i.Id).ValueGeneratedNever();
+        builder.Property(i => i.ProductName).HasMaxLength(200).IsRequired();
+        builder.Property(i => i.UnitPrice).HasPrecision(18, 0);
+        builder.Property(i => i.Note).HasMaxLength(300);
+        builder.Ignore(i => i.TotalPrice);
+        builder.HasIndex(i => i.OrderId);
+    }
 }
