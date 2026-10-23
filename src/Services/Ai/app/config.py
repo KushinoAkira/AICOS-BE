@@ -14,13 +14,14 @@ class Settings(BaseSettings):
     route_prefix: str = "/api/v1/ai"
 
     # Connects as role `ai_svc`, which only sees schema `ai` (pgvector lives there).
-    database_url: str = "postgresql://ai_svc:aicos_dev@localhost:5432/aicos"
+    # No password in code: set DATABASE_URL (docker-compose does).
+    database_url: str = ""
     redis_url: str = "redis://localhost:6379/0"
 
     # Must match the Jwt section of the .NET services.
     jwt_issuer: str = "aicos"
     jwt_audience: str = "aicos-clients"
-    jwt_signing_key: str = "dev-only-signing-key-change-me-0123456789abcdef"
+    jwt_signing_key: str = ""   # JWT_SIGNING_KEY, no default on purpose
 
     groq_api_key: str = ""
     deepseek_api_key: str = ""

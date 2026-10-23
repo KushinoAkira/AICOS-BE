@@ -40,14 +40,62 @@ public static class AuthenticationExtensions
                     NameClaimType = AicosClaimTypes.Name,
                     RoleClaimType = AicosClaimTypes.Role,
                 };
+                bearer.Events = new JwtBearerEvents
+                {
+                    OnMessageReceived = context =>
+                    {
+                        context.Token = ExtractToken(context.Request.Headers.Authorization.ToString());
+
+                        // Browsers cannot set headers on a WebSocket, so SignalR sends the token in the query string; only for the hub paths.
+                        if (string.IsNullOrEmpty(context.Token) && context.HttpContext.Request.Path.StartsWithSegments("/hubs"))
+                        {
+                            context.Token = context.Request.Query["access_token"].ToString();
+                        }
+
+                        return Task.CompletedTask;
+                    },
+                    OnAuthenticationFailed = context =>
+                    {
+                        // The bearer handler only logs at Information (hidden by our Serilog overrides) - surface the reason.
+                        context.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>()
+                            .CreateLogger("AICOS.Authentication")
+                            .LogWarning("JWT rejected: {Reason}", context.Exception.Message);
+                        return Task.CompletedTask;
+                    },
+                };
             });
 
         services.AddAuthorizationBuilder()
-            .AddPolicy(AicosPolicies.AdminOnly, p => p.RequireRole(AicosRoles.SystemAdmin))
-            .AddPolicy(AicosPolicies.Management, p => p.RequireRole(AicosRoles.SystemAdmin, AicosRoles.Manager))
+            .AddPolicy(AicosPolicies.PlatformAdmin, p => p.RequireRole(AicosRoles.SuperAdmin))
+            .AddPolicy(AicosPolicies.AdminOnly, p => p.RequireRole(AicosRoles.BrandAdmin))
+            .AddPolicy(AicosPolicies.AuditViewer, p => p.RequireRole(AicosRoles.SuperAdmin, AicosRoles.BrandAdmin))
+            .AddPolicy(AicosPolicies.Management, p => p.RequireRole(AicosRoles.BrandAdmin, AicosRoles.BranchManager))
+            .AddPolicy(AicosPolicies.AvailabilityEditors, p => p.RequireRole(AicosRoles.BrandAdmin, AicosRoles.BranchManager, AicosRoles.Barista))
             .AddPolicy(AicosPolicies.Staff, p => p.RequireRole(
-                AicosRoles.SystemAdmin, AicosRoles.Manager, AicosRoles.Cashier, AicosRoles.WarehouseStaff));
+                AicosRoles.BrandAdmin, AicosRoles.BranchManager, AicosRoles.Barista, AicosRoles.Cashier));
 
         return services;
+    }
+
+    /// <summary>
+    /// Reads the raw JWT from an Authorization header, tolerating common copy-paste mistakes such as
+    /// "Bearer Bearer xxx" (Swagger UI already adds "Bearer ") or a token wrapped in quotes. Null when no token.
+    /// </summary>
+    public static string? ExtractToken(string? authorizationHeader)
+    {
+        const string prefix = "Bearer ";
+        var value = authorizationHeader?.Trim();
+        if (string.IsNullOrEmpty(value) || !value.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        while (value.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+        {
+            value = value[prefix.Length..].Trim();
+        }
+
+        value = value.Trim('"', '\'', ' ');
+        return value.Length == 0 ? null : value;
     }
 }

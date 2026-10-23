@@ -16,10 +16,3 @@ public sealed record OrderCreatedEvent(
     Guid? CustomerId,
     IReadOnlyList<OrderLineDto> Lines) : IntegrationEvent;
 
-/// <summary>Published by Order Service. Consumed by Reporting, Customer Engagement (loyalty points), AI Service.</summary>
-public sealed record OrderCompletedEvent(
-    Guid OrderId,
-    Guid BranchId,
-    Guid? CustomerId,
-    decimal TotalAmount,
-    IReadOnlyList<OrderLineDto> Lines) : IntegrationEvent;

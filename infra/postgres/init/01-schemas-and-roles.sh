@@ -11,7 +11,7 @@ set -euo pipefail
 : "${SERVICE_DB_PASSWORD:?SERVICE_DB_PASSWORD must be set}"
 
 # Keep in sync with AicosServiceInfo.Schema in each service (and the ai service for the Python side).
-SCHEMAS="identity menu table_reservation ordering payment inventory kitchen workforce reporting customer ai"
+SCHEMAS="identity menu table_reservation ordering payment kitchen workforce reporting customer ai"
 
 for schema in $SCHEMAS; do
   echo ">> creating schema '${schema}' owned by role '${schema}_svc'"
