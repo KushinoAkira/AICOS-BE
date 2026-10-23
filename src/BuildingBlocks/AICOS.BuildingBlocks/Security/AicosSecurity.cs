@@ -5,6 +5,7 @@ public static class AicosRoles
 {
     public const string SystemAdmin = "SystemAdmin";
     public const string Manager = "Manager";
+    public const string Waiter = "Waiter";
     public const string Cashier = "Cashier";
     public const string WarehouseStaff = "WarehouseStaff";
     public const string AiBusinessAssistant = "AiBusinessAssistant";
@@ -12,7 +13,7 @@ public static class AicosRoles
     public const string Guest = "Guest";
 
     public static readonly IReadOnlyList<string> All =
-        [SystemAdmin, Manager, Cashier, WarehouseStaff, AiBusinessAssistant, Customer, Guest];
+        [SystemAdmin, Manager, Waiter, Cashier, WarehouseStaff, AiBusinessAssistant, Customer, Guest];
 }
 
 /// <summary>Authorization policy names. Use with <c>RequireAuthorization(AicosPolicies.X)</c>.</summary>

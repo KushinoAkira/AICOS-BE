@@ -25,6 +25,8 @@ dotnet test AICOS.sln
 ```
 
 Kiểm tra: `GET http://localhost:8080/api/v1/orders/_info`, health: `/health/live`, `/health/ready` (mỗi service).
+Identity hiện có `POST /api/v1/identity/auth/login`; xem request/response tại
+[`docs/API_DOCUMENTATION.md`](docs/API_DOCUMENTATION.md).
 Mọi giá trị mặc định là **dev-only**; đổi qua `.env` (xem `.env.example`).
 
 ## Cấu trúc
@@ -118,7 +120,8 @@ builder.Services.AddAicosServiceClient<IInventoryClient, InventoryClient>(builde
 - **Mỗi service chỉ đụng schema của mình.** `infra/postgres/init` tạo role `<schema>_svc` chỉ thấy đúng schema đó → không thể join chéo service. Cần dữ liệu service khác thì gọi REST hoặc lắng nghe event.
 - **Xác thực ở 2 lớp**: gateway từ chối token sai/hết hạn ngay tại cổng; token vắng mặt vẫn đi tiếp (guest, login, menu công khai). **Phân quyền do từng service quyết định** bằng policy/role.
 - **Sync = REST trực tiếp giữa các service (không qua gateway); async = event trên Redis.**
-- **Chưa implement logic nghiệp vụ nào** (không có entity, endpoint ngoài `_info`). Chỉ có hạ tầng và quy ước.
+- Identity đã có module đăng nhập Staff theo chi nhánh. Các service nghiệp vụ còn
+  lại vẫn chỉ có endpoint `_info`.
 
 ## Lưu ý / việc cần quyết định tiếp
 

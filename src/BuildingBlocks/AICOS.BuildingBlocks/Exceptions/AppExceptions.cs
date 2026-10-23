@@ -25,6 +25,9 @@ public sealed class ConflictException(string message, string? errorCode = "confl
 public sealed class ForbiddenException(string message = "You do not have permission to perform this action.")
     : AppException(message, HttpStatusCode.Forbidden, "Forbidden", "forbidden");
 
+public sealed class UnauthorizedException(string message = "Authentication failed.", string errorCode = "unauthorized")
+    : AppException(message, HttpStatusCode.Unauthorized, "Unauthorized", errorCode);
+
 /// <summary>A business rule (BR-xx in the BA documents) was violated although the request itself was well-formed.</summary>
 public sealed class BusinessRuleException(string errorCode, string message)
     : AppException(message, HttpStatusCode.UnprocessableEntity, "Business rule violated", errorCode);

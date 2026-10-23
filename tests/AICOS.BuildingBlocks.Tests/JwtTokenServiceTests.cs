@@ -44,8 +44,9 @@ public class JwtTokenServiceTests
     }
 
     [Fact]
-    public void All_seven_roles_from_the_proposal_are_defined()
+    public void All_staff_and_customer_roles_are_defined()
     {
-        AicosRoles.All.Should().HaveCount(7).And.OnlyHaveUniqueItems();
+        AicosRoles.All.Should().HaveCount(8).And.OnlyHaveUniqueItems();
+        AicosRoles.All.Should().Contain(AicosRoles.Waiter);
     }
 }
