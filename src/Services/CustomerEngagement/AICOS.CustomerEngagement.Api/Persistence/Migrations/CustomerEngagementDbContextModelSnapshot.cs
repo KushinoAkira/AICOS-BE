@@ -112,6 +112,11 @@ namespace AICOS.CustomerEngagement.Api.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("user_id");
 
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("integer")
+                        .HasColumnName("version");
+
                     b.HasKey("Id")
                         .HasName("pk_customers");
 
@@ -251,9 +256,9 @@ namespace AICOS.CustomerEngagement.Api.Persistence.Migrations
                     b.HasIndex("CustomerId")
                         .HasDatabaseName("ix_loyalty_transactions_customer_id");
 
-                    b.HasIndex("OrderId")
+                    b.HasIndex("OrderId", "Type")
                         .IsUnique()
-                        .HasDatabaseName("ix_loyalty_transactions_order_id");
+                        .HasDatabaseName("ix_loyalty_transactions_order_id_type");
 
                     b.ToTable("loyalty_transactions", "customer");
                 });

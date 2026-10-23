@@ -231,13 +231,13 @@ public static class TenantSubscriptionEndpoints
 
     internal static int DaysUntil(DateTime end, DateTime now) => (int)Math.Ceiling((end - now).TotalDays);
 
-    private static object Snapshot(TenantSubscription s) => new
+    internal static object Snapshot(TenantSubscription s) => new
     {
         s.PlanId, s.PlanName, s.Fee, BillingPeriod = s.BillingPeriod.ToString(), Status = s.Status.ToString(), s.PeriodStartUtc, s.PeriodEndUtc,
         PaymentStatus = s.PaymentStatus.ToString(), s.PaidAmount,
     };
 
-    private static async Task<SubscriptionResponse> ToResponseAsync(
+    internal static async Task<SubscriptionResponse> ToResponseAsync(
         IdentityOrganizationDbContext db, Tenant tenant, TenantSubscription sub, SubscriptionOptions settings, TimeProvider clock, CancellationToken ct)
     {
         var now = clock.GetUtcNow().UtcDateTime;

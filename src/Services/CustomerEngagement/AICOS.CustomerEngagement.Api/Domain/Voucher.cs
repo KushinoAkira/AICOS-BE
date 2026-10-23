@@ -126,6 +126,25 @@ public sealed class Voucher : AuditableEntity<Guid>
         return discount;
     }
 
+    /// <summary>
+    /// Gives a redeemed code back because the order it was used on never happened (cancelled before payment). Only the order it was redeemed
+    /// for can release it; an expired code is released too, and is then simply expired.
+    /// </summary>
+    public bool Release(string orderReference)
+    {
+        if (Status != VoucherStatus.Redeemed || !string.Equals(RedeemedOrderReference, orderReference.Trim(), StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        Status = VoucherStatus.Active;
+        RedeemedAtUtc = null;
+        RedeemedOrderReference = null;
+        RedeemedDiscount = null;
+        Version++;
+        return true;
+    }
+
     public void Revoke(string reason)
     {
         if (Status != VoucherStatus.Active)

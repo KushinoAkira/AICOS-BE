@@ -32,6 +32,11 @@ public sealed class PaymentSucceededHandler(OrderingDbContext db, OrderEventPubl
         order.MarkAsPaid(OrderAccess.MethodOf(@event.Method), @event.Method, @event.PaymentId, @event.PaidAtUtc);
         await db.SaveChangesAsync(cancellationToken);
 
+        if (order.Status != OrderStatus.Cancelled)
+        {
+            await events.PaidAsync(order, cancellationToken);   // loyalty points are awarded from this; a late payment for a cancelled order earns nothing
+        }
+
         if (!wasCompleted && order.Status == OrderStatus.Completed)
         {
             await events.CompletedAsync(order, cancellationToken);

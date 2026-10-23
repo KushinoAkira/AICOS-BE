@@ -28,6 +28,7 @@ internal sealed class CustomerConfiguration : IEntityTypeConfiguration<Customer>
             t.HasCheckConstraint("ck_customers_sugar_percent_range", "preferred_sugar_percent IS NULL OR preferred_sugar_percent BETWEEN 0 AND 100");
         });
         builder.Property(c => c.Id).ValueGeneratedNever();
+        builder.Property(c => c.Version).IsConcurrencyToken();
         builder.Property(c => c.FullName).HasMaxLength(255).IsRequired();
         builder.Property(c => c.Email).HasMaxLength(255).IsRequired();
         builder.Property(c => c.Phone).HasMaxLength(20);
@@ -49,7 +50,7 @@ internal sealed class LoyaltyTransactionConfiguration : IEntityTypeConfiguration
         builder.Property(t => t.Type).HasConversion<string>().HasMaxLength(20);
         builder.Property(t => t.Note).HasMaxLength(500);
         builder.HasOne<Customer>().WithMany().HasForeignKey(t => t.CustomerId).OnDelete(DeleteBehavior.Cascade);
-        builder.HasIndex(t => t.OrderId).IsUnique();
+        builder.HasIndex(t => new { t.OrderId, t.Type }).IsUnique();   // one Earn and one Reverse per order
         builder.HasIndex(t => t.CustomerId);
     }
 }

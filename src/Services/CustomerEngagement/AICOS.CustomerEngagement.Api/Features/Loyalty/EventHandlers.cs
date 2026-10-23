@@ -21,6 +21,9 @@ public sealed class LoyaltyOptions
 
     public int MinPointsToRedeem { get; set; } = 50;
 
+    /// <summary>How long a voucher bought with points stays valid.</summary>
+    public int RedeemedVoucherDays { get; set; } = 90;
+
     public LoyaltyTierThresholds Thresholds => new(SilverThreshold, GoldThreshold);
 }
 
@@ -42,48 +45,104 @@ public sealed class CustomerRegisteredHandler(CustomerEngagementDbContext db, IL
 }
 
 /// <summary>
-/// Order -> Customer: BR-25 award points when an order reaches Completed (cancelled orders never publish this event).
-/// The event's CustomerId may be either the customer profile id or the customer's user id. Idempotent per order.
+/// Order -> Customer: BR-25 award points once an order is paid (SCRUM-133). A walk-in without a member gets nothing. The customer is named by
+/// profile id or account id. Idempotent per order: the database allows one Earn per order, so a redelivered event adds nothing.
 /// </summary>
-public sealed class OrderCompletedHandler(
-    CustomerEngagementDbContext db, LoyaltyRulesService rules, ILogger<OrderCompletedHandler> logger)
-    : IIntegrationEventHandler<OrderCompletedEvent>
+public sealed class OrderPaidHandler(CustomerEngagementDbContext db, LoyaltyRulesService rules, ILogger<OrderPaidHandler> logger)
+    : IIntegrationEventHandler<OrderPaidIntegrationEvent>
 {
-    public async Task HandleAsync(OrderCompletedEvent @event, CancellationToken cancellationToken)
+    public async Task HandleAsync(OrderPaidIntegrationEvent @event, CancellationToken cancellationToken)
     {
         if (@event.CustomerId is null)
         {
-            return; // walk-in guest
+            return;
         }
 
-        if (await db.LoyaltyTransactions.AnyAsync(t => t.OrderId == @event.OrderId, cancellationToken))
+        if (await db.LoyaltyTransactions.AnyAsync(t => t.OrderId == @event.OrderId && t.Type == LoyaltyTransactionType.Earn, cancellationToken))
         {
-            return; // already processed
+            return;
         }
 
-        var customer = await db.Customers.FirstOrDefaultAsync(c => c.Id == @event.CustomerId || c.UserId == @event.CustomerId, cancellationToken);
+        var customer = await LoyaltyLookup.CustomerAsync(db, @event.TenantId, @event.CustomerId.Value, cancellationToken);
         if (customer is null)
         {
-            logger.LogWarning("OrderCompleted {OrderId}: customer {CustomerId} not found, no points awarded", @event.OrderId, @event.CustomerId);
+            logger.LogWarning("OrderPaid {OrderId}: customer {CustomerId} not found in the brand, no points awarded", @event.OrderId, @event.CustomerId);
             return;
         }
 
         var rule = await rules.ForTenantAsync(customer.TenantId, cancellationToken); // the brand rules (BR-44, BR-47)
-        if (!rule.IsActive)
-        {
-            return;
-        }
-
-        var points = (int)Math.Floor(@event.TotalAmount / rule.AmountPerPoint);
+        var points = rule.IsActive ? (int)Math.Floor(@event.Amount / rule.AmountPerPoint) : 0;
         if (points <= 0)
         {
             return;
         }
 
         customer.Earn(points, rule.Thresholds);
-        db.LoyaltyTransactions.Add(new LoyaltyTransaction(customer.Id, @event.OrderId, points, LoyaltyTransactionType.Earn, $"Order total {@event.TotalAmount:0.##}"));
+        db.LoyaltyTransactions.Add(new LoyaltyTransaction(customer.Id, @event.OrderId, points, LoyaltyTransactionType.Earn, $"Order {@event.OrderCode}: paid {@event.Amount:0.##}"));
         await db.SaveChangesAsync(cancellationToken);
     }
+}
+
+/// <summary>
+/// Order -> Customer: an order was cancelled (SCRUM-133). Unpaid: the voucher used on it is given back, so the member does not lose it.
+/// Paid (a manager exception): the points earned on it are taken back, once. Both are safe to repeat.
+/// </summary>
+public sealed class OrderCancelledLoyaltyHandler(CustomerEngagementDbContext db, LoyaltyRulesService rules, ILogger<OrderCancelledLoyaltyHandler> logger)
+    : IIntegrationEventHandler<OrderCancelledIntegrationEvent>
+{
+    public async Task HandleAsync(OrderCancelledIntegrationEvent @event, CancellationToken cancellationToken)
+    {
+        if (!@event.WasPaid)
+        {
+            await ReleaseVoucherAsync(@event, cancellationToken);
+            return;
+        }
+
+        if (@event.CustomerId is null)
+        {
+            return;
+        }
+
+        var earned = await db.LoyaltyTransactions.FirstOrDefaultAsync(t => t.OrderId == @event.OrderId && t.Type == LoyaltyTransactionType.Earn, cancellationToken);
+        if (earned is null || await db.LoyaltyTransactions.AnyAsync(t => t.OrderId == @event.OrderId && t.Type == LoyaltyTransactionType.Reverse, cancellationToken))
+        {
+            return;
+        }
+
+        var customer = await LoyaltyLookup.CustomerAsync(db, @event.TenantId, @event.CustomerId.Value, cancellationToken);
+        if (customer is null || customer.Id != earned.CustomerId)
+        {
+            logger.LogWarning("OrderCancelled {OrderId}: the member who earned the points was not found, nothing reversed", @event.OrderId);
+            return;
+        }
+
+        var rule = await rules.ForTenantAsync(customer.TenantId, cancellationToken);
+        var taken = customer.Reverse(earned.Points, rule.Thresholds);
+        db.LoyaltyTransactions.Add(new LoyaltyTransaction(customer.Id, @event.OrderId, -taken, LoyaltyTransactionType.Reverse, $"Order {@event.OrderCode} cancelled after payment"));
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task ReleaseVoucherAsync(OrderCancelledIntegrationEvent @event, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(@event.PromotionCode) || string.IsNullOrWhiteSpace(@event.OrderCode))
+        {
+            return;
+        }
+
+        var code = @event.PromotionCode.Trim().ToUpperInvariant();
+        var voucher = await db.Vouchers.FirstOrDefaultAsync(v => v.TenantId == @event.TenantId && v.Code == code, ct);
+        if (voucher is not null && voucher.Release(@event.OrderCode))
+        {
+            await db.SaveChangesAsync(ct);
+        }
+    }
+}
+
+internal static class LoyaltyLookup
+{
+    /// <summary>The member of a brand, named by profile id or account id.</summary>
+    public static Task<Customer?> CustomerAsync(CustomerEngagementDbContext db, Guid tenantId, Guid id, CancellationToken ct) =>
+        db.Customers.FirstOrDefaultAsync(c => c.TenantId == tenantId && (c.Id == id || c.UserId == id), ct);
 }
 
 /// <summary>Identity -> Customer: a customer edited their name or phone in Identity (UC-03); keep this copy in sync. Idempotent.</summary>

@@ -22,7 +22,10 @@ public record OrderCreatedIntegrationEvent(
     IReadOnlyList<OrderItemDto> Items,
     DateTime CreatedAtUtc) : IntegrationEvent;
 
-/// <summary>Published when an order is cancelled. <see cref="WasPaid"/> tells whether money has to go back (an exception, handled with a refund).</summary>
+/// <summary>
+/// Published when an order is cancelled. <see cref="WasPaid"/> tells whether money has to go back (an exception, handled with a refund).
+/// Customer Service uses <see cref="PromotionCode"/> to give an unused voucher back (unpaid order) and <see cref="CustomerId"/> and <see cref="TotalAmount"/> to take the points back (paid order).
+/// </summary>
 public record OrderCancelledIntegrationEvent(
     Guid TenantId,
     Guid OrderId,
@@ -31,7 +34,24 @@ public record OrderCancelledIntegrationEvent(
     string Reason,
     bool WasPaid,
     IReadOnlyList<OrderItemDto> Items,
-    DateTime CancelledAtUtc) : IntegrationEvent;
+    DateTime CancelledAtUtc,
+    string? OrderCode = null,
+    Guid? CustomerId = null,
+    string? PromotionCode = null,
+    decimal TotalAmount = 0) : IntegrationEvent;
+
+/// <summary>
+/// Published by Order Service once the money for an order is confirmed. Customer Service awards loyalty points from it (SCRUM-133, BR-25):
+/// only paid orders earn points, and <see cref="CustomerId"/> is empty for a walk-in who is not a member.
+/// </summary>
+public record OrderPaidIntegrationEvent(
+    Guid TenantId,
+    Guid OrderId,
+    string OrderCode,
+    Guid BranchId,
+    Guid? CustomerId,
+    decimal Amount,
+    DateTime PaidAtUtc) : IntegrationEvent;
 
 /// <summary>Published when staff confirmed the customer received the order.</summary>
 public record OrderCompletedIntegrationEvent(

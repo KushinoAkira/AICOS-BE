@@ -40,6 +40,9 @@ public sealed class CustomerTests : IDisposable
 
     public void Dispose() => _f.Dispose();
 
+    private OrderPaidIntegrationEvent Paid(Guid customer, decimal amount, Guid? tenant = null, Guid? order = null) =>
+        new(tenant ?? _tenant, order ?? Guid.NewGuid(), "ORD-TEST", _b1, customer, amount, DateTime.UtcNow);
+
     private async Task<Guid> RegisterAsync(string name, string email, Guid? tenant = null, Guid? userId = null)
     {
         var id = userId ?? Guid.NewGuid();
@@ -147,8 +150,8 @@ public sealed class CustomerTests : IDisposable
         var theirs = await RegisterAsync("Lan", "lan@example.com", _otherTenant);
         await _admin.Put(Rules, NewRules(amountPerPoint: 1_000, silver: 100, gold: 200)).ShouldBe(200);
 
-        await _f.HandleAsync(new OrderCompletedEvent(Guid.NewGuid(), _b1, mine, 150_000m, []));
-        await _f.HandleAsync(new OrderCompletedEvent(Guid.NewGuid(), _otherBranch, theirs, 150_000m, []));      // the other brand keeps the default rule
+        await _f.HandleAsync(Paid(mine, 150_000m));
+        await _f.HandleAsync(Paid(theirs, 150_000m, _otherTenant));      // the other brand keeps the default rule
 
         var loyalty = await _f.As(AicosRoles.Customer, userId: mine).GetFromJsonAsync<JsonElement>($"{Customers}/me/loyalty");
         loyalty.GetProperty("pointsBalance").GetInt32().Should().Be(150);
@@ -157,7 +160,7 @@ public sealed class CustomerTests : IDisposable
             .GetProperty("pointsBalance").GetInt32().Should().Be(15);
 
         await _admin.Put(Rules, NewRules(active: false, amountPerPoint: 1_000)).ShouldBe(200);
-        await _f.HandleAsync(new OrderCompletedEvent(Guid.NewGuid(), _b1, mine, 500_000m, []));
+        await _f.HandleAsync(Paid(mine, 500_000m));
         (await _f.As(AicosRoles.Customer, userId: mine).GetFromJsonAsync<JsonElement>($"{Customers}/me/loyalty"))
             .GetProperty("pointsBalance").GetInt32().Should().Be(150); // nothing new while the programme is paused
     }
@@ -166,7 +169,7 @@ public sealed class CustomerTests : IDisposable
     public async Task Changing_the_thresholds_moves_existing_customers_to_their_new_tier()
     {
         var userId = await RegisterAsync("Bình", "binh@example.com");
-        await _f.HandleAsync(new OrderCompletedEvent(Guid.NewGuid(), _b1, userId, 5_000_000m, [])); // 500 points with the default rule
+        await _f.HandleAsync(Paid(userId, 5_000_000m)); // 500 points with the default rule
         var me = _f.As(AicosRoles.Customer, userId: userId);
         (await me.GetFromJsonAsync<JsonElement>($"{Customers}/me")).GetProperty("tier").GetString().Should().Be("Member");
 
@@ -179,10 +182,10 @@ public sealed class CustomerTests : IDisposable
     }
 
     [Fact]
-    public async Task Completed_order_awards_points_once_with_the_default_rule_and_updates_the_tier()
+    public async Task A_paid_order_awards_points_once_with_the_default_rule_and_updates_the_tier()
     {
         var userId = await RegisterAsync("Bình", "binh@example.com");
-        var completed = new OrderCompletedEvent(Guid.NewGuid(), _b1, userId, 12_345_000m, []);
+        var completed = Paid(userId, 12_345_000m);
 
         await _f.HandleAsync(completed);
         await _f.HandleAsync(completed); // redelivered: ignored

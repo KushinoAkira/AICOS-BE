@@ -34,6 +34,7 @@ SUPER=$(body_of "$r" | json_field accessToken)
 
 r=$(call POST /api/v1/identity/tenants "$SUPER" "{\"name\":\"Smoke $STAMP\",\"code\":\"smoke-$STAMP\",\"firstAdmin\":{\"fullName\":\"Smoke Owner\",\"email\":\"owner-$STAMP@example.com\",\"password\":\"$BRAND_PASSWORD\"}}")
 check "tenant created with its first brand admin" 201 "$(status_of "$r")"
+TENANT=$(body_of "$r" | json_field id)
 
 r=$(call POST /api/v1/identity/auth/login "" "{\"login\":\"owner-$STAMP@example.com\",\"password\":\"$BRAND_PASSWORD\"}")
 check "brand admin signs in" 200 "$(status_of "$r")"
@@ -149,6 +150,52 @@ r=$(call GET "/api/v1/reporting/chain" "$BRAND")
 check "chain report" 200 "$(status_of "$r")"
 wait_until "the chain report counts the orders" "call GET /api/v1/reporting/chain \"\$BRAND\" | sed 's/ [0-9]*\$//' | grep -o '\"orders\":[0-9]*' | head -1" '"orders":2'
 r=$(call GET "/api/v1/reporting/branch?branchId=$BRANCH" "$BRAND")
+
+# ------------------------------------------------------------------ subscription (SCRUM-132) and loyalty (SCRUM-133, 134)
+echo
+echo "== subscription and loyalty"
+r=$(call GET /api/v1/identity/subscription "$BRAND")
+check "a brand without a plan has no subscription yet" 404 "$(status_of "$r")"
+r=$(call POST /api/v1/identity/subscription-plans "$SUPER" "{\"name\":\"Smoke $STAMP\",\"tier\":\"Basic\",\"fee\":500000,\"billingPeriod\":\"Monthly\",\"maxBranches\":5,\"maxStaffAccounts\":50}")
+check "plan created" 201 "$(status_of "$r")"
+PLAN=$(body_of "$r" | json_field id)
+r=$(call POST "/api/v1/identity/tenants/$TENANT/subscription" "$SUPER" "{\"planId\":\"$PLAN\"}")
+check "plan assigned to the brand" 201 "$(status_of "$r")"
+r=$(call GET /api/v1/identity/subscription "$BRAND")
+check "brand admin sees the subscription" 200 "$(status_of "$r")"
+r=$(call POST /api/v1/identity/subscription/renew "$BRAND" '{}')
+check "simulated payment of the period" 200 "$(status_of "$r")"
+r=$(call POST /api/v1/identity/subscription/renew "$BRAND" '{}')
+check "renewing a paid period too early is refused" 422 "$(status_of "$r")"
+
+r=$(call PUT /api/v1/customers/loyalty/rules "$BRAND" '{"isActive":true,"amountPerPoint":1000,"redeemValuePerPoint":1000,"minPointsToRedeem":10,"silverThreshold":100,"goldThreshold":500}')
+check "loyalty rules saved" 200 "$(status_of "$r")"
+r=$(call POST /api/v1/identity/auth/register "" "{\"tenantCode\":\"smoke-$STAMP\",\"fullName\":\"Khach Hang\",\"email\":\"member-$STAMP@example.com\",\"phone\":\"0900000099\",\"password\":\"$BRAND_PASSWORD\",\"confirmPassword\":\"$BRAND_PASSWORD\"}")
+check "member registers" 201 "$(status_of "$r")"
+MEMBER_ID=$(body_of "$r" | json_field id)
+MEMBER=$(call POST /api/v1/identity/auth/login "" "{\"login\":\"member-$STAMP@example.com\",\"password\":\"$BRAND_PASSWORD\"}" | sed "s/ [0-9]*$//" | json_field accessToken)
+wait_until "the member profile exists in Customer service" "call GET /api/v1/customers/me \"\$MEMBER\" | sed 's/ [0-9]*\$//' | grep -c fullName" 1
+
+r=$(call POST /api/v1/orders "$CASHIER" "{\"type\":\"Takeaway\",\"customerId\":\"$MEMBER_ID\",\"items\":[{\"productId\":\"$PRODUCT\",\"quantity\":2}]}")
+check "order for the member" 201 "$(status_of "$r")"
+ORDER3=$(body_of "$r" | json_field id)
+r=$(call POST /api/v1/payments/transactions/cash "$CASHIER" "{\"orderId\":\"$ORDER3\",\"amount\":70000}")
+check "member's order paid in cash" 201 "$(status_of "$r")"
+wait_until "points are awarded after payment (70000 / 1000)" "call GET /api/v1/customers/me/loyalty \"\$MEMBER\" | sed 's/ [0-9]*\$//' | grep -o '\"pointsBalance\":[0-9]*'" '"pointsBalance":70'
+
+r=$(call POST /api/v1/customers/me/redemptions "$MEMBER" '{"points":50}')
+check "points turned into a voucher" 201 "$(status_of "$r")"
+VOUCHER=$(body_of "$r" | json_field code)
+case "$(body_of "$r")" in *'"pointsBalance":20'*) check "50 points were spent" yes yes ;; *) check "50 points were spent" yes no ;; esac
+
+r=$(call POST /api/v1/orders "$CASHIER" "{\"type\":\"Takeaway\",\"customerId\":\"$MEMBER_ID\",\"promotionCode\":\"$VOUCHER\",\"items\":[{\"productId\":\"$PRODUCT\",\"quantity\":2}]}")
+check "the voucher discounts the next order" 201 "$(status_of "$r")"
+ORDER4=$(body_of "$r" | json_field id)
+case "$(body_of "$r")" in *'"finalAmount":20000'*) check "70000 - 50000 voucher = 20000" yes yes ;; *) check "70000 - 50000 voucher = 20000" yes no ;; esac
+wait_until "the voucher shows as used" "call GET /api/v1/customers/me/vouchers \"\$MEMBER\" | sed 's/ [0-9]*\$//' | grep -o '\"status\":\"[A-Za-z]*\"' | head -1" '"status":"Redeemed"'
+r=$(call POST "/api/v1/orders/$ORDER4/cancel" "$CASHIER" '{"reason":"Customer left"}')
+check "the unpaid order is cancelled" 200 "$(status_of "$r")"
+wait_until "the voucher is given back" "call GET /api/v1/customers/me/vouchers \"\$MEMBER\" | sed 's/ [0-9]*\$//' | grep -o '\"status\":\"[A-Za-z]*\"' | head -1" '"status":"Active"'
 check "branch report" 200 "$(status_of "$r")"
 
 r=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$GATEWAY/hubs/kitchen/negotiate?negotiateVersion=1&access_token=$BARISTA")
