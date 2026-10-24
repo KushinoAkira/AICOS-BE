@@ -160,6 +160,27 @@ public sealed class PaymentRefundTests : PaymentTestBase
     }
 
     [Fact]
+    public async Task A_customer_asks_for_the_refund_of_their_own_online_payment_only_by_the_brand_policy()
+    {
+        await SetPolicyAsync(cancel: 50);
+        var payment = await PaidOnlineAsync(100_000);                                  // paid by the customer
+
+        var refund = await Customer.PostOk(RefundsOf(payment), new { kind = "Cancellation", reason = "Bận việc" });
+
+        (refund.GetProperty("amount").GetDecimal(), refund.GetProperty("status").GetString(), refund.GetProperty("withinPolicy").GetBoolean()).Should().Be((50_000m, "Succeeded", true));
+        await Customer.Post(RefundsOf(payment), new { kind = "Cancellation", reason = "Again" }).ShouldBe(422, "refund.nothing_to_refund");
+        await Customer.GetAsync($"{Refunds}").ShouldBe(403);                           // the refund list stays for the counter
+    }
+
+    [Fact]
+    public async Task A_customer_cannot_refund_a_payment_taken_at_the_counter()
+    {
+        var cash = await PaidCashAsync(60_000);                                        // the cashier took it
+
+        await Customer.Post(RefundsOf(cash), new { kind = "Cancellation", reason = "x" }).ShouldBe(404);
+    }
+
+    [Fact]
     public async Task Refund_requests_are_validated_and_limited_to_counter_staff_of_the_branch_and_brand()
     {
         var payment = await PaidOnlineAsync(100_000);
@@ -168,7 +189,10 @@ public sealed class PaymentRefundTests : PaymentTestBase
         await Cashier1.Post(RefundsOf(payment), new { kind = "Cancellation" }).ShouldBe(400);
         await Cashier1.Post(RefundsOf(payment), new { kind = "Cancellation", reason = "x", amount = -1 }).ShouldBe(400);
         await Cashier1.Post(RefundsOf(payment), new { kind = "Cancellation", reason = "x", amount = 10.5 }).ShouldBe(400);
-        await Customer.Post(RefundsOf(payment), new { kind = "Cancellation", reason = "x" }).ShouldBe(403);
+        await Customer.Post(RefundsOf(payment), new { kind = "Exception", amount = 10_000, reason = "x" }).ShouldBe(403, "refund.customer_policy_only");
+        await Customer.Post(RefundsOf(payment), new { kind = "Cancellation", amount = 10_000, reason = "x" }).ShouldBe(403, "refund.customer_policy_only");
+        await Customer.Post(RefundsOf(payment), new { kind = "NoShow", reason = "x" }).ShouldBe(403, "refund.customer_policy_only");
+        await F.As(AicosRoles.Customer, userId: Guid.NewGuid()).Post(RefundsOf(payment), new { kind = "Cancellation", reason = "x" }).ShouldBe(404);   // not their payment
         await F.As(AicosRoles.Barista, B1).Post(RefundsOf(payment), new { kind = "Cancellation", reason = "x" }).ShouldBe(403);
         await Cashier2.Post(RefundsOf(payment), new { kind = "Cancellation", reason = "x" }).ShouldBe(403, "branch.forbidden");
         await OtherAdmin.Post(RefundsOf(payment), new { kind = "Cancellation", reason = "x" }).ShouldBe(404);
