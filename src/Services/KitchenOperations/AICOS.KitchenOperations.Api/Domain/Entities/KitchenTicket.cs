@@ -39,6 +39,13 @@ public class KitchenTicket : AuditableEntity<Guid>, IBranchScoped
 
     public DateTime? CancelledAtUtc { get; private set; }
 
+    /// <summary>How many times the bar made this order again after it was ready (spilled, wrong drink, quality).</summary>
+    public int RemakeCount { get; private set; }
+
+    public string? LastRemakeReason { get; private set; }
+
+    public DateTime? LastRemakeAtUtc { get; private set; }
+
     private readonly List<KitchenTicketItem> _items = [];
 
     public IReadOnlyCollection<KitchenTicketItem> Items => _items.AsReadOnly();
@@ -101,6 +108,22 @@ public class KitchenTicket : AuditableEntity<Guid>, IBranchScoped
 
         Status = KitchenTicketStatus.ReadyForPickup;
         ReadyAtUtc = now;
+    }
+
+    /// <summary>The bar makes a ready order again: it goes back to brewing and must be marked ready once more. Not possible after the hand-over.</summary>
+    public void Remake(string reason, DateTime now)
+    {
+        if (Status != KitchenTicketStatus.ReadyForPickup)
+        {
+            throw new BusinessRuleException("ticket.not_ready", "Only a ready order can be made again; after the hand-over use the complaint path of the order.");
+        }
+
+        Status = KitchenTicketStatus.Brewing;
+        BrewingStartedAtUtc = now;
+        ReadyAtUtc = null;
+        RemakeCount++;
+        LastRemakeReason = reason.Trim();
+        LastRemakeAtUtc = now;
     }
 
     public void Complete(DateTime now)

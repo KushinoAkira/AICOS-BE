@@ -34,7 +34,9 @@ public record KitchenTicketDto(
     DateTime? ReadyAtUtc,
     int TotalCups,
     IReadOnlyList<KitchenTicketItemDto> Items,
-    IReadOnlyList<CupStickerDto> Stickers);
+    IReadOnlyList<CupStickerDto> Stickers,
+    int RemakeCount = 0,
+    string? LastRemakeReason = null);
 
 public record BatchCupItemDto(
     Guid TicketId,

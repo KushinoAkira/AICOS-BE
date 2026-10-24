@@ -35,6 +35,9 @@ public sealed record RefundRequestResult(string Status);
 public interface IPaymentClient
 {
     Task<RefundRequestResult> RequestRefundAsync(Guid paymentId, string kind, decimal? amount, string reason, CancellationToken ct);
+
+    /// <summary>How long after the pickup time (or when the order was ready) a no-show may be recorded: the brand cancellation policy.</summary>
+    Task<int> GetNoShowAfterMinutesAsync(CancellationToken ct);
 }
 
 internal static class ServiceCall
@@ -173,6 +176,18 @@ internal sealed class HttpPaymentClient(HttpClient http) : IPaymentClient
 
         var body = await response.Content.ReadFromJsonAsync<JsonElement>(ServiceCall.Json, ct);
         return new RefundRequestResult(body.GetProperty("status").GetString() ?? "PendingApproval");
+    }
+
+    public async Task<int> GetNoShowAfterMinutesAsync(CancellationToken ct)
+    {
+        using var response = await ServiceCall.SendAsync("payment", () => http.GetAsync("/api/v1/payments/policies/cancellation", ct), ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw await ServiceCall.ErrorAsync("payment", "payment.unavailable", response, ct);
+        }
+
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>(ServiceCall.Json, ct);
+        return body.TryGetProperty("noShowAfterMinutes", out var minutes) ? minutes.GetInt32() : 30;
     }
 }
 

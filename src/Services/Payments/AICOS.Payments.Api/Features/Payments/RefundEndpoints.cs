@@ -26,7 +26,7 @@ public static class RefundEndpoints
     public static void MapRefundEndpoints(this RouteGroupBuilder api)
     {
         // A customer may ask for the refund of their own online payment when they cancel an order: only by the brand policy (Kind Cancellation, no amount).
-        api.MapPost("/transactions/{id:guid}/refunds", RequestAsync).WithTags("Refunds").RequireAuthorization(b => b.RequireRole([.. PaymentAccess.CounterRoles, AicosRoles.Customer]));
+        api.MapPost("/transactions/{id:guid}/refunds", RequestAsync).WithTags("Refunds").RequireAuthorization(b => b.RequireRole([.. PaymentAccess.CounterRoles, AicosRoles.Customer, AicosRoles.Barista]));
 
         var group = api.MapGroup("/refunds").WithTags("Refunds");
         group.MapGet("/", ListAsync).RequireAuthorization(b => b.RequireRole(PaymentAccess.CounterRoles));
@@ -70,6 +70,11 @@ public static class RefundEndpoints
             throw new ForbiddenException("A customer can only ask for the refund the brand cancellation policy gives.", "refund.customer_policy_only");
         }
 
+        if (user.IsInRole(AicosRoles.Barista) && r.Kind != RefundKind.Unfulfillable)
+        {
+            throw new ForbiddenException("The bar can only ask for the refund of an order it could not make.", "refund.bar_unfulfillable_only");
+        }
+
         var payment = await PaymentAccess.LoadAsync(db, user, id, ct);
         if (!payment.IsPaid)
         {
@@ -89,6 +94,7 @@ public static class RefundEndpoints
         {
             RefundKind.Cancellation => policy.CancelRefundPercent,
             RefundKind.NoShow => policy.NoShowRefundPercent,
+            RefundKind.Unfulfillable => 100,
             _ => 0,
         };
         var policyCap = Math.Max(0, decimal.Floor(payment.Amount * percent / 100) - payment.RefundedAmount - pendingTotal);
