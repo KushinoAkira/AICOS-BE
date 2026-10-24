@@ -36,6 +36,8 @@ public sealed class ServiceFactory<TService, TDbContext>(Action<IServiceCollecti
 
     public InMemoryCacheStore Cache { get; } = new();
 
+    public InMemoryHashStore Hashes { get; } = new();
+
     /// <summary>The branches that exist, and the tenant each belongs to. Tests add the ones they use.</summary>
     public BranchRegistry Branches { get; } = new();
 
@@ -66,6 +68,8 @@ public sealed class ServiceFactory<TService, TDbContext>(Action<IServiceCollecti
             // Branch checks and the Redis cache have test doubles: no Identity service and no Redis in tests.
             services.RemoveAll<ICacheStore>();
             services.AddSingleton<ICacheStore>(Cache);
+            services.RemoveAll<IHashStore>();
+            services.AddSingleton<IHashStore>(Hashes);
             services.RemoveAll<IBranchDirectory>();
             services.AddSingleton(Branches);
             services.AddScoped<IBranchDirectory, FakeBranchDirectory>();

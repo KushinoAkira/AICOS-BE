@@ -13,7 +13,10 @@ public static class RateLimitGroups
 
     private const string ChatPrefix = "/api/v1/ai/chat";
 
-    public static (string Group, int Limit) Classify(string method, PathString path, int normalLimit, int authLimit, int chatLimit)
+    /// <summary>Table QR ordering needs no account, so it gets its own, tighter budget per client address.</summary>
+    private const string QrPrefix = "/api/v1/orders/qr";
+
+    public static (string Group, int Limit) Classify(string method, PathString path, int normalLimit, int authLimit, int chatLimit, int qrLimit = 120)
     {
         if (HttpMethods.IsPost(method))
         {
@@ -26,6 +29,11 @@ public static class RateLimitGroups
             {
                 return ("chat", chatLimit);
             }
+        }
+
+        if (path.StartsWithSegments(QrPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return ("qr", qrLimit);
         }
 
         return ("all", normalLimit);

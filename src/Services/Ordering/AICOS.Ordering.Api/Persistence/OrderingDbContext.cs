@@ -17,6 +17,8 @@ public sealed class OrderingDbContext(DbContextOptions<OrderingDbContext> option
     public DbSet<OrderItem> OrderItems => Set<OrderItem>();
 
     public DbSet<OrderFeedback> OrderFeedbacks => Set<OrderFeedback>();
+
+    public DbSet<TableSession> TableSessions => Set<TableSession>();
 }
 
 internal sealed class PickupSlotSettingConfiguration : IEntityTypeConfiguration<PickupSlotSetting>
@@ -71,6 +73,7 @@ internal sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
         builder.HasIndex(o => new { o.TenantId, o.BranchId, o.Status });
         builder.HasIndex(o => o.PaymentId);
         builder.HasIndex(o => o.CustomerId);
+        builder.HasIndex(o => o.TableSessionId).HasFilter("table_session_id IS NOT NULL");
         builder.Property(o => o.IdempotencyKey).HasMaxLength(80);
         builder.HasIndex(o => new { o.TenantId, o.CustomerId, o.IdempotencyKey }).IsUnique().HasFilter("idempotency_key IS NOT NULL");
         builder.HasIndex(o => new { o.TenantId, o.BranchId, o.PickupSlotStartUtc });
@@ -131,5 +134,21 @@ internal sealed class OrderLineOptionConfiguration : IEntityTypeConfiguration<Or
         builder.Property(o => o.Name).HasMaxLength(100).IsRequired();
         builder.Property(o => o.PriceDelta).HasPrecision(18, 0);
         builder.HasIndex(o => o.OrderItemId);
+    }
+}
+
+internal sealed class TableSessionConfiguration : IEntityTypeConfiguration<TableSession>
+{
+    public void Configure(EntityTypeBuilder<TableSession> builder)
+    {
+        builder.ToTable("table_sessions");
+        builder.HasKey(s => s.Id);
+        builder.Property(s => s.Id).ValueGeneratedNever();
+        builder.Property(s => s.TableCode).HasMaxLength(40).IsRequired();
+        builder.Property(s => s.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
+        builder.Property(s => s.CloseReason).HasConversion<string>().HasMaxLength(20);
+        builder.HasIndex(s => new { s.TenantId, s.TableId }).IsUnique().HasFilter("status = 'Open'");   // one open session per table
+        builder.HasIndex(s => new { s.TenantId, s.BranchId, s.Status });
+        builder.HasIndex(s => s.LastActivityAtUtc).HasFilter("status = 'Open'");
     }
 }

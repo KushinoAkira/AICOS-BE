@@ -179,6 +179,10 @@ namespace AICOS.Ordering.Api.Persistence.Migrations
                         .HasColumnType("character varying(20)")
                         .HasColumnName("table_number");
 
+                    b.Property<Guid?>("TableSessionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("table_session_id");
+
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid")
                         .HasColumnName("tenant_id");
@@ -209,6 +213,10 @@ namespace AICOS.Ordering.Api.Persistence.Migrations
 
                     b.HasIndex("PaymentId")
                         .HasDatabaseName("ix_orders_payment_id");
+
+                    b.HasIndex("TableSessionId")
+                        .HasDatabaseName("ix_orders_table_session_id")
+                        .HasFilter("table_session_id IS NOT NULL");
 
                     b.HasIndex("TenantId", "OrderCode")
                         .IsUnique()
@@ -452,6 +460,87 @@ namespace AICOS.Ordering.Api.Persistence.Migrations
                         {
                             t.HasCheckConstraint("ck_pickup_slot_settings_ranges", "slot_minutes BETWEEN 5 AND 120 AND capacity_per_slot BETWEEN 1 AND 500 AND cutoff_minutes BETWEEN 0 AND 240 AND advance_days BETWEEN 0 AND 14");
                         });
+                });
+
+            modelBuilder.Entity("AICOS.Ordering.Api.Domain.TableSession", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("branch_id");
+
+                    b.Property<string>("CloseReason")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("close_reason");
+
+                    b.Property<DateTime?>("ClosedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("closed_at_utc");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime>("LastActivityAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_activity_at_utc");
+
+                    b.Property<DateTime>("OpenedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("opened_at_utc");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("TableCode")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("table_code");
+
+                    b.Property<Guid>("TableId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("table_id");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at_utc");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id")
+                        .HasName("pk_table_sessions");
+
+                    b.HasIndex("LastActivityAtUtc")
+                        .HasDatabaseName("ix_table_sessions_last_activity_at_utc")
+                        .HasFilter("status = 'Open'");
+
+                    b.HasIndex("TenantId", "TableId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_table_sessions_tenant_id_table_id")
+                        .HasFilter("status = 'Open'");
+
+                    b.HasIndex("TenantId", "BranchId", "Status")
+                        .HasDatabaseName("ix_table_sessions_tenant_id_branch_id_status");
+
+                    b.ToTable("table_sessions", "ordering");
                 });
 
             modelBuilder.Entity("AICOS.Ordering.Api.Domain.Entities.OrderItem", b =>
