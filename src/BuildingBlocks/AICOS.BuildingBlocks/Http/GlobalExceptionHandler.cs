@@ -23,6 +23,13 @@ internal sealed class GlobalExceptionHandler(
         {
             ValidationFailedException validation => Build(validation, StatusCodes.Status400BadRequest, extensions: new() { ["errors"] = validation.Errors }),
             AppException app => Build(app, (int)app.StatusCode),
+            BadHttpRequestException badRequest => new ProblemDetails
+            {
+                Status = badRequest.StatusCode,
+                Title = "Malformed request",
+                Detail = badRequest.InnerException?.Message ?? badRequest.Message,
+                Extensions = { ["errorCode"] = "malformed_request" },
+            },
             DbUpdateConcurrencyException => new ProblemDetails
             {
                 Status = StatusCodes.Status409Conflict,
@@ -52,6 +59,11 @@ internal sealed class GlobalExceptionHandler(
             problem.Extensions["correlationId"] = correlationId;
         }
 
+        if (problem.Extensions.TryGetValue("retryAfterSeconds", out var retryAfter) && retryAfter is int seconds)
+        {
+            httpContext.Response.Headers.RetryAfter = seconds.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
+
         httpContext.Response.StatusCode = problem.Status ?? StatusCodes.Status500InternalServerError;
         return await problemDetails.TryWriteAsync(new ProblemDetailsContext
         {
@@ -73,6 +85,14 @@ internal sealed class GlobalExceptionHandler(
         if (exception.ErrorCode is not null)
         {
             problem.Extensions["errorCode"] = exception.ErrorCode;
+        }
+
+        if (exception.Extensions is not null)
+        {
+            foreach (var (key, value) in exception.Extensions)
+            {
+                problem.Extensions[key] = value;
+            }
         }
 
         if (extensions is not null)

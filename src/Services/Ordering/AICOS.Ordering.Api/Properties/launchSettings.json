@@ -4,12 +4,11 @@
     "http": {
       "commandName": "Project",
       "dotnetRunMessages": true,
-      "launchBrowser": true,
-      "launchUrl": "swagger",
+      "launchBrowser": false,
       "applicationUrl": "http://localhost:5104",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development",
-        "Database__MigrateOnStartup": "false"
+        "Database__MigrateOnStartup": "true"
       }
     }
   }

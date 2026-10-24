@@ -1,329 +1,216 @@
+using AICOS.BuildingBlocks.Exceptions;
 using AICOS.BuildingBlocks.Messaging;
 using AICOS.BuildingBlocks.Security;
 using AICOS.Contracts.Events;
 using AICOS.KitchenOperations.Api.Domain.Entities;
 using AICOS.KitchenOperations.Api.Domain.Enums;
-using AICOS.KitchenOperations.Api.Domain.Interfaces;
+using AICOS.KitchenOperations.Api.Persistence;
 using AICOS.KitchenOperations.Api.Services;
-using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace AICOS.KitchenOperations.Api.Features;
 
+public sealed record UpdateKitchenTicketStatusRequest(KitchenTicketStatus? Status);
+
+/// <summary>
+/// The bar queue (FR-33, FR-35, FR-36). Routes: /api/v1/kitchen. Tickets are created from the order event, never by hand. Barista, Branch
+/// Manager and Brand Admin run the bar; the Cashier can read the queue. Everything is scoped to the brand and the branch of the caller.
+/// </summary>
 public static class KitchenEndpoints
 {
+    public static readonly string[] BarRoles = [AicosRoles.Barista, AicosRoles.BranchManager, AicosRoles.BrandAdmin];
+
     public static void MapKitchenOperationsEndpoints(this RouteGroupBuilder api)
     {
-        var group = api.MapGroup("/kitchen")
-            .WithTags("Kitchen Operations")
-            .RequireAuthorization(AicosPolicies.Staff);
+        var group = api.MapGroup(string.Empty).WithTags("Kitchen Operations");
 
-        // -------------------------------------------------------------
-        // UC_KITCHEN_01: Lấy hàng đợi pha chế (FIFO + Priority - BR-41)
-        // Hỗ trợ NFR-34 (Offline cache / Initial sync khi kết nối lại)
-        // -------------------------------------------------------------
-        group.MapGet("/queue", async (
-            [FromQuery] Guid? branchId,
-            [FromServices] IKitchenTicketRepository repository,
-            [FromServices] ICurrentUser currentUser) =>
-        {
-            var targetBranchId = branchId ?? currentUser.BranchId ?? Guid.Empty;
-            if (targetBranchId == Guid.Empty)
-            {
-                return Results.BadRequest(new { Message = "Vui lòng cung cấp branchId hoặc đăng nhập tài khoản có gán chi nhánh." });
-            }
-
-            var tickets = await repository.GetQueueAsync(targetBranchId);
-            var dtos = tickets.Select(MapToDto).ToList();
-
-            return Results.Ok(dtos);
-        });
-
-        // -------------------------------------------------------------
-        // UC_KITCHEN_01: Lấy danh sách mẻ pha chế gộp tự động (BR-42)
-        // Cửa sổ 5 phút, tối đa 4 ly/mẻ, gộp danh nghĩa theo tên món
-        // -------------------------------------------------------------
-        group.MapGet("/batches", async (
-            [FromQuery] Guid? branchId,
-            [FromServices] IKitchenTicketRepository repository,
-            [FromServices] ICurrentUser currentUser) =>
-        {
-            var targetBranchId = branchId ?? currentUser.BranchId ?? Guid.Empty;
-            if (targetBranchId == Guid.Empty)
-            {
-                return Results.BadRequest(new { Message = "Vui lòng cung cấp branchId hoặc đăng nhập tài khoản có gán chi nhánh." });
-            }
-
-            var batches = await repository.GetActiveBatchesAsync(targetBranchId, TimeSpan.FromMinutes(5), maxBatchSize: 4);
-            return Results.Ok(batches);
-        });
-
-        // -------------------------------------------------------------
-        // UC_KITCHEN_01 & UC_KITCHEN_02: Tiếp nhận đơn hàng vào khu vực pha chế
-        // -------------------------------------------------------------
-        group.MapPost("/tickets", async (
-            [FromBody] CreateKitchenTicketRequest request,
-            [FromServices] IKitchenTicketRepository repository,
-            [FromServices] IKitchenNotifier notifier,
-            [FromServices] ICurrentUser currentUser,
-            CancellationToken ct) =>
-        {
-            if (request.Items == null || request.Items.Count == 0)
-            {
-                return Results.BadRequest(new { ErrorCode = "E1", Message = "Đơn pha chế phải có ít nhất 1 món." });
-            }
-
-            var branchId = request.BranchId != Guid.Empty ? request.BranchId : (currentUser.BranchId ?? Guid.NewGuid());
-
-            var ticket = new KitchenTicket(
-                orderId: request.OrderId,
-                orderCode: request.OrderCode,
-                branchId: branchId,
-                tableNumber: request.TableNumber,
-                orderType: request.OrderType,
-                isPaid: request.IsPaid,
-                scheduledPickupTimeUtc: request.ScheduledPickupTimeUtc
-            );
-
-            foreach (var item in request.Items)
-            {
-                ticket.AddItem(item.ProductId, item.ProductName, item.Quantity, item.Note);
-            }
-
-            // BR-43: Tự động in tem ly nước nếu là Dine-in hoặc đã thanh toán (Online)
-            bool stickersGenerated = ticket.TryGenerateCupStickers(out var stickers);
-
-            await repository.AddAsync(ticket);
-
-            // Gửi WebSocket Real-time tới màn hình KDS (< 300ms theo NFR-28)
-            var ticketDto = MapToDto(ticket);
-            await notifier.NotifyNewTicketAsync(branchId, ticketDto, ct);
-
-            if (stickersGenerated && stickers.Count > 0)
-            {
-                var stickersDto = stickers.Select(MapStickerToDto).ToList();
-                await notifier.NotifyStickersPrintedAsync(branchId, stickersDto, ct);
-            }
-
-            return Results.Created($"/api/v1/kitchen/tickets/{ticket.Id}", ticketDto);
-        });
-
-        // -------------------------------------------------------------
-        // UC_KITCHEN_01: Cập nhật trạng thái pha chế (Pending -> Brewing -> Ready for Pickup)
-        // & UC_POS_07: Thông báo đơn sẵn sàng phục vụ khách qua WebSocket
-        // -------------------------------------------------------------
-        group.MapPut("/tickets/{id:guid}/status", async (
-            Guid id,
-            [FromBody] UpdateKitchenTicketStatusRequest request,
-            [FromServices] IKitchenTicketRepository repository,
-            [FromServices] IKitchenNotifier notifier,
-            [FromServices] IEventBus? eventBus,
-            CancellationToken ct) =>
-        {
-            var ticket = await repository.GetByIdAsync(id);
-            if (ticket == null)
-            {
-                return Results.NotFound(new { Message = $"Không tìm thấy đơn pha chế với ID: {id}" });
-            }
-
-            try
-            {
-                switch (request.Status)
-                {
-                    case KitchenTicketStatus.Brewing:
-                        ticket.StartBrewing();
-                        break;
-
-                    case KitchenTicketStatus.ReadyForPickup:
-                        // Cấp độ đơn hàng: Hoàn tất tất cả món trong đơn
-                        ticket.MarkReadyForPickup();
-
-                        // UC_POS_07: Bắn thông báo real-time qua SignalR tới quầy Thu ngân & Phục vụ
-                        var readyNotification = new OrderReadyNotificationDto(
-                            TicketId: ticket.Id,
-                            OrderId: ticket.OrderId,
-                            OrderCode: ticket.OrderCode,
-                            BranchId: ticket.BranchId,
-                            TableNumber: ticket.TableNumber,
-                            OrderType: ticket.OrderType,
-                            TotalCups: ticket.TotalCups,
-                            ReadyAtUtc: ticket.ReadyAtUtc ?? DateTime.UtcNow,
-                            Message: string.IsNullOrWhiteSpace(ticket.TableNumber)
-                                ? $"Đơn hàng {ticket.OrderCode} ({ticket.OrderType}) đã pha chế xong!"
-                                : $"Đơn hàng {ticket.OrderCode} tại Bàn {ticket.TableNumber} đã sẵn sàng phục vụ!"
-                        );
-
-                        await notifier.NotifyOrderReadyForPickupAsync(ticket.BranchId, readyNotification, ct);
-
-                        // Đồng thời bắn EventBus cho các service khác (nếu có)
-                        if (eventBus != null)
-                        {
-                            try
-                            {
-                                await eventBus.PublishAsync(new KitchenOrderReadyIntegrationEvent(
-                                    TicketId: ticket.Id,
-                                    OrderId: ticket.OrderId,
-                                    OrderCode: ticket.OrderCode,
-                                    BranchId: ticket.BranchId,
-                                    TableNumber: ticket.TableNumber,
-                                    ReadyAtUtc: ticket.ReadyAtUtc ?? DateTime.UtcNow
-                                ), ct);
-                            }
-                            catch (Exception) { /* Local bypass */ }
-                        }
-                        break;
-
-                    case KitchenTicketStatus.Completed:
-                        ticket.Complete();
-                        break;
-
-                    case KitchenTicketStatus.Cancelled:
-                        ticket.Cancel();
-                        break;
-
-                    default:
-                        return Results.BadRequest(new { Message = $"Trạng thái không hợp lệ: {request.Status}" });
-                }
-
-                await repository.UpdateAsync(ticket);
-                await notifier.NotifyStatusChangedAsync(ticket.BranchId, ticket.Id, ticket.Status.ToString(), ct);
-
-                return Results.Ok(new
-                {
-                    Message = "Cập nhật trạng thái thành công.",
-                    TicketId = ticket.Id,
-                    Status = ticket.Status.ToString(),
-                    UpdatedAtUtc = DateTime.UtcNow
-                });
-            }
-            catch (InvalidOperationException ex)
-            {
-                return Results.BadRequest(new { Message = ex.Message });
-            }
-        });
-
-        // -------------------------------------------------------------
-        // UC_KITCHEN_02: In / Lấy danh sách tem dán ly (Cup Sticker)
-        // -------------------------------------------------------------
-        group.MapGet("/tickets/{id:guid}/stickers", async (
-            Guid id,
-            [FromServices] IKitchenTicketRepository repository) =>
-        {
-            var ticket = await repository.GetByIdAsync(id);
-            if (ticket == null)
-            {
-                return Results.NotFound(new { Message = $"Không tìm thấy đơn pha chế với ID: {id}" });
-            }
-
-            // Đảm bảo sinh tem nếu đủ điều kiện BR-43
-            ticket.TryGenerateCupStickers(out var stickers);
-            await repository.UpdateAsync(ticket);
-
-            var dtos = stickers.Select(MapStickerToDto).ToList();
-            return Results.Ok(new
-            {
-                TicketId = ticket.Id,
-                OrderCode = ticket.OrderCode,
-                TableNumber = ticket.TableNumber,
-                TotalStickers = dtos.Count,
-                Stickers = dtos
-            });
-        });
-
-        // -------------------------------------------------------------
-        // Kích hoạt sinh tem khi đơn Online được xác nhận thanh toán (BR-43)
-        // -------------------------------------------------------------
-        group.MapPost("/tickets/by-order/{orderId:guid}/mark-paid", async (
-            Guid orderId,
-            [FromServices] IKitchenTicketRepository repository,
-            [FromServices] IKitchenNotifier notifier,
-            CancellationToken ct) =>
-        {
-            var ticket = await repository.GetByOrderIdAsync(orderId);
-            if (ticket == null)
-            {
-                return Results.NotFound(new { Message = $"Không tìm thấy đơn pha chế cho OrderId: {orderId}" });
-            }
-
-            ticket.MarkAsPaid();
-            bool generated = ticket.TryGenerateCupStickers(out var stickers);
-            await repository.UpdateAsync(ticket);
-
-            if (generated && stickers.Count > 0)
-            {
-                var stickersDto = stickers.Select(MapStickerToDto).ToList();
-                await notifier.NotifyStickersPrintedAsync(ticket.BranchId, stickersDto, ct);
-            }
-
-            return Results.Ok(new
-            {
-                Message = "Đã cập nhật trạng thái thanh toán và kích hoạt in tem ly nước tự động (BR-43).",
-                TicketId = ticket.Id,
-                IsPaid = ticket.IsPaid,
-                StickersCount = ticket.Stickers.Count
-            });
-        });
+        group.MapGet("/queue", QueueAsync).RequireAuthorization(AicosPolicies.Staff);
+        group.MapGet("/batches", BatchesAsync).RequireAuthorization(AicosPolicies.Staff);
+        group.MapGet("/tickets/{id:guid}", GetAsync).RequireAuthorization(AicosPolicies.Staff);
+        group.MapPut("/tickets/{id:guid}/status", UpdateStatusAsync).RequireAuthorization(AicosPolicies.Staff);
+        group.MapGet("/tickets/{id:guid}/stickers", StickersAsync).RequireAuthorization(b => b.RequireRole(BarRoles));
     }
 
-    private static KitchenTicketDto MapToDto(KitchenTicket ticket) =>
-        new(
-            Id: ticket.Id,
-            OrderId: ticket.OrderId,
-            OrderCode: ticket.OrderCode,
-            BranchId: ticket.BranchId,
-            TableNumber: ticket.TableNumber,
-            OrderType: ticket.OrderType,
-            Status: ticket.Status.ToString(),
-            IsPaid: ticket.IsPaid,
-            IsPriority: ticket.IsPriority,
-            CreatedAtUtc: ticket.CreatedAtUtc,
-            ScheduledPickupTimeUtc: ticket.ScheduledPickupTimeUtc,
-            BrewingStartedAtUtc: ticket.BrewingStartedAtUtc,
-            ReadyAtUtc: ticket.ReadyAtUtc,
-            TotalCups: ticket.TotalCups,
-            Items: ticket.Items.Select(i => new KitchenTicketItemDto(i.ProductId, i.ProductName, i.Quantity, i.Note)).ToList(),
-            Stickers: ticket.Stickers.Select(MapStickerToDto).ToList()
-        );
+    /// <summary>Priority tickets (scheduled pickup) first by pickup time, then everything else first-in first-out.</summary>
+    private static async Task<List<KitchenTicketDto>> QueueAsync(
+        KitchenOperationsDbContext db, ICurrentUser user, IBranchDirectory directory, Guid? branchId, CancellationToken ct)
+    {
+        var tenantId = TenantScope.Require(user);
+        var branch = await BranchScope.ResolveAsync(user, directory, branchId, requireActive: false, ct);
+        var active = await db.Tickets.AsNoTracking().Include(t => t.Items).Include(t => t.Stickers).AsSplitQuery()
+            .Where(t => t.TenantId == tenantId && t.BranchId == branch
+                && t.Status != KitchenTicketStatus.Completed && t.Status != KitchenTicketStatus.Cancelled
+                && (t.IsPaid || t.OrderType == "DineIn"))
+            .ToListAsync(ct);
 
-    private static CupStickerDto MapStickerToDto(CupSticker sticker) =>
-        new(
-            StickerId: sticker.Id,
-            TicketId: sticker.TicketId,
-            OrderId: sticker.OrderId,
-            OrderCode: sticker.OrderCode,
-            TableNumber: sticker.TableNumber,
-            ProductName: sticker.ProductName,
-            CupIndex: sticker.CupIndex,
-            TotalCupsInOrder: sticker.TotalCupsInOrder,
-            Customizations: sticker.Customizations,
-            PrintedAtUtc: sticker.PrintedAtUtc
-        );
+        return active.Where(t => t.IsPriority).OrderBy(t => t.ScheduledPickupTimeUtc)
+            .Concat(active.Where(t => !t.IsPriority).OrderBy(t => t.CreatedAtUtc))
+            .Select(TicketMapper.ToDto).ToList();
+    }
+
+    /// <summary>Identical drinks waiting or brewing are grouped into batches (FR-34), at most four cups to a batch.</summary>
+    private static async Task<List<BrewingBatchDto>> BatchesAsync(
+        KitchenOperationsDbContext db, ICurrentUser user, IBranchDirectory directory, TimeProvider clock, Guid? branchId, CancellationToken ct)
+    {
+        const int maxBatchSize = 4;
+        var tenantId = TenantScope.Require(user);
+        var branch = await BranchScope.ResolveAsync(user, directory, branchId, requireActive: false, ct);
+        var threshold = clock.GetUtcNow().UtcDateTime - TimeSpan.FromMinutes(5);
+
+        var tickets = await db.Tickets.AsNoTracking().Include(t => t.Items).AsSplitQuery()
+            .Where(t => t.TenantId == tenantId && t.BranchId == branch
+                && (t.Status == KitchenTicketStatus.Pending || t.Status == KitchenTicketStatus.Brewing)
+                && (t.IsPaid || t.OrderType == "DineIn") && t.CreatedAtUtc >= threshold)
+            .OrderBy(t => t.CreatedAtUtc).ToListAsync(ct);
+
+        var cups = tickets.SelectMany(t => t.Items.SelectMany(item => Enumerable.Range(0, item.Quantity)
+            .Select(_ => (item.ProductName, Cup: new BatchCupItemDto(t.Id, t.OrderCode, t.TableNumber, item.Note, t.CreatedAtUtc))))).ToList();
+
+        var batches = new List<BrewingBatchDto>();
+        foreach (var product in cups.GroupBy(c => c.ProductName))
+        {
+            var list = product.Select(c => c.Cup).ToList();
+            for (var i = 0; i < list.Count; i += maxBatchSize)
+            {
+                var chunk = list.Skip(i).Take(maxBatchSize).ToList();
+                batches.Add(new BrewingBatchDto(product.Key, chunk.Count, maxBatchSize, chunk));
+            }
+        }
+
+        return batches;
+    }
+
+    private static async Task<KitchenTicketDto> GetAsync(Guid id, KitchenOperationsDbContext db, ICurrentUser user, CancellationToken ct) =>
+        TicketMapper.ToDto(await TicketAccess.LoadAsync(db, user, id, ct, track: false));
+
+    /// <summary>
+    /// Brewing, ReadyForPickup, Completed or Cancelled. Starting and finishing tell the order service (and the cashier screens, SCRUM-58).
+    /// The cashier hands the order over through the order service, which completes the ticket; here the bar may complete it too.
+    /// </summary>
+    private static async Task<IResult> UpdateStatusAsync(
+        Guid id,
+        UpdateKitchenTicketStatusRequest r,
+        KitchenOperationsDbContext db,
+        ICurrentUser user,
+        IKitchenNotifier notifier,
+        IEventBus bus,
+        TimeProvider clock,
+        ILoggerFactory loggers,
+        CancellationToken ct)
+    {
+        var ticket = await TicketAccess.LoadAsync(db, user, id, ct);
+        var now = clock.GetUtcNow().UtcDateTime;
+        if (!ticket.IsEligibleForBar && r.Status != KitchenTicketStatus.Cancelled)
+        {
+            throw new BusinessRuleException("ticket.not_paid", "This order is not paid yet, so the bar does not make it.");
+        }
+
+        switch (r.Status)
+        {
+            case KitchenTicketStatus.Brewing:
+                RequireBar(user);
+                ticket.StartBrewing(now);
+                break;
+            case KitchenTicketStatus.ReadyForPickup:
+                RequireBar(user);
+                ticket.MarkReadyForPickup(now);
+                break;
+            case KitchenTicketStatus.Completed:
+                RequireBar(user);
+                ticket.Complete(now);
+                break;
+            case KitchenTicketStatus.Cancelled:
+                if (!user.IsInRole(AicosRoles.BranchManager) && !user.IsInRole(AicosRoles.BrandAdmin))
+                {
+                    throw new ForbiddenException("Only a manager cancels a ticket.");
+                }
+
+                ticket.Cancel(now);
+                break;
+            default:
+                throw new ValidationFailedException("status", "Status must be Brewing, ReadyForPickup, Completed or Cancelled.");
+        }
+
+        await db.SaveChangesAsync(ct);
+        var log = loggers.CreateLogger("AICOS.Kitchen.Tickets");
+        await SafeAsync(log, () => notifier.NotifyStatusChangedAsync(ticket.TenantId, ticket.BranchId, ticket.Id, ticket.Status.ToString(), ct));
+
+        if (ticket.Status == KitchenTicketStatus.Brewing)
+        {
+            await SafeAsync(log, () => bus.PublishAsync(new KitchenOrderStartedIntegrationEvent(ticket.TenantId, ticket.Id, ticket.OrderId, ticket.BranchId, ticket.BrewingStartedAtUtc ?? now), ct));
+        }
+        else if (ticket.Status == KitchenTicketStatus.ReadyForPickup)
+        {
+            var readyAt = ticket.ReadyAtUtc ?? now;
+            var notification = new OrderReadyNotificationDto(
+                ticket.Id, ticket.OrderId, ticket.OrderCode, ticket.BranchId, ticket.TableNumber, ticket.OrderType, ticket.TotalCups, readyAt,
+                string.IsNullOrWhiteSpace(ticket.TableNumber)
+                    ? $"Order {ticket.OrderCode} ({ticket.OrderType}) is ready!"
+                    : $"Order {ticket.OrderCode} for table {ticket.TableNumber} is ready to serve!");
+            await SafeAsync(log, () => notifier.NotifyOrderReadyForPickupAsync(ticket.TenantId, ticket.BranchId, notification, ct));
+            await SafeAsync(log, () => bus.PublishAsync(new KitchenOrderReadyIntegrationEvent(ticket.TenantId, ticket.Id, ticket.OrderId, ticket.OrderCode, ticket.BranchId, ticket.TableNumber, readyAt), ct));
+        }
+
+        return Results.Ok(TicketMapper.ToDto(ticket));
+    }
+
+    /// <summary>The stickers of a ticket (FR-36); printing may be simulated, the client prints what it gets.</summary>
+    private static async Task<object> StickersAsync(Guid id, KitchenOperationsDbContext db, ICurrentUser user, TimeProvider clock, CancellationToken ct)
+    {
+        var ticket = await TicketAccess.LoadAsync(db, user, id, ct);
+        if (!ticket.TryGenerateCupStickers(clock.GetUtcNow().UtcDateTime, out var stickers))
+        {
+            throw new BusinessRuleException("ticket.not_paid", "BR-43: stickers are printed for a paid or dine-in order.");
+        }
+
+        await db.SaveChangesAsync(ct);
+        var dtos = stickers.Select(TicketMapper.ToDto).ToList();
+        return new { TicketId = ticket.Id, ticket.OrderCode, ticket.TableNumber, TotalStickers = dtos.Count, Stickers = dtos };
+    }
+
+    private static void RequireBar(ICurrentUser user)
+    {
+        if (!BarRoles.Any(user.IsInRole))
+        {
+            throw new ForbiddenException("Only the bar team changes how far an order is made.");
+        }
+    }
+
+    /// <summary>The ticket change is already saved; a screen or message that fails must not undo it.</summary>
+    internal static async Task SafeAsync(ILogger logger, Func<Task> action)
+    {
+        try
+        {
+            await action();
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogError(ex, "A notification could not be sent; the ticket change was saved.");
+        }
+    }
 }
 
-// -------------------------------------------------------------
-// Request Models
-// -------------------------------------------------------------
-
-public class CreateKitchenTicketRequest
+internal static class TicketAccess
 {
-    public Guid OrderId { get; set; }
-    public string OrderCode { get; set; } = string.Empty;
-    public Guid BranchId { get; set; }
-    public string? TableNumber { get; set; }
-    public string OrderType { get; set; } = "DineIn"; // DineIn, Takeaway, Delivery
-    public bool IsPaid { get; set; }
-    public DateTime? ScheduledPickupTimeUtc { get; set; }
-    public List<CreateKitchenTicketItemRequest> Items { get; set; } = new();
+    /// <summary>404 for a ticket of another brand, 403 for another branch of the brand.</summary>
+    public static async Task<KitchenTicket> LoadAsync(KitchenOperationsDbContext db, ICurrentUser user, Guid id, CancellationToken ct, bool track = true)
+    {
+        var tenantId = TenantScope.Require(user);
+        var query = db.Tickets.Include(t => t.Items).Include(t => t.Stickers).AsSplitQuery().Where(t => t.Id == id && t.TenantId == tenantId);
+        var ticket = await (track ? query : query.AsNoTracking()).FirstOrDefaultAsync(ct) ?? throw new NotFoundException("Ticket", id);
+        BranchAccess.EnsureCanAccess(user, ticket.BranchId);
+        return ticket;
+    }
 }
 
-public class CreateKitchenTicketItemRequest
+internal static class TicketMapper
 {
-    public Guid ProductId { get; set; }
-    public string ProductName { get; set; } = string.Empty;
-    public int Quantity { get; set; }
-    public string? Note { get; set; }
-}
+    public static KitchenTicketDto ToDto(KitchenTicket t) => new(
+        t.Id, t.OrderId, t.OrderCode, t.BranchId, t.TableNumber, t.OrderType, t.Status.ToString(), t.IsPaid, t.IsPriority, t.CreatedAtUtc, t.ScheduledPickupTimeUtc,
+        t.BrewingStartedAtUtc, t.ReadyAtUtc, t.TotalCups,
+        t.Items.Select(i => new KitchenTicketItemDto(i.ProductId, i.ProductName, i.Quantity, i.Note)).ToList(),
+        t.Stickers.Select(ToDto).ToList());
 
-public class UpdateKitchenTicketStatusRequest
-{
-    public KitchenTicketStatus Status { get; set; }
+    public static CupStickerDto ToDto(CupSticker s) => new(
+        s.Id, s.TicketId, s.OrderId, s.OrderCode, s.TableNumber, s.ProductName, s.CupIndex, s.TotalCupsInOrder, s.Customizations, s.PrintedAtUtc);
 }
