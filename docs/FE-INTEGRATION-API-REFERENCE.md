@@ -399,6 +399,38 @@ Màn hình bar: phiếu có thêm `remakeCount` và `lastRemakeReason` để đ�
 
 Quy tắc phụ:
 - Lỗi chung: reason trống 400; đơn đã đóng 409 `order.already_cancelled`; đơn đã giao 422 `order.closed` (NoShow); sai chi nhánh 403 `branch.forbidden`; khách hàng 403.
-- Điểm thưởng: no-show và unfulfillable của đơn đã trả đều bị trừ lại điểm đã cộng (cùng quy tắc với hủy đơn đã trả). Voucher đã dùng cho đơn đã trả không được trả lại.
+- Điểm thưởng: **NoShow giữ nguyên điểm** của khách (khách đã trả tiền thật và quán đã có doanh thu, kể cả khi hoàn 0%). `Unfulfillable` (quán không làm được, hoàn đủ tiền) thì điểm đã cộng bị trừ lại như hủy đơn đã trả. Voucher đã dùng cho đơn đã trả không được trả lại.
 - Thanh toán đến muộn cho một đơn đã `NoShow` hoặc `Unfulfillable` được đánh dấu `refundStatus = Needed` để hoàn tiền.
 - Hoàn tiền mới của Payment: loại `Unfulfillable` (hoàn toàn bộ, không phải chờ duyệt nếu brand bật tự duyệt); Barista chỉ được xin loại này (`403 refund.bar_unfulfillable_only` với loại khác).
+
+### Theo dõi đơn thời gian thực (SignalR) và thông báo cho khách (giai đoạn C)
+
+Thay cho việc FE hỏi lại mỗi 5 giây. Hub của Order service, qua gateway: `/hubs/orders`.
+
+**Kết nối** (thư viện `@microsoft/signalr`):
+- Khách quét QR tại bàn (không có tài khoản): `/hubs/orders?sessionToken=<sessionToken của lần quét>`. Nhận mọi thay đổi của các đơn trong phiên bàn đó.
+- Thành viên đã đăng nhập (role Customer): `accessTokenFactory` trả về JWT (gateway/Order nhận ở `access_token`). Nhận thay đổi của tất cả đơn của chính họ (mang đi, quầy, QR khi đã đăng nhập).
+- Có thể gửi cả hai (khách QR đã đăng nhập). Không có token hợp lệ hoặc là nhân viên: server **đóng kết nối ngay sau khi kết nối** (sự kiện `onclose` có lỗi); FE hãy coi đó là không có quyền theo dõi và quay về hỏi lại định kỳ hoặc báo quét lại mã.
+- Hub chỉ đẩy xuống, FE không gọi hàm nào của server. Có tự kết nối lại (`withAutomaticReconnect`): sau khi nối lại hãy tải lại đơn/hóa đơn một lần vì có thể lỡ tin trong lúc mất kết nối.
+
+**Tin `OrderChanged`:**
+```json
+{ "orderId": "…", "orderCode": "ORD-…", "kind": "Ready", "status": "Ready", "paymentStatus": "Paid", "refundStatus": "None",
+  "remakeCount": 0, "readyAtUtc": "…", "finalAmount": 55000, "tableSessionId": "…", "title": "Đơn đã sẵn sàng", "message": "Đơn ORD-… tại bàn A1 đã xong, mời bạn nhận món.", "atUtc": "…" }
+```
+`kind`: `Created`, `Paid`, `Preparing`, `Ready`, `Remake` (đang pha lại), `Delivered`, `Completed`, `Cancelled`, `NoShow`, `Unfulfillable`. `title`/`message` là câu tiếng Việt sẵn để hiện toast; muốn tự dịch thì dựa vào `kind`.
+
+**Tin `SessionClosed`:** `{ "sessionId", "reason": "Paid|Staff|Expired", "atUtc" }` - phiên bàn đã kết thúc, ngừng cho thêm món (xem `qr.session_closed`). Quét lại mã để mở phiên mới.
+
+**Thông báo của thành viên** (lưu lại, xem được cả khi không mở app): `/api/v1/customers/me/notifications` (chỉ role Customer, chỉ thấy của chính mình trong brand đó).
+
+| Việc | Endpoint | Kết quả |
+|---|---|---|
+| Danh sách | `GET /customers/me/notifications?unreadOnly=&page=&pageSize=` | phân trang `{ "items": [ { "id", "kind", "title", "body", "orderId", "orderCode", "createdAtUtc", "readAtUtc", "isRead" } ], … }`, mới nhất trước |
+| Số chưa đọc | `GET /customers/me/notifications/unread-count` | `{ "unread": 3 }` |
+| Đánh dấu đã đọc một tin | `POST /customers/me/notifications/{id}/read` | tin đó (idempotent) |
+| Đọc hết | `POST /customers/me/notifications/read-all` | `{ "unread": 0 }` |
+
+Thông báo được tạo cho các thay đổi: `Paid`, `Ready`, `Remake`, `Completed`, `Cancelled`, `NoShow`, `Unfulfillable` (mỗi đơn mỗi loại một lần; `Remake` tạo mới cho mỗi lần pha lại). `Created`, `Preparing`, `Delivered` chỉ đẩy live, không lưu. Đơn của khách vãng lai (không tài khoản) không có thông báo lưu, chỉ có tin live qua phiên bàn. Cách dùng gợi ý: nhận `OrderChanged` thì hiện toast rồi gọi lại `unread-count`; mở chuông thì gọi `GET .../notifications`.
+
+Lưu ý vận hành: SignalR hiện chạy một instance (chưa có Redis backplane), nên chưa scale ngang Order service được.

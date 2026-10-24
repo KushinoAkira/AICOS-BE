@@ -16,6 +16,8 @@ public sealed class CustomerEngagementDbContext(DbContextOptions<CustomerEngagem
     public DbSet<Voucher> Vouchers => Set<Voucher>();
 
     public DbSet<LoyaltyRule> LoyaltyRules => Set<LoyaltyRule>();
+
+    public DbSet<CustomerNotification> Notifications => Set<CustomerNotification>();
 }
 
 internal sealed class CustomerConfiguration : IEntityTypeConfiguration<Customer>
@@ -96,5 +98,23 @@ internal sealed class LoyaltyRuleConfiguration : IEntityTypeConfiguration<Loyalt
         builder.Property(r => r.AmountPerPoint).HasPrecision(14, 2);
         builder.Property(r => r.RedeemValuePerPoint).HasPrecision(14, 2);
         builder.HasIndex(r => r.TenantId).IsUnique();
+    }
+}
+
+internal sealed class CustomerNotificationConfiguration : IEntityTypeConfiguration<CustomerNotification>
+{
+    public void Configure(EntityTypeBuilder<CustomerNotification> builder)
+    {
+        builder.ToTable("notifications");
+        builder.HasKey(n => n.Id);
+        builder.Property(n => n.Id).ValueGeneratedNever();
+        builder.Property(n => n.OrderCode).HasMaxLength(40).IsRequired();
+        builder.Property(n => n.Kind).HasMaxLength(30).IsRequired();
+        builder.Property(n => n.DedupeKey).HasMaxLength(60).IsRequired();
+        builder.Property(n => n.Title).HasMaxLength(100).IsRequired();
+        builder.Property(n => n.Body).HasMaxLength(300).IsRequired();
+        builder.HasIndex(n => new { n.TenantId, n.UserId, n.OrderId, n.DedupeKey }).IsUnique();
+        builder.HasIndex(n => new { n.TenantId, n.UserId, n.CreatedAtUtc });
+        builder.HasIndex(n => new { n.TenantId, n.UserId }).HasFilter("read_at_utc IS NULL");
     }
 }

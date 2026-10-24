@@ -38,7 +38,8 @@ public record OrderCancelledIntegrationEvent(
     string? OrderCode = null,
     Guid? CustomerId = null,
     string? PromotionCode = null,
-    decimal TotalAmount = 0) : IntegrationEvent;
+    decimal TotalAmount = 0,
+    string? ClosedAs = null) : IntegrationEvent;
 
 /// <summary>
 /// Published by Order Service once the money for an order is confirmed. Customer Service awards loyalty points from it (SCRUM-133, BR-25):
@@ -92,3 +93,43 @@ public record KitchenOrderRemakeIntegrationEvent(
     string Reason,
     int RemakeCount,
     DateTime RemadeAtUtc) : IntegrationEvent;
+
+/// <summary>
+/// Published by Order Service whenever something happens to an order that its customer wants to hear about. Customer Service turns it into a
+/// notification for a member (<see cref="CustomerId"/> is empty for a guest, who follows the order live instead). <see cref="Kind"/> is one of
+/// Paid, Ready, Completed, Cancelled, NoShow, Unfulfillable, Remake. <see cref="DedupeKey"/> makes a repeated message create one notification.
+/// </summary>
+public record OrderStatusChangedIntegrationEvent(
+    Guid TenantId,
+    Guid OrderId,
+    string OrderCode,
+    Guid BranchId,
+    Guid CustomerId,
+    string Kind,
+    string DedupeKey,
+    string? TableNumber,
+    decimal TotalAmount,
+    DateTime AtUtc) : IntegrationEvent;
+
+/// <summary>The words shown to the customer for each change of an order: one place, used for the live message and for the stored notification.</summary>
+public static class OrderStatusTexts
+{
+    public static (string Title, string Body) For(string kind, string orderCode, string? tableNumber)
+    {
+        var at = string.IsNullOrWhiteSpace(tableNumber) ? string.Empty : $" tại bàn {tableNumber}";
+        return kind switch
+        {
+            "Created" => ("Đã nhận đơn", $"Đơn {orderCode}{at} đã được gửi tới quầy."),
+            "Paid" => ("Đã thanh toán", $"Đơn {orderCode} đã được thanh toán, quầy sẽ làm ngay."),
+            "Preparing" => ("Đang pha chế", $"Đơn {orderCode}{at} đang được pha chế."),
+            "Ready" => ("Đơn đã sẵn sàng", $"Đơn {orderCode}{at} đã xong, mời bạn nhận món."),
+            "Remake" => ("Đang pha lại", $"Quầy đang pha lại đơn {orderCode}{at}, xin lỗi vì sự chậm trễ."),
+            "Delivered" => ("Đã giao món", $"Đơn {orderCode}{at} đã được giao."),
+            "Completed" => ("Hoàn tất", $"Đơn {orderCode} đã hoàn tất. Cảm ơn bạn, hãy đánh giá đơn nhé."),
+            "Cancelled" => ("Đơn đã hủy", $"Đơn {orderCode} đã được hủy."),
+            "NoShow" => ("Đơn quá giờ nhận", $"Đơn {orderCode} đã đóng vì quá giờ nhận hàng."),
+            "Unfulfillable" => ("Quán không làm được đơn", $"Rất tiếc, quán không làm được đơn {orderCode}. Nếu đã thanh toán, tiền sẽ được hoàn lại."),
+            _ => ("Cập nhật đơn", $"Đơn {orderCode} có cập nhật mới."),
+        };
+    }
+}
