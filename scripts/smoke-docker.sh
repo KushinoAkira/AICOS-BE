@@ -406,6 +406,26 @@ check "a no-show is refused before the waiting time has passed" 422 "$(status_of
 r=$(call POST "/api/v1/orders/$NSH/no-show" "$BARISTA" '{"reason":"nobody came"}')
 check "the bar cannot record a no-show" 403 "$(status_of "$r")"
 
+
+# ------------------------------------------------------------------ live order tracking and member notifications
+echo
+echo "== live tracking and notifications"
+r=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$GATEWAY/hubs/orders/negotiate?negotiateVersion=1&sessionToken=$GUEST")
+check "the order hub negotiates through the gateway for a table guest" 200 "$r"
+r=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$GATEWAY/hubs/orders/negotiate?negotiateVersion=1&access_token=$MEMBER")
+check "the order hub negotiates through the gateway for a member" 200 "$r"
+
+wait_until "the member has notifications about the orders they paid" "call GET /api/v1/customers/me/notifications \"\$MEMBER\" | sed 's/ [0-9]*\$//' | grep -c '\"kind\":\"Paid\"'" 1
+r=$(call GET /api/v1/customers/me/notifications/unread-count "$MEMBER")
+check "the unread count" 200 "$(status_of "$r")"
+case "$(body_of "$r")" in *'"unread":0'*) check "the member has unread notifications" yes no ;; *) check "the member has unread notifications" yes yes ;; esac
+r=$(call POST /api/v1/customers/me/notifications/read-all "$MEMBER" '{}')
+check "the member marks everything as read" 200 "$(status_of "$r")"
+r=$(call GET /api/v1/customers/me/notifications/unread-count "$MEMBER")
+case "$(body_of "$r")" in *'"unread":0'*) check "nothing is unread any more" yes yes ;; *) check "nothing is unread any more" yes no ;; esac
+r=$(call GET /api/v1/customers/me/notifications "$CASHIER")
+check "staff have no notifications" 403 "$(status_of "$r")"
+
 r=$(call GET "/api/v1/identity/public/subscription-plans" "")
 check "the landing page reads the plans without logging in" 200 "$(status_of "$r")"
 r=$(call GET "/api/v1/identity/subscription-plans" "")

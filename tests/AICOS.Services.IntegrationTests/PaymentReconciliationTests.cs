@@ -38,6 +38,7 @@ public sealed class PaymentReconciliationTests : PaymentTestBase
     [Fact]
     public async Task The_report_flags_payments_that_need_attention()
     {
+        F.Clock.Now = new DateTimeOffset(2026, 10, 26, 3, 0, 0, TimeSpan.Zero);                                  // mid-morning in the shop: the test moves the clock 21 minutes and must not cross midnight
         var stale = await PayOnlineAsync(amount: 10_000);
         var lost = await PayOnlineAsync(amount: 20_000);
         await SimulateAsync(lost.Id(), notify: false);                                                          // paid at the provider, never told

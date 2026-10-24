@@ -66,7 +66,7 @@ Tính toàn vẹn dữ liệu đáng chú ý:
 
 | Hạng mục | Hiện trạng | Nguyên nhân | Hướng giải quyết |
 |---|---|---|---|
-| Guest QR | **Đã hoàn thành (giai đoạn B):** phiên bàn và đơn lưu Postgres có tenant, giỏ hàng dùng chung lưu Redis (Hash), không còn lưu RAM | (đã xử lý) | Còn lại: SignalR cho khách theo dõi đơn (hiện FE hỏi lại định kỳ) |
+| Guest QR | **Đã hoàn thành (giai đoạn B):** phiên bàn và đơn lưu Postgres có tenant, giỏ hàng dùng chung lưu Redis (Hash), không còn lưu RAM | (đã xử lý) | Khách theo dõi đơn thời gian thực qua SignalR (`/hubs/orders`), thành viên có thông báo lưu trong DB |
 | AI Feedback Insights (SCRUM-52) | Chỉ có skeleton, trả 501 | Xem mục 2.3 | Xem mục 2.3 |
 | Khách tự đặt hàng online (SCRUM-80) và ép khung giờ nhận hàng | Chưa có | Phụ thuộc Guest/Customer ordering | Làm sau khi Guest QR được tích hợp |
 | Gửi email thật, dịch vụ Notification | Chưa có | Ngoài phạm vi các sprint đã chốt | Dựng service thông báo, nhận sự kiện từ Redis |
@@ -117,15 +117,15 @@ Gateway có giới hạn tần suất: đăng nhập 10 lần/phút, chat 20 l�
 
 ### 2.2.3 Kiểm thử (số liệu thật)
 
-**Tổng cộng 598 test, 0 lỗi** (lần chạy gần nhất trước commit `15f7fd8`).
+**Tổng cộng 612 test, 0 lỗi** (lần chạy gần nhất trước commit `15f7fd8`).
 
 | Dự án test | Số test |
 |---|---|
 | BuildingBlocks.Tests | 15 |
 | IdentityOrganization.Tests | 157 |
-| Services.IntegrationTests | 383 |
+| Services.IntegrationTests | 397 |
 | Services.SmokeTests | 43 |
-| **Tổng** | **598** |
+| **Tổng** | **612** |
 
 Tích hợp dùng `ServiceFactory<TService,TDbContext>` với InMemory DB, `RecordingEventBus`, `TestClock` và fake client. Bộ test cũng chạy trong smoke test khởi động service và gateway. Ngoài ra, `scripts/smoke-docker.sh` chạy kịch bản đầu cuối trên Docker thật (Production mode): menu, đơn hàng, thu tiền mặt, bếp, hoàn tất đơn, thanh toán online, hoàn tiền ngoại lệ, đối soát, báo cáo, SignalR, thuê bao, điểm và voucher.
 
@@ -135,7 +135,7 @@ Tích hợp dùng `ServiceFactory<TService,TDbContext>` với InMemory DB, `Reco
 
 - **Kích hoạt:** `push` và `pull_request` lên nhánh `main` hoặc `develop`. Có `concurrency` để hủy lần chạy cũ khi đẩy commit mới.
 - **Môi trường:** runner `ubuntu-latest`, cài .NET 8 SDK (`actions/setup-dotnet@v4`), kèm service container PostgreSQL (`pgvector/pgvector:pg16`) và Redis 7, có health check.
-- **Các bước:** `dotnet restore`, `dotnet build --configuration Release --no-restore`, `dotnet test --no-build --configuration Release` (598 test), rồi tải file kết quả `.trx` lên artifact.
+- **Các bước:** `dotnet restore`, `dotnet build --configuration Release --no-restore`, `dotnet test --no-build --configuration Release` (612 test), rồi tải file kết quả `.trx` lên artifact.
 - Secret của test tự cấp trong `TestEnvironment.cs` nên pipeline không cần secret của repo.
 
 Lưu ý trung thực khi trình bày:
@@ -181,7 +181,7 @@ Happy path (đầu cuối, chạy trên Docker thật bằng `scripts/smoke-dock
 4. Điểm thưởng được cộng sau thanh toán, đổi điểm sang voucher, dùng voucher ở đơn kế tiếp.
 5. Báo cáo, đối soát, SignalR negotiate, xem và gia hạn thuê bao.
 
-Unhappy path (nằm trong 598 test): sai quyền (403), thiếu token (401), tenant khác (404), chi nhánh khác (403), khóa tài khoản sau 5 lần sai mật khẩu (`account.temporarily_locked`), voucher sai chủ, sai chi nhánh, hết hạn, đã dùng, chưa đủ đơn tối thiểu, đổi điểm vượt số dư, gia hạn khi chưa đến hạn (`subscription.renewal_not_open`), hủy đơn đã trả (`order.paid`), rate limit 429.
+Unhappy path (nằm trong 612 test): sai quyền (403), thiếu token (401), tenant khác (404), chi nhánh khác (403), khóa tài khoản sau 5 lần sai mật khẩu (`account.temporarily_locked`), voucher sai chủ, sai chi nhánh, hết hạn, đã dùng, chưa đủ đơn tối thiểu, đổi điểm vượt số dư, gia hạn khi chưa đến hạn (`subscription.renewal_not_open`), hủy đơn đã trả (`order.paid`), rate limit 429.
 
 ### Các failure case đã gặp và xử lý thật
 

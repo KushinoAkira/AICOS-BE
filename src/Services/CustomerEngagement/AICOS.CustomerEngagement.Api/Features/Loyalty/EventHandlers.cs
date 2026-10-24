@@ -85,7 +85,7 @@ public sealed class OrderPaidHandler(CustomerEngagementDbContext db, LoyaltyRule
 
 /// <summary>
 /// Order -> Customer: an order was cancelled (SCRUM-133). Unpaid: the voucher used on it is given back, so the member does not lose it.
-/// Paid (a manager exception): the points earned on it are taken back, once. Both are safe to repeat.
+/// Paid (a manager exception, or the shop could not make it): the points earned on it are taken back, once. A no-show keeps the points: the customer paid and the shop earned. All safe to repeat.
 /// </summary>
 public sealed class OrderCancelledLoyaltyHandler(CustomerEngagementDbContext db, LoyaltyRulesService rules, ILogger<OrderCancelledLoyaltyHandler> logger)
     : IIntegrationEventHandler<OrderCancelledIntegrationEvent>
@@ -98,7 +98,7 @@ public sealed class OrderCancelledLoyaltyHandler(CustomerEngagementDbContext db,
             return;
         }
 
-        if (@event.CustomerId is null)
+        if (@event.CustomerId is null || @event.ClosedAs == "NoShow")   // a no-show: the shop kept the money (fully or in part), so the member keeps the points
         {
             return;
         }

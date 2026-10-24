@@ -250,7 +250,7 @@ public static class OrderEndpoints
 
         order.CancelOrder(r.Reason ?? string.Empty, clock.UtcNow);
         await db.SaveChangesAsync(ct);
-        await Qr.TableSessions.CloseIfSettledAsync(db, order.TableSessionId, clock.UtcNow, ct);
+        await Qr.TableSessions.CloseIfSettledAsync(db, order.TableSessionId, clock.UtcNow, events, ct);
         await events.CancelledAsync(order, wasPaid: false, ct);
         return OrderResponse.From(order);
     }
@@ -321,7 +321,7 @@ public static class OrderEndpoints
 
         order.MarkNoShow(reason, now, refundRequested);
         await db.SaveChangesAsync(ct);
-        await Qr.TableSessions.CloseIfSettledAsync(db, order.TableSessionId, now, ct);
+        await Qr.TableSessions.CloseIfSettledAsync(db, order.TableSessionId, now, events, ct);
         await events.CancelledAsync(order, order.IsPaid, ct);
         return OrderResponse.From(order);
     }
@@ -348,7 +348,7 @@ public static class OrderEndpoints
         var now = clock.UtcNow;
         order.MarkUnfulfillable(reason, now, refundRequested);
         await db.SaveChangesAsync(ct);
-        await Qr.TableSessions.CloseIfSettledAsync(db, order.TableSessionId, now, ct);
+        await Qr.TableSessions.CloseIfSettledAsync(db, order.TableSessionId, now, events, ct);
         await events.CancelledAsync(order, order.IsPaid, ct);
         return OrderResponse.From(order);
     }
@@ -371,6 +371,10 @@ public static class OrderEndpoints
         if (order.Status == OrderStatus.Completed)
         {
             await events.CompletedAsync(order, ct);
+        }
+        else
+        {
+            await events.ChangedAsync(order, "Delivered", ct);   // handed over but not paid yet (dine-in): the table screen shows it as served
         }
 
         return OrderResponse.From(order);
