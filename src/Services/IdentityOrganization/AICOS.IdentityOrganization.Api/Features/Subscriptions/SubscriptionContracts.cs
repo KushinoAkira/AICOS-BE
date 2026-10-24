@@ -125,3 +125,14 @@ public sealed record SubscriptionSummaryResponse(
     decimal Outstanding,
     SubscriptionHealth Health,
     int DaysUntilRenewal);
+
+/// <summary>What the landing page shows for a plan that can be bought: no subscriber counts or audit fields.</summary>
+public sealed record PublicPlanResponse(
+    Guid Id,
+    string Name,
+    string Tier,
+    decimal Fee,
+    BillingPeriod BillingPeriod,
+    int? MaxBranches,
+    int? MaxStaffAccounts,
+    string? Description);

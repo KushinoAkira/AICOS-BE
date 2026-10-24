@@ -84,6 +84,49 @@ public sealed class WorkforceCashClosingTests : WorkforceTestBase
         (await other.Client.PostOk(Closings, new { assignmentId = other.Assignment, countedAmount = 130_000 })).GetProperty("difference").GetDecimal().Should().Be(30_000);
     }
 
+    // ------------------------------------------------------------------ the expected amount before counting
+
+    [Fact]
+    public async Task The_cashier_previews_the_expected_amount_and_the_closing_uses_the_same_figure()
+    {
+        var (user, _, assignment, cashier) = await CashierOnShiftAsync();
+        SetLocal(Monday, 8, 0);
+        await CashAsync(user, 120_000);
+        await CashAsync(user, 80_000);
+        await CashAsync(user, -30_000);
+        await CashAsync(user, 777_000, branch: B2);
+        SetLocal(Monday, 12, 0);
+
+        var preview = await (await cashier.GetAsync($"{Closings}/expected?assignmentId={assignment}")).Body();
+
+        preview.GetProperty("assignmentId").GetGuid().Should().Be(assignment);
+        preview.GetProperty("expectedAmount").GetDecimal().Should().Be(170_000);
+        preview.GetProperty("cashReceived").GetDecimal().Should().Be(200_000);
+        preview.GetProperty("cashRefunded").GetDecimal().Should().Be(30_000);
+
+        var closing = await cashier.PostOk(Closings, new { assignmentId = assignment, countedAmount = 170_000 });
+        closing.GetProperty("expectedAmount").GetDecimal().Should().Be(preview.GetProperty("expectedAmount").GetDecimal());
+    }
+
+    [Fact]
+    public async Task The_preview_follows_the_same_shift_rules_as_closing()
+    {
+        var (_, _, assignment, cashier) = await CashierOnShiftAsync();
+        var barista = NewAccount(AicosRoles.Barista, B1, "Pha chế");
+        var otherShift = await NewShiftAsync("Chiều", "13:00", "18:00");
+        var (neverUser, neverEmp) = await NewEmployeeAsync("Chưa Làm", AicosRoles.Cashier);
+        var notWorked = await AssignAsync(neverEmp, otherShift, Monday);
+
+        await cashier.GetAsync($"{Closings}/expected").ShouldBe(400);
+        await Staff(barista, AicosRoles.Barista).GetAsync($"{Closings}/expected?assignmentId={assignment}").ShouldBe(403, "cash_closing.cashier_only");
+        await Staff(neverUser, AicosRoles.Cashier).GetAsync($"{Closings}/expected?assignmentId={notWorked}").ShouldBe(422, "cash_closing.shift_not_worked");
+        await Staff(neverUser, AicosRoles.Cashier).GetAsync($"{Closings}/expected?assignmentId={assignment}").ShouldBe(404);   // a colleague's shift
+
+        SetLocal(Monday, 12, 0);
+        await cashier.PostOk(Closings, new { assignmentId = assignment, countedAmount = 0 });
+        await cashier.GetAsync($"{Closings}/expected?assignmentId={assignment}").ShouldBe(409, "cash_closing.duplicate");
+    }
+
     // ------------------------------------------------------------------ submitting
     [Fact]
     public async Task Only_a_cashier_who_worked_the_shift_closes_it_and_only_once()

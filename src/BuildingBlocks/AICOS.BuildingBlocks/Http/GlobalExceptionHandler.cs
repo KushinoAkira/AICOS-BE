@@ -59,6 +59,11 @@ internal sealed class GlobalExceptionHandler(
             problem.Extensions["correlationId"] = correlationId;
         }
 
+        if (problem.Extensions.TryGetValue("retryAfterSeconds", out var retryAfter) && retryAfter is int seconds)
+        {
+            httpContext.Response.Headers.RetryAfter = seconds.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
+
         httpContext.Response.StatusCode = problem.Status ?? StatusCodes.Status500InternalServerError;
         return await problemDetails.TryWriteAsync(new ProblemDetailsContext
         {
@@ -80,6 +85,14 @@ internal sealed class GlobalExceptionHandler(
         if (exception.ErrorCode is not null)
         {
             problem.Extensions["errorCode"] = exception.ErrorCode;
+        }
+
+        if (exception.Extensions is not null)
+        {
+            foreach (var (key, value) in exception.Extensions)
+            {
+                problem.Extensions[key] = value;
+            }
         }
 
         if (extensions is not null)

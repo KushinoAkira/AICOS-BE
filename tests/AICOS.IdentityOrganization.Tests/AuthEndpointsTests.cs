@@ -150,6 +150,30 @@ public sealed class AuthEndpointsTests : IDisposable
     }
 
     [Fact]
+    public async Task A_locked_account_tells_the_client_when_to_try_again()
+    {
+        await RegisterAsync("hoa@example.com");
+        for (var i = 1; i <= 4; i++)
+        {
+            await LoginAsync("hoa@example.com", "Wrong1234");
+        }
+
+        var fifth = await LoginAsync("hoa@example.com", "Wrong1234");
+        var again = await LoginAsync("hoa@example.com", Password);
+
+        foreach (var response in new[] { fifth, again })
+        {
+            response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+            var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
+            problem.GetProperty("errorCode").GetString().Should().Be("account.temporarily_locked");
+            var seconds = problem.GetProperty("retryAfterSeconds").GetInt32();
+            seconds.Should().BeInRange(1, 15 * 60);
+            problem.GetProperty("lockedUntilUtc").GetDateTime().Should().BeAfter(DateTime.UtcNow.AddMinutes(-1));
+            response.Headers.RetryAfter!.Delta!.Value.TotalSeconds.Should().Be(seconds);
+        }
+    }
+
+    [Fact]
     public async Task Staff_of_a_suspended_branch_cannot_log_in()
     {
         var branch = await CreateBranchAsync();

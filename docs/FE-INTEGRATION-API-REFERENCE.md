@@ -283,3 +283,11 @@ Doanh thu tính theo ngày tiền về; số đơn theo ngày đặt. Số liệ
 - Guest QR (SCRUM-66 đến 117) hiện chạy trong RAM, chưa dùng chung bảng đơn: chưa nối với hàng chờ pha chế và thanh toán.
 - Momo/ZaloPay/VietQR là mô phỏng: `checkoutUrl` của Momo/ZaloPay là link giữ chỗ; VietQR trả URL ảnh QR chuyển khoản thật.
 - Gợi ý phản hồi AI (SCRUM-52), email quên mật khẩu thật, PDF bảng lương: chưa có.
+
+### Bổ sung theo góp ý của FE (đợt 1)
+
+| Việc | Method và endpoint | Quyền | Response |
+|---|---|---|---|
+| Bảng giá landing (không cần đăng nhập) | `GET /identity/public/subscription-plans` | Public | mảng `[ { "id", "name", "tier", "fee", "billingPeriod", "maxBranches", "maxStaffAccounts", "description" } ]`, chỉ gói đang hoạt động, sắp xếp theo giá. Đường dẫn quản trị `GET /identity/subscription-plans` vẫn chỉ cho SuperAdmin. |
+| Tiền mặt dự kiến trước khi chốt két | `GET /workforce/cash-closings/expected?assignmentId=` | Cashier (ca của chính mình) | `{ "assignmentId", "expectedAmount", "cashReceived", "cashRefunded", "sinceUtc", "asOfUtc" }`. Cùng số với lúc nộp chốt két. Lỗi: 400 thiếu `assignmentId`, 403 `cash_closing.cashier_only`, 422 `cash_closing.shift_not_worked`, 404 ca của người khác, 409 `cash_closing.duplicate`. |
+| Thời gian khóa tài khoản | `POST /identity/auth/login` khi bị khóa | Public | 403 `account.temporarily_locked`, thêm `lockedUntilUtc` (giờ UTC) và `retryAfterSeconds` (cũng có header `Retry-After`). FE dùng để đếm ngược. |
