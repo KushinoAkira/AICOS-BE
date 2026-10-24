@@ -31,6 +31,10 @@ public sealed class FakeMenu : IMenuCatalogClient
 
     public void SoldOut(Guid branchId, Guid productId) => _byBranch[branchId].Remove(productId);
 
+    /// <summary>Gives a product option groups, as the Menu service would list them.</summary>
+    public void SetOptions(Guid branchId, Guid productId, params MenuOptionGroupInfo[] groups) =>
+        _byBranch[branchId][productId] = _byBranch[branchId][productId] with { OptionGroups = groups };
+
     public Task<IReadOnlyDictionary<Guid, MenuProductInfo>> GetSellableProductsAsync(Guid branchId, CancellationToken ct) =>
         Task.FromResult<IReadOnlyDictionary<Guid, MenuProductInfo>>(_byBranch.TryGetValue(branchId, out var p) ? new Dictionary<Guid, MenuProductInfo>(p) : []);
 }

@@ -271,6 +271,30 @@ if [ "$(status_of "$r")" != "403" ]; then
   wait_until "the refund by the brand policy is paid back" "call GET /api/v1/orders/$PICKUP_C \"\$MANAGER\" | sed 's/ [0-9]*\$//' | field_of refundStatus" Refunded
 fi
 
+
+# ------------------------------------------------------------------ size and topping options (surcharges)
+echo
+echo "== item options"
+r=$(call POST /api/v1/menu/products "$BRAND" "{\"categoryId\":\"$CATEGORY\",\"name\":\"Tra sua\",\"basePrice\":40000,\"optionGroups\":[{\"name\":\"Size\",\"kind\":\"Size\",\"selectionType\":\"Single\",\"isRequired\":true,\"options\":[{\"name\":\"M\",\"priceDelta\":0,\"isDefault\":true},{\"name\":\"L\",\"priceDelta\":6000,\"isDefault\":false}]},{\"name\":\"Nhiet do\",\"kind\":\"Other\",\"selectionType\":\"Single\",\"isRequired\":false,\"options\":[{\"name\":\"Nong\",\"priceDelta\":0,\"isDefault\":false},{\"name\":\"Lanh\",\"priceDelta\":0,\"isDefault\":false}]},{\"name\":\"Topping\",\"kind\":\"Topping\",\"selectionType\":\"Multiple\",\"isRequired\":false,\"maxSelections\":2,\"options\":[{\"name\":\"Tran chau\",\"priceDelta\":7000,\"isDefault\":false,\"requiresGroup\":\"Nhiet do\",\"requiresOption\":\"Lanh\"},{\"name\":\"Thach\",\"priceDelta\":5000,\"isDefault\":false}]}]}")
+check "a product with size and topping options is created" 201 "$(status_of "$r")"
+TEA=$(body_of "$r" | json_field id)
+OPT_L=$(body_of "$r" | grep -o '"id":"[^"]*","name":"L"' | head -1 | json_field id)
+OPT_COLD=$(body_of "$r" | grep -o '"id":"[^"]*","name":"Lanh"' | head -1 | json_field id)
+OPT_PEARL=$(body_of "$r" | grep -o '"id":"[^"]*","name":"Tran chau"' | head -1 | json_field id)
+OPT_JELLY=$(body_of "$r" | grep -o '"id":"[^"]*","name":"Thach"' | head -1 | json_field id)
+r=$(call PUT "/api/v1/menu/products/$TEA/branches/$BRANCH" "$BRAND" '{"isPublished":true}')
+check "the product is published to the branch" 200 "$(status_of "$r")"
+
+r=$(call POST /api/v1/orders "$CASHIER" "{\"type\":\"Takeaway\",\"items\":[{\"productId\":\"$TEA\",\"quantity\":2,\"optionIds\":[\"$OPT_L\",\"$OPT_COLD\",\"$OPT_PEARL\"]}]}")
+check "an order with size L and a topping" 201 "$(status_of "$r")"
+case "$(body_of "$r")" in *'"finalAmount":106000'*) check "2 x (40000 + 6000 + 7000) = 106000" yes yes ;; *) check "2 x (40000 + 6000 + 7000) = 106000" yes no ;; esac
+r=$(call POST /api/v1/orders "$CASHIER" "{\"type\":\"Takeaway\",\"items\":[{\"productId\":\"$TEA\",\"quantity\":1,\"optionIds\":[\"$OPT_PEARL\"]}]}")
+check "a topping that needs a cold drink is refused without it" 422 "$(status_of "$r")"
+r=$(call POST /api/v1/orders "$CASHIER" "{\"type\":\"Takeaway\",\"items\":[{\"productId\":\"$TEA\",\"quantity\":1}]}")
+case "$(body_of "$r")" in *'"finalAmount":40000'*) check "the default size is used when none is sent" yes yes ;; *) check "the default size is used when none is sent" yes no ;; esac
+r=$(call POST /api/v1/orders "$CASHIER" "{\"type\":\"Takeaway\",\"items\":[{\"productId\":\"$TEA\",\"quantity\":1,\"optionIds\":[\"$OPT_JELLY\",\"$OPT_PEARL\",\"$OPT_COLD\",\"$OPT_L\"]}]}")
+check "two toppings are within the limit" 201 "$(status_of "$r")"
+
 r=$(call GET "/api/v1/identity/public/subscription-plans" "")
 check "the landing page reads the plans without logging in" 200 "$(status_of "$r")"
 r=$(call GET "/api/v1/identity/subscription-plans" "")

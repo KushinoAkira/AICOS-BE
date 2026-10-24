@@ -19,7 +19,8 @@ public sealed record CreateOrderRequest(
     string? Note,
     List<OrderItemRequest>? Items);
 
-public sealed record OrderItemRequest(Guid? ProductId, int? Quantity, string? Note);
+/// <summary><c>OptionIds</c>: the options chosen for the line (size, sugar, ice, toppings) from the product option groups of the menu.</summary>
+public sealed record OrderItemRequest(Guid? ProductId, int? Quantity, string? Note, List<Guid>? OptionIds = null);
 
 public sealed record SwitchServiceTypeRequest(OrderType? Type, Guid? TableId, string? TableNumber, string? DeliveryAddress);
 
@@ -28,7 +29,16 @@ public sealed record CancelOrderRequest(string? Reason);
 /// <summary>POST /orders/{id}/exception. <c>RefundKind</c> is Cancellation (default, the brand policy decides the amount), NoShow, or Exception (needs an amount).</summary>
 public sealed record OrderExceptionRequest(string? Reason, string? RefundKind, decimal? Amount);
 
-public sealed record OrderItemResponse(Guid Id, Guid ProductId, string ProductName, decimal UnitPrice, int Quantity, decimal TotalPrice, string? Note);
+public sealed record OrderItemOptionResponse(Guid OptionId, string GroupName, string Name, decimal PriceDelta);
+
+/// <summary><c>UnitPrice</c> includes the surcharge of the options; <c>BasePrice</c> is the product price without them.</summary>
+public sealed record OrderItemResponse(
+    Guid Id, Guid ProductId, string ProductName, decimal UnitPrice, int Quantity, decimal TotalPrice, string? Note, IReadOnlyList<OrderItemOptionResponse>? Options = null, decimal? BasePrice = null)
+{
+    public static OrderItemResponse From(OrderItem i) => new(
+        i.Id, i.ProductId, i.ProductName, i.UnitPrice, i.Quantity, i.TotalPrice, i.Note,
+        i.Options.Select(o => new OrderItemOptionResponse(o.OptionId, o.GroupName, o.Name, o.PriceDelta)).ToList(), i.UnitPrice - i.Options.Sum(o => o.PriceDelta));
+}
 
 public sealed record OrderResponse(
     Guid Id,
@@ -67,7 +77,7 @@ public sealed record OrderResponse(
         o.Id, o.OrderCode, o.BranchId, o.CashierId, o.CustomerId, o.Type, o.Status, o.PaymentStatus, o.PaymentMethod, o.PaymentProvider, o.PaymentId,
         o.TableId, o.TableNumber, o.DeliveryAddress, o.Note, o.OriginalAmount, o.PromotionCode, o.DiscountAmount, o.FinalAmount, o.RefundedAmount, o.EffectiveRefundStatus,
         o.CreatedAtUtc, o.PaidAtUtc, o.ReadyAtUtc, o.DeliveredAtUtc, o.CompletedAtUtc, o.CancelledAtUtc, o.CancelledReason,
-        o.Items.Select(i => new OrderItemResponse(i.Id, i.ProductId, i.ProductName, i.UnitPrice, i.Quantity, i.TotalPrice, i.Note)).ToList(),
+        o.Items.Select(OrderItemResponse.From).ToList(),
         o.PickupSlotStartUtc, o.PaymentDueAtUtc);
 }
 
@@ -101,7 +111,7 @@ public sealed record PaymentVerificationResponse(
     Guid OrderId, string OrderCode, decimal AmountDue, PaymentStatus PaymentStatus, PaymentMethod? Method, string? Provider, Guid? PaymentId, DateTime? PaidAtUtc,
     decimal RefundedAmount, bool IsPaid);
 
-public sealed record ReceiptItemDto(string ProductName, decimal UnitPrice, int Quantity, decimal TotalPrice, string? Note);
+public sealed record ReceiptItemDto(string ProductName, decimal UnitPrice, int Quantity, decimal TotalPrice, string? Note, IReadOnlyList<string>? Options = null);
 
 /// <summary>The bill (SCRUM-60). <c>IsReprint</c> is true from the second print on.</summary>
 public sealed record ReceiptResponse(
@@ -127,7 +137,7 @@ public sealed record ReceiptResponse(
 {
     public static ReceiptResponse From(Order o, DateTime now) => new(
         o.OrderCode, o.Id, o.BranchId, o.CashierId, o.Type, o.TableNumber, o.DeliveryAddress, o.CreatedAtUtc,
-        o.Items.Select(i => new ReceiptItemDto(i.ProductName, i.UnitPrice, i.Quantity, i.TotalPrice, i.Note)).ToList(),
+        o.Items.Select(i => new ReceiptItemDto(i.ProductName, i.UnitPrice, i.Quantity, i.TotalPrice, i.Note, i.Options.Select(x => x.Name).ToList())).ToList(),
         o.OriginalAmount, o.PromotionCode, o.DiscountAmount, o.FinalAmount, o.PaymentStatus, o.PaymentProvider ?? o.PaymentMethod?.ToString() ?? "Not paid", o.PaidAtUtc,
         o.PrintedCount > 1, o.PrintedCount, o.LastPrintedAtUtc ?? now);
 }

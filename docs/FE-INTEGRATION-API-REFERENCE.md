@@ -326,3 +326,25 @@ Lỗi nên xử lý:
 | 403 `refund.customer_policy_only` | khách chỉ xin được hoàn tiền theo chính sách (loại Cancellation, không nêu số tiền) |
 
 Thay đổi liên quan: `GET /identity/branches/{id}` nay cho mọi người dùng đã đăng nhập trong brand (khách chọn chi nhánh để đặt). Quản lý chi nhánh vẫn chỉ xem chi nhánh của mình.
+
+### Tùy chọn size, đường, đá, topping và phụ thu
+
+Áp dụng cho `POST /orders` (thu ngân) và `POST /orders/pickup` (khách mang đi). Mỗi dòng món nhận thêm `optionIds`: danh sách id tùy chọn lấy từ `optionGroups[].options[].id` của menu (`GET /menu/public/branches/{branchId}/menu`).
+
+```json
+{ "productId": "…", "quantity": 2, "note": "ít đá", "optionIds": ["<id size L>", "<id Lạnh>", "<id Trân châu>"] }
+```
+
+- **Giá do Backend tính:** đơn giá của dòng = giá món (theo chi nhánh) + tổng `priceDelta` của các tùy chọn đã chọn. FE gửi giá nào cũng bị bỏ qua.
+- **Response:** mỗi dòng món có `unitPrice` (đã gồm phụ thu), `basePrice` (giá gốc), `totalPrice` và `options: [ { "optionId", "groupName", "name", "priceDelta" } ]`. Hóa đơn (`/receipt`) có `options` là danh sách tên tùy chọn.
+- **Quầy bar:** nhận tùy chọn trong ghi chú món, theo dạng `L, Kem cheese | ít đá` (tùy chọn trước, ghi chú của khách sau). Phiếu và tem ly hiển thị chuỗi này.
+- **Nhóm bắt buộc (`isRequired`)** mà khách không chọn: dùng tùy chọn mặc định (`isDefault`); không có mặc định thì lỗi `order.option_required`.
+- **Gộp dòng:** cùng món, cùng ghi chú, cùng bộ tùy chọn thì gộp thành một dòng và cộng số lượng; khác bộ tùy chọn thì giữ tách. Gửi trùng một tùy chọn hai lần chỉ tính một lần.
+- **Lưu lại:** tên và phụ thu được sao chép vào đơn lúc đặt, sửa menu sau đó không làm đổi đơn cũ.
+
+| Lỗi | Ý nghĩa |
+|---|---|
+| 422 `order.option_invalid` | tùy chọn không thuộc món này |
+| 422 `order.option_too_many` | nhóm chọn một mà chọn nhiều, hoặc topping vượt `maxSelections` |
+| 422 `order.option_requires` | tùy chọn cần tùy chọn khác đi kèm (`requiresOptionId`, ví dụ trân châu cần Lạnh) |
+| 422 `order.option_required` | nhóm bắt buộc, không chọn và không có mặc định |

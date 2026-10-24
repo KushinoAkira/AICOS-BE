@@ -151,21 +151,22 @@ public class Order : AuditableEntity<Guid>, IBranchScoped
     }
 
     // ------------------------------------------------------------------ items and price
-    public void AddItem(Guid productId, string productName, decimal unitPrice, int quantity, string? note = null)
+    public void AddItem(Guid productId, string productName, decimal unitPrice, int quantity, string? note = null, IReadOnlyList<OrderLineOption>? options = null)
     {
         if (Status is not (OrderStatus.Pending or OrderStatus.Confirmed))
         {
             throw new BusinessRuleException("order.not_editable", "Items can only be added while the order is pending or confirmed.");
         }
 
-        var existing = _items.FirstOrDefault(i => i.ProductId == productId && i.Note == note);
+        var chosen = options ?? [];
+        var existing = _items.FirstOrDefault(i => i.ProductId == productId && i.Note == note && i.HasSameOptions(chosen.Select(o => o.OptionId)));
         if (existing is not null)
         {
             existing.UpdateQuantity(existing.Quantity + quantity);
         }
         else
         {
-            _items.Add(new OrderItem(Id, productId, productName, unitPrice, quantity, note));
+            _items.Add(new OrderItem(Id, productId, productName, unitPrice, quantity, note, chosen));
         }
     }
 

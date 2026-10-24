@@ -280,6 +280,49 @@ namespace AICOS.Ordering.Api.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("AICOS.Ordering.Api.Domain.Entities.OrderLineOption", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("GroupName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("group_name");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("name");
+
+                    b.Property<Guid>("OptionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("option_id");
+
+                    b.Property<Guid>("OrderItemId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("order_item_id");
+
+                    b.Property<decimal>("PriceDelta")
+                        .HasPrecision(18)
+                        .HasColumnType("numeric(18,0)")
+                        .HasColumnName("price_delta");
+
+                    b.HasKey("Id")
+                        .HasName("pk_order_item_options");
+
+                    b.HasIndex("OrderItemId")
+                        .HasDatabaseName("ix_order_item_options_order_item_id");
+
+                    b.ToTable("order_item_options", "ordering", t =>
+                        {
+                            t.HasCheckConstraint("ck_order_item_options_price", "price_delta >= 0");
+                        });
+                });
+
             modelBuilder.Entity("AICOS.Ordering.Api.Domain.OrderFeedback", b =>
                 {
                     b.Property<Guid>("Id")
@@ -421,9 +464,24 @@ namespace AICOS.Ordering.Api.Persistence.Migrations
                         .HasConstraintName("fk_order_items_orders_order_id");
                 });
 
+            modelBuilder.Entity("AICOS.Ordering.Api.Domain.Entities.OrderLineOption", b =>
+                {
+                    b.HasOne("AICOS.Ordering.Api.Domain.Entities.OrderItem", null)
+                        .WithMany("Options")
+                        .HasForeignKey("OrderItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_order_item_options_order_items_order_item_id");
+                });
+
             modelBuilder.Entity("AICOS.Ordering.Api.Domain.Entities.Order", b =>
                 {
                     b.Navigation("Items");
+                });
+
+            modelBuilder.Entity("AICOS.Ordering.Api.Domain.Entities.OrderItem", b =>
+                {
+                    b.Navigation("Options");
                 });
 #pragma warning restore 612, 618
         }
