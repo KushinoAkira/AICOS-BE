@@ -1,52 +1,102 @@
+using AICOS.BuildingBlocks.Domain;
+using AICOS.BuildingBlocks.Exceptions;
 using AICOS.Ordering.Api.Domain.Enums;
 
 namespace AICOS.Ordering.Api.Domain.Entities;
 
-public class Order
+/// <summary>
+/// An order placed at a branch (POS). It belongs to one brand (<see cref="TenantId"/>) and one branch. Money is handled by the Payment
+/// service: this order only records what Payment reported (paid, refunded). Rule violations are <see cref="BusinessRuleException"/>s.
+/// </summary>
+public class Order : AuditableEntity<Guid>, IBranchScoped
 {
-    public Guid Id { get; private set; }
+    public const int NoteMaxLength = 500;
+
+    public Guid TenantId { get; private set; }
+
     public string OrderCode { get; private set; } = string.Empty;
+
     public Guid BranchId { get; private set; }
+
     public Guid? CashierId { get; private set; }
+
     public Guid? CustomerId { get; private set; }
+
     public Guid? TableId { get; private set; }
+
     public string? TableNumber { get; private set; }
+
     public string? DeliveryAddress { get; private set; }
-    
+
     public OrderType Type { get; private set; }
+
     public OrderStatus Status { get; private set; }
+
     public PaymentStatus PaymentStatus { get; private set; }
+
+    /// <summary>The method the payer chose at the counter, or the one that actually paid once <see cref="PaymentStatus"/> is Paid.</summary>
     public PaymentMethod? PaymentMethod { get; private set; }
 
-    public DateTime CreatedAtUtc { get; private set; }
+    /// <summary>The provider that took the money (Cash, Mock, VietQR, Momo, ZaloPay); used by reports.</summary>
+    public string? PaymentProvider { get; private set; }
+
+    /// <summary>The payment in the Payment service that paid this order.</summary>
+    public Guid? PaymentId { get; private set; }
+
+    public DateTime? PaidAtUtc { get; private set; }
+
+    public DateTime? ReadyAtUtc { get; private set; }
+
+    public DateTime? DeliveredAtUtc { get; private set; }
+
+    public Guid? DeliveredBy { get; private set; }
+
     public DateTime? CompletedAtUtc { get; private set; }
+
     public DateTime? CancelledAtUtc { get; private set; }
+
     public string? CancelledReason { get; private set; }
-    
+
     public string? Note { get; private set; }
+
     public string? PromotionCode { get; private set; }
+
     public decimal DiscountAmount { get; private set; }
 
-    // Dùng cho UC_POS_02: In / Gửi hóa đơn
+    public decimal RefundedAmount { get; private set; }
+
+    public RefundStatus RefundStatus { get; private set; }
+
+    /// <summary>Who cancelled a paid order as an exception (the manager) and why; the money follows through a refund.</summary>
+    public Guid? ExceptionBy { get; private set; }
+
     public bool IsPrinted { get; private set; }
+
     public int PrintedCount { get; private set; }
+
     public DateTime? LastPrintedAtUtc { get; private set; }
 
-    // Navigation property
-    private readonly List<OrderItem> _items = new();
+    private readonly List<OrderItem> _items = [];
+
     public IReadOnlyCollection<OrderItem> Items => _items.AsReadOnly();
 
     public decimal OriginalAmount => _items.Sum(i => i.TotalPrice);
+
     public decimal FinalAmount => Math.Max(0, OriginalAmount - DiscountAmount);
 
-    // Compatibility property
     public decimal TotalAmount => FinalAmount;
 
-    protected Order() { }
+    public bool IsPaid => PaymentStatus is PaymentStatus.Paid or PaymentStatus.Refunded;
+
+    protected Order()
+    {
+    }
 
     public Order(
+        Guid tenantId,
         Guid branchId,
         OrderType type,
+        DateTime now,
         Guid? cashierId = null,
         Guid? customerId = null,
         Guid? tableId = null,
@@ -56,7 +106,8 @@ public class Order
         string? note = null)
     {
         Id = Guid.NewGuid();
-        OrderCode = $"ORD-{DateTime.UtcNow:yyyyMMdd}-{Guid.NewGuid().ToString()[..6].ToUpper()}";
+        TenantId = tenantId;
+        OrderCode = $"ORD-{now:yyyyMMdd}-{Guid.NewGuid().ToString()[..6].ToUpperInvariant()}";
         BranchId = branchId;
         CashierId = cashierId;
         CustomerId = customerId;
@@ -66,26 +117,22 @@ public class Order
         DeliveryAddress = type == OrderType.Delivery ? deliveryAddress : null;
         PaymentMethod = paymentMethod;
         Note = note;
-        
         Status = OrderStatus.Pending;
         PaymentStatus = PaymentStatus.Unpaid;
-        CreatedAtUtc = DateTime.UtcNow;
-        DiscountAmount = 0;
-        IsPrinted = false;
-        PrintedCount = 0;
     }
 
-    // --- Domain Behaviors (Logic nghiệp vụ) ---
-
+    // ------------------------------------------------------------------ items and price
     public void AddItem(Guid productId, string productName, decimal unitPrice, int quantity, string? note = null)
     {
-        if (Status != OrderStatus.Pending && Status != OrderStatus.Confirmed)
-            throw new InvalidOperationException("Chỉ có thể thêm món khi đơn hàng đang chờ hoặc đã xác nhận.");
-
-        var existingItem = _items.FirstOrDefault(i => i.ProductId == productId && i.Note == note);
-        if (existingItem != null)
+        if (Status is not (OrderStatus.Pending or OrderStatus.Confirmed))
         {
-            existingItem.UpdateQuantity(existingItem.Quantity + quantity);
+            throw new BusinessRuleException("order.not_editable", "Items can only be added while the order is pending or confirmed.");
+        }
+
+        var existing = _items.FirstOrDefault(i => i.ProductId == productId && i.Note == note);
+        if (existing is not null)
+        {
+            existing.UpdateQuantity(existing.Quantity + quantity);
         }
         else
         {
@@ -93,156 +140,199 @@ public class Order
         }
     }
 
-    public void RemoveItem(Guid orderItemId)
-    {
-        if (Status != OrderStatus.Pending)
-            throw new InvalidOperationException("Chỉ có thể xóa món khi đơn hàng đang chờ xử lý.");
-
-        var item = _items.FirstOrDefault(i => i.Id == orderItemId);
-        if (item != null)
-        {
-            _items.Remove(item);
-        }
-    }
-
-    /// <summary>
-    /// Áp dụng mã khuyến mãi (Alternative Flow A1 của UC_POS_01)
-    /// </summary>
     public void ApplyPromotion(string promoCode, decimal discountAmount)
     {
         if (Status != OrderStatus.Pending)
-            throw new InvalidOperationException("Chỉ có thể áp dụng khuyến mãi khi đơn hàng đang chờ thanh toán.");
-
-        if (discountAmount < 0)
-            throw new ArgumentException("Số tiền giảm giá không được âm.", nameof(discountAmount));
+        {
+            throw new BusinessRuleException("order.not_editable", "A promotion can only be applied to a pending order.");
+        }
 
         PromotionCode = promoCode;
-        DiscountAmount = Math.Min(discountAmount, OriginalAmount);
+        DiscountAmount = Math.Min(Math.Max(0, discountAmount), OriginalAmount);
     }
 
-    /// <summary>
-    /// Quản lý đổi bàn / đổi sang mang về / giao hàng (UC_POS_03)
-    /// </summary>
-    public void SwitchServiceType(OrderType newType, Guid? newTableId = null, string? newTableNumber = null, string? deliveryAddress = null)
+    public void SwitchServiceType(OrderType newType, Guid? tableId = null, string? tableNumber = null, string? deliveryAddress = null)
     {
-        if (Status == OrderStatus.Completed || Status == OrderStatus.Cancelled)
-            throw new InvalidOperationException("Không thể đổi hình thức phục vụ cho đơn hàng đã hoàn tất hoặc đã hủy.");
+        if (Status is OrderStatus.Completed or OrderStatus.Cancelled)
+        {
+            throw new BusinessRuleException("order.closed", "The service type of a completed or cancelled order cannot change.");
+        }
 
         Type = newType;
-        if (newType == OrderType.DineIn)
-        {
-            TableId = newTableId;
-            TableNumber = newTableNumber;
-            DeliveryAddress = null;
-        }
-        else if (newType == OrderType.Delivery)
-        {
-            TableId = null;
-            TableNumber = null;
-            DeliveryAddress = deliveryAddress;
-        }
-        else // Takeaway
-        {
-            TableId = null;
-            TableNumber = null;
-            DeliveryAddress = null;
-        }
+        TableId = newType == OrderType.DineIn ? tableId : null;
+        TableNumber = newType == OrderType.DineIn ? tableNumber : null;
+        DeliveryAddress = newType == OrderType.Delivery ? deliveryAddress : null;
     }
 
-    public void ConfirmOrder()
-    {
-        if (Status != OrderStatus.Pending)
-            throw new InvalidOperationException("Không thể xác nhận đơn hàng ở trạng thái hiện tại.");
-            
-        Status = OrderStatus.Confirmed;
-    }
-
+    // ------------------------------------------------------------------ preparation and hand-over
+    /// <summary>The bar started making the order.</summary>
     public void MarkAsPreparing()
     {
-        if (Status != OrderStatus.Confirmed && Status != OrderStatus.Pending)
-            throw new InvalidOperationException("Đơn hàng phải ở trạng thái xác nhận mới có thể chuyển sang chuẩn bị món.");
-            
-        Status = OrderStatus.Preparing;
+        if (Status is OrderStatus.Pending or OrderStatus.Confirmed)
+        {
+            Status = OrderStatus.Preparing;
+        }
     }
 
-    public void MarkAsReady()
+    /// <summary>The bar finished. Idempotent: a repeated or late message changes nothing.</summary>
+    public void MarkAsReady(DateTime now)
     {
-        if (Status != OrderStatus.Preparing)
-            throw new InvalidOperationException("Chỉ đơn hàng đang chuẩn bị mới có thể chuyển sang sẵn sàng.");
-            
-        Status = OrderStatus.Ready;
+        if (Status is OrderStatus.Pending or OrderStatus.Confirmed or OrderStatus.Preparing)
+        {
+            Status = OrderStatus.Ready;
+            ReadyAtUtc = now;
+        }
     }
 
-    public void CompleteOrder()
+    /// <summary>Staff confirm the customer received the order (SCRUM-61). Completes the order when it is paid; an unpaid dine-in order completes when it is paid.</summary>
+    public void Deliver(Guid? by, DateTime now)
     {
         if (Status == OrderStatus.Cancelled)
-            throw new InvalidOperationException("Không thể hoàn thành đơn hàng đã bị hủy.");
-            
-        Status = OrderStatus.Completed;
-        CompletedAtUtc = DateTime.UtcNow;
+        {
+            throw new BusinessRuleException("order.cancelled", "A cancelled order cannot be delivered.");
+        }
+
+        if (DeliveredAtUtc is not null)
+        {
+            throw new ConflictException("This order was already delivered.", "order.already_delivered");
+        }
+
+        if (Status != OrderStatus.Ready)
+        {
+            throw new BusinessRuleException("order.not_ready", $"Only a ready order can be delivered (this one is {Status}).");
+        }
+
+        DeliveredAtUtc = now;
+        DeliveredBy = by;
+        if (IsPaid)
+        {
+            Complete(now);
+        }
     }
 
-    /// <summary>
-    /// Hủy đơn hàng (UC_POS_04, BR-04)
-    /// BR-04: Đơn hàng chỉ được hủy khi trạng thái chưa "Đã thanh toán"
-    /// </summary>
-    public void CancelOrder(string reason)
+    private void Complete(DateTime now)
     {
-        if (PaymentStatus == PaymentStatus.Paid)
-            throw new InvalidOperationException("BR-04: Không thể hủy đơn hàng đã thanh toán thành công.");
+        Status = OrderStatus.Completed;
+        CompletedAtUtc = now;
+    }
+
+    // ------------------------------------------------------------------ cancellation (BR-04) and the exception path (FR-30)
+    /// <summary>BR-04: an order can only be cancelled while it is not paid.</summary>
+    public void CancelOrder(string reason, DateTime now)
+    {
+        if (Status == OrderStatus.Cancelled)
+        {
+            throw new ConflictException("This order is already cancelled.", "order.already_cancelled");
+        }
+
+        if (IsPaid)
+        {
+            throw new BusinessRuleException("order.paid", "BR-04: a paid order cannot be cancelled this way; ask a manager to handle it as an exception with a refund.");
+        }
 
         if (Status == OrderStatus.Completed)
-            throw new InvalidOperationException("Không thể hủy đơn hàng đã hoàn thành.");
+        {
+            throw new BusinessRuleException("order.closed", "A completed order cannot be cancelled.");
+        }
 
-        if (Status == OrderStatus.Cancelled)
-            throw new InvalidOperationException("Đơn hàng này đã bị hủy trước đó.");
-
-        Status = OrderStatus.Cancelled;
-        CancelledReason = string.IsNullOrWhiteSpace(reason) ? "Khách hủy tại quầy" : reason;
-        CancelledAtUtc = DateTime.UtcNow;
+        Cancel(reason, now);
     }
 
-    /// <summary>
-    /// Thanh toán thành công (UC_POS_01)
-    /// </summary>
-    public void MarkAsPaid(PaymentMethod method)
+    /// <summary>A manager cancels a paid order. The money goes back through a refund request that is tracked as <see cref="RefundStatus"/>.</summary>
+    public void CancelPaidOrderAsException(string reason, Guid? by, DateTime now)
     {
         if (Status == OrderStatus.Cancelled)
-            throw new InvalidOperationException("Không thể thanh toán đơn hàng đã bị hủy.");
+        {
+            throw new ConflictException("This order is already cancelled.", "order.already_cancelled");
+        }
+
+        if (!IsPaid)
+        {
+            throw new BusinessRuleException("order.not_paid", "Only a paid order is handled as an exception.");
+        }
+
+        Cancel(reason, now);
+        ExceptionBy = by;
+        // The refund can be paid back before this order is saved as cancelled (the refund event is fast): then it is already done.
+        RefundStatus = RefundedAmount > 0 ? RefundStatus.Refunded : RefundStatus.RefundPending;
+    }
+
+    private void Cancel(string reason, DateTime now)
+    {
+        Status = OrderStatus.Cancelled;
+        CancelledReason = string.IsNullOrWhiteSpace(reason) ? "Cancelled at the counter." : reason.Trim();
+        CancelledAtUtc = now;
+    }
+
+    // ------------------------------------------------------------------ what the Payment service reports
+    /// <summary>Payment confirmed the money. Idempotent. When the order was already cancelled the money has to be returned.</summary>
+    public void MarkAsPaid(PaymentMethod method, string provider, Guid paymentId, DateTime paidAt)
+    {
+        if (IsPaid)
+        {
+            return;
+        }
 
         PaymentStatus = PaymentStatus.Paid;
         PaymentMethod = method;
+        PaymentProvider = provider;
+        PaymentId = paymentId;
+        PaidAtUtc = paidAt;
 
-        // Nếu đơn đang Pending thì tự động xác nhận chuyển sang làm món
-        if (Status == OrderStatus.Pending)
+        if (Status == OrderStatus.Cancelled)
+        {
+            RefundStatus = RefundStatus.Needed;
+        }
+        else if (Status == OrderStatus.Pending)
         {
             Status = OrderStatus.Confirmed;
         }
+        else if (Status == OrderStatus.Ready && DeliveredAtUtc is not null)
+        {
+            Complete(paidAt);
+        }
     }
 
-    /// <summary>
-    /// Ghi nhận in hóa đơn (UC_POS_02)
-    /// </summary>
-    public void MarkAsPrinted()
+    /// <summary>Payment paid money back. A full refund also marks the order as refunded.</summary>
+    public void ApplyRefund(decimal totalRefunded)
+    {
+        RefundedAmount = Math.Max(RefundedAmount, totalRefunded);
+        if (RefundedAmount >= FinalAmount && FinalAmount > 0)
+        {
+            PaymentStatus = PaymentStatus.Refunded;
+        }
+
+        if (Status == OrderStatus.Cancelled)
+        {
+            RefundStatus = RefundStatus.Refunded;
+        }
+    }
+
+    /// <summary>Payment refused or failed to pay the refund back.</summary>
+    public void RefundFailed()
+    {
+        if (Status == OrderStatus.Cancelled && RefundStatus is RefundStatus.RefundPending or RefundStatus.Needed)
+        {
+            RefundStatus = RefundStatus.RefundFailed;
+        }
+    }
+
+    /// <summary>Payment expired for an unpaid online order (BR-25): the order is released.</summary>
+    public bool CancelBecausePaymentTimedOut(DateTime now)
+    {
+        if (IsPaid || Status is OrderStatus.Cancelled or OrderStatus.Completed)
+        {
+            return false;
+        }
+
+        Cancel("Not paid in time.", now);
+        return true;
+    }
+
+    public void MarkAsPrinted(DateTime now)
     {
         IsPrinted = true;
         PrintedCount++;
-        LastPrintedAtUtc = DateTime.UtcNow;
-    }
-
-    /// <summary>
-    /// Kiểm tra quy tắc BR-09: Tự động hủy đơn thanh toán online sau timeoutMinutes (mặc định 5 phút)
-    /// </summary>
-    public bool IsOnlinePaymentExpired(int timeoutMinutes = 5)
-    {
-        if (PaymentStatus == PaymentStatus.Paid || Status == OrderStatus.Cancelled || Status == OrderStatus.Completed)
-            return false;
-
-        // Nếu phương thức là online (thẻ, ví, chuyển khoản) và chưa trả tiền
-        bool isOnlineMethod = PaymentMethod is Enums.PaymentMethod.EWallet or Enums.PaymentMethod.Card or Enums.PaymentMethod.BankTransfer;
-        if (!isOnlineMethod)
-            return false;
-
-        return (DateTime.UtcNow - CreatedAtUtc).TotalMinutes >= timeoutMinutes;
+        LastPrintedAtUtc = now;
     }
 }

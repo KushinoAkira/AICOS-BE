@@ -11,7 +11,6 @@
     <PackageReference Include="xunit.runner.visualstudio" />
     <PackageReference Include="FluentAssertions" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
     <PackageReference Include="coverlet.collector" />
   </ItemGroup>
 
@@ -27,7 +26,6 @@
     <ProjectReference Include="..\..\src\Services\TableReservation\AICOS.TableReservation.Api\AICOS.TableReservation.Api.csproj" />
     <ProjectReference Include="..\..\src\Services\Ordering\AICOS.Ordering.Api\AICOS.Ordering.Api.csproj" />
     <ProjectReference Include="..\..\src\Services\Payments\AICOS.Payments.Api\AICOS.Payments.Api.csproj" />
-    <ProjectReference Include="..\..\src\Services\InventoryPurchasing\AICOS.InventoryPurchasing.Api\AICOS.InventoryPurchasing.Api.csproj" />
     <ProjectReference Include="..\..\src\Services\KitchenOperations\AICOS.KitchenOperations.Api\AICOS.KitchenOperations.Api.csproj" />
     <ProjectReference Include="..\..\src\Services\WorkforceScheduling\AICOS.WorkforceScheduling.Api\AICOS.WorkforceScheduling.Api.csproj" />
     <ProjectReference Include="..\..\src\Services\ReportingAnalytics\AICOS.ReportingAnalytics.Api\AICOS.ReportingAnalytics.Api.csproj" />
