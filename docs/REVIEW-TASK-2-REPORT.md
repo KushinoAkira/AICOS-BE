@@ -117,15 +117,15 @@ Gateway có giới hạn tần suất: đăng nhập 10 lần/phút, chat 20 l�
 
 ### 2.2.3 Kiểm thử (số liệu thật)
 
-**Tổng cộng 519 test, 0 lỗi** (lần chạy gần nhất trước commit `15f7fd8`).
+**Tổng cộng 523 test, 0 lỗi** (lần chạy gần nhất trước commit `15f7fd8`).
 
 | Dự án test | Số test |
 |---|---|
 | BuildingBlocks.Tests | 15 |
-| IdentityOrganization.Tests | 152 |
-| Services.IntegrationTests | 312 |
+| IdentityOrganization.Tests | 154 |
+| Services.IntegrationTests | 314 |
 | Services.SmokeTests | 40 |
-| **Tổng** | **519** |
+| **Tổng** | **523** |
 
 Tích hợp dùng `ServiceFactory<TService,TDbContext>` với InMemory DB, `RecordingEventBus`, `TestClock` và fake client. Bộ test cũng chạy trong smoke test khởi động service và gateway. Ngoài ra, `scripts/smoke-docker.sh` chạy kịch bản đầu cuối trên Docker thật (Production mode): menu, đơn hàng, thu tiền mặt, bếp, hoàn tất đơn, thanh toán online, hoàn tiền ngoại lệ, đối soát, báo cáo, SignalR, thuê bao, điểm và voucher.
 
@@ -135,7 +135,7 @@ Tích hợp dùng `ServiceFactory<TService,TDbContext>` với InMemory DB, `Reco
 
 - **Kích hoạt:** `push` và `pull_request` lên nhánh `main` hoặc `develop`. Có `concurrency` để hủy lần chạy cũ khi đẩy commit mới.
 - **Môi trường:** runner `ubuntu-latest`, cài .NET 8 SDK (`actions/setup-dotnet@v4`), kèm service container PostgreSQL (`pgvector/pgvector:pg16`) và Redis 7, có health check.
-- **Các bước:** `dotnet restore`, `dotnet build --configuration Release --no-restore`, `dotnet test --no-build --configuration Release` (519 test), rồi tải file kết quả `.trx` lên artifact.
+- **Các bước:** `dotnet restore`, `dotnet build --configuration Release --no-restore`, `dotnet test --no-build --configuration Release` (523 test), rồi tải file kết quả `.trx` lên artifact.
 - Secret của test tự cấp trong `TestEnvironment.cs` nên pipeline không cần secret của repo.
 
 Lưu ý trung thực khi trình bày:

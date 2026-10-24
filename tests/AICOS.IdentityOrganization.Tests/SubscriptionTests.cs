@@ -34,6 +34,28 @@ public sealed class SubscriptionTests : IDisposable
 
     // ------------------------------------------------------------------ plans (UC-06)
     [Fact]
+    public async Task The_landing_page_lists_only_active_plans_without_logging_in_and_without_internal_fields()
+    {
+        var basic = await CreatePlanAsync("Basic", fee: 500_000);
+        var pro = await CreatePlanAsync("Pro", fee: 900_000);
+        var retired = await CreatePlanAsync("Old", fee: 100_000);
+        (await _superAdmin.PatchAsJsonAsync($"{Plans}/{retired.Id}/status", new PlanStatusRequest(false), Json)).EnsureSuccessStatusCode();
+        var anonymous = _factory.CreateClient();
+
+        var response = await anonymous.GetAsync("/api/v1/identity/public/subscription-plans");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var plans = await response.Content.ReadFromJsonAsync<JsonElement>();
+        plans.EnumerateArray().Select(p => p.GetProperty("name").GetString()).Should().Equal("Basic", "Pro");
+        plans[0].GetProperty("fee").GetDecimal().Should().Be(500_000);
+        plans[0].TryGetProperty("subscribers", out _).Should().BeFalse();
+        plans[0].TryGetProperty("isActive", out _).Should().BeFalse();
+
+        // The admin list stays closed to anonymous callers.
+        (await anonymous.GetAsync(Plans)).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
     public async Task Super_admin_creates_lists_updates_and_deactivates_a_plan()
     {
         var plan = await CreatePlanAsync("Basic", fee: 500_000, maxBranches: 1, maxStaff: 3);

@@ -14,6 +14,9 @@ public abstract class AppException(string message, HttpStatusCode statusCode, st
 
     /// <summary>Stable machine-readable code, e.g. "BR-06" or "order.not_found". Clients may switch on it.</summary>
     public string? ErrorCode { get; } = errorCode;
+
+    /// <summary>Extra machine-readable fields returned beside <c>errorCode</c> in the problem response (for example <c>retryAfterSeconds</c>).</summary>
+    public IReadOnlyDictionary<string, object?>? Extensions { get; init; }
 }
 
 public sealed class NotFoundException(string resource, object key)

@@ -20,6 +20,9 @@ public sealed record SubmitCashClosingRequest(Guid? AssignmentId, decimal? Count
 /// </summary>
 public sealed record ConfirmCashClosingRequest(string? Note, bool? AcknowledgeExceptions = null);
 
+/// <summary>What the system expects in the drawer for a shift, shown to the cashier before counting (the counted amount is still typed in blind).</summary>
+public sealed record ExpectedCashResponse(Guid AssignmentId, decimal ExpectedAmount, decimal CashReceived, decimal CashRefunded, DateTime SinceUtc, DateTime AsOfUtc);
+
 public sealed record CashTransactionLine(Guid? OrderId, decimal Amount, DateTime OccurredAtUtc, bool IsRefund);
 
 /// <summary>What a manager reviews before closing a shift (SCRUM-49, 62): the cash that moved, and the orders cancelled after payment during the shift.</summary>
@@ -61,6 +64,7 @@ public static class CashClosingEndpoints
         var group = api.MapGroup("/cash-closings").WithTags("Cash closing");
 
         group.MapPost("/", SubmitAsync).RequireAuthorization(AicosPolicies.Staff);
+        group.MapGet("/expected", ExpectedAsync).RequireAuthorization(AicosPolicies.Staff);
         group.MapGet("/mine", MineAsync).RequireAuthorization(AicosPolicies.Staff);
         group.MapGet("/", ListAsync).RequireAuthorization(AicosPolicies.Management);
         group.MapGet("/{id:guid}", GetAsync).RequireAuthorization(AicosPolicies.Staff).WithName("GetCashClosing");
@@ -99,16 +103,55 @@ public static class CashClosingEndpoints
         }
 
         var now = shop.UtcNow;
-        var since = assignment.EffectiveCheckInUtc.Value;
-        var expected = await db.CashTransactions.AsNoTracking()
-            .Where(t => t.TenantId == assignment.TenantId && t.BranchId == assignment.BranchId && t.CashierUserId == user.UserId
-                        && t.OccurredAtUtc >= since && t.OccurredAtUtc <= now)
-            .SumAsync(t => (decimal?)t.Amount, ct) ?? 0m;
+        var expected = (await ExpectedCashAsync(db, user, assignment, now, ct)).ExpectedAmount;
 
         var closing = new Domain.CashClosing(assignment.TenantId, assignment.BranchId, assignment.Id, assignment.EmployeeId, expected, r.CountedAmount!.Value, r.Note, now);
         db.CashClosings.Add(closing);
         await db.SaveChangesAsync(ct);
         return Results.CreatedAtRoute("GetCashClosing", new { id = closing.Id }, (await MapAsync(db, [closing], ct))[0]);
+    }
+
+    /// <summary>
+    /// The cashier asks what the system expects in the drawer for a worked shift, before counting. Same figure and same shift rules as
+    /// <see cref="SubmitAsync"/> (BR-55), so the preview never disagrees with the closing.
+    /// </summary>
+    private static async Task<ExpectedCashResponse> ExpectedAsync(
+        Guid? assignmentId, WorkforceSchedulingDbContext db, ICurrentUser user, ShopClock shop, CancellationToken ct)
+    {
+        var errors = new ValidationErrors();
+        CommonRules.RequiredId(errors, "AssignmentId", assignmentId, "Shift");
+        errors.ThrowIfAny();
+
+        if (!user.IsInRole(AicosRoles.Cashier))
+        {
+            throw new ForbiddenException("Only a Cashier counts the cash of a shift.", "cash_closing.cashier_only");
+        }
+
+        var assignment = await ScheduleEndpoints.FindOwnAsync(db, user, assignmentId!.Value, ct);
+        if (!ShiftAssignment.ActiveStatuses.Contains(assignment.Status) || assignment.EffectiveCheckInUtc is null)
+        {
+            throw new BusinessRuleException("cash_closing.shift_not_worked", "You can only close the cash of a shift you checked in for.");
+        }
+
+        if (await db.CashClosings.AnyAsync(c => c.AssignmentId == assignment.Id, ct))
+        {
+            throw new ConflictException("The cash of this shift was already closed.", "cash_closing.duplicate");
+        }
+
+        return await ExpectedCashAsync(db, user, assignment, shop.UtcNow, ct);
+    }
+
+    private static async Task<ExpectedCashResponse> ExpectedCashAsync(
+        WorkforceSchedulingDbContext db, ICurrentUser user, ShiftAssignment assignment, DateTime now, CancellationToken ct)
+    {
+        var since = assignment.EffectiveCheckInUtc!.Value;
+        var amounts = await db.CashTransactions.AsNoTracking()
+            .Where(t => t.TenantId == assignment.TenantId && t.BranchId == assignment.BranchId && t.CashierUserId == user.UserId
+                        && t.OccurredAtUtc >= since && t.OccurredAtUtc <= now)
+            .Select(t => t.Amount).ToListAsync(ct);
+
+        return new ExpectedCashResponse(
+            assignment.Id, amounts.Sum(), amounts.Where(a => a > 0).Sum(), -amounts.Where(a => a < 0).Sum(), since, now);
     }
 
     private static async Task<List<CashClosingResponse>> MineAsync(WorkforceSchedulingDbContext db, ICurrentUser user, CancellationToken ct)

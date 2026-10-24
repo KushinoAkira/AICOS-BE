@@ -98,9 +98,8 @@ public static class AuthEndpoints
 
             if (lockedNow)
             {
-                throw new ForbiddenException(
-                    $"Too many failed login attempts. The account is locked for {settings.LockoutMinutes} minutes.",
-                    "account.temporarily_locked");
+                throw TemporarilyLocked(
+                    $"Too many failed login attempts. The account is locked for {settings.LockoutMinutes} minutes.", user.LockoutEndUtc!.Value, now);
             }
 
             var remaining = settings.MaxFailedLoginAttempts - user.FailedLoginCount;
@@ -340,11 +339,21 @@ public static class AuthEndpoints
         if (user.IsLockedOut(now))
         {
             var minutes = (int)Math.Ceiling((user.LockoutEndUtc!.Value - now).TotalMinutes);
-            throw new ForbiddenException(
-                $"Too many failed login attempts. Try again in {minutes} minute(s) or reset your password.",
-                "account.temporarily_locked");
+            throw TemporarilyLocked(
+                $"Too many failed login attempts. Try again in {minutes} minute(s) or reset your password.", user.LockoutEndUtc!.Value, now);
         }
     }
+
+    /// <summary>403 <c>account.temporarily_locked</c> with <c>lockedUntilUtc</c> and <c>retryAfterSeconds</c> (also the Retry-After header) so the client can show a countdown.</summary>
+    private static ForbiddenException TemporarilyLocked(string message, DateTime lockedUntilUtc, DateTime now) =>
+        new(message, "account.temporarily_locked")
+        {
+            Extensions = new Dictionary<string, object?>
+            {
+                ["lockedUntilUtc"] = DateTime.SpecifyKind(lockedUntilUtc, DateTimeKind.Utc),
+                ["retryAfterSeconds"] = Math.Max(1, (int)Math.Ceiling((lockedUntilUtc - now).TotalSeconds)),
+            },
+        };
 
     /// <summary>BR-07: every user of a suspended tenant is denied login.</summary>
     private static async Task EnsureTenantActiveAsync(IdentityOrganizationDbContext db, User user, CancellationToken ct)

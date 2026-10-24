@@ -20,6 +20,9 @@ public static class PlanEndpoints
     {
         var plans = api.MapGroup("/subscription-plans").WithTags("Subscription plans").RequireAuthorization(AicosPolicies.PlatformAdmin);
 
+        // Landing page pricing: no login, active plans only, public fields only.
+        api.MapGet("/public/subscription-plans", PublicListAsync).WithTags("Subscription plans").AllowAnonymous();
+
         plans.MapGet("/", ListAsync);
         plans.MapGet("/{id:guid}", GetAsync).WithName("GetPlan");
         plans.MapPost("/", CreateAsync);
@@ -51,6 +54,11 @@ public static class PlanEndpoints
 
         return new PagedResponse<PlanResponse>(plans.Select(p => PlanResponse.From(p, counts.GetValueOrDefault(p.Id))).ToList(), page, pageSize, total);
     }
+
+    private static async Task<List<PublicPlanResponse>> PublicListAsync(IdentityOrganizationDbContext db, CancellationToken ct) =>
+        await db.SubscriptionPlans.AsNoTracking().Where(p => p.IsActive).OrderBy(p => p.Fee).ThenBy(p => p.Name)
+            .Select(p => new PublicPlanResponse(p.Id, p.Name, p.Tier, p.Fee, p.BillingPeriod, p.MaxBranches, p.MaxStaffAccounts, p.Description))
+            .ToListAsync(ct);
 
     private static async Task<PlanResponse> GetAsync(Guid id, IdentityOrganizationDbContext db, CancellationToken ct)
     {
