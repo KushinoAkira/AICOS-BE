@@ -31,7 +31,7 @@ public sealed class PaymentSucceededHandler(OrderingDbContext db, OrderEventPubl
         var wasCompleted = order.Status == OrderStatus.Completed;
         order.MarkAsPaid(OrderAccess.MethodOf(@event.Method), @event.Method, @event.PaymentId, @event.PaidAtUtc);
         await db.SaveChangesAsync(cancellationToken);
-        await Qr.TableSessions.CloseIfSettledAsync(db, order.TableSessionId, clock.GetUtcNow().UtcDateTime, cancellationToken);   // all rounds of a QR table paid: the sitting ends
+        await Qr.TableSessions.CloseIfSettledAsync(db, order.TableSessionId, clock.GetUtcNow().UtcDateTime, events, cancellationToken);   // all rounds of a QR table paid: the sitting ends
 
         if (!order.IsVoided)
         {
@@ -97,7 +97,7 @@ public sealed class PaymentRefundFailedHandler(OrderingDbContext db) : IIntegrat
 }
 
 /// <summary>The bar started an order.</summary>
-public sealed class KitchenOrderStartedHandler(OrderingDbContext db) : IIntegrationEventHandler<KitchenOrderStartedIntegrationEvent>
+public sealed class KitchenOrderStartedHandler(OrderingDbContext db, OrderEventPublisher events) : IIntegrationEventHandler<KitchenOrderStartedIntegrationEvent>
 {
     public async Task HandleAsync(KitchenOrderStartedIntegrationEvent @event, CancellationToken cancellationToken)
     {
@@ -107,13 +107,18 @@ public sealed class KitchenOrderStartedHandler(OrderingDbContext db) : IIntegrat
             return;
         }
 
+        var before = order.Status;
         order.MarkAsPreparing();
         await db.SaveChangesAsync(cancellationToken);
+        if (order.Status != before)
+        {
+            await events.ChangedAsync(order, "Preparing", cancellationToken);
+        }
     }
 }
 
 /// <summary>The bar finished an order: it is Ready, and cashiers see it (SCRUM-58).</summary>
-public sealed class KitchenOrderReadyHandler(OrderingDbContext db) : IIntegrationEventHandler<KitchenOrderReadyIntegrationEvent>
+public sealed class KitchenOrderReadyHandler(OrderingDbContext db, OrderEventPublisher events) : IIntegrationEventHandler<KitchenOrderReadyIntegrationEvent>
 {
     public async Task HandleAsync(KitchenOrderReadyIntegrationEvent @event, CancellationToken cancellationToken)
     {
@@ -123,13 +128,18 @@ public sealed class KitchenOrderReadyHandler(OrderingDbContext db) : IIntegratio
             return;
         }
 
+        var before = order.Status;
         order.MarkAsReady(@event.ReadyAtUtc);
         await db.SaveChangesAsync(cancellationToken);
+        if (order.Status != before)
+        {
+            await events.ChangedAsync(order, "Ready", cancellationToken);
+        }
     }
 }
 
 /// <summary>The bar made a ready order again ("pha lại"): it is Preparing once more and the cashier screens stop showing it as ready.</summary>
-public sealed class KitchenOrderRemakeHandler(OrderingDbContext db) : IIntegrationEventHandler<KitchenOrderRemakeIntegrationEvent>
+public sealed class KitchenOrderRemakeHandler(OrderingDbContext db, OrderEventPublisher events) : IIntegrationEventHandler<KitchenOrderRemakeIntegrationEvent>
 {
     public async Task HandleAsync(KitchenOrderRemakeIntegrationEvent @event, CancellationToken cancellationToken)
     {
@@ -139,7 +149,12 @@ public sealed class KitchenOrderRemakeHandler(OrderingDbContext db) : IIntegrati
             return;
         }
 
+        var before = order.RemakeCount;
         order.ApplyRemake(@event.RemakeCount);
         await db.SaveChangesAsync(cancellationToken);
+        if (order.RemakeCount != before)
+        {
+            await events.ChangedAsync(order, "Remake", cancellationToken);
+        }
     }
 }

@@ -68,6 +68,24 @@ public sealed class LoyaltyRedemptionTests : IDisposable
     }
 
     [Fact]
+    public async Task A_paid_order_nobody_collected_keeps_its_points_but_an_order_the_shop_could_not_make_loses_them()
+    {
+        var (userId, _, me) = await MemberAsync("Bình");
+        var noShow = Guid.NewGuid();
+        var unfulfillable = Guid.NewGuid();
+        await _f.HandleAsync(Paid(userId, 200_000, noShow));
+        await _f.HandleAsync(Paid(userId, 50_000, unfulfillable));
+
+        var noShowEvent = new OrderCancelledIntegrationEvent(_tenant, noShow, _b1, null, "No-show: nobody came", true, [], DateTime.UtcNow, "ORD-1", userId, null, 200_000, "NoShow");
+        await _f.HandleAsync(noShowEvent);
+        await _f.HandleAsync(noShowEvent);
+        (await BalanceAsync(me)).Should().Be(250);                                                   // the shop kept the money, so the points stay
+
+        await _f.HandleAsync(new OrderCancelledIntegrationEvent(_tenant, unfulfillable, _b1, null, "Unfulfillable: out of milk", true, [], DateTime.UtcNow, "ORD-2", userId, null, 50_000, "Unfulfillable"));
+        (await BalanceAsync(me)).Should().Be(200);                                                   // everything was refunded, so its points go back
+    }
+
+    [Fact]
     public async Task Cancelling_a_paid_order_takes_back_exactly_its_points_once()
     {
         var (userId, _, me) = await MemberAsync("Bình");
