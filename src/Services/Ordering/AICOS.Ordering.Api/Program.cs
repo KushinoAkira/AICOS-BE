@@ -1,52 +1,61 @@
 using AICOS.BuildingBlocks.Hosting;
-using AICOS.BuildingBlocks.Http;
 using AICOS.BuildingBlocks.Messaging;
 using AICOS.BuildingBlocks.Persistence;
-using AICOS.BuildingBlocks.Security;
-using AICOS.Contracts.Events;
 using AICOS.Ordering.Api;
+using AICOS.Ordering.Api.BackgroundServices;
 using AICOS.Ordering.Api.Domain.Interfaces;
 using AICOS.Ordering.Api.Features;
-using AICOS.Ordering.Api.Features.Orders;
-using AICOS.Ordering.Api.Features.PickupSlots;
 using AICOS.Ordering.Api.Persistence;
 using AICOS.Ordering.Api.Services;
+using AICOS.Ordering.Api.Services.Takeaway;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.AddAicosServiceDefaults(OrderingService.Info);
 builder.AddAicosPostgres<OrderingDbContext>(OrderingService.Info);
 builder.AddAicosEventBus();
-builder.Services.AddAicosBranchDirectory(builder.Configuration);   // asks Identity whether a branch belongs to the brand
+// Dùng FakeEventBus trong RAM để test khi máy dev chưa bật Redis (Port 6379)
+builder.Services.AddSingleton<IEventBus, FakeEventBus>();
 
-// Other services. Prices come from Menu, vouchers from Customer, refunds go to Payment; the caller's bearer token is forwarded.
-builder.Services.AddAicosServiceClient<IMenuCatalogClient, HttpMenuCatalogClient>(builder.Configuration, "Menu");
-builder.Services.AddAicosServiceClient<IVoucherClient, HttpVoucherClient>(builder.Configuration, "Customer");
-builder.Services.AddAicosServiceClient<IPaymentClient, HttpPaymentClient>(builder.Configuration, "Payment");
+// Đăng ký In-Memory FakeRepository để dùng làm fallback khi máy dev chưa kết nối PostgreSQL
+builder.Services.AddSingleton<FakeOrderRepository>();
+builder.Services.AddSingleton<FakeQrOrderingRepository>();
 
-builder.Services.AddSingleton<ShopTime>();
-builder.Services.AddScoped<OrderEventPublisher>();
+// Đăng ký Real PostgreSQL Repositories (tương tác trực tiếp với schema 34 bảng của teammate)
+builder.Services.AddScoped<IOrderRepository, PostgresOrderRepository>();
+builder.Services.AddScoped<IQrOrderingRepository, PostgresQrOrderingRepository>();
 
-// What the other services tell us.
-builder.Services.AddIntegrationEventHandler<PaymentSucceededEvent, PaymentSucceededHandler>();
-builder.Services.AddIntegrationEventHandler<PaymentFailedEvent, PaymentFailedHandler>();
-builder.Services.AddIntegrationEventHandler<PaymentRefundedEvent, PaymentRefundedHandler>();
-builder.Services.AddIntegrationEventHandler<PaymentRefundFailedEvent, PaymentRefundFailedHandler>();
-builder.Services.AddIntegrationEventHandler<KitchenOrderStartedIntegrationEvent, KitchenOrderStartedHandler>();
-builder.Services.AddIntegrationEventHandler<KitchenOrderReadyIntegrationEvent, KitchenOrderReadyHandler>();
-
-// Guest QR ordering (SCRUM-66 to 117, another team member). Still on in-memory repositories: no tables, no tenant scoping, not for production.
-builder.Services.AddSingleton<IQrOrderingRepository, FakeQrOrderingRepository>();
+// Đăng ký Redis Cart Service cho Guest QR Ordering (SCRUM-66 -> SCRUM-117)
 builder.Services.AddSingleton<IRedisCartService, RedisCartService>();
+
+// Đăng ký các Mock Service Client (MenuCatalog kiểm tra cờ IsAvailable, CustomerEngagement kiểm tra Voucher)
+builder.Services.AddScoped<IMenuCatalogServiceClient, MockMenuCatalogServiceClient>();
+builder.Services.AddScoped<ICustomerEngagementServiceClient, MockCustomerEngagementServiceClient>();
+
+builder.Services.AddScoped<PickupOrderService>();
+builder.Services.AddScoped<CustomerProfileService>();
+
+// Đăng ký Background Service tự động hủy đơn thanh toán online sau 5 phút (BR-09)
+builder.Services.AddHostedService<OnlineOrderTimeoutWorker>();
+builder.Services.AddHostedService<TakeawayExpiryWorker>();
+builder.Services.AddHostedService<CustomerMaintenanceWorker>();
 
 var app = builder.Build();
 
-await app.MigrateDatabaseAsync<OrderingDbContext>();
+try
+{
+    await app.MigrateDatabaseAsync<OrderingDbContext>();
+}
+catch (Exception ex)
+{
+    app.Logger.LogWarning("Chưa kết nối PostgreSQL ({Message}). Ứng dụng đang chạy ở chế độ In-Memory FakeRepository.", ex.Message);
+}
 app.UseAicosServiceDefaults();
 
 var api = app.MapAicosApiGroup();
-api.MapPickupSlotEndpoints();
-api.MapOrderingEndpoints();
-api.MapQrGuestEndpoints();
+api.MapOrderingEndpoints(); // Đăng ký các endpoint cho POS: UC_POS_01 -> UC_POS_04
+api.MapQrGuestEndpoints();   // Đăng ký các endpoint cho Guest QR: SCRUM-66 -> SCRUM-117
+api.MapPickupEndpoints();    // SCRUM-79 -> 82, 119-121
+api.MapCustomerProfileEndpoints(); // SCRUM-78, 81, 83, 118, 122, 123
 
 await app.RunAsync();

@@ -1,5 +1,4 @@
 using AICOS.BuildingBlocks.Persistence;
-using AICOS.MenuCatalog.Api.Domain;
 using Microsoft.EntityFrameworkCore;
 
 namespace AICOS.MenuCatalog.Api.Persistence;
@@ -8,9 +7,5 @@ public sealed class MenuCatalogDbContext(DbContextOptions<MenuCatalogDbContext> 
 {
     protected override string Schema => MenuCatalogService.Info.Schema;
 
-    public DbSet<Category> Categories => Set<Category>();
-
-    public DbSet<Product> Products => Set<Product>();
-
-    public DbSet<BranchProduct> BranchProducts => Set<BranchProduct>();
+    // public DbSet<Something> Somethings => Set<Something>();
 }

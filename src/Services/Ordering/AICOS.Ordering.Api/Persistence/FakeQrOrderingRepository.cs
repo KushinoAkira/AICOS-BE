@@ -304,10 +304,7 @@ public class FakeQrOrderingRepository : IQrOrderingRepository
             var sessionTable = _sessionTables.FirstOrDefault(st => st.SessionId == sessionId && st.LeftAt == null);
             var table = sessionTable != null ? _tables.FirstOrDefault(t => t.Id == sessionTable.TableId) : null;
 
-            // The Guest QR flow is not tenant-aware yet (no tenant on the QR session), so its orders carry an empty tenant and never reach the real queues.
             var order = new Order(
-                tenantId: Guid.Empty,
-                now: DateTime.UtcNow,
                 branchId: branchId,
                 type: OrderType.DineIn,
                 customerId: customerId,

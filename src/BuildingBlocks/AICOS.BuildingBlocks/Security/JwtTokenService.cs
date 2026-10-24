@@ -24,14 +24,13 @@ public sealed class JwtTokenService(IOptions<JwtOptions> options, TimeProvider c
             new(AicosClaimTypes.Role, role),
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString("N")),
         };
-        if (tenantId is not null)
-        {
-            claims.Add(new Claim(AicosClaimTypes.TenantId, tenantId.Value.ToString()));
-        }
-
         if (branchId is not null)
         {
             claims.Add(new Claim(AicosClaimTypes.BranchId, branchId.Value.ToString()));
+        }
+        if (tenantId is not null)
+        {
+            claims.Add(new Claim(AicosClaimTypes.TenantId, tenantId.Value.ToString()));
         }
 
         var credentials = new SigningCredentials(

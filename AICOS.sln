@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 17
-VisualStudioVersion = 17.0.31903.59
+# Visual Studio Version 18
+VisualStudioVersion = 18.6.11819.183 stable
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "BuildingBlocks", "BuildingBlocks", "{96B7CD0F-7628-48EA-85CF-E8A05F932439}"
 EndProject
@@ -14,6 +14,8 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AICOS.CustomerEngagement.Api", "src\Services\CustomerEngagement\AICOS.CustomerEngagement.Api\AICOS.CustomerEngagement.Api.csproj", "{2E09C28A-B792-453F-B78F-671497CF97FA}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AICOS.IdentityOrganization.Api", "src\Services\IdentityOrganization\AICOS.IdentityOrganization.Api\AICOS.IdentityOrganization.Api.csproj", "{15575F8E-3087-407F-8E32-619F4C45E614}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AICOS.InventoryPurchasing.Api", "src\Services\InventoryPurchasing\AICOS.InventoryPurchasing.Api\AICOS.InventoryPurchasing.Api.csproj", "{0661EA1A-E51A-4A6B-9671-57C3161BA938}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AICOS.KitchenOperations.Api", "src\Services\KitchenOperations\AICOS.KitchenOperations.Api\AICOS.KitchenOperations.Api.csproj", "{A3A4A436-3564-445E-9485-5E0B037AA6D7}"
 EndProject
@@ -39,17 +41,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AICOS.BuildingBlocks.Tests"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AICOS.Services.SmokeTests", "tests\AICOS.Services.SmokeTests\AICOS.Services.SmokeTests.csproj", "{F67F4262-E1D9-4BF9-86E6-FA9D4D90FBC5}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AICOS.IdentityOrganization.Tests", "tests\AICOS.IdentityOrganization.Tests\AICOS.IdentityOrganization.Tests.csproj", "{F188EB55-39B2-4542-91F9-A9C4BD235232}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AICOS.Services.IntegrationTests", "tests\AICOS.Services.IntegrationTests\AICOS.Services.IntegrationTests.csproj", "{AC000B31-F729-49FC-ADE2-B0B9A188CBFA}"
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
 		Release|Any CPU = Release|Any CPU
-	EndGlobalSection
-	GlobalSection(SolutionProperties) = preSolution
-		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{A31FEBAD-1A72-4158-A221-9BE6A4AC2247}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
@@ -68,6 +63,10 @@ Global
 		{15575F8E-3087-407F-8E32-619F4C45E614}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{15575F8E-3087-407F-8E32-619F4C45E614}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{15575F8E-3087-407F-8E32-619F4C45E614}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0661EA1A-E51A-4A6B-9671-57C3161BA938}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0661EA1A-E51A-4A6B-9671-57C3161BA938}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0661EA1A-E51A-4A6B-9671-57C3161BA938}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0661EA1A-E51A-4A6B-9671-57C3161BA938}.Release|Any CPU.Build.0 = Release|Any CPU
 		{A3A4A436-3564-445E-9485-5E0B037AA6D7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{A3A4A436-3564-445E-9485-5E0B037AA6D7}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A3A4A436-3564-445E-9485-5E0B037AA6D7}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -108,20 +107,16 @@ Global
 		{F67F4262-E1D9-4BF9-86E6-FA9D4D90FBC5}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{F67F4262-E1D9-4BF9-86E6-FA9D4D90FBC5}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{F67F4262-E1D9-4BF9-86E6-FA9D4D90FBC5}.Release|Any CPU.Build.0 = Release|Any CPU
-		{F188EB55-39B2-4542-91F9-A9C4BD235232}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{F188EB55-39B2-4542-91F9-A9C4BD235232}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{F188EB55-39B2-4542-91F9-A9C4BD235232}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{F188EB55-39B2-4542-91F9-A9C4BD235232}.Release|Any CPU.Build.0 = Release|Any CPU
-		{AC000B31-F729-49FC-ADE2-B0B9A188CBFA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{AC000B31-F729-49FC-ADE2-B0B9A188CBFA}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{AC000B31-F729-49FC-ADE2-B0B9A188CBFA}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{AC000B31-F729-49FC-ADE2-B0B9A188CBFA}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{A31FEBAD-1A72-4158-A221-9BE6A4AC2247} = {96B7CD0F-7628-48EA-85CF-E8A05F932439}
 		{6358D899-633A-4D31-9270-10C39DA514DF} = {96B7CD0F-7628-48EA-85CF-E8A05F932439}
 		{2E09C28A-B792-453F-B78F-671497CF97FA} = {436DF385-26FD-4523-BE04-AB82AA36251F}
 		{15575F8E-3087-407F-8E32-619F4C45E614} = {436DF385-26FD-4523-BE04-AB82AA36251F}
+		{0661EA1A-E51A-4A6B-9671-57C3161BA938} = {436DF385-26FD-4523-BE04-AB82AA36251F}
 		{A3A4A436-3564-445E-9485-5E0B037AA6D7} = {436DF385-26FD-4523-BE04-AB82AA36251F}
 		{3AD33E6E-764D-40FD-92A3-C163B83C7DA1} = {436DF385-26FD-4523-BE04-AB82AA36251F}
 		{38B6E137-A224-4F12-9F0A-76841F1D93E3} = {436DF385-26FD-4523-BE04-AB82AA36251F}
@@ -132,7 +127,8 @@ Global
 		{1749E351-B32A-40AC-B21A-E0237722286C} = {D994EA88-CB72-40C3-A7A5-5DD1EE3716F2}
 		{DA4D7E98-0D41-4403-852E-E598FC63916E} = {3D43BC88-7676-4F10-91C5-2BC212F5FCB9}
 		{F67F4262-E1D9-4BF9-86E6-FA9D4D90FBC5} = {3D43BC88-7676-4F10-91C5-2BC212F5FCB9}
-		{F188EB55-39B2-4542-91F9-A9C4BD235232} = {3D43BC88-7676-4F10-91C5-2BC212F5FCB9}
-		{AC000B31-F729-49FC-ADE2-B0B9A188CBFA} = {3D43BC88-7676-4F10-91C5-2BC212F5FCB9}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {3078F842-04EF-4E2F-88C9-9CD7AB43864E}
 	EndGlobalSection
 EndGlobal

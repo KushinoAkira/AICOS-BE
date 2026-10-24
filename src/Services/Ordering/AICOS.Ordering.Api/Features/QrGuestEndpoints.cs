@@ -236,11 +236,6 @@ public static class QrGuestEndpoints
                     )).ToList();
 
                     var createdEvent = new OrderCreatedIntegrationEvent(
-                        TenantId: order.TenantId,
-                        OrderCode: order.OrderCode,
-                        TableNumber: order.TableNumber,
-                        IsPaid: order.IsPaid,
-                        ScheduledPickupTimeUtc: null,
                         OrderId: order.Id,
                         BranchId: order.BranchId,
                         CashierId: null,

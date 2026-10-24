@@ -8,17 +8,17 @@ public static class PersistenceExtensions
     /// <summary>
     /// Registers the service's DbContext on PostgreSQL: snake_case naming, migrations history table inside the
     /// service's own schema, audit interceptor, retry-on-failure and a readiness health check.
-    /// Reads <c>ConnectionStrings:Default</c>; when it carries no password, <c>Database:Password</c> (user-secrets / env) is added, so no password lives in a committed file.
+    /// Reads <c>ConnectionStrings:Default</c>.
     /// </summary>
     public static WebApplicationBuilder AddAicosPostgres<TContext>(this WebApplicationBuilder builder, AicosServiceInfo info)
         where TContext : DbContext
     {
-        var connectionString = ResolveConnectionString(builder.Configuration);
+        var connectionString = builder.Configuration.GetConnectionString("Default");
         if (string.IsNullOrWhiteSpace(connectionString))
         {
             throw new InvalidOperationException(
                 $"ConnectionStrings:Default is not configured for service '{info.Name}'. " +
-                "Set ConnectionStrings__Default (compose does), or a connection string without Password plus Database__Password (user-secrets or env).");
+                "Set it in appsettings.Development.json or via env var ConnectionStrings__Default.");
         }
 
         builder.Services.AddScoped<AuditableEntityInterceptor>();
@@ -33,25 +33,6 @@ public static class PersistenceExtensions
             .AddNpgSql(connectionString, name: "postgres", tags: ["ready"]);
 
         return builder;
-    }
-
-    /// <summary>The connection string with the password filled in from <c>Database:Password</c> when the string has none.</summary>
-    public static string? ResolveConnectionString(IConfiguration configuration)
-    {
-        var connectionString = configuration.GetConnectionString("Default");
-        var password = configuration["Database:Password"];
-        if (string.IsNullOrWhiteSpace(connectionString) || string.IsNullOrEmpty(password))
-        {
-            return connectionString;
-        }
-
-        var parsed = new Npgsql.NpgsqlConnectionStringBuilder(connectionString);
-        if (string.IsNullOrEmpty(parsed.Password))
-        {
-            parsed.Password = password;
-        }
-
-        return parsed.ConnectionString;
     }
 
     /// <summary>

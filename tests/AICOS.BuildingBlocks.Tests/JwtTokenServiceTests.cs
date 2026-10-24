@@ -37,7 +37,7 @@ public class JwtTokenServiceTests
     {
         var service = new JwtTokenService(Microsoft.Extensions.Options.Options.Create(Options), TimeProvider.System);
 
-        var (token, _) = service.CreateAccessToken(Guid.NewGuid(), "Admin", AicosRoles.BrandAdmin);
+        var (token, _) = service.CreateAccessToken(Guid.NewGuid(), "Admin", AicosRoles.SystemAdmin);
 
         new JwtSecurityTokenHandler().ReadJwtToken(token).Claims
             .Should().NotContain(c => c.Type == AicosClaimTypes.BranchId);

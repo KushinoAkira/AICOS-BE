@@ -23,13 +23,6 @@ internal sealed class GlobalExceptionHandler(
         {
             ValidationFailedException validation => Build(validation, StatusCodes.Status400BadRequest, extensions: new() { ["errors"] = validation.Errors }),
             AppException app => Build(app, (int)app.StatusCode),
-            BadHttpRequestException badRequest => new ProblemDetails
-            {
-                Status = badRequest.StatusCode,
-                Title = "Malformed request",
-                Detail = badRequest.InnerException?.Message ?? badRequest.Message,
-                Extensions = { ["errorCode"] = "malformed_request" },
-            },
             DbUpdateConcurrencyException => new ProblemDetails
             {
                 Status = StatusCodes.Status409Conflict,
