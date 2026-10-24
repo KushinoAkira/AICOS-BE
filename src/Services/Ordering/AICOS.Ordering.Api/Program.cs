@@ -1,3 +1,4 @@
+using AICOS.BuildingBlocks.Caching;
 using AICOS.BuildingBlocks.Hosting;
 using AICOS.BuildingBlocks.Http;
 using AICOS.BuildingBlocks.Messaging;
@@ -5,10 +6,10 @@ using AICOS.BuildingBlocks.Persistence;
 using AICOS.BuildingBlocks.Security;
 using AICOS.Contracts.Events;
 using AICOS.Ordering.Api;
-using AICOS.Ordering.Api.Domain.Interfaces;
 using AICOS.Ordering.Api.Features;
 using AICOS.Ordering.Api.Features.Orders;
 using AICOS.Ordering.Api.Features.PickupSlots;
+using AICOS.Ordering.Api.Features.Qr;
 using AICOS.Ordering.Api.Persistence;
 using AICOS.Ordering.Api.Services;
 
@@ -27,6 +28,13 @@ builder.Services.AddAicosServiceClient<IPaymentClient, HttpPaymentClient>(builde
 builder.Services.AddSingleton<ShopTime>();
 builder.Services.AddScoped<OrderEventPublisher>();
 builder.Services.AddHostedService<PickupOrderExpiryWorker>();
+builder.Services.AddHostedService<TableSessionExpiryWorker>();
+
+// QR table ordering: the shared cart lives in Redis, sessions and orders in Postgres.
+builder.Services.AddAicosCache();
+builder.Services.AddSingleton<GuestSessionTokens>();
+builder.Services.AddScoped<QrCartStore>();
+builder.Services.AddAicosServiceClient<ITableQrClient, HttpTableQrClient>(builder.Configuration, "Table");
 
 // What the other services tell us.
 builder.Services.AddIntegrationEventHandler<PaymentSucceededEvent, PaymentSucceededHandler>();
@@ -36,9 +44,6 @@ builder.Services.AddIntegrationEventHandler<PaymentRefundFailedEvent, PaymentRef
 builder.Services.AddIntegrationEventHandler<KitchenOrderStartedIntegrationEvent, KitchenOrderStartedHandler>();
 builder.Services.AddIntegrationEventHandler<KitchenOrderReadyIntegrationEvent, KitchenOrderReadyHandler>();
 
-// Guest QR ordering (SCRUM-66 to 117, another team member). Still on in-memory repositories: no tables, no tenant scoping, not for production.
-builder.Services.AddSingleton<IQrOrderingRepository, FakeQrOrderingRepository>();
-builder.Services.AddSingleton<IRedisCartService, RedisCartService>();
 
 var app = builder.Build();
 
@@ -49,6 +54,6 @@ var api = app.MapAicosApiGroup();
 api.MapPickupSlotEndpoints();
 api.MapPickupOrderEndpoints();
 api.MapOrderingEndpoints();
-api.MapQrGuestEndpoints();
+api.MapQrOrderEndpoints();
 
 await app.RunAsync();

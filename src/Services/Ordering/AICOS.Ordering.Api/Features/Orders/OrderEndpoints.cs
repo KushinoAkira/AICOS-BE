@@ -248,6 +248,7 @@ public static class OrderEndpoints
 
         order.CancelOrder(r.Reason ?? string.Empty, clock.UtcNow);
         await db.SaveChangesAsync(ct);
+        await Qr.TableSessions.CloseIfSettledAsync(db, order.TableSessionId, clock.UtcNow, ct);
         await events.CancelledAsync(order, wasPaid: false, ct);
         return OrderResponse.From(order);
     }

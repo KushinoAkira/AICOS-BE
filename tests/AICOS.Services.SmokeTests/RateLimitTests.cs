@@ -83,6 +83,9 @@ public class RateLimitTests(WebApplicationFactory<Program> factory) : IClassFixt
     [InlineData("GET", "/api/v1/identity/auth/login", "all", 600)]
     [InlineData("POST", "/api/v1/ai/chat/messages", "chat", 20)]
     [InlineData("POST", "/api/v1/orders", "all", 600)]
+    [InlineData("POST", "/api/v1/orders/qr/scan", "qr", 120)]
+    [InlineData("GET", "/api/v1/orders/qr/cart", "qr", 120)]
+    [InlineData("GET", "/api/v1/orders/qrx", "all", 600)]
     public void Requests_are_classified_into_budgets(string method, string path, string group, int limit) =>
         RateLimitGroups.Classify(method, path, 600, 10, 20).Should().Be((group, limit));
 }
