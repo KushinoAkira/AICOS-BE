@@ -36,6 +36,8 @@ public static class OrderEndpoints
         group.MapPut("/{id:guid}/service-type", SwitchServiceTypeAsync).RequireAuthorization(b => b.RequireRole(OrderAccess.CounterRoles));
         group.MapPost("/{id:guid}/cancel", CancelAsync).RequireAuthorization(b => b.RequireRole([.. OrderAccess.CounterRoles, AicosRoles.Customer]));
         group.MapPost("/{id:guid}/deliver", DeliverAsync).RequireAuthorization(b => b.RequireRole(OrderAccess.CounterRoles));
+        group.MapPost("/{id:guid}/no-show", NoShowAsync).RequireAuthorization(b => b.RequireRole(OrderAccess.CounterRoles));
+        group.MapPost("/{id:guid}/unfulfillable", UnfulfillableAsync).RequireAuthorization(b => b.RequireRole([.. OrderAccess.CounterRoles, AicosRoles.Barista]));
         group.MapPost("/{id:guid}/exception", ExceptionAsync).RequireAuthorization(AicosPolicies.Management);
     }
 
@@ -287,6 +289,78 @@ public static class OrderEndpoints
         return OrderResponse.From(order);
     }
 
+    /// <summary>
+    /// Nobody came for the order: after the waiting time of the brand policy (from the pickup slot, else from when it was ready) staff close it as a
+    /// no-show. A paid order is refunded by the policy's no-show percentage; when that is 0 the order is still closed and nothing goes back.
+    /// </summary>
+    private static async Task<OrderResponse> NoShowAsync(
+        Guid id, OrderReasonRequest r, OrderingDbContext db, ICurrentUser user, IPaymentClient payments, OrderEventPublisher events, ShopTime clock, CancellationToken ct)
+    {
+        var reason = RequireReason(r);
+        var order = await OrderAccess.LoadAsync(db, user, id, ct);
+        var waitMinutes = await payments.GetNoShowAfterMinutesAsync(ct);
+        var due = (order.PickupSlotStartUtc ?? order.ReadyAtUtc ?? order.CreatedAtUtc).AddMinutes(waitMinutes);
+        var now = clock.UtcNow;
+        order.EnsureCanBeMarkedNoShow(now, due);
+
+        var refundRequested = false;
+        if (order.IsPaid && order.PaymentId is not null)
+        {
+            try
+            {
+                await payments.RequestRefundAsync(order.PaymentId.Value, "NoShow", null, reason, ct);
+                refundRequested = true;
+            }
+            catch (BusinessRuleException ex) when (ex.ErrorCode == "refund.nothing_to_refund")
+            {
+                // the brand keeps the money of a no-show (0%): the order is closed all the same
+            }
+
+            await db.Entry(order).ReloadAsync(ct);   // the refund event may already have reached this service
+        }
+
+        order.MarkNoShow(reason, now, refundRequested);
+        await db.SaveChangesAsync(ct);
+        await Qr.TableSessions.CloseIfSettledAsync(db, order.TableSessionId, now, ct);
+        await events.CancelledAsync(order, order.IsPaid, ct);
+        return OrderResponse.From(order);
+    }
+
+    /// <summary>
+    /// The bar cannot make the order (sold out, machine down) before it is ready. The order is closed, a paid one is refunded in full whatever the
+    /// cancellation policy says, and the ticket leaves the queue (through the cancelled event).
+    /// </summary>
+    private static async Task<OrderResponse> UnfulfillableAsync(
+        Guid id, OrderReasonRequest r, OrderingDbContext db, ICurrentUser user, IPaymentClient payments, OrderEventPublisher events, ShopTime clock, CancellationToken ct)
+    {
+        var reason = RequireReason(r);
+        var order = await OrderAccess.LoadAsync(db, user, id, ct);
+        order.EnsureCanBeMarkedUnfulfillable();
+
+        var refundRequested = false;
+        if (order.IsPaid && order.PaymentId is not null)
+        {
+            await payments.RequestRefundAsync(order.PaymentId.Value, "Unfulfillable", null, reason, ct);
+            refundRequested = true;
+            await db.Entry(order).ReloadAsync(ct);
+        }
+
+        var now = clock.UtcNow;
+        order.MarkUnfulfillable(reason, now, refundRequested);
+        await db.SaveChangesAsync(ct);
+        await Qr.TableSessions.CloseIfSettledAsync(db, order.TableSessionId, now, ct);
+        await events.CancelledAsync(order, order.IsPaid, ct);
+        return OrderResponse.From(order);
+    }
+
+    private static string RequireReason(OrderReasonRequest r)
+    {
+        var errors = new ValidationErrors();
+        CommonRules.Required(errors, "Reason", r.Reason, "Reason", 250);
+        errors.ThrowIfAny();
+        return r.Reason!.Trim();
+    }
+
     /// <summary>Staff confirm the customer received the order (SCRUM-61).</summary>
     private static async Task<OrderResponse> DeliverAsync(
         Guid id, OrderingDbContext db, ICurrentUser user, OrderEventPublisher events, ShopTime clock, CancellationToken ct)
@@ -337,7 +411,7 @@ public static class OrderEndpoints
         errors.ThrowIfAny();
 
         var order = await OrderAccess.LoadAsync(db, user, id, ct);
-        if (order.Status == OrderStatus.Cancelled)
+        if (order.IsVoided)
         {
             throw new ConflictException("This order is already cancelled.", "order.already_cancelled");
         }

@@ -384,3 +384,21 @@ Dành cho nhân viên (đã đăng nhập):
 Giới hạn tần suất: nhóm `/orders/qr` có hạn mức riêng, mặc định 120 lượt mỗi phút cho một địa chỉ IP (`RateLimiting:QrPermitLimitPerMinute`).
 
 Lỗi hay gặp: 401 `qr.session_invalid`, 409 `qr.session_closed`, 422 `qr.item_unavailable`, 422 `qr.cart_full`, 503 `dependency_unavailable` (Redis tạm lỗi, thử lại; giỏ không bị lưu tạm trong RAM nữa).
+
+### Trạng thái đơn NoShow, Unfulfillable và thao tác "pha lại"
+
+**Trạng thái đơn (`status`) có thêm 2 giá trị:** `NoShow` (không ai đến lấy) và `Unfulfillable` (quán không làm được). Cả hai là trạng thái kết thúc, giống `Cancelled`: đơn không tính điểm, voucher chưa dùng được trả lại, chỗ trong khung giờ được giải phóng, phiếu bar biến mất. `cancelledReason` bắt đầu bằng `No-show: ` hoặc `Unfulfillable: `. Đơn có thêm trường `remakeCount`.
+
+| Việc | Method và endpoint | Quyền | Body / Kết quả |
+|---|---|---|---|
+| Ghi nhận khách không đến (NoShow) | `POST /orders/{id}/no-show` | Cashier, Manager, Admin | `{ "reason" }` -> đơn `NoShow`. Chỉ ghi nhận được sau thời gian chờ của chính sách brand (`noShowAfterMinutes`, 5 đến 240 phút) tính từ giờ lấy hàng đã chọn, hoặc từ lúc đơn xong (`readyAtUtc`), hoặc từ lúc tạo đơn. Sớm hơn thì 422 `order.no_show_too_early`. Đơn đã trả được hoàn theo `noShowRefundPercent`; nếu chính sách là 0% thì đơn vẫn đóng nhưng `refundStatus = None`. |
+| Quán không làm được (Unfulfillable) | `POST /orders/{id}/unfulfillable` | **Barista**, Cashier, Manager, Admin | `{ "reason" }` -> đơn `Unfulfillable`. Đơn đã trả được **hoàn 100%** bất kể chính sách (`refundStatus = RefundPending` rồi `Refunded`). Chỉ khi đơn chưa xong: đơn `Ready` hoặc đã giao thì 422 `order.cannot_be_unfulfillable`. |
+| Pha lại (remake) | `POST /kitchen/tickets/{ticketId}/remake` | Barista, Manager, Admin | `{ "reason" }` (tối đa 200 ký tự) -> phiếu về `Brewing`, `remakeCount` tăng, `lastRemakeReason`. Chỉ khi phiếu đang `ReadyForPickup` (chưa giao), nếu không 422 `ticket.not_ready`. Đơn bên Order quay lại `Preparing` (`readyAtUtc = null`) nên thu ngân không giao được cho đến khi bar bấm xong lần nữa. Không tính thêm tiền. |
+
+Màn hình bar: phiếu có thêm `remakeCount` và `lastRemakeReason` để đánh dấu "đã pha lại". Kênh SignalR của bar nhận thông báo đổi trạng thái `Brewing` như thường lệ.
+
+Quy tắc phụ:
+- Lỗi chung: reason trống 400; đơn đã đóng 409 `order.already_cancelled`; đơn đã giao 422 `order.closed` (NoShow); sai chi nhánh 403 `branch.forbidden`; khách hàng 403.
+- Điểm thưởng: no-show và unfulfillable của đơn đã trả đều bị trừ lại điểm đã cộng (cùng quy tắc với hủy đơn đã trả). Voucher đã dùng cho đơn đã trả không được trả lại.
+- Thanh toán đến muộn cho một đơn đã `NoShow` hoặc `Unfulfillable` được đánh dấu `refundStatus = Needed` để hoàn tiền.
+- Hoàn tiền mới của Payment: loại `Unfulfillable` (hoàn toàn bộ, không phải chờ duyệt nếu brand bật tự duyệt); Barista chỉ được xin loại này (`403 refund.bar_unfulfillable_only` với loại khác).

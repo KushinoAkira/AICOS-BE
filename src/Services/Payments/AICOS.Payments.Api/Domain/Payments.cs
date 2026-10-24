@@ -31,6 +31,8 @@ public enum RefundKind
     Cancellation,
     /// <summary>Nobody collected the order: <c>NoShowRefundPercent</c> of the policy.</summary>
     NoShow,
+    /// <summary>The shop could not make the order (sold out, machine down): the whole payment goes back, whatever the policy says. The bar may ask for it.</summary>
+    Unfulfillable,
     /// <summary>Anything else (wrong order, quality complaint...): always an exception that needs the approver.</summary>
     Exception,
 }

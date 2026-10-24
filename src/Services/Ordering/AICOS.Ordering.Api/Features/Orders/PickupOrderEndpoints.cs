@@ -62,7 +62,7 @@ public static class PickupOrderEndpoints
     private static async Task<Dictionary<DateTime, int>> BookedBySlotAsync(OrderingDbContext db, Guid tenantId, Guid branchId, DateTime fromUtc, DateTime toUtc, CancellationToken ct) =>
         (await db.Orders.AsNoTracking()
             .Where(o => o.TenantId == tenantId && o.BranchId == branchId && o.PickupSlotStartUtc != null && o.PickupSlotStartUtc >= fromUtc && o.PickupSlotStartUtc < toUtc
-                        && o.Status != OrderStatus.Cancelled)
+                        && o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.NoShow && o.Status != OrderStatus.Unfulfillable)
             .GroupBy(o => o.PickupSlotStartUtc!.Value)
             .Select(g => new { Slot = g.Key, Count = g.Count() })
             .ToListAsync(ct))
@@ -164,7 +164,7 @@ public static class PickupOrderEndpoints
     private static async Task EnsureRoomAsync(OrderingDbContext db, Guid tenantId, Guid branchId, DateTime slot, int capacity, CancellationToken ct)
     {
         var taken = await db.Orders.AsNoTracking().CountAsync(
-            o => o.TenantId == tenantId && o.BranchId == branchId && o.PickupSlotStartUtc == slot && o.Status != OrderStatus.Cancelled, ct);
+            o => o.TenantId == tenantId && o.BranchId == branchId && o.PickupSlotStartUtc == slot && o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.NoShow && o.Status != OrderStatus.Unfulfillable, ct);
         if (taken >= capacity)
         {
             throw new ConflictException("This pickup slot is full. Please pick another one.", "pickup.slot_full");

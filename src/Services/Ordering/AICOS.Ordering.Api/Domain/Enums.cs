@@ -8,6 +8,8 @@ public enum OrderStatus
     Ready = 4,          // made, waiting to be served
     Completed = 5,      // the customer has it
     Cancelled = 6,
+    NoShow = 7,          // paid or ordered, but nobody came for it: closed by staff after the grace time
+    Unfulfillable = 8,   // the shop could not make it (sold out, machine down); the customer gets the money back
 }
 
 public enum OrderType
