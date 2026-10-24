@@ -18,7 +18,7 @@ internal static class OrderLookup
 }
 
 /// <summary>Payment confirmed the money (card, wallet, transfer or cash at the counter): the order is paid.</summary>
-public sealed class PaymentSucceededHandler(OrderingDbContext db, OrderEventPublisher events) : IIntegrationEventHandler<PaymentSucceededEvent>
+public sealed class PaymentSucceededHandler(OrderingDbContext db, OrderEventPublisher events, TimeProvider clock) : IIntegrationEventHandler<PaymentSucceededEvent>
 {
     public async Task HandleAsync(PaymentSucceededEvent @event, CancellationToken cancellationToken)
     {
@@ -31,6 +31,7 @@ public sealed class PaymentSucceededHandler(OrderingDbContext db, OrderEventPubl
         var wasCompleted = order.Status == OrderStatus.Completed;
         order.MarkAsPaid(OrderAccess.MethodOf(@event.Method), @event.Method, @event.PaymentId, @event.PaidAtUtc);
         await db.SaveChangesAsync(cancellationToken);
+        await Qr.TableSessions.CloseIfSettledAsync(db, order.TableSessionId, clock.GetUtcNow().UtcDateTime, cancellationToken);   // all rounds of a QR table paid: the sitting ends
 
         if (order.Status != OrderStatus.Cancelled)
         {

@@ -71,14 +71,15 @@ public sealed record OrderResponse(
     string? CancelledReason,
     IReadOnlyList<OrderItemResponse> Items,
     DateTime? PickupSlotStartUtc = null,
-    DateTime? PaymentDueAtUtc = null)
+    DateTime? PaymentDueAtUtc = null,
+    Guid? TableSessionId = null)
 {
     public static OrderResponse From(Order o) => new(
         o.Id, o.OrderCode, o.BranchId, o.CashierId, o.CustomerId, o.Type, o.Status, o.PaymentStatus, o.PaymentMethod, o.PaymentProvider, o.PaymentId,
         o.TableId, o.TableNumber, o.DeliveryAddress, o.Note, o.OriginalAmount, o.PromotionCode, o.DiscountAmount, o.FinalAmount, o.RefundedAmount, o.EffectiveRefundStatus,
         o.CreatedAtUtc, o.PaidAtUtc, o.ReadyAtUtc, o.DeliveredAtUtc, o.CompletedAtUtc, o.CancelledAtUtc, o.CancelledReason,
         o.Items.Select(OrderItemResponse.From).ToList(),
-        o.PickupSlotStartUtc, o.PaymentDueAtUtc);
+        o.PickupSlotStartUtc, o.PaymentDueAtUtc, o.TableSessionId);
 }
 
 public sealed record OrderSummary(

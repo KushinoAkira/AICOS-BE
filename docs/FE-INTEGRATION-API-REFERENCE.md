@@ -348,3 +348,39 @@ Thay đổi liên quan: `GET /identity/branches/{id}` nay cho mọi người dù
 | 422 `order.option_too_many` | nhóm chọn một mà chọn nhiều, hoặc topping vượt `maxSelections` |
 | 422 `order.option_requires` | tùy chọn cần tùy chọn khác đi kèm (`requiresOptionId`, ví dụ trân châu cần Lạnh) |
 | 422 `order.option_required` | nhóm bắt buộc, không chọn và không có mặc định |
+
+### Khách quét QR tại bàn gọi món, không cần tài khoản (giai đoạn B)
+
+Đường dẫn gốc `/api/v1/orders/qr`. Thay thế hoàn toàn bản cũ chạy trong RAM (các endpoint `/qr/menu`, `/qr/cart/revalidate`, `/qr/customer/sign-up` đã bỏ).
+
+**Cách hoạt động:** mọi người quét mã QR của cùng một bàn vào cùng một **phiên bàn**, dùng chung một giỏ hàng (lưu Redis) và một hóa đơn. Gọi món nhiều đợt: mỗi lần "Đặt món" tạo một đơn mới trong cùng phiên. Thanh toán ở quầy (thu ngân) hoặc online như mọi đơn.
+
+**Mọi lời gọi sau khi quét phải gửi header** `X-Table-Session: <sessionToken>` (token chỉ có được khi quét đúng mã QR; thiếu hoặc sai thì 401 `qr.session_invalid`).
+
+| Việc | Method và endpoint | Body / Response |
+|---|---|---|
+| Quét mã bàn | `POST /orders/qr/scan` | `{ "qrToken": "<token trong mã QR>" }` -> `{ "sessionToken", "sessionId", "tenantId", "branchId", "tableId", "tableCode", "areaName", "openedAtUtc" }`. Hai điện thoại quét cùng bàn nhận cùng phiên và cùng token. 404 mã không hợp lệ; 422 `qr.ordering_closed` bàn đang ngưng phục vụ. |
+| Lấy menu | `GET /menu/public/branches/{branchId}/menu` (không cần đăng nhập) | dùng `branchId` từ lần quét. `optionGroups[].options[].id` là id để gửi `optionIds`. |
+| Xem giỏ | `GET /orders/qr/cart` | `{ "sessionId", "lines": [ { "lineId", "productId", "productName", "quantity", "note", "unitPrice", "totalPrice", "options": [...], "problem": null } ], "itemCount", "total", "hasProblems" }`. `problem` khác null (`qr.item_unavailable`, `order.option_*`) khi món vừa hết hoặc đổi tùy chọn; dòng đó không tính vào `total`. |
+| Thêm món | `POST /orders/qr/cart/items` | `{ "productId", "quantity": 1-99, "note"?, "optionIds"? }` -> giỏ. Cùng món + ghi chú + tùy chọn thì cộng dồn vào một dòng. Giá luôn lấy từ Menu. Tối đa 50 dòng. |
+| Đổi số lượng | `PUT /orders/qr/cart/items/{lineId}` | `{ "quantity": 0-99 }` (0 là xóa dòng) -> giỏ |
+| Xóa dòng / xóa giỏ | `DELETE /orders/qr/cart/items/{lineId}` / `DELETE /orders/qr/cart` | giỏ / 204 |
+| Đặt món | `POST /orders/qr/checkout` | `{ "note"? }` -> 201 đơn (`type = DineIn`, `tableNumber`, `tableSessionId`). Giỏ được lấy nguyên khối nên bấm hai lần hoặc hai điện thoại cùng bấm chỉ ra một đơn. Có món không đặt được thì 422 `qr.cart_has_problems`, không tạo đơn và giỏ giữ nguyên. Giỏ rỗng 422 `qr.cart_empty`. |
+| Trạng thái các đơn của bàn | `GET /orders/qr/orders` | `[ { "id", "orderCode", "status", "paymentStatus", "itemCount", "finalAmount", "createdAtUtc", "readyAtUtc", "deliveredAtUtc" } ]` (FE hỏi lại định kỳ) |
+| Hóa đơn của bàn | `GET /orders/qr/session/bill` | `{ "sessionId", "tableCode", "status", "orders": [ { "orderId", "orderCode", "status", "paymentStatus", "finalAmount", "items": [...] } ], "total", "paid", "due" }`. Đơn đã hủy có trong danh sách nhưng không tính tiền. |
+
+Tích điểm: khách gọi món ẩn danh thì không có điểm. Muốn tích điểm, khách đăng nhập (thành viên của đúng brand) rồi gửi thêm `Authorization: Bearer` cùng header phiên khi `checkout`; đơn sẽ gắn với tài khoản đó. Dùng chung luồng `/auth/register` và `/auth/login`.
+
+**Phiên bàn kết thúc khi:** mọi đơn không bị hủy của phiên đều đã thanh toán; hoặc thu ngân/quản lý đóng; hoặc 6 giờ không có hoạt động (`Ordering:Qr:SessionIdleHours`). Sau đó thêm món hoặc đặt món trả 409 `qr.session_closed` (vẫn xem được hóa đơn và đơn); quét lại mã để mở phiên mới.
+
+Dành cho nhân viên (đã đăng nhập):
+
+| Việc | Endpoint | Ghi chú |
+|---|---|---|
+| Các bàn đang mở | `GET /orders/qr/sessions?branchId=` | `[ { "id", "tableCode", "openedAtUtc", "lastActivityAtUtc", "orders", "due" } ]` |
+| Hóa đơn của một bàn | `GET /orders/qr/sessions/{id}/bill` | như hóa đơn của khách. Thu tiền từng đơn bằng `POST /payments/transactions/cash`. |
+| Đóng bàn | `POST /orders/qr/sessions/{id}/close` | 204. Đơn chưa trả vẫn nguyên để quầy xử lý. |
+
+Giới hạn tần suất: nhóm `/orders/qr` có hạn mức riêng, mặc định 120 lượt mỗi phút cho một địa chỉ IP (`RateLimiting:QrPermitLimitPerMinute`).
+
+Lỗi hay gặp: 401 `qr.session_invalid`, 409 `qr.session_closed`, 422 `qr.item_unavailable`, 422 `qr.cart_full`, 503 `dependency_unavailable` (Redis tạm lỗi, thử lại; giỏ không bị lưu tạm trong RAM nữa).

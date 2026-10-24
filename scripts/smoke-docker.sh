@@ -295,6 +295,72 @@ case "$(body_of "$r")" in *'"finalAmount":40000'*) check "the default size is us
 r=$(call POST /api/v1/orders "$CASHIER" "{\"type\":\"Takeaway\",\"items\":[{\"productId\":\"$TEA\",\"quantity\":1,\"optionIds\":[\"$OPT_JELLY\",\"$OPT_PEARL\",\"$OPT_COLD\",\"$OPT_L\"]}]}")
 check "two toppings are within the limit" 201 "$(status_of "$r")"
 
+
+# ------------------------------------------------------------------ table QR ordering without an account (stage B)
+echo
+echo "== table QR ordering"
+r=$(call POST /api/v1/tables/areas "$BRAND" "{\"branchId\":\"$BRANCH\",\"name\":\"Tang tret\"}")
+check "an area is created" 201 "$(status_of "$r")"
+AREA=$(body_of "$r" | json_field id)
+r=$(call POST /api/v1/tables/dining-tables "$BRAND" "{\"branchId\":\"$BRANCH\",\"areaId\":\"$AREA\",\"tableCode\":\"A1\",\"capacity\":4}")
+check "a table is created with a QR code" 201 "$(status_of "$r")"
+QRTOKEN=$(body_of "$r" | json_field qrToken)
+
+r=$(call POST /api/v1/orders/qr/scan "" "{\"qrToken\":\"$QRTOKEN\"}")
+check "a guest scans the table code" 200 "$(status_of "$r")"
+GUEST=$(body_of "$r" | json_field sessionToken)
+SESSION=$(body_of "$r" | json_field sessionId)
+r=$(call POST /api/v1/orders/qr/scan "" "{\"qrToken\":\"$QRTOKEN\"}")
+[ "$(body_of "$r" | json_field sessionId)" = "$SESSION" ] && check "a second phone joins the same session" yes yes || check "a second phone joins the same session" yes no
+r=$(call POST /api/v1/orders/qr/scan "" '{"qrToken":"not-a-table"}')
+check "an unknown code is refused" 404 "$(status_of "$r")"
+
+qr() { # method path body -> "<status> <body>" with the table session header
+  curl -s -w ' %{http_code}' -X "$1" "$GATEWAY$2" -H "Content-Type: application/json" -H "X-Table-Session: $GUEST" ${3:+-d "$3"}
+}
+r=$(curl -s -w ' %{http_code}' "$GATEWAY/api/v1/orders/qr/cart")
+check "the cart needs the session token" 401 "$(status_of "$r")"
+r=$(qr POST /api/v1/orders/qr/cart/items "{\"productId\":\"$PRODUCT\",\"quantity\":2,\"note\":\"less ice\"}")
+check "an item goes into the shared cart" 200 "$(status_of "$r")"
+case "$(body_of "$r")" in *'"total":70000'*) check "the cart is priced from the menu (2 x 35000)" yes yes ;; *) check "the cart is priced from the menu (2 x 35000)" yes no ;; esac
+r=$(qr POST /api/v1/orders/qr/cart/items "{\"productId\":\"$TEA\",\"quantity\":1,\"optionIds\":[\"$OPT_L\"]}")
+check "an item with a size is added" 200 "$(status_of "$r")"
+case "$(body_of "$r")" in *'"total":116000'*) check "70000 + (40000 + 6000) = 116000" yes yes ;; *) check "70000 + (40000 + 6000) = 116000" yes no ;; esac
+r=$(qr GET /api/v1/orders/qr/cart)
+check "the other phone reads the same cart" 200 "$(status_of "$r")"
+
+r=$(qr POST /api/v1/orders/qr/checkout '{"note":"Table A1"}')
+check "the table orders (round 1)" 201 "$(status_of "$r")"
+QORDER=$(body_of "$r" | json_field id)
+case "$(body_of "$r")" in *'"tableNumber":"A1"'*) check "the order carries the table" yes yes ;; *) check "the order carries the table" yes no ;; esac
+r=$(qr POST /api/v1/orders/qr/checkout '{}')
+check "an empty cart is not an order" 422 "$(status_of "$r")"
+wait_until "the bar queue shows the table order at once" "call GET /api/v1/kitchen/queue \"\$BARISTA\" | grep -c $QORDER" 1
+
+r=$(qr POST /api/v1/orders/qr/cart/items "{\"productId\":\"$PRODUCT\",\"quantity\":1}")
+r=$(qr POST /api/v1/orders/qr/checkout '{}')
+check "the table orders again (round 2)" 201 "$(status_of "$r")"
+QORDER2=$(body_of "$r" | json_field id)
+r=$(qr GET /api/v1/orders/qr/session/bill)
+check "the table bill" 200 "$(status_of "$r")"
+case "$(body_of "$r")" in *'"total":151000'*'"due":151000'*) check "bill = 116000 + 35000, all due" yes yes ;; *) check "bill = 116000 + 35000, all due" yes no ;; esac
+r=$(call GET /api/v1/orders/qr/sessions "$CASHIER")
+check "the cashier lists the open tables" 200 "$(status_of "$r")"
+case "$(body_of "$r")" in *'"tableCode":"A1"'*) check "table A1 is listed" yes yes ;; *) check "table A1 is listed" yes no ;; esac
+
+r=$(call POST /api/v1/payments/transactions/cash "$CASHIER" "{\"orderId\":\"$QORDER\",\"amount\":116000}")
+check "round 1 is paid at the counter" 201 "$(status_of "$r")"
+wait_until "the session stays open while a round is unpaid" "call GET /api/v1/orders/qr/sessions \"\$CASHIER\" | sed 's/ [0-9]*\$//' | grep -c A1" 1
+r=$(call POST /api/v1/payments/transactions/cash "$CASHIER" "{\"orderId\":\"$QORDER2\",\"amount\":35000}")
+check "round 2 is paid at the counter" 201 "$(status_of "$r")"
+wait_until "the session closes when everything is paid" "call GET /api/v1/orders/qr/sessions \"\$CASHIER\" | sed 's/ [0-9]*\$//' | grep -c A1" 0
+r=$(qr POST /api/v1/orders/qr/cart/items "{\"productId\":\"$PRODUCT\",\"quantity\":1}")
+check "a closed session takes no more orders" 409 "$(status_of "$r")"
+r=$(qr GET /api/v1/orders/qr/session/bill)
+check "the closed session bill can still be read" 200 "$(status_of "$r")"
+r=$(call POST /api/v1/orders/qr/scan "" "{\"qrToken\":\"$QRTOKEN\"}")
+[ "$(body_of "$r" | json_field sessionId)" != "$SESSION" ] && check "a new scan opens a new session" yes yes || check "a new scan opens a new session" yes no
+
 r=$(call GET "/api/v1/identity/public/subscription-plans" "")
 check "the landing page reads the plans without logging in" 200 "$(status_of "$r")"
 r=$(call GET "/api/v1/identity/subscription-plans" "")

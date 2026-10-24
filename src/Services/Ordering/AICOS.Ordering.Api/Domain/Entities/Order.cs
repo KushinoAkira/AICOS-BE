@@ -79,6 +79,9 @@ public class Order : AuditableEntity<Guid>, IBranchScoped
     /// <summary>Lets the app retry "place order" after a lost response without creating a second order. Unique per customer.</summary>
     public string? IdempotencyKey { get; private set; }
 
+    /// <summary>The QR table session this order was placed in (several rounds share one bill). Null for counter and pickup orders.</summary>
+    public Guid? TableSessionId { get; private set; }
+
     public bool IsPrinted { get; private set; }
 
     public int PrintedCount { get; private set; }
@@ -149,6 +152,8 @@ public class Order : AuditableEntity<Guid>, IBranchScoped
         PaymentDueAtUtc = paymentDueAtUtc;
         IdempotencyKey = string.IsNullOrWhiteSpace(idempotencyKey) ? null : idempotencyKey.Trim();
     }
+
+    public void AttachToTableSession(Guid tableSessionId) => TableSessionId = tableSessionId;
 
     // ------------------------------------------------------------------ items and price
     public void AddItem(Guid productId, string productName, decimal unitPrice, int quantity, string? note = null, IReadOnlyList<OrderLineOption>? options = null)
