@@ -12,6 +12,7 @@ public sealed class AuthenticationService(
     IdentityOrganizationDbContext dbContext,
     IPasswordHasher<UserAccount> passwordHasher,
     JwtTokenService tokenService,
+    RefreshTokenFactory refreshTokenFactory,
     ILogger<AuthenticationService> logger)
 {
     public async Task<LoginResponse> LoginAsync(LoginRequest request, CancellationToken cancellationToken)
@@ -46,6 +47,8 @@ public sealed class AuthenticationService(
                 RequiresBranchSelection: true,
                 AccessToken: null,
                 ExpiresAtUtc: null,
+                RefreshToken: null,
+                RefreshTokenExpiresAtUtc: null,
                 Staff: null,
                 Branches: assignments.Select(ToBranchOption).ToList());
         }
@@ -68,6 +71,9 @@ public sealed class AuthenticationService(
             user.FullName,
             role,
             assignment.BranchId);
+        var refreshToken = refreshTokenFactory.Create(user.Id, assignment.BranchId);
+        dbContext.RefreshSessions.Add(refreshToken.Session);
+        await dbContext.SaveChangesAsync(cancellationToken);
 
         logger.LogInformation(
             "User {UserId} signed in to branch {BranchId} as {Role}",
@@ -79,15 +85,9 @@ public sealed class AuthenticationService(
             RequiresBranchSelection: false,
             AccessToken: token,
             ExpiresAtUtc: expiresAtUtc,
-            Staff: new StaffProfileResponse(
-                user.Id,
-                user.FullName,
-                user.Email,
-                role,
-                assignment.TenantUser.TenantId,
-                assignment.BranchId,
-                assignment.Branch.Code,
-                assignment.Branch.Name),
+            RefreshToken: refreshToken.PlainText,
+            RefreshTokenExpiresAtUtc: refreshToken.Session.ExpiresAtUtc,
+            Staff: ToStaffProfile(assignment, role),
             Branches: assignments.Select(ToBranchOption).ToList());
     }
 
@@ -99,7 +99,18 @@ public sealed class AuthenticationService(
     private static BranchOptionResponse ToBranchOption(StaffAssignment assignment) =>
         new(assignment.Branch.Id, assignment.Branch.Code, assignment.Branch.Name);
 
-    private static string MapRole(string code) => code.Trim().ToUpperInvariant() switch
+    internal static StaffProfileResponse ToStaffProfile(StaffAssignment assignment, string role) =>
+        new(
+            assignment.TenantUser.User.Id,
+            assignment.TenantUser.User.FullName,
+            assignment.TenantUser.User.Email,
+            role,
+            assignment.TenantUser.TenantId,
+            assignment.BranchId,
+            assignment.Branch.Code,
+            assignment.Branch.Name);
+
+    internal static string MapRole(string code) => code.Trim().ToUpperInvariant() switch
     {
         "SYSTEM_ADMIN" or "SYSTEMADMIN" => AicosRoles.SystemAdmin,
         "MANAGER" => AicosRoles.Manager,

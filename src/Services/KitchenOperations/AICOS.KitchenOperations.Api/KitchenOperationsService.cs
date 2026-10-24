@@ -9,7 +9,7 @@ public sealed class KitchenOperationsService
         Name: "kitchen",
         DisplayName: "Kitchen Operations Service",
         RoutePrefix: "kitchen",
-        Schema: "kitchen");
+        Schema: "public");
 
     private KitchenOperationsService()
     {

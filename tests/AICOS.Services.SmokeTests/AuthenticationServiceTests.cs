@@ -7,6 +7,7 @@ using AICOS.BuildingBlocks.Security;
 using AICOS.IdentityOrganization.Api;
 using AICOS.IdentityOrganization.Api.Domain;
 using AICOS.IdentityOrganization.Api.Features.Authentication;
+using AICOS.IdentityOrganization.Api.Features.StaffProvisioning;
 using AICOS.IdentityOrganization.Api.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -24,6 +25,11 @@ public sealed class AuthenticationServiceTests
         Audience = "aicos-test-clients",
         SigningKey = "identity-test-signing-key-0123456789-abcdef",
         ExpiryMinutes = 30,
+    };
+
+    private static readonly RefreshTokenOptions RefreshTokenOptions = new()
+    {
+        ExpiryDays = 30,
     };
 
     [Fact]
@@ -64,6 +70,48 @@ public sealed class AuthenticationServiceTests
     }
 
     [Fact]
+    public async Task Refresh_endpoint_validates_request_before_database_access()
+    {
+        await using var factory = new WebApplicationFactory<IdentityOrganizationService>();
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync(
+            "/api/v1/identity/auth/refresh",
+            new RefreshRequest(string.Empty));
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task Me_endpoint_requires_an_access_token()
+    {
+        await using var factory = new WebApplicationFactory<IdentityOrganizationService>();
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/api/v1/identity/auth/me");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task Staff_provisioning_endpoint_requires_a_management_token()
+    {
+        await using var factory = new WebApplicationFactory<IdentityOrganizationService>();
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync(
+            "/api/v1/identity/staff",
+            new CreateStaffRequest(
+                "cashier@aicos.vn",
+                "Strong-password-123!",
+                "Thu ngân AICOS",
+                Guid.NewGuid(),
+                AicosRoles.Cashier));
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
     public async Task Login_issues_branch_scoped_token_for_active_staff()
     {
         await using var context = CreateContext();
@@ -77,6 +125,11 @@ public sealed class AuthenticationServiceTests
         response.RequiresBranchSelection.Should().BeFalse();
         response.Staff!.BranchId.Should().Be(data.BranchIds[0]);
         response.Staff.Role.Should().Be(AicosRoles.Waiter);
+        response.RefreshToken.Should().NotBeNullOrWhiteSpace();
+        response.RefreshTokenExpiresAtUtc.Should().BeAfter(DateTime.UtcNow.AddDays(29));
+        var storedSession = context.RefreshSessions.Should().ContainSingle().Subject;
+        storedSession.TokenHash.Should().NotBe(response.RefreshToken);
+        storedSession.TokenHash.Should().Be(RefreshTokenFactory.Hash(response.RefreshToken!));
         var token = new JwtSecurityTokenHandler().ReadJwtToken(response.AccessToken);
         token.Claims.Single(claim => claim.Type == AicosClaimTypes.BranchId).Value
             .Should().Be(data.BranchIds[0].ToString());
@@ -113,6 +166,133 @@ public sealed class AuthenticationServiceTests
         exception.Which.ErrorCode.Should().Be("auth.invalid_credentials");
     }
 
+    [Fact]
+    public async Task Refresh_rotates_token_and_rejects_the_previous_token()
+    {
+        await using var context = CreateContext();
+        var data = await SeedAsync(context, branchCount: 1);
+        var login = await CreateService(context).LoginAsync(
+            new LoginRequest(data.User.Email, "Correct-password-123", null),
+            CancellationToken.None);
+        var sessions = CreateSessionService(context);
+
+        var refreshed = await sessions.RefreshAsync(
+            new RefreshRequest(login.RefreshToken!),
+            CancellationToken.None);
+
+        refreshed.RefreshToken.Should().NotBe(login.RefreshToken);
+        context.RefreshSessions.Should().HaveCount(2);
+        var action = () => sessions.RefreshAsync(
+            new RefreshRequest(login.RefreshToken!),
+            CancellationToken.None);
+        var exception = await action.Should().ThrowAsync<UnauthorizedException>();
+        exception.Which.ErrorCode.Should().Be("auth.invalid_refresh_token");
+    }
+
+    [Fact]
+    public async Task Logout_is_idempotent_and_revokes_refresh_token()
+    {
+        await using var context = CreateContext();
+        var data = await SeedAsync(context, branchCount: 1);
+        var login = await CreateService(context).LoginAsync(
+            new LoginRequest(data.User.Email, "Correct-password-123", null),
+            CancellationToken.None);
+        var sessions = CreateSessionService(context);
+        var request = new LogoutRequest(login.RefreshToken!);
+
+        await sessions.LogoutAsync(request, CancellationToken.None);
+        await sessions.LogoutAsync(request, CancellationToken.None);
+
+        var action = () => sessions.RefreshAsync(
+            new RefreshRequest(login.RefreshToken!),
+            CancellationToken.None);
+        await action.Should().ThrowAsync<UnauthorizedException>();
+    }
+
+    [Fact]
+    public async Task Me_returns_the_active_branch_scoped_profile()
+    {
+        await using var context = CreateContext();
+        var data = await SeedAsync(context, branchCount: 1);
+
+        var profile = await CreateSessionService(context).GetCurrentAsync(
+            new TestCurrentUser(data.User.Id, data.BranchIds[0]),
+            CancellationToken.None);
+
+        profile.UserId.Should().Be(data.User.Id);
+        profile.BranchId.Should().Be(data.BranchIds[0]);
+        profile.Role.Should().Be(AicosRoles.Waiter);
+    }
+
+    [Fact]
+    public async Task Manager_can_provision_staff_only_in_their_branch()
+    {
+        await using var context = CreateContext();
+        var data = await SeedAsync(context, branchCount: 2);
+        var service = CreateProvisioningService(context);
+
+        var created = await service.CreateAsync(
+            new CreateStaffRequest(
+                "cashier@aicos.vn",
+                "Strong-password-123!",
+                "Thu ngân AICOS",
+                data.BranchIds[0],
+                "CASHIER"),
+            new TestCurrentUser(data.User.Id, data.BranchIds[0], AicosRoles.Manager),
+            CancellationToken.None);
+
+        created.Role.Should().Be(AicosRoles.Cashier);
+        created.BranchId.Should().Be(data.BranchIds[0]);
+        context.Users.Should().Contain(user => user.Email == "cashier@aicos.vn");
+        context.Roles.Should().Contain(role => role.Code == "CASHIER");
+        context.TenantUsers.Should().HaveCount(2);
+        context.StaffAssignments.Should().HaveCount(3);
+
+        var crossBranch = () => service.CreateAsync(
+            new CreateStaffRequest(
+                "other@aicos.vn",
+                "Strong-password-123!",
+                "Nhân viên khác",
+                data.BranchIds[1],
+                AicosRoles.Waiter),
+            new TestCurrentUser(data.User.Id, data.BranchIds[0], AicosRoles.Manager),
+            CancellationToken.None);
+
+        await crossBranch.Should().ThrowAsync<ForbiddenException>();
+    }
+
+    [Fact]
+    public async Task Manager_cannot_provision_manager_and_duplicate_email_is_rejected()
+    {
+        await using var context = CreateContext();
+        var data = await SeedAsync(context, branchCount: 1);
+        var service = CreateProvisioningService(context);
+        var manager = new TestCurrentUser(data.User.Id, data.BranchIds[0], AicosRoles.Manager);
+
+        var elevatedRole = () => service.CreateAsync(
+            new CreateStaffRequest(
+                "manager@aicos.vn",
+                "Strong-password-123!",
+                "Quản lý khác",
+                data.BranchIds[0],
+                AicosRoles.Manager),
+            manager,
+            CancellationToken.None);
+        await elevatedRole.Should().ThrowAsync<ForbiddenException>();
+
+        var duplicateEmail = () => service.CreateAsync(
+            new CreateStaffRequest(
+                data.User.Email.ToUpperInvariant(),
+                "Strong-password-123!",
+                "Nhân viên trùng",
+                data.BranchIds[0],
+                AicosRoles.Cashier),
+            manager,
+            CancellationToken.None);
+        var exception = await duplicateEmail.Should().ThrowAsync<ConflictException>();
+        exception.Which.ErrorCode.Should().Be("identity.email_exists");
+    }
+
     private static IdentityOrganizationDbContext CreateContext()
     {
         var options = new DbContextOptionsBuilder<IdentityOrganizationDbContext>()
@@ -126,7 +306,26 @@ public sealed class AuthenticationServiceTests
             context,
             new PasswordHasher<UserAccount>(),
             new JwtTokenService(Options.Create(JwtOptions), TimeProvider.System),
+            CreateRefreshTokenFactory(),
             NullLogger<AuthenticationService>.Instance);
+
+    private static SessionService CreateSessionService(IdentityOrganizationDbContext context) =>
+        new(
+            context,
+            new JwtTokenService(Options.Create(JwtOptions), TimeProvider.System),
+            CreateRefreshTokenFactory(),
+            TimeProvider.System,
+            NullLogger<SessionService>.Instance);
+
+    private static StaffProvisioningService CreateProvisioningService(
+        IdentityOrganizationDbContext context) =>
+        new(
+            context,
+            new PasswordHasher<UserAccount>(),
+            NullLogger<StaffProvisioningService>.Instance);
+
+    private static RefreshTokenFactory CreateRefreshTokenFactory() =>
+        new(Options.Create(RefreshTokenOptions), TimeProvider.System);
 
     private static async Task<TestIdentityData> SeedAsync(
         IdentityOrganizationDbContext context,
@@ -140,6 +339,7 @@ public sealed class AuthenticationServiceTests
         var membership = new TenantUser(Guid.NewGuid(), tenantId, user.Id, role.Id);
         var branchIds = new List<Guid>();
 
+        context.Tenants.Add(new Tenant(tenantId, "AICOS Test Tenant", "TEST"));
         context.Users.Add(user);
         context.Roles.Add(role);
         context.TenantUsers.Add(membership);
@@ -162,4 +362,17 @@ public sealed class AuthenticationServiceTests
     }
 
     private sealed record TestIdentityData(UserAccount User, IReadOnlyList<Guid> BranchIds);
+
+    private sealed class TestCurrentUser(
+        Guid userId,
+        Guid? branchId,
+        string role = AicosRoles.Waiter) : ICurrentUser
+    {
+        public bool IsAuthenticated => true;
+        public Guid? UserId => userId;
+        public string? Name => "Nhân viên AICOS";
+        public string? Role => role;
+        public Guid? BranchId => branchId;
+        public bool IsInRole(string expectedRole) => role == expectedRole;
+    }
 }

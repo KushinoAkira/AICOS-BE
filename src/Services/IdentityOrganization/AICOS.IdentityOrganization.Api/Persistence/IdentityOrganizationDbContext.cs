@@ -14,4 +14,5 @@ public sealed class IdentityOrganizationDbContext(DbContextOptions<IdentityOrgan
     public DbSet<Role> Roles => Set<Role>();
     public DbSet<TenantUser> TenantUsers => Set<TenantUser>();
     public DbSet<StaffAssignment> StaffAssignments => Set<StaffAssignment>();
+    public DbSet<RefreshSession> RefreshSessions => Set<RefreshSession>();
 }

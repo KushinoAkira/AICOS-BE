@@ -8,11 +8,7 @@ internal sealed class UserAccountConfiguration : IEntityTypeConfiguration<UserAc
 {
     public void Configure(EntityTypeBuilder<UserAccount> builder)
     {
-        builder.ToTable(
-            "users",
-            table => table.HasCheckConstraint(
-                "ck_users_email_normalized",
-                "email = lower(btrim(email))"));
+        builder.ToTable("users");
         builder.HasKey(user => user.Id);
         builder.Property(user => user.Email)
             .HasMaxLength(255)
@@ -22,11 +18,12 @@ internal sealed class UserAccountConfiguration : IEntityTypeConfiguration<UserAc
         builder.Property(user => user.PasswordHash).HasColumnType("text");
         builder.Property(user => user.FullName).HasMaxLength(200).IsRequired();
         builder.Property(user => user.Phone).HasMaxLength(20);
-        builder.Property(user => user.Status).HasMaxLength(30).HasDefaultValue(IdentityStatuses.Active).IsRequired();
-        builder.Property(user => user.CreatedAt).HasDefaultValueSql("now()");
+        builder.Property(user => user.Status).HasMaxLength(30).HasDefaultValue(IdentityStatuses.Active);
+        builder.Property(user => user.CreatedAt)
+            .HasColumnType("timestamp without time zone")
+            .HasDefaultValueSql("now()");
     }
 }
-
 internal sealed class TenantConfiguration : IEntityTypeConfiguration<Tenant>
 {
     public void Configure(EntityTypeBuilder<Tenant> builder)
@@ -37,7 +34,10 @@ internal sealed class TenantConfiguration : IEntityTypeConfiguration<Tenant>
         builder.Property(tenant => tenant.Code).HasMaxLength(50).IsRequired();
         builder.HasIndex(tenant => tenant.Code).IsUnique();
         builder.Property(tenant => tenant.Status).HasMaxLength(30).HasDefaultValue(IdentityStatuses.Active).IsRequired();
-        builder.Property(tenant => tenant.CreatedAt).HasDefaultValueSql("now()");
+        builder.Property(tenant => tenant.CreatedAt)
+            .HasColumnType("timestamp without time zone")
+            .HasDefaultValueSql("now()");
+        builder.Property(tenant => tenant.UpdatedAt).HasColumnType("timestamp without time zone");
     }
 }
 
@@ -50,8 +50,10 @@ internal sealed class BranchConfiguration : IEntityTypeConfiguration<Branch>
         builder.Property(branch => branch.Code).HasMaxLength(50).IsRequired();
         builder.Property(branch => branch.Name).HasMaxLength(200).IsRequired();
         builder.Property(branch => branch.Phone).HasMaxLength(20);
-        builder.Property(branch => branch.Status).HasMaxLength(30).HasDefaultValue(IdentityStatuses.Inactive).IsRequired();
-        builder.Property(branch => branch.CreatedAt).HasDefaultValueSql("now()");
+        builder.Property(branch => branch.Status).HasMaxLength(30).HasDefaultValue(IdentityStatuses.Inactive);
+        builder.Property(branch => branch.CreatedAt)
+            .HasColumnType("timestamp without time zone")
+            .HasDefaultValueSql("now()");
         builder.HasIndex(branch => new { branch.TenantId, branch.Code }).IsUnique();
         builder.HasOne<Tenant>()
             .WithMany()
@@ -78,7 +80,7 @@ internal sealed class TenantUserConfiguration : IEntityTypeConfiguration<TenantU
     {
         builder.ToTable("tenant_users");
         builder.HasKey(membership => membership.Id);
-        builder.Property(membership => membership.Status).HasMaxLength(30).HasDefaultValue(IdentityStatuses.Active).IsRequired();
+        builder.Property(membership => membership.Status).HasMaxLength(30).HasDefaultValue(IdentityStatuses.Active);
         builder.HasIndex(membership => new { membership.TenantId, membership.UserId, membership.RoleId }).IsUnique();
         builder.HasOne<Tenant>()
             .WithMany()
@@ -101,7 +103,7 @@ internal sealed class StaffAssignmentConfiguration : IEntityTypeConfiguration<St
     {
         builder.ToTable("staff_assignments");
         builder.HasKey(assignment => assignment.Id);
-        builder.Property(assignment => assignment.Status).HasMaxLength(30).HasDefaultValue(IdentityStatuses.Active).IsRequired();
+        builder.Property(assignment => assignment.Status).HasMaxLength(30).HasDefaultValue(IdentityStatuses.Active);
         builder.HasIndex(assignment => new { assignment.BranchId, assignment.TenantUserId }).IsUnique();
         builder.HasOne(assignment => assignment.Branch)
             .WithMany()

@@ -9,7 +9,7 @@ public sealed class PaymentsService
         Name: "payment",
         DisplayName: "Payment Service",
         RoutePrefix: "payments",
-        Schema: "payment");
+        Schema: "public");
 
     private PaymentsService()
     {

@@ -18,5 +18,18 @@ public sealed record LoginResponse(
     bool RequiresBranchSelection,
     string? AccessToken,
     DateTime? ExpiresAtUtc,
+    string? RefreshToken,
+    DateTime? RefreshTokenExpiresAtUtc,
     StaffProfileResponse? Staff,
     IReadOnlyList<BranchOptionResponse> Branches);
+
+public sealed record RefreshRequest(string RefreshToken);
+
+public sealed record RefreshResponse(
+    string AccessToken,
+    DateTime ExpiresAtUtc,
+    string RefreshToken,
+    DateTime RefreshTokenExpiresAtUtc,
+    StaffProfileResponse Staff);
+
+public sealed record LogoutRequest(string RefreshToken);

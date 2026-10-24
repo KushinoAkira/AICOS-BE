@@ -9,7 +9,7 @@ public sealed class TableReservationService
         Name: "table",
         DisplayName: "Table & Reservation Service",
         RoutePrefix: "tables",
-        Schema: "table_reservation");
+        Schema: "public");
 
     private TableReservationService()
     {

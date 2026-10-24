@@ -9,7 +9,7 @@ public sealed class IdentityOrganizationService
         Name: "identity",
         DisplayName: "Identity & Organization Service",
         RoutePrefix: "identity",
-        Schema: "identity");
+        Schema: "public");
 
     private IdentityOrganizationService()
     {

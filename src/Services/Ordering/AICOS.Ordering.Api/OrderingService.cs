@@ -9,7 +9,7 @@ public sealed class OrderingService
         Name: "order",
         DisplayName: "Order Service",
         RoutePrefix: "orders",
-        Schema: "ordering");
+        Schema: "public");
 
     private OrderingService()
     {

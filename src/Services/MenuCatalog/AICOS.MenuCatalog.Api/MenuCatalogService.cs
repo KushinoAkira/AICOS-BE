@@ -9,7 +9,7 @@ public sealed class MenuCatalogService
         Name: "menu",
         DisplayName: "Menu & Catalog Service",
         RoutePrefix: "menu",
-        Schema: "menu");
+        Schema: "public");
 
     private MenuCatalogService()
     {

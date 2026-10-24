@@ -3,12 +3,13 @@
 | Module | Trạng thái | Ghi chú |
 | --- | --- | --- |
 | Backend foundation/Gateway | Đã có | YARP, JWT validation, health, logging |
-| Identity domain schema | Đã code + test DB tạm, chưa apply `aicos_db` | Migration pending đã harden; backup đã có |
-| Staff login theo branch | Đã code + test | 27/27 Backend test; chưa provisioning tài khoản |
-| Refresh/revoke token | Chưa làm | Bắt buộc trước Flutter API Mode |
-| Account/branch provisioning | Chưa làm | Không seed/hardcode tài khoản |
-| Table/Session API | Chưa làm | Task Backend tiếp theo sau Identity |
-| Catalog API | Chưa làm | Skeleton |
-| Ordering/Kitchen/Delivery | Chưa làm | Skeleton |
-| Billing/Payment | Chưa làm | Skeleton |
+| Identity database mapping | Đã apply `aicos_db.public` | 35 bảng gốc + EF history + `refresh_sessions`; baseline không DDL |
+| Staff login theo branch | Đã code + test PostgreSQL thật | HTTP login/me và đăng nhập tài khoản vừa provision đều đạt trên `aicos_db` |
+| Refresh/revoke token | Đã code + apply DB + integration test | HTTP refresh/logout đạt; dữ liệu test đã cleanup |
+| Account/branch provisioning | Đã code + test PostgreSQL thật | `POST /identity/staff`, policy Management, branch scope, không seed credential |
+| Table/Session API | Đã code + test PostgreSQL thật | Map theo branch, open/close session, cleaned; transaction serializable |
+| Catalog read API | Đã code + test PostgreSQL thật | Branch availability, category, product, variant, option, search |
+| Create/Add Order + Tracking | Đã code + test PostgreSQL thật | DINE_IN/TAKEAWAY, server pricing, actor event, requestId idempotency |
+| Preparation/Kitchen | Đã code + test PostgreSQL thật | Queue theo branch, PENDING → PREPARING → READY, actor event, transaction serializable |
+| Billing/Payment | Đang làm | Create/read bill đã test PostgreSQL thật; payment confirmation và print audit chờ duyệt schema |
 | Flutter API integration | Chưa làm | Mobile vẫn Mock Only |

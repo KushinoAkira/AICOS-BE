@@ -17,7 +17,7 @@ namespace AICOS.IdentityOrganization.Api.Persistence.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasDefaultSchema("identity")
+                .HasDefaultSchema("public")
                 .HasAnnotation("ProductVersion", "8.0.31")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
@@ -40,9 +40,9 @@ namespace AICOS.IdentityOrganization.Api.Persistence.Migrations
                         .HasColumnType("character varying(50)")
                         .HasColumnName("code");
 
-                    b.Property<DateTime>("CreatedAt")
+                    b.Property<DateTime?>("CreatedAt")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
+                        .HasColumnType("timestamp without time zone")
                         .HasColumnName("created_at")
                         .HasDefaultValueSql("now()");
 
@@ -58,7 +58,6 @@ namespace AICOS.IdentityOrganization.Api.Persistence.Migrations
                         .HasColumnName("phone");
 
                     b.Property<string>("Status")
-                        .IsRequired()
                         .ValueGeneratedOnAdd()
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)")
@@ -76,7 +75,69 @@ namespace AICOS.IdentityOrganization.Api.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("ix_branches_tenant_id_code");
 
-                    b.ToTable("branches", "identity");
+                    b.ToTable("branches", "public");
+                });
+
+            modelBuilder.Entity("AICOS.IdentityOrganization.Api.Domain.RefreshSession", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("branch_id");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<DateTime>("ExpiresAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at_utc");
+
+                    b.Property<Guid?>("ReplacedBySessionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("replaced_by_session_id");
+
+                    b.Property<DateTime?>("RevokedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("revoked_at_utc");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character(64)")
+                        .HasColumnName("token_hash")
+                        .IsFixedLength();
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id")
+                        .HasName("pk_refresh_sessions");
+
+                    b.HasIndex("BranchId")
+                        .HasDatabaseName("ix_refresh_sessions_branch_id");
+
+                    b.HasIndex("ReplacedBySessionId")
+                        .HasDatabaseName("ix_refresh_sessions_replaced_by_session_id");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique()
+                        .HasDatabaseName("ix_refresh_sessions_token_hash");
+
+                    b.HasIndex("UserId", "BranchId", "ExpiresAtUtc")
+                        .HasDatabaseName("ix_refresh_sessions_user_id_branch_id_expires_at_utc");
+
+                    b.ToTable("refresh_sessions", "public");
                 });
 
             modelBuilder.Entity("AICOS.IdentityOrganization.Api.Domain.Role", b =>
@@ -105,7 +166,7 @@ namespace AICOS.IdentityOrganization.Api.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("ix_roles_code");
 
-                    b.ToTable("roles", "identity");
+                    b.ToTable("roles", "public");
                 });
 
             modelBuilder.Entity("AICOS.IdentityOrganization.Api.Domain.StaffAssignment", b =>
@@ -120,7 +181,6 @@ namespace AICOS.IdentityOrganization.Api.Persistence.Migrations
                         .HasColumnName("branch_id");
 
                     b.Property<string>("Status")
-                        .IsRequired()
                         .ValueGeneratedOnAdd()
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)")
@@ -141,7 +201,7 @@ namespace AICOS.IdentityOrganization.Api.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("ix_staff_assignments_branch_id_tenant_user_id");
 
-                    b.ToTable("staff_assignments", "identity");
+                    b.ToTable("staff_assignments", "public");
                 });
 
             modelBuilder.Entity("AICOS.IdentityOrganization.Api.Domain.Tenant", b =>
@@ -157,9 +217,9 @@ namespace AICOS.IdentityOrganization.Api.Persistence.Migrations
                         .HasColumnType("character varying(50)")
                         .HasColumnName("code");
 
-                    b.Property<DateTime>("CreatedAt")
+                    b.Property<DateTime?>("CreatedAt")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
+                        .HasColumnType("timestamp without time zone")
                         .HasColumnName("created_at")
                         .HasDefaultValueSql("now()");
 
@@ -178,7 +238,7 @@ namespace AICOS.IdentityOrganization.Api.Persistence.Migrations
                         .HasColumnName("status");
 
                     b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone")
+                        .HasColumnType("timestamp without time zone")
                         .HasColumnName("updated_at");
 
                     b.HasKey("Id")
@@ -188,7 +248,7 @@ namespace AICOS.IdentityOrganization.Api.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("ix_tenants_code");
 
-                    b.ToTable("tenants", "identity");
+                    b.ToTable("tenants", "public");
                 });
 
             modelBuilder.Entity("AICOS.IdentityOrganization.Api.Domain.TenantUser", b =>
@@ -203,7 +263,6 @@ namespace AICOS.IdentityOrganization.Api.Persistence.Migrations
                         .HasColumnName("role_id");
 
                     b.Property<string>("Status")
-                        .IsRequired()
                         .ValueGeneratedOnAdd()
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)")
@@ -231,7 +290,7 @@ namespace AICOS.IdentityOrganization.Api.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("ix_tenant_users_tenant_id_user_id_role_id");
 
-                    b.ToTable("tenant_users", "identity");
+                    b.ToTable("tenant_users", "public");
                 });
 
             modelBuilder.Entity("AICOS.IdentityOrganization.Api.Domain.UserAccount", b =>
@@ -241,9 +300,9 @@ namespace AICOS.IdentityOrganization.Api.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
-                    b.Property<DateTime>("CreatedAt")
+                    b.Property<DateTime?>("CreatedAt")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
+                        .HasColumnType("timestamp without time zone")
                         .HasColumnName("created_at")
                         .HasDefaultValueSql("now()");
 
@@ -269,7 +328,6 @@ namespace AICOS.IdentityOrganization.Api.Persistence.Migrations
                         .HasColumnName("phone");
 
                     b.Property<string>("Status")
-                        .IsRequired()
                         .ValueGeneratedOnAdd()
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)")
@@ -283,10 +341,7 @@ namespace AICOS.IdentityOrganization.Api.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("ix_users_email");
 
-                    b.ToTable("users", "identity", t =>
-                        {
-                            t.HasCheckConstraint("ck_users_email_normalized", "email = lower(btrim(email))");
-                        });
+                    b.ToTable("users", "public");
                 });
 
             modelBuilder.Entity("AICOS.IdentityOrganization.Api.Domain.Branch", b =>
@@ -297,6 +352,29 @@ namespace AICOS.IdentityOrganization.Api.Persistence.Migrations
                         .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired()
                         .HasConstraintName("fk_branches_tenants_tenant_id");
+                });
+
+            modelBuilder.Entity("AICOS.IdentityOrganization.Api.Domain.RefreshSession", b =>
+                {
+                    b.HasOne("AICOS.IdentityOrganization.Api.Domain.Branch", null)
+                        .WithMany()
+                        .HasForeignKey("BranchId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired()
+                        .HasConstraintName("fk_refresh_sessions_branches_branch_id");
+
+                    b.HasOne("AICOS.IdentityOrganization.Api.Domain.RefreshSession", null)
+                        .WithMany()
+                        .HasForeignKey("ReplacedBySessionId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .HasConstraintName("fk_refresh_sessions_refresh_sessions_replaced_by_session_id");
+
+                    b.HasOne("AICOS.IdentityOrganization.Api.Domain.UserAccount", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired()
+                        .HasConstraintName("fk_refresh_sessions_users_user_id");
                 });
 
             modelBuilder.Entity("AICOS.IdentityOrganization.Api.Domain.StaffAssignment", b =>
