@@ -325,11 +325,12 @@ public static class QrOrderEndpoints
         await BuildBillAsync(db, await StaffSessionAsync(db, user, id, ct), ct);
 
     /// <summary>The cashier or manager ends the sitting, for example when the guests left. Unpaid orders stay as they are for the counter to settle.</summary>
-    private static async Task<IResult> CloseSessionAsync(Guid id, OrderingDbContext db, ICurrentUser user, ShopTime clock, CancellationToken ct)
+    private static async Task<IResult> CloseSessionAsync(Guid id, OrderingDbContext db, ICurrentUser user, ShopTime clock, OrderEventPublisher events, CancellationToken ct)
     {
         var session = await StaffSessionAsync(db, user, id, ct);
         session.Close(TableSessionCloseReason.Staff, clock.UtcNow);
         await db.SaveChangesAsync(ct);
+        await events.SessionClosedAsync(session, ct);
         return Results.NoContent();
     }
 }
@@ -338,7 +339,7 @@ public static class QrOrderEndpoints
 public static class TableSessions
 {
     /// <summary>Closes the session once it has orders and every order that was not cancelled is paid (all rounds settled).</summary>
-    public static async Task CloseIfSettledAsync(OrderingDbContext db, Guid? sessionId, DateTime now, CancellationToken ct)
+    public static async Task CloseIfSettledAsync(OrderingDbContext db, Guid? sessionId, DateTime now, OrderEventPublisher events, CancellationToken ct)
     {
         if (sessionId is null)
         {
@@ -360,6 +361,7 @@ public static class TableSessions
 
         session.Close(TableSessionCloseReason.Paid, now);
         await db.SaveChangesAsync(ct);
+        await events.SessionClosedAsync(session, ct);
     }
 }
 
@@ -375,7 +377,7 @@ public sealed class TableSessionExpiryWorker(IServiceScopeFactory scopes, TimePr
             {
                 await using var scope = scopes.CreateAsyncScope();
                 var hours = int.TryParse(configuration["Ordering:Qr:SessionIdleHours"], out var h) && h is > 0 and <= 72 ? h : 6;
-                await CloseIdleAsync(scope.ServiceProvider.GetRequiredService<OrderingDbContext>(), clock.GetUtcNow().UtcDateTime, TimeSpan.FromHours(hours), stoppingToken);
+                await CloseIdleAsync(scope.ServiceProvider.GetRequiredService<OrderingDbContext>(), clock.GetUtcNow().UtcDateTime, TimeSpan.FromHours(hours), stoppingToken, scope.ServiceProvider.GetRequiredService<OrderEventPublisher>());
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -385,7 +387,7 @@ public sealed class TableSessionExpiryWorker(IServiceScopeFactory scopes, TimePr
         while (await timer.WaitForNextTickAsync(stoppingToken));
     }
 
-    public static async Task<int> CloseIdleAsync(OrderingDbContext db, DateTime now, TimeSpan idle, CancellationToken ct)
+    public static async Task<int> CloseIdleAsync(OrderingDbContext db, DateTime now, TimeSpan idle, CancellationToken ct, OrderEventPublisher? events = null)
     {
         var limit = now - idle;
         var idleSessions = await db.TableSessions.Where(s => s.Status == TableSessionStatus.Open && s.LastActivityAtUtc < limit).Take(200).ToListAsync(ct);
@@ -395,6 +397,11 @@ public sealed class TableSessionExpiryWorker(IServiceScopeFactory scopes, TimePr
         }
 
         await db.SaveChangesAsync(ct);
+        foreach (var session in idleSessions.Where(_ => events is not null))
+        {
+            await events!.SessionClosedAsync(session, ct);
+        }
+
         return idleSessions.Count;
     }
 }

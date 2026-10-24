@@ -3,6 +3,7 @@ using AICOS.BuildingBlocks.Messaging;
 using AICOS.BuildingBlocks.Security;
 using AICOS.Contracts;
 using AICOS.Contracts.Events;
+using AICOS.Ordering.Api.Domain;
 using AICOS.Ordering.Api.Domain.Entities;
 using AICOS.Ordering.Api.Domain.Enums;
 using AICOS.Ordering.Api.Persistence;
@@ -51,8 +52,28 @@ internal static class OrderAccess
 }
 
 /// <summary>Sends the order events. A failure to publish is logged and never fails the change that already happened.</summary>
-public sealed class OrderEventPublisher(IEventBus bus, ILogger<OrderEventPublisher> logger)
+public sealed class OrderEventPublisher(IEventBus bus, IOrderNotifier notifier, ILogger<OrderEventPublisher> logger)
 {
+    /// <summary>The changes a member is told about with a stored notification; the others (created, preparing, delivered) only move the live screen.</summary>
+    private static readonly HashSet<string> NotifiedKinds = ["Paid", "Ready", "Completed", "Cancelled", "NoShow", "Unfulfillable", "Remake"];
+
+    /// <summary>
+    /// A change of the order the customer should see: pushed live to the table screen and the member's screens, and, for the kinds above, sent to
+    /// Customer Service which keeps it as a notification of the member. <paramref name="kind"/> is Created, Paid, Preparing, Ready, Remake, Delivered,
+    /// Completed, Cancelled, NoShow or Unfulfillable.
+    /// </summary>
+    public async Task ChangedAsync(Order o, string kind, CancellationToken ct)
+    {
+        await notifier.OrderChangedAsync(o, kind, ct);
+        if (o.CustomerId is { } customerId && NotifiedKinds.Contains(kind))
+        {
+            await SafeAsync(new OrderStatusChangedIntegrationEvent(
+                o.TenantId, o.Id, o.OrderCode, o.BranchId, customerId, kind, kind == "Remake" ? $"Remake:{o.RemakeCount}" : kind, o.TableNumber, o.FinalAmount, DateTime.UtcNow), ct);
+        }
+    }
+
+    public Task SessionClosedAsync(TableSession session, CancellationToken ct) => notifier.SessionClosedAsync(session, ct);
+
     private static IReadOnlyList<OrderItemDto> Items(Order o) =>
         o.Items.Select(i => new OrderItemDto(i.ProductId, i.ProductName, i.UnitPrice, i.Quantity, BarNote(i))).ToList();
 
@@ -63,18 +84,34 @@ public sealed class OrderEventPublisher(IEventBus bus, ILogger<OrderEventPublish
         return text.Length == 0 ? null : text.Length <= 300 ? text : text[..300];
     }
 
-    public Task CreatedAsync(Order o, CancellationToken ct) => SafeAsync(new OrderCreatedIntegrationEvent(
-        o.TenantId, o.Id, o.OrderCode, o.BranchId, o.CashierId, o.CustomerId, o.TableId, o.TableNumber, o.Type.ToString(), o.FinalAmount, o.IsPaid, o.PickupSlotStartUtc, Items(o), o.CreatedAtUtc), ct);
+    public async Task CreatedAsync(Order o, CancellationToken ct)
+    {
+        await SafeAsync(new OrderCreatedIntegrationEvent(
+            o.TenantId, o.Id, o.OrderCode, o.BranchId, o.CashierId, o.CustomerId, o.TableId, o.TableNumber, o.Type.ToString(), o.FinalAmount, o.IsPaid, o.PickupSlotStartUtc, Items(o), o.CreatedAtUtc), ct);
+        await ChangedAsync(o, "Created", ct);
+    }
 
-    public Task CancelledAsync(Order o, bool wasPaid, CancellationToken ct) => SafeAsync(new OrderCancelledIntegrationEvent(
-        o.TenantId, o.Id, o.BranchId, o.TableId, o.CancelledReason ?? string.Empty, wasPaid, Items(o), o.CancelledAtUtc ?? DateTime.UtcNow,
-        o.OrderCode, o.CustomerId, o.PromotionCode, o.FinalAmount), ct);
+    public async Task CancelledAsync(Order o, bool wasPaid, CancellationToken ct)
+    {
+        await SafeAsync(new OrderCancelledIntegrationEvent(
+            o.TenantId, o.Id, o.BranchId, o.TableId, o.CancelledReason ?? string.Empty, wasPaid, Items(o), o.CancelledAtUtc ?? DateTime.UtcNow,
+            o.OrderCode, o.CustomerId, o.PromotionCode, o.FinalAmount, o.Status.ToString()), ct);
+        await ChangedAsync(o, o.Status.ToString(), ct);          // Cancelled, NoShow or Unfulfillable
+    }
 
-    public Task PaidAsync(Order o, CancellationToken ct) => SafeAsync(new OrderPaidIntegrationEvent(
-        o.TenantId, o.Id, o.OrderCode, o.BranchId, o.CustomerId, o.FinalAmount, o.PaidAtUtc ?? DateTime.UtcNow), ct);
+    public async Task PaidAsync(Order o, CancellationToken ct)
+    {
+        await SafeAsync(new OrderPaidIntegrationEvent(
+            o.TenantId, o.Id, o.OrderCode, o.BranchId, o.CustomerId, o.FinalAmount, o.PaidAtUtc ?? DateTime.UtcNow), ct);
+        await ChangedAsync(o, "Paid", ct);
+    }
 
-    public Task CompletedAsync(Order o, CancellationToken ct) => SafeAsync(new OrderCompletedIntegrationEvent(
-        o.TenantId, o.Id, o.BranchId, o.TableId, o.FinalAmount, o.CompletedAtUtc ?? DateTime.UtcNow), ct);
+    public async Task CompletedAsync(Order o, CancellationToken ct)
+    {
+        await SafeAsync(new OrderCompletedIntegrationEvent(
+            o.TenantId, o.Id, o.BranchId, o.TableId, o.FinalAmount, o.CompletedAtUtc ?? DateTime.UtcNow), ct);
+        await ChangedAsync(o, "Completed", ct);
+    }
 
     private async Task SafeAsync<TEvent>(TEvent @event, CancellationToken ct)
         where TEvent : IntegrationEvent

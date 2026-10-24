@@ -1,3 +1,4 @@
+using AICOS.CustomerEngagement.Api.Features.Notifications;
 using AICOS.BuildingBlocks.Hosting;
 using AICOS.BuildingBlocks.Messaging;
 using AICOS.BuildingBlocks.Persistence;
@@ -24,6 +25,7 @@ builder.Services.AddIntegrationEventHandler<CustomerRegisteredEvent, CustomerReg
 builder.Services.AddIntegrationEventHandler<OrderPaidIntegrationEvent, OrderPaidHandler>();                    // Order: BR-25 points after payment
 builder.Services.AddIntegrationEventHandler<OrderCancelledIntegrationEvent, OrderCancelledLoyaltyHandler>();      // Order: voucher back / points taken back
 builder.Services.AddIntegrationEventHandler<UserProfileUpdatedEvent, UserProfileUpdatedHandler>();   // Identity: name/phone edited (UC-03)
+builder.Services.AddIntegrationEventHandler<OrderStatusChangedIntegrationEvent, OrderStatusNotificationHandler>();   // Order: a notification for the member
 
 var app = builder.Build();
 
@@ -35,5 +37,6 @@ api.MapVoucherEndpoints();
 api.MapCustomerEndpoints();
 api.MapRedemptionEndpoints();
 api.MapLoyaltyRuleEndpoints();
+api.MapNotificationEndpoints();
 
 await app.RunAsync();
