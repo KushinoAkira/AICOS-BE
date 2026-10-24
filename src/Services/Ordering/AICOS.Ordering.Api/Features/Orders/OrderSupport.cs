@@ -57,7 +57,7 @@ public sealed class OrderEventPublisher(IEventBus bus, ILogger<OrderEventPublish
         o.Items.Select(i => new OrderItemDto(i.ProductId, i.ProductName, i.UnitPrice, i.Quantity, i.Note)).ToList();
 
     public Task CreatedAsync(Order o, CancellationToken ct) => SafeAsync(new OrderCreatedIntegrationEvent(
-        o.TenantId, o.Id, o.OrderCode, o.BranchId, o.CashierId, o.CustomerId, o.TableId, o.TableNumber, o.Type.ToString(), o.FinalAmount, o.IsPaid, null, Items(o), o.CreatedAtUtc), ct);
+        o.TenantId, o.Id, o.OrderCode, o.BranchId, o.CashierId, o.CustomerId, o.TableId, o.TableNumber, o.Type.ToString(), o.FinalAmount, o.IsPaid, o.PickupSlotStartUtc, Items(o), o.CreatedAtUtc), ct);
 
     public Task CancelledAsync(Order o, bool wasPaid, CancellationToken ct) => SafeAsync(new OrderCancelledIntegrationEvent(
         o.TenantId, o.Id, o.BranchId, o.TableId, o.CancelledReason ?? string.Empty, wasPaid, Items(o), o.CancelledAtUtc ?? DateTime.UtcNow,
@@ -91,6 +91,10 @@ public sealed class ShopTime(TimeProvider clock, IConfiguration configuration)
     public DateTime UtcNow => clock.GetUtcNow().UtcDateTime;
 
     public DateOnly Today => DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(UtcNow, _zone));
+
+    public DateTime ToUtc(DateOnly date, TimeOnly time) => TimeZoneInfo.ConvertTimeToUtc(date.ToDateTime(time, DateTimeKind.Unspecified), _zone);
+
+    public DateTime ToLocal(DateTime utc) => TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(utc, DateTimeKind.Utc), _zone);
 
     public DateTime StartOfDayUtc(DateOnly date) => TimeZoneInfo.ConvertTimeToUtc(date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Unspecified), _zone);
 }

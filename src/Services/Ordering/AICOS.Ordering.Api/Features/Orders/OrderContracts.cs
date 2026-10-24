@@ -59,13 +59,16 @@ public sealed record OrderResponse(
     DateTime? CompletedAtUtc,
     DateTime? CancelledAtUtc,
     string? CancelledReason,
-    IReadOnlyList<OrderItemResponse> Items)
+    IReadOnlyList<OrderItemResponse> Items,
+    DateTime? PickupSlotStartUtc = null,
+    DateTime? PaymentDueAtUtc = null)
 {
     public static OrderResponse From(Order o) => new(
         o.Id, o.OrderCode, o.BranchId, o.CashierId, o.CustomerId, o.Type, o.Status, o.PaymentStatus, o.PaymentMethod, o.PaymentProvider, o.PaymentId,
-        o.TableId, o.TableNumber, o.DeliveryAddress, o.Note, o.OriginalAmount, o.PromotionCode, o.DiscountAmount, o.FinalAmount, o.RefundedAmount, o.RefundStatus,
+        o.TableId, o.TableNumber, o.DeliveryAddress, o.Note, o.OriginalAmount, o.PromotionCode, o.DiscountAmount, o.FinalAmount, o.RefundedAmount, o.EffectiveRefundStatus,
         o.CreatedAtUtc, o.PaidAtUtc, o.ReadyAtUtc, o.DeliveredAtUtc, o.CompletedAtUtc, o.CancelledAtUtc, o.CancelledReason,
-        o.Items.Select(i => new OrderItemResponse(i.Id, i.ProductId, i.ProductName, i.UnitPrice, i.Quantity, i.TotalPrice, i.Note)).ToList());
+        o.Items.Select(i => new OrderItemResponse(i.Id, i.ProductId, i.ProductName, i.UnitPrice, i.Quantity, i.TotalPrice, i.Note)).ToList(),
+        o.PickupSlotStartUtc, o.PaymentDueAtUtc);
 }
 
 public sealed record OrderSummary(
@@ -85,11 +88,12 @@ public sealed record OrderSummary(
     int ItemCount,
     DateTime? PaidAtUtc,
     DateTime? CancelledAtUtc,
-    DateTime CreatedAtUtc)
+    DateTime CreatedAtUtc,
+    DateTime? PickupSlotStartUtc = null)
 {
     public static OrderSummary From(Order o) => new(
         o.Id, o.OrderCode, o.BranchId, o.Type, o.Status, o.PaymentStatus, o.PaymentProvider, o.TableNumber, o.OriginalAmount, o.DiscountAmount, o.FinalAmount,
-        o.RefundedAmount, o.RefundStatus, o.Items.Count, o.PaidAtUtc, o.CancelledAtUtc, o.CreatedAtUtc);
+        o.RefundedAmount, o.EffectiveRefundStatus, o.Items.Count, o.PaidAtUtc, o.CancelledAtUtc, o.CreatedAtUtc, o.PickupSlotStartUtc);
 }
 
 /// <summary>The result of checking an order's payment (SCRUM-60): what Payment reported, in one small answer.</summary>
@@ -126,4 +130,25 @@ public sealed record ReceiptResponse(
         o.Items.Select(i => new ReceiptItemDto(i.ProductName, i.UnitPrice, i.Quantity, i.TotalPrice, i.Note)).ToList(),
         o.OriginalAmount, o.PromotionCode, o.DiscountAmount, o.FinalAmount, o.PaymentStatus, o.PaymentProvider ?? o.PaymentMethod?.ToString() ?? "Not paid", o.PaidAtUtc,
         o.PrintedCount > 1, o.PrintedCount, o.LastPrintedAtUtc ?? now);
+}
+
+/// <summary>POST /orders/pickup (a customer orders takeaway for a pickup slot). The price always comes from Menu.</summary>
+public sealed record CreatePickupOrderRequest(
+    Guid? BranchId,
+    DateTime? SlotStartUtc,
+    string? PromotionCode,
+    string? Note,
+    List<OrderItemRequest>? Items);
+
+/// <summary>One pickup slot of a day. <c>Available</c> is false when the slot is full or already locked by the cut-off (BR-22, BR-23).</summary>
+public sealed record PickupSlotInfo(DateTime StartUtc, DateTime EndUtc, int Capacity, int Booked, int Remaining, bool Locked, bool Available);
+
+public sealed record AvailablePickupSlotsResponse(Guid BranchId, DateOnly Date, int SlotMinutes, int CapacityPerSlot, int CutoffMinutes, IReadOnlyList<PickupSlotInfo> Slots);
+
+/// <summary>POST /orders/{id}/feedback</summary>
+public sealed record OrderFeedbackRequest(int? Rating, string? Comment);
+
+public sealed record OrderFeedbackResponse(Guid Id, Guid OrderId, string OrderCode, Guid BranchId, Guid CustomerId, int Rating, string? Comment, DateTime CreatedAtUtc)
+{
+    public static OrderFeedbackResponse From(Domain.OrderFeedback f) => new(f.Id, f.OrderId, f.OrderCode, f.BranchId, f.CustomerId, f.Rating, f.Comment, f.CreatedAtUtc);
 }

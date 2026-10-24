@@ -34,7 +34,7 @@ public static class OrderEndpoints
         group.MapGet("/{id:guid}/payment", PaymentAsync).RequireAuthorization();
         group.MapGet("/{id:guid}/receipt", ReceiptAsync).RequireAuthorization(b => b.RequireRole(OrderAccess.CounterRoles));
         group.MapPut("/{id:guid}/service-type", SwitchServiceTypeAsync).RequireAuthorization(b => b.RequireRole(OrderAccess.CounterRoles));
-        group.MapPost("/{id:guid}/cancel", CancelAsync).RequireAuthorization(b => b.RequireRole(OrderAccess.CounterRoles));
+        group.MapPost("/{id:guid}/cancel", CancelAsync).RequireAuthorization(b => b.RequireRole([.. OrderAccess.CounterRoles, AicosRoles.Customer]));
         group.MapPost("/{id:guid}/deliver", DeliverAsync).RequireAuthorization(b => b.RequireRole(OrderAccess.CounterRoles));
         group.MapPost("/{id:guid}/exception", ExceptionAsync).RequireAuthorization(AicosPolicies.Management);
     }
@@ -57,32 +57,7 @@ public static class OrderEndpoints
         CommonRules.MaxLength(errors, "TableNumber", r.TableNumber, "Table number", 20);
         CommonRules.MaxLength(errors, "DeliveryAddress", r.DeliveryAddress, "Delivery address", 300);
         CommonRules.MaxLength(errors, "PromotionCode", r.PromotionCode, "Promotion code", 40);
-        if (r.Items is null || r.Items.Count == 0)
-        {
-            errors.Add("Items", "An order needs at least one item.");
-        }
-        else if (r.Items.Count > MaxItems)
-        {
-            errors.Add("Items", $"An order has at most {MaxItems} lines.");
-        }
-        else
-        {
-            for (var i = 0; i < r.Items.Count; i++)
-            {
-                var item = r.Items[i];
-                if (item.ProductId is null || item.ProductId == Guid.Empty)
-                {
-                    errors.Add($"Items[{i}].ProductId", "Product is required.");
-                }
-
-                if (item.Quantity is null or < 1 or > MaxQuantity)
-                {
-                    errors.Add($"Items[{i}].Quantity", $"Quantity must be between 1 and {MaxQuantity}.");
-                }
-
-                CommonRules.MaxLength(errors, $"Items[{i}].Note", item.Note, "Item note", 300);
-            }
-        }
+        ValidateItems(errors, r.Items);
 
         if (r.Type == OrderType.Delivery && string.IsNullOrWhiteSpace(r.DeliveryAddress))
         {
@@ -120,6 +95,37 @@ public static class OrderEndpoints
         await events.CreatedAsync(order, ct);
 
         return Results.Created($"/api/v1/orders/{order.Id}", OrderResponse.From(order));
+    }
+
+    /// <summary>The same rules for every way of placing an order: 1 to 50 lines, quantity 1 to 99, a product on each line.</summary>
+    internal static void ValidateItems(ValidationErrors errors, List<OrderItemRequest>? items)
+    {
+        if (items is null || items.Count == 0)
+        {
+            errors.Add("Items", "An order needs at least one item.");
+        }
+        else if (items.Count > MaxItems)
+        {
+            errors.Add("Items", $"An order has at most {MaxItems} lines.");
+        }
+        else
+        {
+            for (var i = 0; i < items.Count; i++)
+            {
+                var item = items[i];
+                if (item.ProductId is null || item.ProductId == Guid.Empty)
+                {
+                    errors.Add($"Items[{i}].ProductId", "Product is required.");
+                }
+
+                if (item.Quantity is null or < 1 or > MaxQuantity)
+                {
+                    errors.Add($"Items[{i}].Quantity", $"Quantity must be between 1 and {MaxQuantity}.");
+                }
+
+                CommonRules.MaxLength(errors, $"Items[{i}].Note", item.Note, "Item note", 300);
+            }
+        }
     }
 
     // ------------------------------------------------------------------ read
@@ -227,16 +233,55 @@ public static class OrderEndpoints
 
     /// <summary>BR-04: an unpaid order can be cancelled by the counter. A paid one needs the manager exception path.</summary>
     private static async Task<OrderResponse> CancelAsync(
-        Guid id, CancelOrderRequest r, OrderingDbContext db, ICurrentUser user, OrderEventPublisher events, ShopTime clock, CancellationToken ct)
+        Guid id, CancelOrderRequest r, OrderingDbContext db, ICurrentUser user, IPaymentClient payments, OrderEventPublisher events, ShopTime clock, CancellationToken ct)
     {
         var errors = new ValidationErrors();
         CommonRules.MaxLength(errors, "Reason", r.Reason, "Reason", 300);
         errors.ThrowIfAny();
 
         var order = await OrderAccess.LoadAsync(db, user, id, ct);
+        if (user.IsInRole(AicosRoles.Customer))
+        {
+            return await CancelAsCustomerAsync(order, r.Reason, db, payments, events, clock, ct);
+        }
+
         order.CancelOrder(r.Reason ?? string.Empty, clock.UtcNow);
         await db.SaveChangesAsync(ct);
         await events.CancelledAsync(order, wasPaid: false, ct);
+        return OrderResponse.From(order);
+    }
+
+    /// <summary>
+    /// A customer cancels their own order (BR-24): before the bar starts it and, for a pickup order, before the slot is locked. A paid order is
+    /// refunded by the brand cancellation policy; when the policy gives nothing back, Payment refuses and the order stays as it is.
+    /// </summary>
+    private static async Task<OrderResponse> CancelAsCustomerAsync(
+        Order order, string? reason, OrderingDbContext db, IPaymentClient payments, OrderEventPublisher events, ShopTime clock, CancellationToken ct)
+    {
+        var now = clock.UtcNow;
+        DateTime? lockedAt = null;
+        if (order.PickupSlotStartUtc is not null)
+        {
+            var rules = await PickupSlots.PickupSlotEndpoints.ForBranchAsync(db, order.TenantId, order.BranchId, ct);
+            lockedAt = order.PickupSlotStartUtc.Value.AddMinutes(-rules.CutoffMinutes);
+        }
+
+        order.EnsureCustomerCanCancel(now, lockedAt);
+        var text = string.IsNullOrWhiteSpace(reason) ? "Cancelled by the customer." : reason.Trim();
+        if (order.IsPaid)
+        {
+            if (order.PaymentId is null)
+            {
+                throw new BusinessRuleException("order.not_refundable", "This order has no payment to refund; please ask the staff.");
+            }
+
+            await payments.RequestRefundAsync(order.PaymentId.Value, "Cancellation", null, text, ct);
+            await db.Entry(order).ReloadAsync(ct);   // the refund event may already have reached this service
+        }
+
+        var wasPaid = order.CancelByCustomer(text, now, lockedAt);
+        await db.SaveChangesAsync(ct);
+        await events.CancelledAsync(order, wasPaid, ct);
         return OrderResponse.From(order);
     }
 
@@ -322,14 +367,9 @@ public static class OrderEndpoints
             query = query.Where(o => o.BranchId == branch);
         }
 
-        if (refundStatus is not null)
-        {
-            query = query.Where(o => o.RefundStatus == refundStatus);
-        }
-
         query = ApplyRange(query, clock, from, to, false);
         var orders = await query.OrderByDescending(o => o.CreatedAtUtc).Take(MaxPageSize).AsSplitQuery().ToListAsync(ct);
-        return orders.Select(OrderSummary.From).ToList();
+        return orders.Where(o => refundStatus is null || o.EffectiveRefundStatus == refundStatus).Select(OrderSummary.From).ToList();
     }
 
     /// <summary>Orders created in the period; with <paramref name="includePaid"/> also those paid in it (used by reconciliation with Payment).</summary>

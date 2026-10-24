@@ -196,6 +196,87 @@ wait_until "the voucher shows as used" "call GET /api/v1/customers/me/vouchers \
 r=$(call POST "/api/v1/orders/$ORDER4/cancel" "$CASHIER" '{"reason":"Customer left"}')
 check "the unpaid order is cancelled" 200 "$(status_of "$r")"
 wait_until "the voucher is given back" "call GET /api/v1/customers/me/vouchers \"\$MEMBER\" | sed 's/ [0-9]*\$//' | grep -o '\"status\":\"[A-Za-z]*\"' | head -1" '"status":"Active"'
+
+# ------------------------------------------------------------------ pickup orders, self-service cancel and feedback (stage A)
+echo
+echo "== pickup orders"
+first_open_slot() { # prints the start of the first open slot of a day (today, else tomorrow)
+  for day in "$(date +%F)" "$(date -d tomorrow +%F 2>/dev/null || date -v+1d +%F)"; do
+    slot=$(call GET "/api/v1/orders/pickup-slots/available?branchId=$BRANCH&date=$day" "$MEMBER" | sed 's/ [0-9]*$//' \
+      | grep -o '"startUtc":"[^"]*","endUtc":"[^"]*","capacity":[0-9]*,"booked":[0-9]*,"remaining":[0-9]*,"locked":false,"available":true' | head -1 | sed 's/"startUtc":"\([^"]*\)".*/\1/')
+    [ -n "$slot" ] && { echo "$slot"; return; }
+  done
+}
+SLOT=$(first_open_slot)
+[ -n "$SLOT" ] && check "the member sees an open pickup slot" yes yes || check "the member sees an open pickup slot" yes no
+
+pickup() { # idempotency-key -> prints "<status> <body>" for the order of the member at the first open slot
+  curl -s -w ' %{http_code}' -X POST "$GATEWAY/api/v1/orders/pickup" -H "Content-Type: application/json" -H "Authorization: Bearer $MEMBER" -H "Idempotency-Key: $1" \
+    -d "{\"branchId\":\"$BRANCH\",\"slotStartUtc\":\"$SLOT\",\"items\":[{\"productId\":\"$PRODUCT\",\"quantity\":1,\"note\":\"less ice\"}]}"
+}
+r=$(pickup "smoke-$STAMP-a")
+check "the member orders takeaway for a slot" 201 "$(status_of "$r")"
+PICKUP_A=$(body_of "$r" | json_field id)
+case "$(body_of "$r")" in *'"finalAmount":35000'*) check "the price comes from the menu" yes yes ;; *) check "the price comes from the menu" yes no ;; esac
+r=$(pickup "smoke-$STAMP-a")
+check "the same Idempotency-Key gives back the same order" 200 "$(status_of "$r")"
+[ "$(body_of "$r" | json_field id)" = "$PICKUP_A" ] && check "same order id" yes yes || check "same order id" yes no
+
+r=$(call POST /api/v1/payments/transactions "$MEMBER" "{\"orderId\":\"$PICKUP_A\",\"branchId\":\"$BRANCH\",\"amount\":35000,\"providerCode\":\"Mock\"}")
+check "the member starts the online payment" 201 "$(status_of "$r")"
+PAY_A=$(body_of "$r" | json_field id)
+r=$(call POST "/api/v1/payments/transactions/$PAY_A/simulate" "$MEMBER" '{"outcome":"success"}')
+if [ "$(status_of "$r")" = "403" ]; then
+  echo "SKIP  provider simulation is disabled here (set PAYMENTS_ALLOW_SIMULATION=true in .env for a demo)"
+else
+  check "the provider confirms the payment" 200 "$(status_of "$r")"
+  wait_until "the pickup order becomes Confirmed" "call GET /api/v1/orders/$PICKUP_A \"\$MEMBER\" | sed 's/ [0-9]*\$//' | field_of status" Confirmed
+  wait_until "the bar queue shows the pickup order" "call GET /api/v1/kitchen/queue \"\$BARISTA\" | grep -c $PICKUP_A" 1
+  TICKET_A=$(call GET /api/v1/kitchen/queue "$BARISTA" | sed 's/ [0-9]*$//' | grep -o "\"id\":\"[^\"]*\"[^{}]*\"orderId\":\"$PICKUP_A\"" | head -1 | json_field id)
+  [ -z "$TICKET_A" ] && TICKET_A=$(call GET /api/v1/kitchen/queue "$BARISTA" | sed 's/ [0-9]*$//' | json_field id)
+  call PUT "/api/v1/kitchen/tickets/$TICKET_A/status" "$BARISTA" '{"status":"Brewing"}' > /dev/null
+  call PUT "/api/v1/kitchen/tickets/$TICKET_A/status" "$BARISTA" '{"status":"ReadyForPickup"}' > /dev/null
+  wait_until "the pickup order becomes Ready" "call GET /api/v1/orders/$PICKUP_A \"\$CASHIER\" | sed 's/ [0-9]*\$//' | field_of status" Ready
+  r=$(call POST "/api/v1/orders/$PICKUP_A/cancel" "$MEMBER" '{"reason":"too late"}')
+  check "the member cannot cancel once the bar has started" 422 "$(status_of "$r")"
+  r=$(call POST "/api/v1/orders/$PICKUP_A/deliver" "$CASHIER" '{}')
+  check "the cashier hands the pickup order over" 200 "$(status_of "$r")"
+  wait_until "the pickup order is Completed" "call GET /api/v1/orders/$PICKUP_A \"\$CASHIER\" | sed 's/ [0-9]*\$//' | field_of status" Completed
+  r=$(call POST "/api/v1/orders/$PICKUP_A/feedback" "$MEMBER" '{"rating":5,"comment":"Ngon"}')
+  check "the member rates the order" 201 "$(status_of "$r")"
+  r=$(call POST "/api/v1/orders/$PICKUP_A/feedback" "$MEMBER" '{"rating":1}')
+  check "a second rating is refused" 409 "$(status_of "$r")"
+  r=$(call GET "/api/v1/orders/feedbacks" "$MANAGER")
+  check "the manager reads the ratings" 200 "$(status_of "$r")"
+  case "$(body_of "$r")" in *Ngon*) check "the rating is listed" yes yes ;; *) check "the rating is listed" yes no ;; esac
+fi
+
+r=$(pickup "smoke-$STAMP-b")
+check "a second pickup order" 201 "$(status_of "$r")"
+PICKUP_B=$(body_of "$r" | json_field id)
+r=$(call POST "/api/v1/orders/$PICKUP_B/cancel" "$MEMBER" '{"reason":"changed my mind"}')
+check "the member cancels an unpaid order" 200 "$(status_of "$r")"
+r=$(call POST "/api/v1/orders/$PICKUP_B/cancel" "$CASHIER" '{"reason":"again"}')
+check "cancelling twice is refused" 409 "$(status_of "$r")"
+
+r=$(pickup "smoke-$STAMP-c")
+PICKUP_C=$(body_of "$r" | json_field id)
+r=$(call POST /api/v1/payments/transactions "$MEMBER" "{\"orderId\":\"$PICKUP_C\",\"branchId\":\"$BRANCH\",\"amount\":35000,\"providerCode\":\"Mock\"}")
+PAY_C=$(body_of "$r" | json_field id)
+r=$(call POST "/api/v1/payments/transactions/$PAY_C/simulate" "$MEMBER" '{"outcome":"success"}')
+if [ "$(status_of "$r")" != "403" ]; then
+  wait_until "the third pickup order is paid" "call GET /api/v1/orders/$PICKUP_C/payment \"\$MEMBER\" | sed 's/ [0-9]*\$//' | field_of paymentStatus" Paid
+  r=$(call POST "/api/v1/orders/$PICKUP_C/cancel" "$MEMBER" '{"reason":"changed my mind"}')
+  check "the member cancels a paid order before the slot is locked" 200 "$(status_of "$r")"
+  wait_until "the refund by the brand policy is paid back" "call GET /api/v1/orders/$PICKUP_C \"\$MANAGER\" | sed 's/ [0-9]*\$//' | field_of refundStatus" Refunded
+fi
+
+r=$(call GET "/api/v1/identity/public/subscription-plans" "")
+check "the landing page reads the plans without logging in" 200 "$(status_of "$r")"
+r=$(call GET "/api/v1/identity/subscription-plans" "")
+check "the plan admin list stays closed to anonymous callers" 401 "$(status_of "$r")"
+
+r=$(call GET "/api/v1/reporting/branch?branchId=$BRANCH" "$BRAND")
 check "branch report" 200 "$(status_of "$r")"
 
 r=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$GATEWAY/hubs/kitchen/negotiate?negotiateVersion=1&access_token=$BARISTA")

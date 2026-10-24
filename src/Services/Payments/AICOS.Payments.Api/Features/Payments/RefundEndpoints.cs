@@ -25,7 +25,8 @@ public static class RefundEndpoints
 {
     public static void MapRefundEndpoints(this RouteGroupBuilder api)
     {
-        api.MapPost("/transactions/{id:guid}/refunds", RequestAsync).WithTags("Refunds").RequireAuthorization(b => b.RequireRole(PaymentAccess.CounterRoles));
+        // A customer may ask for the refund of their own online payment when they cancel an order: only by the brand policy (Kind Cancellation, no amount).
+        api.MapPost("/transactions/{id:guid}/refunds", RequestAsync).WithTags("Refunds").RequireAuthorization(b => b.RequireRole([.. PaymentAccess.CounterRoles, AicosRoles.Customer]));
 
         var group = api.MapGroup("/refunds").WithTags("Refunds");
         group.MapGet("/", ListAsync).RequireAuthorization(b => b.RequireRole(PaymentAccess.CounterRoles));
@@ -63,6 +64,11 @@ public static class RefundEndpoints
         }
 
         errors.ThrowIfAny();
+
+        if (user.IsInRole(AicosRoles.Customer) && (r.Kind != RefundKind.Cancellation || r.Amount is not null))
+        {
+            throw new ForbiddenException("A customer can only ask for the refund the brand cancellation policy gives.", "refund.customer_policy_only");
+        }
 
         var payment = await PaymentAccess.LoadAsync(db, user, id, ct);
         if (!payment.IsPaid)
