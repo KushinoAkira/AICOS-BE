@@ -121,6 +121,7 @@ public static class CacheExtensions
     {
         services.AddSingleton<RedisConnectionProvider>();
         services.AddSingleton<ICacheStore, RedisCacheStore>();
+        services.AddSingleton<IHashStore, RedisHashStore>();
         return services;
     }
 }
