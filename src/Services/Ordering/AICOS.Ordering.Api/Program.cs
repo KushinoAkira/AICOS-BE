@@ -26,6 +26,7 @@ builder.Services.AddAicosServiceClient<IPaymentClient, HttpPaymentClient>(builde
 
 builder.Services.AddSingleton<ShopTime>();
 builder.Services.AddScoped<OrderEventPublisher>();
+builder.Services.AddHostedService<PickupOrderExpiryWorker>();
 
 // What the other services tell us.
 builder.Services.AddIntegrationEventHandler<PaymentSucceededEvent, PaymentSucceededHandler>();
@@ -46,6 +47,7 @@ app.UseAicosServiceDefaults();
 
 var api = app.MapAicosApiGroup();
 api.MapPickupSlotEndpoints();
+api.MapPickupOrderEndpoints();
 api.MapOrderingEndpoints();
 api.MapQrGuestEndpoints();
 

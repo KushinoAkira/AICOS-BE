@@ -165,6 +165,21 @@ public sealed class BranchEndpointsTests : IDisposable
         (await client.GetAsync(Url)).StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 
+    [Theory]
+    [InlineData(AicosRoles.Customer)]
+    [InlineData(AicosRoles.Cashier)]
+    [InlineData(AicosRoles.Barista)]
+    public async Task A_signed_in_user_of_the_brand_reads_a_branch_but_not_one_of_another_brand(string role)
+    {
+        var branch = await CreateAsync("AICOS Public");
+        using var user = _factory.CreateClientAs(role);
+        using var stranger = _factory.CreateClientAs(role, tenantId: Guid.NewGuid());
+
+        (await user.GetAsync($"{Url}/{branch.Id}")).StatusCode.Should().Be(HttpStatusCode.OK);        // a customer picks a branch to order from
+        (await stranger.GetAsync($"{Url}/{branch.Id}")).StatusCode.Should().Be(HttpStatusCode.NotFound);
+        (await _factory.CreateClient().GetAsync($"{Url}/{branch.Id}")).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
     [Fact]
     public async Task Manager_can_view_only_their_own_branch()
     {

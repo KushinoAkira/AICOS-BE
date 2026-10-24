@@ -6,6 +6,7 @@ using AICOS.Contracts.Events;
 using AICOS.Ordering.Api;
 using AICOS.Ordering.Api.Persistence;
 using AICOS.Ordering.Api.Services;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -29,6 +30,10 @@ public sealed class FakeMenu : IMenuCatalogClient
     }
 
     public void SoldOut(Guid branchId, Guid productId) => _byBranch[branchId].Remove(productId);
+
+    /// <summary>Gives a product option groups, as the Menu service would list them.</summary>
+    public void SetOptions(Guid branchId, Guid productId, params MenuOptionGroupInfo[] groups) =>
+        _byBranch[branchId][productId] = _byBranch[branchId][productId] with { OptionGroups = groups };
 
     public Task<IReadOnlyDictionary<Guid, MenuProductInfo>> GetSellableProductsAsync(Guid branchId, CancellationToken ct) =>
         Task.FromResult<IReadOnlyDictionary<Guid, MenuProductInfo>>(_byBranch.TryGetValue(branchId, out var p) ? new Dictionary<Guid, MenuProductInfo>(p) : []);
@@ -143,6 +148,28 @@ public sealed class OrderTests : IDisposable
         tenant ?? _tenant, _b1, paymentId ?? Guid.NewGuid(), order.Id(), order.GetProperty("finalAmount").GetDecimal(), method, _f.Clock.Now.UtcDateTime);
 
     private async Task<JsonElement> GetAsync(Guid id, HttpClient? client = null) => await (client ?? _manager).GetFromJsonAsync<JsonElement>($"{Orders}/{id}");
+
+    [Fact]
+    public async Task A_refund_that_crossed_the_cancellation_is_shown_as_refunded()
+    {
+        var order = await NewOrderAsync(customerId: _customerId);
+        await _f.HandleAsync(Paid(order, paymentId: Guid.NewGuid()));
+        await _manager.Post($"{Orders}/{order.Id()}/exception", new { reason = "Complaint", refundKind = "Cancellation" }).ShouldBe(200);
+        await _f.HandleAsync(new PaymentRefundedEvent(_tenant, _b1, Guid.NewGuid(), Guid.NewGuid(), order.Id(), 139_000, 139_000, "Mock"));
+
+        // The two writes (cancel, refund) touch different columns and can leave the stored state at RefundPending although the money went back.
+        using (var scope = _f.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<OrderingDbContext>();
+            var row = await db.Orders.FirstAsync(o => o.Id == order.Id());
+            typeof(AICOS.Ordering.Api.Domain.Entities.Order).GetProperty("RefundStatus")!.SetValue(row, AICOS.Ordering.Api.Domain.Enums.RefundStatus.RefundPending);
+            await db.SaveChangesAsync();
+        }
+
+        (await GetAsync(order.Id())).GetProperty("refundStatus").GetString().Should().Be("Refunded");
+        var listed = await _manager.GetFromJsonAsync<JsonElement>($"{Orders}/exceptions?refundStatus=Refunded");
+        listed.EnumerateArray().Select(o => o.Id()).Should().Contain(order.Id());
+    }
 
     // ------------------------------------------------------------------ create
     [Fact]
