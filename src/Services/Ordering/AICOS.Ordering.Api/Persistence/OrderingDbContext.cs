@@ -92,6 +92,9 @@ internal sealed class OrderItemConfiguration : IEntityTypeConfiguration<OrderIte
         builder.Property(i => i.UnitPrice).HasPrecision(18, 0);
         builder.Property(i => i.Note).HasMaxLength(300);
         builder.Ignore(i => i.TotalPrice);
+        builder.Ignore(i => i.OptionsText);
+        builder.HasMany(i => i.Options).WithOne().HasForeignKey(o => o.OrderItemId).OnDelete(DeleteBehavior.Cascade);
+        builder.Navigation(i => i.Options).UsePropertyAccessMode(PropertyAccessMode.Field).HasField("_options");
         builder.HasIndex(i => i.OrderId);
     }
 }
@@ -111,5 +114,22 @@ internal sealed class OrderFeedbackConfiguration : IEntityTypeConfiguration<Orde
         builder.HasIndex(f => f.OrderId).IsUnique();
         builder.HasIndex(f => new { f.TenantId, f.BranchId, f.CreatedAtUtc });
         builder.HasIndex(f => f.CustomerId);
+    }
+}
+
+internal sealed class OrderLineOptionConfiguration : IEntityTypeConfiguration<OrderLineOption>
+{
+    public void Configure(EntityTypeBuilder<OrderLineOption> builder)
+    {
+        builder.ToTable("order_item_options", t =>
+        {
+            t.HasCheckConstraint("ck_order_item_options_price", "price_delta >= 0");
+        });
+        builder.HasKey(o => o.Id);
+        builder.Property(o => o.Id).ValueGeneratedNever();
+        builder.Property(o => o.GroupName).HasMaxLength(100).IsRequired();
+        builder.Property(o => o.Name).HasMaxLength(100).IsRequired();
+        builder.Property(o => o.PriceDelta).HasPrecision(18, 0);
+        builder.HasIndex(o => o.OrderItemId);
     }
 }

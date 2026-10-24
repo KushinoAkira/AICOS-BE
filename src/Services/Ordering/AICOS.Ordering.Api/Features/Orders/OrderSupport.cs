@@ -24,7 +24,7 @@ internal static class OrderAccess
     public static async Task<Order> LoadAsync(OrderingDbContext db, ICurrentUser user, Guid id, CancellationToken ct, bool track = true)
     {
         var tenantId = TenantScope.Require(user);
-        var query = db.Orders.Include(o => o.Items).AsSplitQuery().Where(o => o.Id == id && o.TenantId == tenantId);
+        var query = db.Orders.Include(o => o.Items).ThenInclude(i => i.Options).AsSplitQuery().Where(o => o.Id == id && o.TenantId == tenantId);
         var order = await (track ? query : query.AsNoTracking()).FirstOrDefaultAsync(ct) ?? throw new NotFoundException("Order", id);
         Ensure(user, order);
         return order;
@@ -54,7 +54,14 @@ internal static class OrderAccess
 public sealed class OrderEventPublisher(IEventBus bus, ILogger<OrderEventPublisher> logger)
 {
     private static IReadOnlyList<OrderItemDto> Items(Order o) =>
-        o.Items.Select(i => new OrderItemDto(i.ProductId, i.ProductName, i.UnitPrice, i.Quantity, i.Note)).ToList();
+        o.Items.Select(i => new OrderItemDto(i.ProductId, i.ProductName, i.UnitPrice, i.Quantity, BarNote(i))).ToList();
+
+    /// <summary>The bar and the cup stickers read the note: the chosen options first, then the customer note.</summary>
+    private static string? BarNote(OrderItem i)
+    {
+        var text = string.Join(" | ", new[] { i.OptionsText, i.Note }.Where(s => !string.IsNullOrWhiteSpace(s)));
+        return text.Length == 0 ? null : text.Length <= 300 ? text : text[..300];
+    }
 
     public Task CreatedAsync(Order o, CancellationToken ct) => SafeAsync(new OrderCreatedIntegrationEvent(
         o.TenantId, o.Id, o.OrderCode, o.BranchId, o.CashierId, o.CustomerId, o.TableId, o.TableNumber, o.Type.ToString(), o.FinalAmount, o.IsPaid, o.PickupSlotStartUtc, Items(o), o.CreatedAtUtc), ct);

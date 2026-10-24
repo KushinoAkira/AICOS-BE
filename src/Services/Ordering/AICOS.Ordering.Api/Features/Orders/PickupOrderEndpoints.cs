@@ -105,7 +105,7 @@ public static class PickupOrderEndpoints
 
         if (!string.IsNullOrEmpty(idempotencyKey))
         {
-            var again = await db.Orders.Include(o => o.Items).AsSplitQuery()
+            var again = await db.Orders.Include(o => o.Items).ThenInclude(i => i.Options).AsSplitQuery()
                 .FirstOrDefaultAsync(o => o.TenantId == tenantId && o.CustomerId == customerId && o.IdempotencyKey == idempotencyKey, ct);
             if (again is not null)
             {
@@ -132,7 +132,8 @@ public static class PickupOrderEndpoints
         foreach (var item in r.Items!)
         {
             var product = sellable[item.ProductId!.Value];
-            order.AddItem(product.Id, product.Name, product.Price, item.Quantity!.Value, string.IsNullOrWhiteSpace(item.Note) ? null : item.Note.Trim());
+            var priced = OrderOptions.Resolve(product, item.OptionIds);
+            order.AddItem(product.Id, product.Name, product.Price + priced.Surcharge, item.Quantity!.Value, string.IsNullOrWhiteSpace(item.Note) ? null : item.Note.Trim(), priced.Options);
         }
 
         // Capacity first: a full slot must not use up a voucher.
@@ -327,7 +328,7 @@ public sealed class PickupOrderExpiryWorker(IServiceScopeFactory scopes, TimePro
     {
         var db = services.GetRequiredService<OrderingDbContext>();
         var events = services.GetRequiredService<OrderEventPublisher>();
-        var overdue = await db.Orders.Include(o => o.Items).AsSplitQuery()
+        var overdue = await db.Orders.Include(o => o.Items).ThenInclude(i => i.Options).AsSplitQuery()
             .Where(o => o.PaymentDueAtUtc != null && o.PaymentDueAtUtc <= now && o.PaymentStatus == PaymentStatus.Unpaid && o.Status == OrderStatus.Pending)
             .OrderBy(o => o.PaymentDueAtUtc).Take(100).ToListAsync(ct);
         var released = 0;

@@ -6,7 +6,12 @@ using AICOS.BuildingBlocks.Exceptions;
 namespace AICOS.Ordering.Api.Services;
 
 /// <summary>A product as the Menu service sells it at a branch right now. The price here is the one the customer pays.</summary>
-public sealed record MenuProductInfo(Guid Id, string Name, decimal Price);
+public sealed record MenuOptionInfo(Guid Id, string Name, decimal PriceDelta, bool IsDefault, Guid? RequiresOptionId);
+
+/// <summary>An option group of a product (size, sugar, toppings): pick one or several, possibly required.</summary>
+public sealed record MenuOptionGroupInfo(Guid Id, string Name, bool IsMultiple, bool IsRequired, int? MaxSelections, IReadOnlyList<MenuOptionInfo> Options);
+
+public sealed record MenuProductInfo(Guid Id, string Name, decimal Price, IReadOnlyList<MenuOptionGroupInfo>? OptionGroups = null);
 
 /// <summary>Menu Service: what a branch sells and at which price. Prices always come from here, never from the client request.</summary>
 public interface IMenuCatalogClient
@@ -97,13 +102,45 @@ internal sealed class HttpMenuCatalogClient(HttpClient http) : IMenuCatalogClien
                     if (available)
                     {
                         var id = product.GetProperty("id").GetGuid();
-                        products[id] = new MenuProductInfo(id, product.GetProperty("name").GetString() ?? string.Empty, product.GetProperty("price").GetDecimal());
+                        products[id] = new MenuProductInfo(id, product.GetProperty("name").GetString() ?? string.Empty, product.GetProperty("price").GetDecimal(), ParseGroups(product));
                     }
                 }
             }
         }
 
         return products;
+    }
+
+    private static List<MenuOptionGroupInfo> ParseGroups(JsonElement product)
+    {
+        var groups = new List<MenuOptionGroupInfo>();
+        if (!product.TryGetProperty("optionGroups", out var raw) || raw.ValueKind != JsonValueKind.Array)
+        {
+            return groups;
+        }
+
+        foreach (var g in raw.EnumerateArray())
+        {
+            var selection = g.GetProperty("selectionType");
+            var multiple = selection.ValueKind == JsonValueKind.String
+                ? string.Equals(selection.GetString(), "Multiple", StringComparison.OrdinalIgnoreCase)
+                : selection.GetInt32() == 1;
+            var options = g.GetProperty("options").EnumerateArray().Select(o => new MenuOptionInfo(
+                o.GetProperty("id").GetGuid(),
+                o.GetProperty("name").GetString() ?? string.Empty,
+                o.GetProperty("priceDelta").GetDecimal(),
+                o.TryGetProperty("isDefault", out var d) && d.ValueKind == JsonValueKind.True,
+                o.TryGetProperty("requiresOptionId", out var r) && r.ValueKind == JsonValueKind.String ? r.GetGuid() : null)).ToList();
+            groups.Add(new MenuOptionGroupInfo(
+                g.GetProperty("id").GetGuid(),
+                g.GetProperty("name").GetString() ?? string.Empty,
+                multiple,
+                g.TryGetProperty("isRequired", out var req) && req.ValueKind == JsonValueKind.True,
+                g.TryGetProperty("maxSelections", out var max) && max.ValueKind == JsonValueKind.Number ? max.GetInt32() : null,
+                options));
+        }
+
+        return groups;
     }
 }
 

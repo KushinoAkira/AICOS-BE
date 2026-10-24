@@ -81,7 +81,8 @@ public static class OrderEndpoints
         foreach (var item in r.Items!)
         {
             var product = sellable[item.ProductId!.Value];
-            order.AddItem(product.Id, product.Name, product.Price, item.Quantity!.Value, string.IsNullOrWhiteSpace(item.Note) ? null : item.Note.Trim());
+            var priced = OrderOptions.Resolve(product, item.OptionIds);
+            order.AddItem(product.Id, product.Name, product.Price + priced.Surcharge, item.Quantity!.Value, string.IsNullOrWhiteSpace(item.Note) ? null : item.Note.Trim(), priced.Options);
         }
 
         if (!string.IsNullOrWhiteSpace(r.PromotionCode))
@@ -144,7 +145,7 @@ public static class OrderEndpoints
         CancellationToken ct)
     {
         var tenantId = TenantScope.Require(user);
-        var query = db.Orders.AsNoTracking().Include(o => o.Items).Where(o => o.TenantId == tenantId);
+        var query = db.Orders.AsNoTracking().Include(o => o.Items).ThenInclude(i => i.Options).Where(o => o.TenantId == tenantId);
         var branch = BranchAccess.ResolveFilter(user, branchId);
         if (branch is not null)
         {
@@ -171,7 +172,7 @@ public static class OrderEndpoints
     private static async Task<List<OrderSummary>> MineAsync(OrderingDbContext db, ICurrentUser user, int? limit, CancellationToken ct)
     {
         var tenantId = TenantScope.Require(user);
-        var orders = await db.Orders.AsNoTracking().Include(o => o.Items)
+        var orders = await db.Orders.AsNoTracking().Include(o => o.Items).ThenInclude(i => i.Options)
             .Where(o => o.TenantId == tenantId && o.CustomerId == user.UserId)
             .OrderByDescending(o => o.CreatedAtUtc).Take(Math.Clamp(limit ?? 50, 1, MaxPageSize)).AsSplitQuery().ToListAsync(ct);
         return orders.Select(OrderSummary.From).ToList();
@@ -197,7 +198,7 @@ public static class OrderEndpoints
     private static async Task<ReceiptResponse> ReceiptByCodeAsync(string orderCode, OrderingDbContext db, ICurrentUser user, ShopTime clock, CancellationToken ct)
     {
         var tenantId = TenantScope.Require(user);
-        var order = await db.Orders.Include(o => o.Items).AsSplitQuery().FirstOrDefaultAsync(o => o.TenantId == tenantId && o.OrderCode == orderCode, ct)
+        var order = await db.Orders.Include(o => o.Items).ThenInclude(i => i.Options).AsSplitQuery().FirstOrDefaultAsync(o => o.TenantId == tenantId && o.OrderCode == orderCode, ct)
             ?? throw new NotFoundException("Order", orderCode);
         OrderAccess.Ensure(user, order);
         return await PrintAsync(db, order, clock, ct);
@@ -360,7 +361,7 @@ public static class OrderEndpoints
         OrderingDbContext db, ICurrentUser user, ShopTime clock, Guid? branchId, RefundStatus? refundStatus, DateOnly? from, DateOnly? to, CancellationToken ct)
     {
         var tenantId = TenantScope.Require(user);
-        var query = db.Orders.AsNoTracking().Include(o => o.Items).Where(o => o.TenantId == tenantId && o.RefundStatus != RefundStatus.None);
+        var query = db.Orders.AsNoTracking().Include(o => o.Items).ThenInclude(i => i.Options).Where(o => o.TenantId == tenantId && o.RefundStatus != RefundStatus.None);
         var branch = BranchAccess.ResolveFilter(user, branchId);
         if (branch is not null)
         {
