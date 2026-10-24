@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using AICOS.CustomerEngagement.Api;
 using AICOS.IdentityOrganization.Api;
+using AICOS.InventoryPurchasing.Api;
 using AICOS.KitchenOperations.Api;
 using AICOS.MenuCatalog.Api;
 using AICOS.Ordering.Api;
@@ -25,6 +26,7 @@ public class ServiceSmokeTests
     [Fact] public Task Table_boots() => AssertBoots<TableReservationService>("table", "tables");
     [Fact] public Task Order_boots() => AssertBoots<OrderingService>("order", "orders");
     [Fact] public Task Payment_boots() => AssertBoots<PaymentsService>("payment", "payments");
+    [Fact] public Task Inventory_boots() => AssertBoots<InventoryPurchasingService>("inventory", "inventory");
     [Fact] public Task Kitchen_boots() => AssertBoots<KitchenOperationsService>("kitchen", "kitchen");
     [Fact] public Task Workforce_boots() => AssertBoots<WorkforceSchedulingService>("workforce", "workforce");
     [Fact] public Task Reporting_boots() => AssertBoots<ReportingAnalyticsService>("reporting", "reporting");

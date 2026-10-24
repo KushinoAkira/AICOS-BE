@@ -24,9 +24,9 @@ public class AuditableEntityInterceptorTests
         public bool IsAuthenticated => id is not null;
         public Guid? UserId => id;
         public string? Name => "tester";
-        public string? Role => AicosRoles.BranchManager;
-        public Guid? TenantId => null;
+        public string? Role => AicosRoles.Manager;
         public Guid? BranchId => null;
+        public Guid? TenantId => null;
         public bool IsInRole(string role) => role == Role;
     }
 

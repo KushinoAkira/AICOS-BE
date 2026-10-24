@@ -10,8 +10,6 @@
     <AnalysisLevel>latest</AnalysisLevel>
     <Product>AICOS</Product>
     <Company>FA26SE023</Company>
-    <!-- One shared user-secrets store for every service (see README, section Chay nhanh). -->
-    <UserSecretsId>aicos-be</UserSecretsId>
     <!-- CI turns this on with: dotnet build -p:TreatWarningsAsErrors=true -->
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
   </PropertyGroup>

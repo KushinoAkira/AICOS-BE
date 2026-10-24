@@ -8,6 +8,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\..\BuildingBlocks\AICOS.BuildingBlocks\AICOS.BuildingBlocks.csproj" />
     <ProjectReference Include="..\..\..\BuildingBlocks\AICOS.Contracts\AICOS.Contracts.csproj" />
+    <ProjectReference Include="..\..\Ordering\AICOS.Ordering.Api\AICOS.Ordering.Api.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -2,44 +2,33 @@ namespace AICOS.Ordering.Api.Domain.Enums;
 
 public enum OrderStatus
 {
-    Pending = 1,        // created, not yet confirmed
-    Confirmed = 2,      // confirmed (paid, or dine-in sent to the bar)
-    Preparing = 3,      // the barista is making it
-    Ready = 4,          // made, waiting to be served
-    Completed = 5,      // the customer has it
-    Cancelled = 6,
+    Pending = 1,        // Chờ xử lý (mới tạo)
+    Confirmed = 2,      // Đã xác nhận (chuẩn bị làm món)
+    Preparing = 3,      // Đang chuẩn bị (nhà bếp/pha chế đang làm)
+    Ready = 4,          // Đã làm xong, chờ phục vụ/giao
+    Completed = 5,      // Đã hoàn thành (khách đã nhận)
+    Cancelled = 6       // Đã hủy
 }
 
 public enum OrderType
 {
-    DineIn = 1,
-    Takeaway = 2,
-    Delivery = 3,
+    DineIn = 1,         // Ăn tại bàn
+    Takeaway = 2,       // Mang đi
+    Delivery = 3        // Giao hàng
 }
 
 public enum PaymentStatus
 {
-    Unpaid = 1,
-    PartiallyPaid = 2,
-    Paid = 3,
-    Refunded = 4,
+    Unpaid = 1,         // Chưa thanh toán
+    PartiallyPaid = 2,  // Thanh toán một phần
+    Paid = 3,           // Đã thanh toán
+    Refunded = 4        // Đã hoàn tiền
 }
 
 public enum PaymentMethod
 {
-    Cash = 1,
-    Card = 2,
-    EWallet = 3,
-    BankTransfer = 4,
-}
-
-/// <summary>Where the money of an order that was cancelled after it was paid stands (FR-30).</summary>
-public enum RefundStatus
-{
-    None = 0,
-    /// <summary>A paid order was cancelled and nobody has asked for the money back yet (for example the payment arrived after the cancellation).</summary>
-    Needed = 1,
-    RefundPending = 2,
-    Refunded = 3,
-    RefundFailed = 4,
+    Cash = 1,           // Tiền mặt tại quầy
+    Card = 2,           // Thẻ POS (Visa, Master, ATM)
+    EWallet = 3,        // Ví điện tử (MoMo, ZaloPay, ShopeePay)
+    BankTransfer = 4    // Chuyển khoản VietQR
 }

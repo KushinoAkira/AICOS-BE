@@ -53,10 +53,7 @@ public static class ServiceDefaultsExtensions
         services.AddExceptionHandler<GlobalExceptionHandler>();
 
         services.ConfigureHttpJsonOptions(options =>
-        {
-            options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
-            options.SerializerOptions.Converters.Add(new TimeOnlyJsonConverter());
-        });
+            options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 
         return services;
     }
@@ -68,19 +65,13 @@ public static class ServiceDefaultsExtensions
         {
             options.SwaggerDoc("v1", new OpenApiInfo { Title = $"AICOS {info.DisplayName}", Version = "v1" });
             options.CustomSchemaIds(type => type.FullName?.Replace('+', '.'));
-            options.MapType<TimeOnly>(() => new OpenApiSchema
-            {
-                Type = "string",
-                Format = "time",
-                Example = new Microsoft.OpenApi.Any.OpenApiString("07:00"),
-            });
 
             var bearer = new OpenApiSecurityScheme
             {
                 Type = SecuritySchemeType.Http,
                 Scheme = "bearer",
                 BearerFormat = "JWT",
-                Description = "Paste ONLY the accessToken value (eyJ...), without the word \"Bearer\" and without quotes.",
+                Description = "Paste the JWT access token issued by the Identity service.",
                 Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" },
             };
             options.AddSecurityDefinition("Bearer", bearer);
