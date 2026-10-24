@@ -164,6 +164,10 @@ namespace AICOS.Ordering.Api.Persistence.Migrations
                         .HasColumnType("numeric(18,0)")
                         .HasColumnName("refunded_amount");
 
+                    b.Property<int>("RemakeCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("remake_count");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(20)

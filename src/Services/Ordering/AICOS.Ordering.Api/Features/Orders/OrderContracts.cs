@@ -26,6 +26,9 @@ public sealed record SwitchServiceTypeRequest(OrderType? Type, Guid? TableId, st
 
 public sealed record CancelOrderRequest(string? Reason);
 
+/// <summary>POST /orders/{id}/no-show and /orders/{id}/unfulfillable: why the order is closed.</summary>
+public sealed record OrderReasonRequest(string? Reason);
+
 /// <summary>POST /orders/{id}/exception. <c>RefundKind</c> is Cancellation (default, the brand policy decides the amount), NoShow, or Exception (needs an amount).</summary>
 public sealed record OrderExceptionRequest(string? Reason, string? RefundKind, decimal? Amount);
 
@@ -72,14 +75,15 @@ public sealed record OrderResponse(
     IReadOnlyList<OrderItemResponse> Items,
     DateTime? PickupSlotStartUtc = null,
     DateTime? PaymentDueAtUtc = null,
-    Guid? TableSessionId = null)
+    Guid? TableSessionId = null,
+    int RemakeCount = 0)
 {
     public static OrderResponse From(Order o) => new(
         o.Id, o.OrderCode, o.BranchId, o.CashierId, o.CustomerId, o.Type, o.Status, o.PaymentStatus, o.PaymentMethod, o.PaymentProvider, o.PaymentId,
         o.TableId, o.TableNumber, o.DeliveryAddress, o.Note, o.OriginalAmount, o.PromotionCode, o.DiscountAmount, o.FinalAmount, o.RefundedAmount, o.EffectiveRefundStatus,
         o.CreatedAtUtc, o.PaidAtUtc, o.ReadyAtUtc, o.DeliveredAtUtc, o.CompletedAtUtc, o.CancelledAtUtc, o.CancelledReason,
         o.Items.Select(OrderItemResponse.From).ToList(),
-        o.PickupSlotStartUtc, o.PaymentDueAtUtc, o.TableSessionId);
+        o.PickupSlotStartUtc, o.PaymentDueAtUtc, o.TableSessionId, o.RemakeCount);
 }
 
 public sealed record OrderSummary(

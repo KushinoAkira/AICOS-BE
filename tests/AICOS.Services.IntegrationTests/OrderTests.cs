@@ -65,6 +65,11 @@ public sealed class FakePayments : IPaymentClient
 
     public Exception? Fail { get; set; }
 
+    /// <summary>The waiting time of the brand policy before a no-show may be recorded.</summary>
+    public int NoShowAfterMinutes { get; set; } = 30;
+
+    public Task<int> GetNoShowAfterMinutesAsync(CancellationToken ct) => Task.FromResult(NoShowAfterMinutes);
+
     /// <summary>Runs while the request is open, like a refund event that arrives before the answer does.</summary>
     public Func<Task>? WhileOpen { get; set; }
 

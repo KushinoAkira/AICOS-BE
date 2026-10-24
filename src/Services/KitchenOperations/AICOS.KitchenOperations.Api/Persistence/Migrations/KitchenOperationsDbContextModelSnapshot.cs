@@ -114,6 +114,15 @@ namespace AICOS.KitchenOperations.Api.Persistence.Migrations
                         .HasColumnType("boolean")
                         .HasColumnName("is_paid");
 
+                    b.Property<DateTime?>("LastRemakeAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_remake_at_utc");
+
+                    b.Property<string>("LastRemakeReason")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("last_remake_reason");
+
                     b.Property<string>("OrderCode")
                         .IsRequired()
                         .HasMaxLength(40)
@@ -133,6 +142,10 @@ namespace AICOS.KitchenOperations.Api.Persistence.Migrations
                     b.Property<DateTime?>("ReadyAtUtc")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("ready_at_utc");
+
+                    b.Property<int>("RemakeCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("remake_count");
 
                     b.Property<DateTime?>("ScheduledPickupTimeUtc")
                         .HasColumnType("timestamp with time zone")

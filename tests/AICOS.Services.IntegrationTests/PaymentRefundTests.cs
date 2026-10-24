@@ -181,6 +181,31 @@ public sealed class PaymentRefundTests : PaymentTestBase
     }
 
     [Fact]
+    public async Task An_order_the_shop_could_not_make_is_refunded_in_full_whatever_the_cancellation_policy_says_and_the_bar_may_ask_for_it()
+    {
+        await SetPolicyAsync(cancel: 0);
+        var payment = await PaidOnlineAsync(100_000);
+        var barista = F.As(AicosRoles.Barista, B1);
+
+        var refund = await barista.PostOk(RefundsOf(payment), new { kind = "Unfulfillable", reason = "Hết sữa" });
+
+        (refund.GetProperty("amount").GetDecimal(), refund.GetProperty("status").GetString(), refund.GetProperty("withinPolicy").GetBoolean()).Should().Be((100_000m, "Succeeded", true));
+        (await GetAsync(Cashier1, $"{Tx}/{payment.Id()}")).GetProperty("status").GetString().Should().Be("Refunded");
+    }
+
+    [Fact]
+    public async Task The_bar_can_only_ask_for_the_refund_of_an_unfulfillable_order_in_its_own_branch()
+    {
+        var payment = await PaidOnlineAsync(100_000);
+
+        await F.As(AicosRoles.Barista, B1).Post(RefundsOf(payment), new { kind = "Cancellation", reason = "x" }).ShouldBe(403, "refund.bar_unfulfillable_only");
+        await F.As(AicosRoles.Barista, B1).Post(RefundsOf(payment), new { kind = "Exception", amount = 1000, reason = "x" }).ShouldBe(403, "refund.bar_unfulfillable_only");
+        await F.As(AicosRoles.Barista, B2).Post(RefundsOf(payment), new { kind = "Unfulfillable", reason = "x" }).ShouldBe(403, "branch.forbidden");
+        await Customer.Post(RefundsOf(payment), new { kind = "Unfulfillable", reason = "x" }).ShouldBe(403, "refund.customer_policy_only");
+        await Cashier1.Post(RefundsOf(payment), new { kind = "Unfulfillable", reason = "Hết ly" }).ShouldBe(201);       // the counter may too
+    }
+
+    [Fact]
     public async Task Refund_requests_are_validated_and_limited_to_counter_staff_of_the_branch_and_brand()
     {
         var payment = await PaidOnlineAsync(100_000);

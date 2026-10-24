@@ -79,3 +79,16 @@ public record KitchenOrderStartedIntegrationEvent(
     Guid OrderId,
     Guid BranchId,
     DateTime StartedAtUtc) : IntegrationEvent;
+
+/// <summary>
+/// Published by Kitchen Service when the bar makes a ready order again (spilled, wrong drink, quality). <see cref="RemakeCount"/> is how many times
+/// this ticket was remade, so a repeated message changes nothing. Order Service shows the order as Preparing again.
+/// </summary>
+public record KitchenOrderRemakeIntegrationEvent(
+    Guid TenantId,
+    Guid TicketId,
+    Guid OrderId,
+    Guid BranchId,
+    string Reason,
+    int RemakeCount,
+    DateTime RemadeAtUtc) : IntegrationEvent;
