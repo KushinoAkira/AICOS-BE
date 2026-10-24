@@ -32,6 +32,7 @@ builder.Services.AddCors(options => options.AddDefaultPolicy(policy =>
 var permitLimit = builder.Configuration.GetValue("RateLimiting:PermitLimitPerMinute", 600);
 var authLimit = builder.Configuration.GetValue("RateLimiting:AuthPermitLimitPerMinute", 10);
 var chatLimit = builder.Configuration.GetValue("RateLimiting:ChatPermitLimitPerMinute", 20);
+var qrLimit = builder.Configuration.GetValue("RateLimiting:QrPermitLimitPerMinute", 120);
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -43,7 +44,7 @@ builder.Services.AddRateLimiter(options =>
     options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
     {
         var ip = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
-        var (group, limit) = RateLimitGroups.Classify(context.Request.Method, context.Request.Path, permitLimit, authLimit, chatLimit);
+        var (group, limit) = RateLimitGroups.Classify(context.Request.Method, context.Request.Path, permitLimit, authLimit, chatLimit, qrLimit);
         return RateLimitPartition.GetFixedWindowLimiter(
             $"{group}:{ip}",
             _ => new FixedWindowRateLimiterOptions { PermitLimit = limit, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 });

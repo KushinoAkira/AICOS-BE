@@ -175,3 +175,39 @@ internal sealed class HttpPaymentClient(HttpClient http) : IPaymentClient
         return new RefundRequestResult(body.GetProperty("status").GetString() ?? "PendingApproval");
     }
 }
+
+/// <summary>What the Table service tells about a scanned table QR code (UC-49): brand, branch, table and whether ordering is open.</summary>
+public sealed record TableQrInfo(Guid TenantId, Guid BranchId, Guid TableId, string TableCode, string AreaName, bool CanOrder);
+
+/// <summary>Table Service: resolves the token of a scanned table QR code. Public, so no bearer token is needed.</summary>
+public interface ITableQrClient
+{
+    /// <summary>Null when the code is unknown (a printed code that was replaced stops working at once).</summary>
+    Task<TableQrInfo?> LookupAsync(string qrToken, CancellationToken ct);
+}
+
+internal sealed class HttpTableQrClient(HttpClient http) : ITableQrClient
+{
+    public async Task<TableQrInfo?> LookupAsync(string qrToken, CancellationToken ct)
+    {
+        using var response = await ServiceCall.SendAsync("table", () => http.GetAsync($"/api/v1/tables/public/qr/{Uri.EscapeDataString(qrToken.Trim())}", ct), ct);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+
+        if (!response.IsSuccessStatusCode)
+        {
+            throw await ServiceCall.ErrorAsync("table", "table.unavailable", response, ct);
+        }
+
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>(ServiceCall.Json, ct);
+        return new TableQrInfo(
+            body.GetProperty("tenantId").GetGuid(),
+            body.GetProperty("branchId").GetGuid(),
+            body.GetProperty("tableId").GetGuid(),
+            body.GetProperty("tableCode").GetString() ?? string.Empty,
+            body.TryGetProperty("areaName", out var area) ? area.GetString() ?? string.Empty : string.Empty,
+            !body.TryGetProperty("canOrder", out var can) || can.GetBoolean());
+    }
+}
