@@ -12,6 +12,9 @@ namespace AICOS.KitchenOperations.Api.Features;
 
 public sealed record UpdateKitchenTicketStatusRequest(KitchenTicketStatus? Status);
 
+/// <summary>POST /tickets/{id}/remake: why the order is made again (spilled, wrong drink, quality).</summary>
+public sealed record RemakeTicketRequest(string? Reason);
+
 /// <summary>
 /// The bar queue (FR-33, FR-35, FR-36). Routes: /api/v1/kitchen. Tickets are created from the order event, never by hand. Barista, Branch
 /// Manager and Brand Admin run the bar; the Cashier can read the queue. Everything is scoped to the brand and the branch of the caller.
@@ -29,6 +32,7 @@ public static class KitchenEndpoints
         group.MapGet("/tickets/{id:guid}", GetAsync).RequireAuthorization(AicosPolicies.Staff);
         group.MapPut("/tickets/{id:guid}/status", UpdateStatusAsync).RequireAuthorization(AicosPolicies.Staff);
         group.MapGet("/tickets/{id:guid}/stickers", StickersAsync).RequireAuthorization(b => b.RequireRole(BarRoles));
+        group.MapPost("/tickets/{id:guid}/remake", RemakeAsync).RequireAuthorization(b => b.RequireRole(BarRoles));
     }
 
     /// <summary>Priority tickets (scheduled pickup) first by pickup time, then everything else first-in first-out.</summary>
@@ -154,6 +158,37 @@ public static class KitchenEndpoints
         return Results.Ok(TicketMapper.ToDto(ticket));
     }
 
+    /// <summary>
+    /// The bar makes a ready order again ("pha lại"). The ticket goes back to the queue as Brewing, the cashier screens and the order service are told,
+    /// and no new charge is made. Only before the hand-over.
+    /// </summary>
+    private static async Task<IResult> RemakeAsync(
+        Guid id,
+        RemakeTicketRequest r,
+        KitchenOperationsDbContext db,
+        ICurrentUser user,
+        IKitchenNotifier notifier,
+        IEventBus bus,
+        TimeProvider clock,
+        ILoggerFactory loggers,
+        CancellationToken ct)
+    {
+        var errors = new AICOS.BuildingBlocks.Validation.ValidationErrors();
+        AICOS.BuildingBlocks.Validation.CommonRules.Required(errors, "Reason", r.Reason, "Reason", 200);
+        errors.ThrowIfAny();
+
+        var ticket = await TicketAccess.LoadAsync(db, user, id, ct);
+        var now = clock.GetUtcNow().UtcDateTime;
+        ticket.Remake(r.Reason!, now);
+        await db.SaveChangesAsync(ct);
+
+        var log = loggers.CreateLogger("AICOS.Kitchen.Tickets");
+        await SafeAsync(log, () => notifier.NotifyStatusChangedAsync(ticket.TenantId, ticket.BranchId, ticket.Id, ticket.Status.ToString(), ct));
+        await SafeAsync(log, () => bus.PublishAsync(
+            new KitchenOrderRemakeIntegrationEvent(ticket.TenantId, ticket.Id, ticket.OrderId, ticket.BranchId, ticket.LastRemakeReason!, ticket.RemakeCount, now), ct));
+        return Results.Ok(TicketMapper.ToDto(ticket));
+    }
+
     /// <summary>The stickers of a ticket (FR-36); printing may be simulated, the client prints what it gets.</summary>
     private static async Task<object> StickersAsync(Guid id, KitchenOperationsDbContext db, ICurrentUser user, TimeProvider clock, CancellationToken ct)
     {
@@ -209,7 +244,7 @@ internal static class TicketMapper
         t.Id, t.OrderId, t.OrderCode, t.BranchId, t.TableNumber, t.OrderType, t.Status.ToString(), t.IsPaid, t.IsPriority, t.CreatedAtUtc, t.ScheduledPickupTimeUtc,
         t.BrewingStartedAtUtc, t.ReadyAtUtc, t.TotalCups,
         t.Items.Select(i => new KitchenTicketItemDto(i.ProductId, i.ProductName, i.Quantity, i.Note)).ToList(),
-        t.Stickers.Select(ToDto).ToList());
+        t.Stickers.Select(ToDto).ToList(), t.RemakeCount, t.LastRemakeReason);
 
     public static CupStickerDto ToDto(CupSticker s) => new(
         s.Id, s.TicketId, s.OrderId, s.OrderCode, s.TableNumber, s.ProductName, s.CupIndex, s.TotalCupsInOrder, s.Customizations, s.PrintedAtUtc);

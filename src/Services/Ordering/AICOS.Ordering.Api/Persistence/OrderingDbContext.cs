@@ -63,6 +63,7 @@ internal sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
         builder.Ignore(o => o.FinalAmount);
         builder.Ignore(o => o.TotalAmount);
         builder.Ignore(o => o.IsPaid);
+        builder.Ignore(o => o.IsVoided);
         builder.Ignore(o => o.EffectiveRefundStatus);
 
         builder.HasMany(o => o.Items).WithOne().HasForeignKey(i => i.OrderId).OnDelete(DeleteBehavior.Cascade);

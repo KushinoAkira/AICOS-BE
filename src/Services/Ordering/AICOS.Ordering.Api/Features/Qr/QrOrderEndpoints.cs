@@ -33,7 +33,7 @@ public sealed record QrBillResponse(
 {
     public static QrBillResponse From(TableSession session, IReadOnlyList<Order> orders)
     {
-        var live = orders.Where(o => o.Status != OrderStatus.Cancelled).ToList();
+        var live = orders.Where(o => !o.IsVoided).ToList();
         var total = live.Sum(o => o.FinalAmount);
         var paid = live.Where(o => o.IsPaid).Sum(o => o.FinalAmount);
         return new QrBillResponse(
@@ -308,7 +308,7 @@ public static class QrOrderEndpoints
         var orders = await db.Orders.AsNoTracking().Include(o => o.Items).Where(o => o.TableSessionId != null && ids.Contains(o.TableSessionId.Value)).ToListAsync(ct);
         return sessions.Select(s =>
         {
-            var mine = orders.Where(o => o.TableSessionId == s.Id && o.Status != OrderStatus.Cancelled).ToList();
+            var mine = orders.Where(o => o.TableSessionId == s.Id && !o.IsVoided).ToList();
             return new TableSessionSummary(s.Id, s.BranchId, s.TableId, s.TableCode, s.Status, s.OpenedAtUtc, s.LastActivityAtUtc, mine.Count, mine.Where(o => !o.IsPaid).Sum(o => o.FinalAmount));
         }).ToList();
     }
@@ -351,7 +351,7 @@ public static class TableSessions
             return;
         }
 
-        var states = await db.Orders.AsNoTracking().Where(o => o.TableSessionId == sessionId && o.Status != OrderStatus.Cancelled)
+        var states = await db.Orders.AsNoTracking().Where(o => o.TableSessionId == sessionId && o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.NoShow && o.Status != OrderStatus.Unfulfillable)
             .Select(o => o.PaymentStatus).ToListAsync(ct);
         if (states.Count == 0 || states.Any(p => p is not (PaymentStatus.Paid or PaymentStatus.Refunded)))
         {

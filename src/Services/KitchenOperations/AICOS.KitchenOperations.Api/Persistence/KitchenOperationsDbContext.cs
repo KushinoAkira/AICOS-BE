@@ -26,6 +26,7 @@ internal sealed class KitchenTicketConfiguration : IEntityTypeConfiguration<Kitc
         builder.Property(t => t.OrderCode).HasMaxLength(40).IsRequired();
         builder.Property(t => t.TableNumber).HasMaxLength(20);
         builder.Property(t => t.OrderType).HasMaxLength(20).IsRequired();
+        builder.Property(t => t.LastRemakeReason).HasMaxLength(200);
         builder.Property(t => t.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
         builder.Ignore(t => t.IsPriority);
         builder.Ignore(t => t.TotalCups);

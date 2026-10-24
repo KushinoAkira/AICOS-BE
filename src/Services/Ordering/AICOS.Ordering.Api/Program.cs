@@ -43,6 +43,7 @@ builder.Services.AddIntegrationEventHandler<PaymentRefundedEvent, PaymentRefunde
 builder.Services.AddIntegrationEventHandler<PaymentRefundFailedEvent, PaymentRefundFailedHandler>();
 builder.Services.AddIntegrationEventHandler<KitchenOrderStartedIntegrationEvent, KitchenOrderStartedHandler>();
 builder.Services.AddIntegrationEventHandler<KitchenOrderReadyIntegrationEvent, KitchenOrderReadyHandler>();
+builder.Services.AddIntegrationEventHandler<KitchenOrderRemakeIntegrationEvent, KitchenOrderRemakeHandler>();
 
 
 var app = builder.Build();

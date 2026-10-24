@@ -100,12 +100,18 @@ public class Order : AuditableEntity<Guid>, IBranchScoped
 
     public bool IsPaid => PaymentStatus is PaymentStatus.Paid or PaymentStatus.Refunded;
 
+    /// <summary>Closed without being handed over: cancelled, nobody came for it, or the shop could not make it. Such an order earns nothing and its place and money are given back.</summary>
+    public bool IsVoided => Status is OrderStatus.Cancelled or OrderStatus.NoShow or OrderStatus.Unfulfillable;
+
+    /// <summary>How many times the bar made this order again after it was ready.</summary>
+    public int RemakeCount { get; private set; }
+
     /// <summary>
     /// What to show as the refund state. A refund that was paid back while the order was being cancelled can leave the stored value at
     /// RefundPending (the two writes touch different columns and cross each other); money that went back means the refund is done.
     /// </summary>
     public RefundStatus EffectiveRefundStatus =>
-        Status == OrderStatus.Cancelled && RefundedAmount > 0 && RefundStatus is RefundStatus.RefundPending or RefundStatus.Needed ? RefundStatus.Refunded : RefundStatus;
+        IsVoided && RefundedAmount > 0 && RefundStatus is RefundStatus.RefundPending or RefundStatus.Needed ? RefundStatus.Refunded : RefundStatus;
 
     protected Order()
     {
@@ -188,7 +194,7 @@ public class Order : AuditableEntity<Guid>, IBranchScoped
 
     public void SwitchServiceType(OrderType newType, Guid? tableId = null, string? tableNumber = null, string? deliveryAddress = null)
     {
-        if (Status is OrderStatus.Completed or OrderStatus.Cancelled)
+        if (Status == OrderStatus.Completed || IsVoided)
         {
             throw new BusinessRuleException("order.closed", "The service type of a completed or cancelled order cannot change.");
         }
@@ -222,7 +228,7 @@ public class Order : AuditableEntity<Guid>, IBranchScoped
     /// <summary>Staff confirm the customer received the order (SCRUM-61). Completes the order when it is paid; an unpaid dine-in order completes when it is paid.</summary>
     public void Deliver(Guid? by, DateTime now)
     {
-        if (Status == OrderStatus.Cancelled)
+        if (IsVoided)
         {
             throw new BusinessRuleException("order.cancelled", "A cancelled order cannot be delivered.");
         }
@@ -255,7 +261,7 @@ public class Order : AuditableEntity<Guid>, IBranchScoped
     /// <summary>BR-04: an order can only be cancelled while it is not paid.</summary>
     public void CancelOrder(string reason, DateTime now)
     {
-        if (Status == OrderStatus.Cancelled)
+        if (IsVoided)
         {
             throw new ConflictException("This order is already cancelled.", "order.already_cancelled");
         }
@@ -276,7 +282,7 @@ public class Order : AuditableEntity<Guid>, IBranchScoped
     /// <summary>A manager cancels a paid order. The money goes back through a refund request that is tracked as <see cref="RefundStatus"/>.</summary>
     public void CancelPaidOrderAsException(string reason, Guid? by, DateTime now)
     {
-        if (Status == OrderStatus.Cancelled)
+        if (IsVoided)
         {
             throw new ConflictException("This order is already cancelled.", "order.already_cancelled");
         }
@@ -299,7 +305,7 @@ public class Order : AuditableEntity<Guid>, IBranchScoped
     /// </summary>
     public void EnsureCustomerCanCancel(DateTime now, DateTime? slotLockedAtUtc)
     {
-        if (Status == OrderStatus.Cancelled)
+        if (IsVoided)
         {
             throw new ConflictException("This order is already cancelled.", "order.already_cancelled");
         }
@@ -339,13 +345,83 @@ public class Order : AuditableEntity<Guid>, IBranchScoped
     /// <summary>A pickup order that was not paid in time is released. Returns false when it no longer applies.</summary>
     public bool ReleaseIfPaymentOverdue(DateTime now)
     {
-        if (PaymentDueAtUtc is null || now < PaymentDueAtUtc || IsPaid || Status is OrderStatus.Cancelled or OrderStatus.Completed)
+        if (PaymentDueAtUtc is null || now < PaymentDueAtUtc || IsPaid || IsVoided || Status == OrderStatus.Completed)
         {
             return false;
         }
 
         Cancel("Not paid in time.", now);
         return true;
+    }
+
+    // ------------------------------------------------------------------ no-show, unfulfillable, remake
+    /// <summary>A no-show can be recorded when the order is not closed or handed over and the waiting time of the brand policy has passed.</summary>
+    public void EnsureCanBeMarkedNoShow(DateTime now, DateTime dueAtUtc)
+    {
+        if (IsVoided)
+        {
+            throw new ConflictException("This order is already closed.", "order.already_cancelled");
+        }
+
+        if (Status == OrderStatus.Completed || DeliveredAtUtc is not null)
+        {
+            throw new BusinessRuleException("order.closed", "This order was already handed over.");
+        }
+
+        if (now < dueAtUtc)
+        {
+            throw new BusinessRuleException("order.no_show_too_early", $"A no-show can be recorded from {dueAtUtc:HH:mm} UTC, after the waiting time of the brand policy.");
+        }
+    }
+
+    /// <summary>Nobody came for the order. <paramref name="refundRequested"/> is false when the brand policy gives nothing back.</summary>
+    public void MarkNoShow(string reason, DateTime now, bool refundRequested) =>
+        Void(OrderStatus.NoShow, $"No-show: {reason.Trim()}", now, refundRequested);
+
+    /// <summary>The shop can only give up an order the bar has not finished.</summary>
+    public void EnsureCanBeMarkedUnfulfillable()
+    {
+        if (IsVoided)
+        {
+            throw new ConflictException("This order is already closed.", "order.already_cancelled");
+        }
+
+        if (Status is OrderStatus.Ready or OrderStatus.Completed || DeliveredAtUtc is not null)
+        {
+            throw new BusinessRuleException("order.cannot_be_unfulfillable", "The order is already made or handed over; use the complaint path instead.");
+        }
+    }
+
+    /// <summary>The shop could not make the order. A paid order is refunded in full (<paramref name="refundRequested"/>).</summary>
+    public void MarkUnfulfillable(string reason, DateTime now, bool refundRequested)
+    {
+        EnsureCanBeMarkedUnfulfillable();
+        Void(OrderStatus.Unfulfillable, $"Unfulfillable: {reason.Trim()}", now, refundRequested);
+    }
+
+    private void Void(OrderStatus status, string reason, DateTime now, bool refundRequested)
+    {
+        Status = status;
+        CancelledReason = reason.Length <= 300 ? reason : reason[..300];
+        CancelledAtUtc = now;
+        // The refund can be paid back before this order is saved as closed (the refund event is fast): then it is already done.
+        RefundStatus = refundRequested && IsPaid ? (RefundedAmount > 0 ? RefundStatus.Refunded : RefundStatus.RefundPending) : RefundStatus.None;
+    }
+
+    /// <summary>The bar made the ready order again: it is being prepared once more. Idempotent per remake count.</summary>
+    public void ApplyRemake(int remakeCount)
+    {
+        if (remakeCount <= RemakeCount)
+        {
+            return;
+        }
+
+        RemakeCount = remakeCount;
+        if (Status == OrderStatus.Ready && DeliveredAtUtc is null)
+        {
+            Status = OrderStatus.Preparing;
+            ReadyAtUtc = null;
+        }
     }
 
     private void Cancel(string reason, DateTime now)
@@ -370,7 +446,7 @@ public class Order : AuditableEntity<Guid>, IBranchScoped
         PaymentId = paymentId;
         PaidAtUtc = paidAt;
 
-        if (Status == OrderStatus.Cancelled)
+        if (IsVoided)
         {
             RefundStatus = RefundStatus.Needed;
         }
@@ -393,7 +469,7 @@ public class Order : AuditableEntity<Guid>, IBranchScoped
             PaymentStatus = PaymentStatus.Refunded;
         }
 
-        if (Status == OrderStatus.Cancelled)
+        if (IsVoided)
         {
             RefundStatus = RefundStatus.Refunded;
         }
@@ -402,7 +478,7 @@ public class Order : AuditableEntity<Guid>, IBranchScoped
     /// <summary>Payment refused or failed to pay the refund back.</summary>
     public void RefundFailed()
     {
-        if (Status == OrderStatus.Cancelled && RefundStatus is RefundStatus.RefundPending or RefundStatus.Needed)
+        if (IsVoided && RefundStatus is RefundStatus.RefundPending or RefundStatus.Needed)
         {
             RefundStatus = RefundStatus.RefundFailed;
         }
@@ -411,7 +487,7 @@ public class Order : AuditableEntity<Guid>, IBranchScoped
     /// <summary>Payment expired for an unpaid online order (BR-25): the order is released.</summary>
     public bool CancelBecausePaymentTimedOut(DateTime now)
     {
-        if (IsPaid || Status is OrderStatus.Cancelled or OrderStatus.Completed)
+        if (IsPaid || IsVoided || Status == OrderStatus.Completed)
         {
             return false;
         }

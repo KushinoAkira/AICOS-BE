@@ -361,6 +361,51 @@ check "the closed session bill can still be read" 200 "$(status_of "$r")"
 r=$(call POST /api/v1/orders/qr/scan "" "{\"qrToken\":\"$QRTOKEN\"}")
 [ "$(body_of "$r" | json_field sessionId)" != "$SESSION" ] && check "a new scan opens a new session" yes yes || check "a new scan opens a new session" yes no
 
+
+# ------------------------------------------------------------------ remake, unfulfillable and no-show
+echo
+echo "== remake, unfulfillable, no-show"
+new_paid_order() { # prints the id of a new counter order paid in cash
+  o=$(call POST /api/v1/orders "$CASHIER" "{\"type\":\"Takeaway\",\"items\":[{\"productId\":\"$PRODUCT\",\"quantity\":1}]}" | sed 's/ [0-9]*$//' | json_field id)
+  call POST /api/v1/payments/transactions/cash "$CASHIER" "{\"orderId\":\"$o\",\"amount\":35000}" > /dev/null
+  echo "$o"
+}
+ticket_of() { call GET /api/v1/kitchen/queue "$BARISTA" | sed 's/ [0-9]*$//' | grep -o "\"id\":\"[^\"]*\",\"orderId\":\"$1\"" | head -1 | json_field id; }
+
+RMK=$(new_paid_order)
+wait_until "the order to remake reaches the bar" "call GET /api/v1/kitchen/queue \"\$BARISTA\" | grep -c $RMK" 1
+RMK_T=$(ticket_of "$RMK")
+call PUT "/api/v1/kitchen/tickets/$RMK_T/status" "$BARISTA" '{"status":"Brewing"}' > /dev/null
+call PUT "/api/v1/kitchen/tickets/$RMK_T/status" "$BARISTA" '{"status":"ReadyForPickup"}' > /dev/null
+wait_until "the order is Ready" "call GET /api/v1/orders/$RMK \"\$CASHIER\" | sed 's/ [0-9]*\$//' | field_of status" Ready
+r=$(call POST "/api/v1/kitchen/tickets/$RMK_T/remake" "$CASHIER" '{"reason":"spilled"}')
+check "a cashier cannot send an order back to the bar" 403 "$(status_of "$r")"
+r=$(call POST "/api/v1/kitchen/tickets/$RMK_T/remake" "$BARISTA" '{"reason":"spilled"}')
+check "the bar makes the ready order again" 200 "$(status_of "$r")"
+wait_until "the order is Preparing again" "call GET /api/v1/orders/$RMK \"\$CASHIER\" | sed 's/ [0-9]*\$//' | field_of status" Preparing
+r=$(call POST "/api/v1/orders/$RMK/deliver" "$CASHIER" '{}')
+check "the cashier cannot hand over an order that is being remade" 422 "$(status_of "$r")"
+call PUT "/api/v1/kitchen/tickets/$RMK_T/status" "$BARISTA" '{"status":"ReadyForPickup"}' > /dev/null
+wait_until "the remade order is Ready again" "call GET /api/v1/orders/$RMK \"\$CASHIER\" | sed 's/ [0-9]*\$//' | field_of status" Ready
+r=$(call POST "/api/v1/orders/$RMK/deliver" "$CASHIER" '{}')
+check "the remade order is handed over" 200 "$(status_of "$r")"
+
+UNF=$(new_paid_order)
+wait_until "the order to give up reaches the bar" "call GET /api/v1/kitchen/queue \"\$BARISTA\" | grep -c $UNF" 1
+r=$(call POST "/api/v1/orders/$UNF/unfulfillable" "$BARISTA" '{"reason":"out of milk"}')
+check "the bar gives up an order it cannot make" 200 "$(status_of "$r")"
+wait_until "the order is Unfulfillable" "call GET /api/v1/orders/$UNF \"\$CASHIER\" | sed 's/ [0-9]*\$//' | field_of status" Unfulfillable
+wait_until "the customer is refunded in full" "call GET /api/v1/orders/$UNF \"\$MANAGER\" | sed 's/ [0-9]*\$//' | field_of refundStatus" Refunded
+wait_until "the ticket leaves the bar queue" "call GET /api/v1/kitchen/queue \"\$BARISTA\" | grep -c $UNF" 0
+r=$(call POST "/api/v1/orders/$UNF/unfulfillable" "$BARISTA" '{"reason":"again"}')
+check "an order is given up only once" 409 "$(status_of "$r")"
+
+NSH=$(new_paid_order)
+r=$(call POST "/api/v1/orders/$NSH/no-show" "$CASHIER" '{"reason":"nobody came"}')
+check "a no-show is refused before the waiting time has passed" 422 "$(status_of "$r")"
+r=$(call POST "/api/v1/orders/$NSH/no-show" "$BARISTA" '{"reason":"nobody came"}')
+check "the bar cannot record a no-show" 403 "$(status_of "$r")"
+
 r=$(call GET "/api/v1/identity/public/subscription-plans" "")
 check "the landing page reads the plans without logging in" 200 "$(status_of "$r")"
 r=$(call GET "/api/v1/identity/subscription-plans" "")

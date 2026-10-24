@@ -33,7 +33,7 @@ public sealed class PaymentSucceededHandler(OrderingDbContext db, OrderEventPubl
         await db.SaveChangesAsync(cancellationToken);
         await Qr.TableSessions.CloseIfSettledAsync(db, order.TableSessionId, clock.GetUtcNow().UtcDateTime, cancellationToken);   // all rounds of a QR table paid: the sitting ends
 
-        if (order.Status != OrderStatus.Cancelled)
+        if (!order.IsVoided)
         {
             await events.PaidAsync(order, cancellationToken);   // loyalty points are awarded from this; a late payment for a cancelled order earns nothing
         }
@@ -124,6 +124,22 @@ public sealed class KitchenOrderReadyHandler(OrderingDbContext db) : IIntegratio
         }
 
         order.MarkAsReady(@event.ReadyAtUtc);
+        await db.SaveChangesAsync(cancellationToken);
+    }
+}
+
+/// <summary>The bar made a ready order again ("pha lại"): it is Preparing once more and the cashier screens stop showing it as ready.</summary>
+public sealed class KitchenOrderRemakeHandler(OrderingDbContext db) : IIntegrationEventHandler<KitchenOrderRemakeIntegrationEvent>
+{
+    public async Task HandleAsync(KitchenOrderRemakeIntegrationEvent @event, CancellationToken cancellationToken)
+    {
+        var order = await OrderLookup.FindAsync(db, @event.TenantId, @event.OrderId, cancellationToken);
+        if (order is null)
+        {
+            return;
+        }
+
+        order.ApplyRemake(@event.RemakeCount);
         await db.SaveChangesAsync(cancellationToken);
     }
 }
