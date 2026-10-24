@@ -14,7 +14,7 @@ namespace AICOS.Ordering.Api.Features.Orders;
 internal static class OrderLookup
 {
     public static Task<Order?> FindAsync(OrderingDbContext db, Guid tenantId, Guid orderId, CancellationToken ct) =>
-        db.Orders.Include(o => o.Items).AsSplitQuery().FirstOrDefaultAsync(o => o.Id == orderId && o.TenantId == tenantId, ct);
+        db.Orders.Include(o => o.Items).ThenInclude(i => i.Options).AsSplitQuery().FirstOrDefaultAsync(o => o.Id == orderId && o.TenantId == tenantId, ct);
 }
 
 /// <summary>Payment confirmed the money (card, wallet, transfer or cash at the counter): the order is paid.</summary>

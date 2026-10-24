@@ -14,7 +14,16 @@ public class OrderItem : Entity<Guid>
 
     public int Quantity { get; private set; }
 
+    /// <summary>Unit price times quantity. The unit price already includes the surcharge of the chosen options.</summary>
     public decimal TotalPrice => UnitPrice * Quantity;
+
+    private readonly List<OrderLineOption> _options = [];
+
+    public IReadOnlyCollection<OrderLineOption> Options => _options.AsReadOnly();
+
+    public string OptionsText => string.Join(", ", _options.Select(o => o.Name));
+
+    public bool HasSameOptions(IEnumerable<Guid> optionIds) => _options.Select(o => o.OptionId).Order().SequenceEqual(optionIds.Order());
 
     public string? Note { get; private set; }
 
@@ -22,7 +31,7 @@ public class OrderItem : Entity<Guid>
     {
     }
 
-    public OrderItem(Guid orderId, Guid productId, string productName, decimal unitPrice, int quantity, string? note = null)
+    public OrderItem(Guid orderId, Guid productId, string productName, decimal unitPrice, int quantity, string? note = null, IEnumerable<OrderLineOption>? options = null)
     {
         if (quantity <= 0)
         {
@@ -41,6 +50,10 @@ public class OrderItem : Entity<Guid>
         UnitPrice = unitPrice;
         Quantity = quantity;
         Note = note;
+        if (options is not null)
+        {
+            _options.AddRange(options);
+        }
     }
 
     public void UpdateQuantity(int newQuantity)

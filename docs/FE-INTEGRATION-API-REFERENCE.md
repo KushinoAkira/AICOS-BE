@@ -291,3 +291,60 @@ Doanh thu tính theo ngày tiền về; số đơn theo ngày đặt. Số liệ
 | Bảng giá landing (không cần đăng nhập) | `GET /identity/public/subscription-plans` | Public | mảng `[ { "id", "name", "tier", "fee", "billingPeriod", "maxBranches", "maxStaffAccounts", "description" } ]`, chỉ gói đang hoạt động, sắp xếp theo giá. Đường dẫn quản trị `GET /identity/subscription-plans` vẫn chỉ cho SuperAdmin. |
 | Tiền mặt dự kiến trước khi chốt két | `GET /workforce/cash-closings/expected?assignmentId=` | Cashier (ca của chính mình) | `{ "assignmentId", "expectedAmount", "cashReceived", "cashRefunded", "sinceUtc", "asOfUtc" }`. Cùng số với lúc nộp chốt két. Lỗi: 400 thiếu `assignmentId`, 403 `cash_closing.cashier_only`, 422 `cash_closing.shift_not_worked`, 404 ca của người khác, 409 `cash_closing.duplicate`. |
 | Thời gian khóa tài khoản | `POST /identity/auth/login` khi bị khóa | Public | 403 `account.temporarily_locked`, thêm `lockedUntilUtc` (giờ UTC) và `retryAfterSeconds` (cũng có header `Retry-After`). FE dùng để đếm ngược. |
+
+### Đặt món mang đi của khách, khách tự hủy đơn, đánh giá đơn (giai đoạn A)
+
+Tất cả theo brand (tenant lấy từ token). Giờ lấy món theo múi giờ cửa hàng (`Asia/Ho_Chi_Minh`), mặc định mở 07:00 đến 22:00 (cấu hình `Ordering:Pickup:OpenTime/CloseTime`). Luật khung giờ do Quản lý/Admin đặt ở `PUT /orders/pickup-slots` (mặc định: 15 phút một khung, 10 đơn một khung, khóa 15 phút trước giờ, đặt trước 1 ngày).
+
+| Chức năng | Method và endpoint | Quyền | Body / Response |
+|---|---|---|---|
+| Xem khung giờ trong ngày | `GET /orders/pickup-slots/available?branchId=&date=yyyy-MM-dd` | Đã đăng nhập | `{ "branchId", "date", "slotMinutes", "capacityPerSlot", "cutoffMinutes", "slots": [ { "startUtc", "endUtc", "capacity", "booked", "remaining", "locked", "available" } ] }`. `available=false` khi khung đã đầy hoặc đã khóa. Ngoài cửa sổ đặt trước thì `slots` rỗng. |
+| Đặt món mang đi | `POST /orders/pickup` | Customer | Header tùy chọn `Idempotency-Key` (tối đa 80 ký tự). Body `{ "branchId", "slotStartUtc", "promotionCode"?, "note"?, "items": [ { "productId", "quantity", "note"? } ] }`. 201 trả như `OrderResponse` kèm `pickupSlotStartUtc`, `paymentDueAtUtc`. Gửi lại cùng `Idempotency-Key` thì 200 và trả đơn cũ. Giá luôn lấy từ Menu. |
+| Thanh toán đơn | `POST /payments/transactions` `{ "orderId", "branchId", "amount", "providerCode" }` | Customer | như mục thanh toán. Phải trả trước `paymentDueAtUtc` (mặc định 15 phút) nếu không đơn tự hủy, khung giờ và voucher được trả lại. |
+| Khách tự hủy đơn | `POST /orders/{id}/cancel` `{ "reason"? }` | Customer (đơn của mình) | Đơn chưa trả: hủy ngay. Đơn đã trả: hoàn tiền theo chính sách hủy của brand (`refundStatus = RefundPending` rồi `Refunded`). |
+| Đơn của tôi | `GET /orders/mine` | Customer | danh sách, có `pickupSlotStartUtc` |
+| Đánh giá đơn | `POST /orders/{id}/feedback` `{ "rating": 1-5, "comment"? }` | Customer (đơn của mình, đã `Completed`) | 201 `{ "id", "orderId", "orderCode", "branchId", "customerId", "rating", "comment", "createdAtUtc" }`. Mỗi đơn một đánh giá. |
+| Xem đánh giá của đơn | `GET /orders/{id}/feedback` | Chủ đơn hoặc nhân viên chi nhánh | như trên, 404 nếu chưa có |
+| Danh sách đánh giá | `GET /orders/feedbacks?branchId=&minRating=&maxRating=&limit=` | Manager, Admin | mảng đánh giá, mới nhất trước (Quản lý chi nhánh chỉ thấy chi nhánh mình) |
+
+Luồng của đơn mang đi: `Pending` (chưa trả) -> thanh toán thành công -> `Confirmed` -> quầy bar thấy phiếu -> `Preparing` -> `Ready` -> nhân viên `POST /orders/{id}/deliver` -> `Completed`.
+
+Lỗi nên xử lý:
+
+| Mã | Ý nghĩa |
+|---|---|
+| 422 `pickup.invalid_slot` | khung giờ không nằm trên lưới / ngoài giờ mở cửa |
+| 422 `pickup.slot_locked` | đã quá giờ chốt đặt (BR-23) |
+| 422 `pickup.too_far_ahead` | đặt trước quá số ngày cho phép |
+| 409 `pickup.slot_full` | khung đã đầy (BR-22), voucher chưa bị dùng |
+| 422 `order.item_unavailable` | món hết hoặc không bán ở chi nhánh |
+| 422 `order.cannot_cancel_now` | quầy bar đã bắt đầu làm, khách không tự hủy được |
+| 422 `order.pickup_locked` | khung giờ đã khóa, khách không tự hủy được (BR-24) |
+| 422 `refund.nothing_to_refund` | chính sách brand không hoàn tiền cho trường hợp này, đơn giữ nguyên |
+| 422 `feedback.order_not_completed` | chưa nhận hàng |
+| 409 `feedback.duplicate` | đã đánh giá |
+| 403 `refund.customer_policy_only` | khách chỉ xin được hoàn tiền theo chính sách (loại Cancellation, không nêu số tiền) |
+
+Thay đổi liên quan: `GET /identity/branches/{id}` nay cho mọi người dùng đã đăng nhập trong brand (khách chọn chi nhánh để đặt). Quản lý chi nhánh vẫn chỉ xem chi nhánh của mình.
+
+### Tùy chọn size, đường, đá, topping và phụ thu
+
+Áp dụng cho `POST /orders` (thu ngân) và `POST /orders/pickup` (khách mang đi). Mỗi dòng món nhận thêm `optionIds`: danh sách id tùy chọn lấy từ `optionGroups[].options[].id` của menu (`GET /menu/public/branches/{branchId}/menu`).
+
+```json
+{ "productId": "…", "quantity": 2, "note": "ít đá", "optionIds": ["<id size L>", "<id Lạnh>", "<id Trân châu>"] }
+```
+
+- **Giá do Backend tính:** đơn giá của dòng = giá món (theo chi nhánh) + tổng `priceDelta` của các tùy chọn đã chọn. FE gửi giá nào cũng bị bỏ qua.
+- **Response:** mỗi dòng món có `unitPrice` (đã gồm phụ thu), `basePrice` (giá gốc), `totalPrice` và `options: [ { "optionId", "groupName", "name", "priceDelta" } ]`. Hóa đơn (`/receipt`) có `options` là danh sách tên tùy chọn.
+- **Quầy bar:** nhận tùy chọn trong ghi chú món, theo dạng `L, Kem cheese | ít đá` (tùy chọn trước, ghi chú của khách sau). Phiếu và tem ly hiển thị chuỗi này.
+- **Nhóm bắt buộc (`isRequired`)** mà khách không chọn: dùng tùy chọn mặc định (`isDefault`); không có mặc định thì lỗi `order.option_required`.
+- **Gộp dòng:** cùng món, cùng ghi chú, cùng bộ tùy chọn thì gộp thành một dòng và cộng số lượng; khác bộ tùy chọn thì giữ tách. Gửi trùng một tùy chọn hai lần chỉ tính một lần.
+- **Lưu lại:** tên và phụ thu được sao chép vào đơn lúc đặt, sửa menu sau đó không làm đổi đơn cũ.
+
+| Lỗi | Ý nghĩa |
+|---|---|
+| 422 `order.option_invalid` | tùy chọn không thuộc món này |
+| 422 `order.option_too_many` | nhóm chọn một mà chọn nhiều, hoặc topping vượt `maxSelections` |
+| 422 `order.option_requires` | tùy chọn cần tùy chọn khác đi kèm (`requiresOptionId`, ví dụ trân châu cần Lạnh) |
+| 422 `order.option_required` | nhóm bắt buộc, không chọn và không có mặc định |

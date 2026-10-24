@@ -84,6 +84,11 @@ namespace AICOS.Ordering.Api.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("exception_by");
 
+                    b.Property<string>("IdempotencyKey")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("idempotency_key");
+
                     b.Property<bool>("IsPrinted")
                         .HasColumnType("boolean")
                         .HasColumnName("is_printed");
@@ -107,6 +112,10 @@ namespace AICOS.Ordering.Api.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("paid_at_utc");
 
+                    b.Property<DateTime?>("PaymentDueAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("payment_due_at_utc");
+
                     b.Property<Guid?>("PaymentId")
                         .HasColumnType("uuid")
                         .HasColumnName("payment_id");
@@ -126,6 +135,10 @@ namespace AICOS.Ordering.Api.Persistence.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)")
                         .HasColumnName("payment_status");
+
+                    b.Property<DateTime?>("PickupSlotStartUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("pickup_slot_start_utc");
 
                     b.Property<int>("PrintedCount")
                         .HasColumnType("integer")
@@ -190,6 +203,10 @@ namespace AICOS.Ordering.Api.Persistence.Migrations
                     b.HasIndex("CustomerId")
                         .HasDatabaseName("ix_orders_customer_id");
 
+                    b.HasIndex("PaymentDueAtUtc")
+                        .HasDatabaseName("ix_orders_payment_due_at_utc")
+                        .HasFilter("payment_due_at_utc IS NOT NULL");
+
                     b.HasIndex("PaymentId")
                         .HasDatabaseName("ix_orders_payment_id");
 
@@ -200,8 +217,16 @@ namespace AICOS.Ordering.Api.Persistence.Migrations
                     b.HasIndex("TenantId", "BranchId", "CreatedAtUtc")
                         .HasDatabaseName("ix_orders_tenant_id_branch_id_created_at_utc");
 
+                    b.HasIndex("TenantId", "BranchId", "PickupSlotStartUtc")
+                        .HasDatabaseName("ix_orders_tenant_id_branch_id_pickup_slot_start_utc");
+
                     b.HasIndex("TenantId", "BranchId", "Status")
                         .HasDatabaseName("ix_orders_tenant_id_branch_id_status");
+
+                    b.HasIndex("TenantId", "CustomerId", "IdempotencyKey")
+                        .IsUnique()
+                        .HasDatabaseName("ix_orders_tenant_id_customer_id_idempotency_key")
+                        .HasFilter("idempotency_key IS NOT NULL");
 
                     b.ToTable("orders", "ordering", t =>
                         {
@@ -252,6 +277,121 @@ namespace AICOS.Ordering.Api.Persistence.Migrations
                     b.ToTable("order_items", "ordering", t =>
                         {
                             t.HasCheckConstraint("ck_order_items_quantity_price", "quantity > 0 AND unit_price >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("AICOS.Ordering.Api.Domain.Entities.OrderLineOption", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("GroupName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("group_name");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("name");
+
+                    b.Property<Guid>("OptionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("option_id");
+
+                    b.Property<Guid>("OrderItemId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("order_item_id");
+
+                    b.Property<decimal>("PriceDelta")
+                        .HasPrecision(18)
+                        .HasColumnType("numeric(18,0)")
+                        .HasColumnName("price_delta");
+
+                    b.HasKey("Id")
+                        .HasName("pk_order_item_options");
+
+                    b.HasIndex("OrderItemId")
+                        .HasDatabaseName("ix_order_item_options_order_item_id");
+
+                    b.ToTable("order_item_options", "ordering", t =>
+                        {
+                            t.HasCheckConstraint("ck_order_item_options_price", "price_delta >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("AICOS.Ordering.Api.Domain.OrderFeedback", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("branch_id");
+
+                    b.Property<string>("Comment")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("comment");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by");
+
+                    b.Property<Guid>("CustomerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("customer_id");
+
+                    b.Property<string>("OrderCode")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("order_code");
+
+                    b.Property<Guid>("OrderId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("order_id");
+
+                    b.Property<int>("Rating")
+                        .HasColumnType("integer")
+                        .HasColumnName("rating");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at_utc");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id")
+                        .HasName("pk_order_feedbacks");
+
+                    b.HasIndex("CustomerId")
+                        .HasDatabaseName("ix_order_feedbacks_customer_id");
+
+                    b.HasIndex("OrderId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_order_feedbacks_order_id");
+
+                    b.HasIndex("TenantId", "BranchId", "CreatedAtUtc")
+                        .HasDatabaseName("ix_order_feedbacks_tenant_id_branch_id_created_at_utc");
+
+                    b.ToTable("order_feedbacks", "ordering", t =>
+                        {
+                            t.HasCheckConstraint("ck_order_feedbacks_rating", "rating BETWEEN 1 AND 5");
                         });
                 });
 
@@ -324,9 +464,24 @@ namespace AICOS.Ordering.Api.Persistence.Migrations
                         .HasConstraintName("fk_order_items_orders_order_id");
                 });
 
+            modelBuilder.Entity("AICOS.Ordering.Api.Domain.Entities.OrderLineOption", b =>
+                {
+                    b.HasOne("AICOS.Ordering.Api.Domain.Entities.OrderItem", null)
+                        .WithMany("Options")
+                        .HasForeignKey("OrderItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_order_item_options_order_items_order_item_id");
+                });
+
             modelBuilder.Entity("AICOS.Ordering.Api.Domain.Entities.Order", b =>
                 {
                     b.Navigation("Items");
+                });
+
+            modelBuilder.Entity("AICOS.Ordering.Api.Domain.Entities.OrderItem", b =>
+                {
+                    b.Navigation("Options");
                 });
 #pragma warning restore 612, 618
         }

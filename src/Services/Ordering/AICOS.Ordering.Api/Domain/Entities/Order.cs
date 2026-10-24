@@ -70,6 +70,15 @@ public class Order : AuditableEntity<Guid>, IBranchScoped
     /// <summary>Who cancelled a paid order as an exception (the manager) and why; the money follows through a refund.</summary>
     public Guid? ExceptionBy { get; private set; }
 
+    /// <summary>Takeaway pickup (UC-21): the start of the slot the customer chose. Null for counter and dine-in orders.</summary>
+    public DateTime? PickupSlotStartUtc { get; private set; }
+
+    /// <summary>A customer pickup order that is still unpaid at this time is released (the slot is freed and a voucher is given back).</summary>
+    public DateTime? PaymentDueAtUtc { get; private set; }
+
+    /// <summary>Lets the app retry "place order" after a lost response without creating a second order. Unique per customer.</summary>
+    public string? IdempotencyKey { get; private set; }
+
     public bool IsPrinted { get; private set; }
 
     public int PrintedCount { get; private set; }
@@ -87,6 +96,13 @@ public class Order : AuditableEntity<Guid>, IBranchScoped
     public decimal TotalAmount => FinalAmount;
 
     public bool IsPaid => PaymentStatus is PaymentStatus.Paid or PaymentStatus.Refunded;
+
+    /// <summary>
+    /// What to show as the refund state. A refund that was paid back while the order was being cancelled can leave the stored value at
+    /// RefundPending (the two writes touch different columns and cross each other); money that went back means the refund is done.
+    /// </summary>
+    public RefundStatus EffectiveRefundStatus =>
+        Status == OrderStatus.Cancelled && RefundedAmount > 0 && RefundStatus is RefundStatus.RefundPending or RefundStatus.Needed ? RefundStatus.Refunded : RefundStatus;
 
     protected Order()
     {
@@ -121,22 +137,36 @@ public class Order : AuditableEntity<Guid>, IBranchScoped
         PaymentStatus = PaymentStatus.Unpaid;
     }
 
+    /// <summary>A customer's takeaway order for a pickup slot. It must be paid before <paramref name="paymentDueAtUtc"/> or it is released.</summary>
+    public void SchedulePickup(DateTime slotStartUtc, DateTime paymentDueAtUtc, string? idempotencyKey)
+    {
+        if (Type != OrderType.Takeaway)
+        {
+            throw new BusinessRuleException("order.not_takeaway", "Only a takeaway order has a pickup slot.");
+        }
+
+        PickupSlotStartUtc = slotStartUtc;
+        PaymentDueAtUtc = paymentDueAtUtc;
+        IdempotencyKey = string.IsNullOrWhiteSpace(idempotencyKey) ? null : idempotencyKey.Trim();
+    }
+
     // ------------------------------------------------------------------ items and price
-    public void AddItem(Guid productId, string productName, decimal unitPrice, int quantity, string? note = null)
+    public void AddItem(Guid productId, string productName, decimal unitPrice, int quantity, string? note = null, IReadOnlyList<OrderLineOption>? options = null)
     {
         if (Status is not (OrderStatus.Pending or OrderStatus.Confirmed))
         {
             throw new BusinessRuleException("order.not_editable", "Items can only be added while the order is pending or confirmed.");
         }
 
-        var existing = _items.FirstOrDefault(i => i.ProductId == productId && i.Note == note);
+        var chosen = options ?? [];
+        var existing = _items.FirstOrDefault(i => i.ProductId == productId && i.Note == note && i.HasSameOptions(chosen.Select(o => o.OptionId)));
         if (existing is not null)
         {
             existing.UpdateQuantity(existing.Quantity + quantity);
         }
         else
         {
-            _items.Add(new OrderItem(Id, productId, productName, unitPrice, quantity, note));
+            _items.Add(new OrderItem(Id, productId, productName, unitPrice, quantity, note, chosen));
         }
     }
 
@@ -255,6 +285,62 @@ public class Order : AuditableEntity<Guid>, IBranchScoped
         ExceptionBy = by;
         // The refund can be paid back before this order is saved as cancelled (the refund event is fast): then it is already done.
         RefundStatus = RefundedAmount > 0 ? RefundStatus.Refunded : RefundStatus.RefundPending;
+    }
+
+    /// <summary>
+    /// The customer cancels their own order (BR-24). Allowed only before the bar starts it, and for a pickup order before the slot is locked
+    /// (<paramref name="slotLockedAtUtc"/> = slot start minus the cut-off). An unpaid order is simply cancelled; a paid one is cancelled and the
+    /// money goes back through a refund that follows the brand policy. Returns true when the order had been paid.
+    /// </summary>
+    public void EnsureCustomerCanCancel(DateTime now, DateTime? slotLockedAtUtc)
+    {
+        if (Status == OrderStatus.Cancelled)
+        {
+            throw new ConflictException("This order is already cancelled.", "order.already_cancelled");
+        }
+
+        if (Status is not (OrderStatus.Pending or OrderStatus.Confirmed))
+        {
+            throw new BusinessRuleException("order.cannot_cancel_now", "The bar already started this order, so it can no longer be cancelled. Please ask the staff.");
+        }
+
+        if (slotLockedAtUtc is not null && now >= slotLockedAtUtc)
+        {
+            throw new BusinessRuleException("order.pickup_locked", "BR-24: this pickup slot is locked and the order can no longer be cancelled. Please ask the staff.");
+        }
+    }
+
+    /// <summary>Cancels after <see cref="EnsureCustomerCanCancel"/> passed. Returns true when the order had been paid (a refund follows).</summary>
+    public bool CancelByCustomer(string reason, DateTime now, DateTime? slotLockedAtUtc)
+    {
+        EnsureCustomerCanCancel(now, slotLockedAtUtc);
+        var wasPaid = IsPaid;
+        Cancel(reason, now);
+        if (wasPaid)
+        {
+            RefundStatus = RefundedAmount > 0 ? RefundStatus.Refunded : RefundStatus.RefundPending;
+        }
+
+        return wasPaid;
+    }
+
+    /// <summary>The order was never saved (for example the slot filled up first): marks it cancelled so the voucher it used can be given back.</summary>
+    public Order AbandonBeforeSave(string reason, DateTime now)
+    {
+        Cancel(reason, now);
+        return this;
+    }
+
+    /// <summary>A pickup order that was not paid in time is released. Returns false when it no longer applies.</summary>
+    public bool ReleaseIfPaymentOverdue(DateTime now)
+    {
+        if (PaymentDueAtUtc is null || now < PaymentDueAtUtc || IsPaid || Status is OrderStatus.Cancelled or OrderStatus.Completed)
+        {
+            return false;
+        }
+
+        Cancel("Not paid in time.", now);
+        return true;
     }
 
     private void Cancel(string reason, DateTime now)

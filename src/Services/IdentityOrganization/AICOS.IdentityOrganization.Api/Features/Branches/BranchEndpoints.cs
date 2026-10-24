@@ -25,7 +25,8 @@ public static class BranchEndpoints
 
         branches.MapGet("/", ListAsync).RequireAuthorization(AicosPolicies.AdminOnly);
         branches.MapGet("/active", ListActiveAsync).AllowAnonymous();
-        branches.MapGet("/{id:guid}", GetAsync).RequireAuthorization(AicosPolicies.Management).WithName("GetBranch");
+        // Any signed-in user of the brand may read a branch (name, address, status): a customer ordering for pickup, and the services that check a branch for them.
+        branches.MapGet("/{id:guid}", GetAsync).RequireAuthorization().WithName("GetBranch");
         branches.MapPost("/", CreateAsync).RequireAuthorization(AicosPolicies.AdminOnly);
         branches.MapPut("/{id:guid}", UpdateAsync).RequireAuthorization(AicosPolicies.AdminOnly);
         branches.MapPatch("/{id:guid}/status", ChangeStatusAsync).RequireAuthorization(AicosPolicies.AdminOnly);
