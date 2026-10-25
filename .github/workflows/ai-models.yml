@@ -1,0 +1,117 @@
+name: AI models
+
+on:
+  push:
+    branches: [main, develop]
+    paths: ["ai-models/**", ".github/workflows/ai-models.yml"]
+  pull_request:
+    paths: ["ai-models/**", ".github/workflows/ai-models.yml"]
+
+concurrency:
+  group: ai-models-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: ai-models
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: ai-models/requirements-serve.txt
+      - run: pip install -r requirements-serve.txt pytest ruff pip-audit
+      - name: Lint
+        run: ruff check . --select E9,F63,F7,F82 --exclude .venv
+      - name: Train lightweight models (intent, recommender)
+        run: python -m intent.train && python -m reco.train
+      - name: Unit tests
+        run: python -m pytest tests -q
+      - name: RAG evaluation without LLM (safety gate)
+        run: |
+          python -m rag.evaluate
+          python - <<'PY'
+          import json, sys
+          r = json.load(open("models/rag_eval.json", encoding="utf-8"))
+          bad = r.get("safety_violations", 0)
+          print("safety_violations =", bad)
+          sys.exit(1 if bad else 0)
+          PY
+      - name: Dependency vulnerabilities
+        run: pip-audit -r requirements-serve.txt --progress-spinner off
+
+  image:
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      packages: write
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/aicos-ai-models
+          tags: |
+            type=sha,format=short
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+      - name: Build (local, for scanning)
+        uses: docker/build-push-action@v6
+        with:
+          context: ai-models
+          load: true
+          tags: aicos/ai-models:scan
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Trivy image scan (fails on HIGH/CRITICAL with a fix)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: aicos/ai-models:scan
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+          format: sarif
+          output: trivy-ai-models.sarif
+      - uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy-ai-models.sarif
+          category: trivy-ai-models
+      - name: Container smoke test
+        run: |
+          docker run -d --name ai -p 8000:8000 aicos/ai-models:scan
+          for i in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:8000/health/live && exit 0
+            sleep 2
+          done
+          docker logs ai
+          exit 1
+      - uses: docker/login-action@v3
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Push (main only) with SBOM and provenance
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: docker/build-push-action@v6
+        with:
+          context: ai-models
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          sbom: true
+          provenance: mode=max
+          cache-from: type=gha
