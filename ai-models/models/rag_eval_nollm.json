@@ -1,0 +1,22 @@
+{
+  "questions": 23,
+  "intent_accuracy": 0.913,
+  "retrieval_hit_rate": 1.0,
+  "safety_violations": 0,
+  "answered_without_llm": 1.0,
+  "latency_ms_p50": 351,
+  "latency_ms_max": 439,
+  "retrieval": "hybrid(e5+tfidf)",
+  "intent_failures": [
+    {
+      "q": "tôi ăn chay, gợi ý đồ uống giúp tôi",
+      "expected": "recommend",
+      "got": "allergy_diet"
+    },
+    {
+      "q": "bánh nào ăn kèm cà phê",
+      "expected": "recommend",
+      "got": "menu_info"
+    }
+  ]
+}

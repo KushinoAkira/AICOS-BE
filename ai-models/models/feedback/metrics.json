@@ -1,0 +1,16 @@
+{
+  "val": {
+    "sentiment_accuracy": 0.995,
+    "sentiment_macro_f1": 0.9942174417429234,
+    "aspect_micro_f1": 1.0
+  },
+  "gold": {
+    "sentiment_accuracy": 0.8686868686868687,
+    "sentiment_macro_f1": 0.8448442092886537,
+    "aspect_micro_f1": 0.8623188405797102
+  },
+  "train_seconds": 114,
+  "base_model": "vinai/phobert-base-v2",
+  "train_size": 4800,
+  "device": "cuda"
+}

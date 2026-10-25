@@ -1,0 +1,16 @@
+{
+  "gold_size": 129,
+  "hard_subset_size": 14,
+  "rule_on_stars": {
+    "accuracy": 0.891,
+    "accuracy_on_hard_subset": 0.0,
+    "macro_f1": 0.889
+  },
+  "our_phobert_int8": {
+    "accuracy": 0.822,
+    "accuracy_on_hard_subset": 0.714,
+    "macro_f1": 0.81,
+    "ms_per_item": 59.7,
+    "aspect_micro_f1": 0.774
+  }
+}

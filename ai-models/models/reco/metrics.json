@@ -1,0 +1,22 @@
+{
+  "orders": 10859,
+  "customers": 900,
+  "catalog": 25,
+  "popularity_baseline": {
+    "hit_rate@5": 0.14,
+    "ndcg@5": 0.073
+  },
+  "item_knn": {
+    "hit_rate@5": 0.206,
+    "ndcg@5": 0.135
+  },
+  "als": {
+    "hit_rate@5": 0.149,
+    "ndcg@5": 0.086
+  },
+  "our_blend": {
+    "hit_rate@5": 0.203,
+    "ndcg@5": 0.131
+  },
+  "data_note": "synthetic orders with hidden taste segments (replace by real order history)"
+}

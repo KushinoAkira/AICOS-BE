@@ -1,0 +1,600 @@
+{"text": "Lần đầu ghé: ra đồ ko nhanh ko chậm", "sentiment": "neutral", "aspects": ["speed"]}
+{"text": "đợi lâu mà còn làm sai Mọi người thử xem.", "sentiment": "negative", "aspects": ["speed"]}
+{"text": "lên món quá chậm, hỏi hoài, matcha pha sai món mình gọi, bàn ghế bẩn, nhiều ruồi ☕", "sentiment": "negative", "aspects": ["drink", "ambience", "speed"]}
+{"text": "Cuoi tuan roi ma ca phe sua beo ngay ma khong ngay, quan yen tinh, lam viec rat tot 👍", "sentiment": "positive", "aspects": ["drink", "ambience"]}
+{"text": "Lần đầu ghé: bạc xỉu cũng được thôi, không quá ấn tượng và thời gian chờ bình thường Nói chung vậy đó.", "sentiment": "neutral", "aspects": ["drink", "speed"]}
+{"text": "Hôm nay mình ghé quán, đắt hơn quán bên cạnnh mà không ngon hơn", "sentiment": "negative", "aspects": ["price"]}
+{"text": "Lần đầu ghé: trà bị nhạt, topping dai nhách và giá hơi nhỉnh một chút nhưng chấp nhận được ☕", "sentiment": "negative", "aspects": ["drink", "price"]}
+{"text": "điều hòa mát, sạch sẽ. cà phê muối rất ngon, vị đậm đà :(", "sentiment": "positive", "aspects": ["drink", "ambience"]}
+{"text": "tra dao qua ngot, uongg bi ngan va phuc vu thieu chuyen nghiep, hoi mai moi tra loi 👍", "sentiment": "negative", "aspects": ["drink", "service"]}
+{"text": "quán nhỏ nhưng cũng ổn, nhân viên bình thường, không nổi bật :(", "sentiment": "neutral", "aspects": ["service", "ambience"]}
+{"text": "Lần đầu ghé: nhiều ưu đãi, tích điểm có lợi, quán đẹp, không gian ấm cúng, bạn thu ngân vui vẻ, hỗ trợ tận tình Mọi người thử xem.", "sentiment": "positive", "aspects": ["service", "price", "ambience"]}
+{"text": "Lần đầu ghé: quán nhỏ nhưng cũng ổn, giá bình thường", "sentiment": "neutral", "aspects": ["price", "ambience"]}
+{"text": "Hôm nay mình ghé quán, không gian bình thường. cà phê sữa uống được, vị bình thường. thái độ nhân viên ổn :(", "sentiment": "neutral", "aspects": ["drink", "service", "ambience"]}
+{"text": "ra đồ không nhanh không chậm, trà sữa uống được, vị bình thường, giá bình thường 👍", "sentiment": "neutral", "aspects": ["drink", "price", "speed"]}
+{"text": "Đi với bạn bè, bạn phục vụ lịch sự, tư vấn món dễ thương và giá hợp lý, đáng tiền và chỗ ngồi thoải mái, nhạc nhẹ dễ chịu", "sentiment": "positive", "aspects": ["service", "price", "ambience"]}
+{"text": "Đi với bạn bè, bàn ghế bẩn, nhiều ruồi, phụ thu lung tung, giá không rõ ràng Nói chung vậy đó.", "sentiment": "negative", "aspects": ["price", "ambience"]}
+{"text": "Review nhanh: nhạc quá to, đau đầu và giá hợp lý, đáng tiền", "sentiment": "neutral", "aspects": ["price", "ambience"]}
+{"text": "Cuối tuần rồi mà trà đào tạm ổn, không có gì đặc biệt. bàn ghế bẩn, nhiều ruồi. giá bình thường ☕", "sentiment": "negative", "aspects": ["drink", "price", "ambience"]}
+{"text": "Hôm nay mình ghé quán, ra đồ rất nhanh dù đang đông và quán đẹp, không gian ấm cúng Sẽ quay lại.", "sentiment": "positive", "aspects": ["ambience", "speed"]}
+{"text": "Hôm nay mìnhh ghé quán, đợi lâu mà còn làm sai, nhân viên cứ mải nói chuyện, mặc kệ khách", "sentiment": "negative", "aspects": ["service", "speed"]}
+{"text": "Hôm nay mình ghé quán, bạn thu ngân vui vẻ, hỗ trợ tận tình và giá hợp lý, đáng tiền 👍", "sentiment": "positive", "aspects": ["service", "price"]}
+{"text": "Hôm nay mình ghé quán, ra đồ rất nnhanh dù đang đông Mọi người thử xem.", "sentiment": "positive", "aspects": ["speed"]}
+{"text": "Lan dau ghe: len mon qua cham, hoi hoai", "sentiment": "negative", "aspects": ["speed"]}
+{"text": "Đi với bạn bè, giá bình thường, thời gian chờ bình thường, cà phê sữa tạm ổn, không có gì đặc biệt Mọi người thử xem.", "sentiment": "neutral", "aspects": ["drink", "price", "speed"]}
+{"text": "cold brew bị đắng gắt khó uống, gọi mấy lần không ai ra phục vụụ, quán ồn ào, khó nói chuyện Nói chung vậy đó.", "sentiment": "negative", "aspects": ["drink", "service", "ambience"]}
+{"text": "lần đầu ghé: nhiều ưu đãi, tích điểm có lợi nói chung vậy đó.", "sentiment": "positive", "aspects": ["price"]}
+{"text": "Review nhanh: goi may lan khong ai ra phuc vu Hoi tiec.", "sentiment": "negative", "aspects": ["service"]}
+{"text": "Hôm nay mình ghé quán, bạn phục vụ lịịch sự, tư vấn món dễ thương, đồ uống ngon hơn mình nghĩ, không phải chờ lâu Nói chung vậy đó.", "sentiment": "positive", "aspects": ["drink", "service", "speed"]}
+{"text": "Lan dau ghe: quan on ao, kho noi chuyen. ca phe sua qua ngot, uong bi ngan", "sentiment": "negative", "aspects": ["drink", "ambience"]}
+{"text": "gia binh thuong, quan nho nhung cunng on Se quay lai.", "sentiment": "neutral", "aspects": ["price", "ambience"]}
+{"text": "cuoi tuan roi ma phuc vu thieu chuyen nghiep, hoi mai moi tra loi va matcha nhat toet, nhu pha loang va phu thu lung tung, gia khong ro rang noi chung vay do.", "sentiment": "negative", "aspects": ["drink", "service", "price"]}
+{"text": "Cuối tuần rồi mà ra đồ rất nhanh dù đang đông Nói chung vậy đó.", "sentiment": "positive", "aspects": ["speed"]}
+{"text": "Review nhanh: nhân viên cứ mải nói chuyện, mặc kệ khách", "sentiment": "negative", "aspects": ["service"]}
+{"text": "Đi với bạn bè, americano tạm ổn, không có gì đặc biệt Hơi tiếc.", "sentiment": "neutral", "aspects": ["drink"]}
+{"text": "Hôm nay mình ghé quan, đợi lâu mà còn làm sai và matcha béo ngậy mà ko ngấy Sẽ quuay lại.", "sentiment": "neutral", "aspects": ["drink", "speed"]}
+{"text": "Review nhanh: quán ồn ào, khó nói chuyện :(", "sentiment": "negative", "aspects": ["ambience"]}
+{"text": "cuối tuần rồi mà trà bị nhạt, topping dai nhách", "sentiment": "negative", "aspects": ["drink"]}
+{"text": "phục vụ chu đáo, nhớ cả tên khách và giá quá đắt so với chất lượng và bạc xỉu nhạt toẹt, như pha loãng Hơi tiếc.", "sentiment": "negative", "aspects": ["drink", "service", "price"]}
+{"text": "phục vụ tạm được. matcha tạm ổn, không có gì đặc biệt", "sentiment": "neutral", "aspects": ["drink", "service"]}
+{"text": "Cuối tuần rồi mà giá hợp lý, đáng tiền. lên món nhanh, chờ chưa tới 5 phút Nói chung vậy đó.", "sentiment": "positive", "aspects": ["price", "speed"]}
+{"text": "Hôm nay mình ghé quán, matcha pha chuẩn, không bị chua hay đắng gắt", "sentiment": "positive", "aspects": ["drink"]}
+{"text": "giá hợp lý, đáng tiền và trà sữa tạm ổn, không có gì đặc biệt", "sentiment": "positive", "aspects": ["drink", "price"]}
+{"text": "Hôm nay mình ghé quánn, điều hòa mát, sạch sẽ, nhưng chờ gần 30 phút mới có nước Mọi người thử xem.", "sentiment": "neutral", "aspects": ["ambience", "speed"]}
+{"text": "ra đồ rất nhanh dù đang đông. điều hòa mát, sạch sẽ", "sentiment": "positive", "aspects": ["ambience", "speed"]}
+{"text": "Cuối tuần rồi mà bạn thu ngân tính nhầm tiền mà không xin lỗi và đồ uống có mùi lạ, không tươi và giá hơi nhỉnh một chút nhưng chấp nhận được Nói chung vậy đó.", "sentiment": "negative", "aspects": ["drink", "service", "price"]}
+{"text": "Đi với bạn bè, americano tạm ổn, không có gì đặc biệt, chỗ ngồi tạm được", "sentiment": "neutral", "aspects": ["drink", "ambience"]}
+{"text": "latte uống được, vị bình thường Mọi người thử xem.", "sentiment": "neutral", "aspects": ["drink"]}
+{"text": "Đi với bạn bè, chờ gần 30 phút mới có nước Sẽ quay lại.", "sentiment": "negative", "aspects": ["speed"]}
+{"text": "Đi với bạn bè, ly cappuccino bị thiếu đá và nhạt nhẽo", "sentiment": "negative", "aspects": ["drink"]}
+{"text": "Cuối tuần rồi mà thời gian chờ bình thường :(", "sentiment": "neutral", "aspects": ["speed"]}
+{"text": "Di voi ban be, tra sua tam on, khong co gi ddac biet Se quay lai.", "sentiment": "neutral", "aspects": ["drink"]}
+{"text": "giá sinh viên dễ chịu, cà phê muối rất ngon, vị đậm đà Nói chung vậy đó.", "sentiment": "positive", "aspects": ["drink", "price"]}
+{"text": "đồ uống ngon hơn mình nghĩ và bạn thu ngân vui vẻ, hỗ trợ tận tình Nói chung vậy đó.", "sentiment": "positive", "aspects": ["drink", "service"]}
+{"text": "quán nhỏ nhưng cũng ổn và nhân viên bình thường, không nổi bật và đồ uống ở mức trung bình Nói chung vậy đó.", "sentiment": "neutral", "aspects": ["drink", "service", "ambience"]}
+{"text": "cappuccino béo ngậy mà không ngấy Hơi tiếc.", "sentiment": "positive", "aspects": ["drink"]}
+{"text": "phục vụ thiếu chuyên nghiệp, hỏi mãi mới trả lời, chờ gần 30 phút mới có nước :(", "sentiment": "negative", "aspects": ["service", "speed"]}
+{"text": "không phải chờ lâu Nói chung vậy đó.", "sentiment": "positive", "aspects": ["speed"]}
+{"text": "Đi với bạn bè, quán ồn ào, khó nói chuyện. trà đào chua, hình như hạt cũ", "sentiment": "negative", "aspects": ["drink", "ambience"]}
+{"text": "latte pha sai mon minh goi. khong gian chat choi, nong buc. len mon qua cham, hoi hoai", "sentiment": "negative", "aspects": ["drink", "ambience", "speed"]}
+{"text": "Đi với bạn bè, đắt hơn quán bên cạnh mà không ngon hơn và trà bị nhạt, topping dai nhách :(", "sentiment": "negative", "aspects": ["drink", "price"]}
+{"text": "Đi với bạn bè, giá hợp lý, đáng tiền", "sentiment": "positive", "aspects": ["price"]}
+{"text": "không phải chờ lâu mọi người thử xem.", "sentiment": "positive", "aspects": ["speed"]}
+{"text": "ban thu ngan vui ve, ho tro tan tinh, ca phe muoi thom va vua mieng", "sentiment": "positive", "aspects": ["drink", "service"]}
+{"text": "Lần đầu ghé: cà phê ở đây chuẩn vị, uống là nghiền, quan đẹp, ko gian ấm cúng Hơi tiếc.", "sentiment": "positive", "aspects": ["drink", "ambience"]}
+{"text": "khong phai cho lau, tra sua uong duoc, vi binh thuong", "sentiment": "positive", "aspects": ["drink", "speed"]}
+{"text": "Hôm nay mình ghé quán, quán ồn ào, khó nói chuyện và chờ gần 30 phút mới có nước Nói chung vậy đó.", "sentiment": "negative", "aspects": ["ambience", "speed"]}
+{"text": "Đi với bạn bè, ra đồ không nhanh không chậm, cold brew tạm ổn, không có gì đặc biệt", "sentiment": "neutral", "aspects": ["drink", "speed"]}
+{"text": "đi với bạn bè, ra đồ không nhanh không chậm", "sentiment": "neutral", "aspects": ["speed"]}
+{"text": "chờ gần 30 phút mới có nước. trà bị nhạt, toppiing dai nhách", "sentiment": "negative", "aspects": ["drink", "speed"]}
+{"text": "Cuối tuần rồi mà view đẹp, chụp ảnnh sống ảo thích lắm và phục vụ tạm được và ra đồ ko nhanh ko chậm Sẽ quay lại.", "sentiment": "positive", "aspects": ["service", "ambience", "speed"]}
+{"text": "cà phê muối đúng kiểu mình thích, sẽ gọi lại", "sentiment": "positive", "aspects": ["drink"]}
+{"text": "Lần đầu ghé: đồ uống ngon hơn mình nghĩ ::(", "sentiment": "positive", "aspects": ["drink"]}
+{"text": "goi may lan khong ai ra phuc vu, cho gan 30 phut moi co nuoc", "sentiment": "negative", "aspects": ["service", "speed"]}
+{"text": "Review nhanh: chỗ ngồi tạm dc và ra đồ r nhanh dù đang đông và giá hợp lý, đáng tiền", "sentiment": "positive", "aspects": ["price", "ambience", "speed"]}
+{"text": "thoi gian cho binh thuong, nhan vien binh thuong, khong noi bat, gia binh thuong :(", "sentiment": "neutral", "aspects": ["service", "price", "speed"]}
+{"text": "lên món quá chậm, hỏi hoài và phụ thu lung tung, giá không rõ ràng ☕☕", "sentiment": "negative", "aspects": ["price", "speed"]}
+{"text": "Lan dau ghe: gia mem so voi chatt luong 👍", "sentiment": "positive", "aspects": ["price"]}
+{"text": "Review nhanh: cappuccino bi dang gat kho uong, nhan vien thai do kho chiu, tra loi coc loc Noi chung vay do.", "sentiment": "negative", "aspects": ["drink", "service"]}
+{"text": "Hôm nay mình ghé quán, bàn ghế bẩn, nhiều ruồi, nhưng nhân viên rất thân thiện và nhiệt tình, nhưng đông khách là phục vụ rối tung", "sentiment": "negative", "aspects": ["service", "ambience", "speed"]}
+{"text": "Review nhanh: ban ghe ban, nhieu ruoi va thoi gian cho binh thuong", "sentiment": "negative", "aspects": ["ambience", "speed"]}
+{"text": "cold brew chua, hình như hạt cũ Nói chung vậy đó.", "sentiment": "negative", "aspects": ["drink"]}
+{"text": "Cuối tuần rồi mà ly cappuccino bị thiếu đá và nhạt nhẽo, đông khách là phục vụ rối tung", "sentiment": "negative", "aspects": ["drink", "speed"]}
+{"text": "Hôm nay mình ghé quán, chỗ ngồi thoải mái, nhạc nhẹ dễ chịu 👍", "sentiment": "positive", "aspects": ["ambience"]}
+{"text": "Đi với bạn bè, quán ồn ào, khó nói chuyện, matcha bị đắng gắt khó uống :(", "sentiment": "negative", "aspects": ["drink", "ambience"]}
+{"text": "lan dau ghe: phuc vu thieu chuyen nghiep, hoi mai moi tra loi va gia cao ma ly nho xiu", "sentiment": "negative", "aspects": ["service", "price"]}
+{"text": "Lần đầu ghé: giá bình thường. quán nhỏ nhưng cũng ổn", "sentiment": "neutral", "aspects": ["price", "ambience"]}
+{"text": "ra đồ rất nhanh dù đang đông và đồ uống ngon hơn mình nghĩ Mọi người thử xem.", "sentiment": "positive", "aspects": ["drink", "speed"]}
+{"text": "không gian chhật chội, nóng bức", "sentiment": "negative", "aspects": ["ambience"]}
+{"text": "Hôm nay mình ghé quán, không gian bình thường, giá bình thường, chờ gần 30 phút mới có nước Sẽ quay lại.", "sentiment": "negative", "aspects": ["price", "ambience", "speed"]}
+{"text": "Lần đầu ghé: cà phê muối quá ngọt, uống bị ngán và lên món quá chậm, hỏi hoài Hơi tiếc.", "sentiment": "negative", "aspects": ["drink", "speed"]}
+{"text": "Lần đầu ghé: nhân viên r thân thiện và nhiệt tình, ra đồ r nhhanh dù đang đông", "sentiment": "positive", "aspects": ["service", "speed"]}
+{"text": "Review nhanh: đắt hơn quán bên cạnh mà không ngon hơn Hơi tiếc.", "sentiment": "negative", "aspects": ["price"]}
+{"text": "Review nhanh: phu thu lung tung, gia khong ro rang. quan nho nhung cung on :(", "sentiment": "negative", "aspects": ["price", "ambience"]}
+{"text": "phục vụ chu đáo, nhớ cả tên khách, chỗ ngồi tạm được Hơi tiếc.", "sentiment": "positive", "aspects": ["service", "ambience"]}
+{"text": "Review nhanh: bạc xỉu pha sai món mình gọi, chờ gần 30 phút mới có nước, quán ồn ào, khó nói chuyện", "sentiment": "negative", "aspects": ["drink", "ambience", "speed"]}
+{"text": "đồ uống ở mức trung bình, giá cao mà ly nhỏ xíu", "sentiment": "negative", "aspects": ["drink", "price"]}
+{"text": "hôm nay mình ghé quán, thời gian chờ bình thường, nhân viên bình thường, không nổi bật mọi người thử xem.", "sentiment": "neutral", "aspects": ["service", "speed"]}
+{"text": "Đi với bạn bè, giá mềm so với chất lượng :(", "sentiment": "positive", "aspects": ["price"]}
+{"text": "giá hơi nhỉnh một chút nhưng chấp nhận được, trà sữa tạm ổn, ko có gì đặc biệt, ra đồ ko nhanh ko chậm ☕", "sentiment": "neutral", "aspects": ["drink", "price", "speed"]}
+{"text": "nhan vien thai do kho chiu, tra loi coc loc, ban ghe ban, nhieu ruoi", "sentiment": "negative", "aspects": ["service", "ambience"]}
+{"text": "Lan dau ghe: gia sinh vien de chiu Moi nguoi thu xem.", "sentiment": "positive", "aspects": ["price"]}
+{"text": "bạn thu ngân vui vẻ, hỗ trợ tận tình, chỗ ngồi thoải mái, nhạc nhẹ dễ chịu 👍", "sentiment": "positive", "aspects": ["service", "ambience"]}
+{"text": "chờ gần 30 phút mới có nước, nhưng view đẹp, chụp ảnh sống ảo thích lắm Mọi người thử xem.", "sentiment": "neutral", "aspects": ["ambience", "speed"]}
+{"text": "Đi với bạn bè, chờ gần 30 phút mới có nước Mọi người thử xem.", "sentiment": "negative", "aspects": ["speed"]}
+{"text": "đồ uống ngon hơn mình nghĩ. bạn thu ngân vui vẻ, hỗ trợ tận tình ☕", "sentiment": "positive", "aspects": ["drink", "service"]}
+{"text": "Đi với bạn bè, nhiều ưu đãi, tích điểm có lợi, matcha thơm và vừa miệng", "sentiment": "positive", "aspects": ["drink", "price"]}
+{"text": "Lần đầu ghé: thái độ nv ổn. cappuccino cũng dc thôi, ko quá ấn tượng Mọi người thử xem.", "sentiment": "neutral", "aspects": ["drink", "service"]}
+{"text": "Lần đầu ghé: trà sữa chua, hình như hạt cũ Hơi tiếc.", "sentiment": "negative", "aspects": ["drink"]}
+{"text": "nhân viên rất thân thiện và nhiệt tình, giá cao mà ly nhỏ xíu ☕", "sentiment": "neutral", "aspects": ["service", "price"]}
+{"text": "trà trái cây tươi mát, topping giòn, quán đẹp, không gian ấm cúng", "sentiment": "positive", "aspects": ["drink", "ambience"]}
+{"text": "Review nhanh: thái độ nhân viên ổn, giá bình thường Nói chuung vậy đó.", "sentiment": "neutral", "aspects": ["service", "price"]}
+{"text": "Đi với bạn bè, thái độ nhân viên ổn và giá hợp lý, đáng tiền", "sentiment": "positive", "aspects": ["service", "price"]}
+{"text": "giá cao mà ly nhỏ xíu, ly bạc xỉu bị thiếu đá và nhạt nhẽo 👍", "sentiment": "negative", "aspects": ["drink", "price"]}
+{"text": "Đi với bạn bè, giá mềm so với chất lượng. cà phê ở đây chuẩn vị, uống là nghiền ☕", "sentiment": "positive", "aspects": ["drink", "price"]}
+{"text": "phục vụ thiếu chuyên nghiệp, hỏi mãi mới trả lời. bàn ghế bẩn, nhiều ruồi", "sentiment": "negative", "aspects": ["service", "ambience"]}
+{"text": "Hôm nay mình ghé quán, đợi lâu mà còn làm sai", "sentiment": "negative", "aspects": ["speed"]}
+{"text": "Hôm nay mình ghé quán, đồ uống ngon hơn mình nghĩ, không phải chờ lâu", "sentiment": "positive", "aspects": ["drink", "speed"]}
+{"text": "đông khách là phục vụ rối tung, đắt hơn quán bên cạnh mà không ngon hơn 👍", "sentiment": "negative", "aspects": ["price", "speed"]}
+{"text": "Hôm nay mình ghé quán, matcha uống được, vị bình thường và thái độ nhân viên ổn 👍", "sentiment": "neutral", "aspects": ["drink", "service"]}
+{"text": "Cuối tuần rồii mà trà sữa béo ngậy mà không ngấy. phụ thu lung tung, giá không rõ ràng", "sentiment": "neutral", "aspects": ["drink", "price"]}
+{"text": "hôm nay mình ghé quán, đồ uống ngon hơn mình nghĩ mọi người thử xem.", "sentiment": "positive", "aspects": ["drink"]}
+{"text": "Hom nay minh ghe quan, latte tam on, khong co gi dac biet", "sentiment": "neutral", "aspects": ["drink"]}
+{"text": "Hôm nay mình ghé quán, nhiều ưu đãi, tích điểm có lợi Sẽ quay lại.", "sentiment": "positive", "aspects": ["price"]}
+{"text": "trà bị nhạt, topping dai nhách, không gian chật chội, nóng bức, giá cao mà ly nhỏ xíu Hơi tiếc.", "sentiment": "negative", "aspects": ["drink", "price", "ambience"]}
+{"text": "Review nhanh: dat hon quan ben canh ma khong ngon hon 👍", "sentiment": "negative", "aspects": ["price"]}
+{"text": "gia ngang mat bang chung, nhan vien binh thuong, khong noi bat Noi chung vay do.", "sentiment": "neutral", "aspects": ["service", "price"]}
+{"text": "Đi với bạn bè, lên món nhanh, chờ chưa tới 5 phút và phục vụ chu đáo, nhớ cả tên khách Mọi người thử xem.", "sentiment": "positive", "aspects": ["service", "speed"]}
+{"text": "Review nhanh: ra đồ không nhanh không chậm, quán đẹp, không gian ấm cúng Nói chungg vậy đó.", "sentiment": "positive", "aspects": ["ambience", "speed"]}
+{"text": "Lần đầu ghé: bạn phục vụ lịch sự, tư vấn món dễ thương, lên món nhanh, chờ chưa tới 5 phút Nói chung vậy đó.", "sentiment": "positive", "aspects": ["service", "speed"]}
+{"text": "ban thu ngan tinh nham tien ma khong xin loi, gia qua dat so voi chat luong ☕", "sentiment": "negative", "aspects": ["service", "price"]}
+{"text": "Cuối tuần rồi mà đông khách là phục vụ rối tung và cappuccino quá ngọt, uống bị ngán Hơi tiếc.", "sentiment": "negative", "aspects": ["drink", "speed"]}
+{"text": "gia ngang matt bang chung, thai do nhan vien on", "sentiment": "neutral", "aspects": ["service", "price"]}
+{"text": "nhà vệ sinh dơ và lên món quá chậm, hỏi hoài 👍", "sentiment": "negative", "aspects": ["ambience", "speed"]}
+{"text": "bạc xỉu béo ngậy mà không ngấy, quan yên tĩnh, làm việc rất tốt", "sentiment": "positive", "aspects": ["drink", "ambience"]}
+{"text": "Review nhanh: không gian chật chội, nóng bức", "sentiment": "negative", "aspects": ["ambience"]}
+{"text": "đi với bạn bè, giá cao mà ly nhỏ xíu", "sentiment": "negative", "aspects": ["price"]}
+{"text": "chỗ ngồi thoải mái, nhạc nhẹ dễ chịu, bạn phục vụ lịch sự, tư vấn món dễ thương", "sentiment": "positive", "aspects": ["service", "ambience"]}
+{"text": "cà phê sữa thơm và vừa miệng, không phải chờ lâu, giá mềm so với chất lượng 👍", "sentiment": "positive", "aspects": ["drink", "price", "speed"]}
+{"text": "Review nhanh: thái độ nhân viên ổn Sẽ quay lại.", "sentiment": "neutral", "aspects": ["service"]}
+{"text": "đợi lâu mà còn làm sai, phụ thu lung tung, giá không rõ ràng, phục vụ thiếu chuyên nghiệp, hỏi mãi mới trả lời Hơi tiếc.", "sentiment": "negative", "aspects": ["service", "price", "speed"]}
+{"text": "Review nhanh: tra trai cay tuoi mat, topping gion, ra do rat nhanh du dang dong Hoi tiec.", "sentiment": "positive", "aspects": ["drink", "speed"]}
+{"text": "Lần đầu ghé: nhiều ưu đãi, tích điểm có lợi Mọi người thử xem.", "sentiment": "positive", "aspects": ["price"]}
+{"text": "dieu hoa mat, sach se :(", "sentiment": "positive", "aspects": ["ambience"]}
+{"text": "Hôm nay mình ghé quán, giá cao mà ly nhỏ xíu, bạn thu ngân tính nhầm tiền mà không xin lỗi Mọi người thử xem.", "sentiment": "negative", "aspects": ["service", "price"]}
+{"text": "Hôm nay mình ghé quán, đông khách là phục vụ rối tung và gọi mấy lần không ai ra phục vụ ☕", "sentiment": "negative", "aspects": ["service", "speed"]}
+{"text": "Review nhanh: nhân viên r thân thiện và nhiệt tình, nhưng giá mềm so với chất lượng Hơi tiếc.", "sentiment": "positive", "aspects": ["service", "price"]}
+{"text": "đắt hơn quán bên cạnh mà không ngon hơn và bạn thu ngân tính nhầm tiền mà không xin lỗi Sẽ quay lại.", "sentiment": "negative", "aspects": ["service", "price"]}
+{"text": "cold brew bị đắng gắt khó uống và nhân viên thái độ khó chịu, trả lời cộc lốc và view đẹp, chụp ảnh sống ảo thích lắm", "sentiment": "negative", "aspects": ["drink", "service", "ambience"]}
+{"text": "quán yên tĩnh, làm việc rất tốt, bạc xỉu đúng kiểu mình thích, sẽ gọi lại Sẽ quay lại.", "sentiment": "positive", "aspects": ["drink", "ambience"]}
+{"text": "quán đẹp, không gian ấm cúng và cappuccino pha chuẩn, không bị chua hay đắng gắt", "sentiment": "positive", "aspects": ["drink", "ambience"]}
+{"text": "Review nhanh: ko gian chật chội, nóng bức, trà sữa pha sai món mình gọi 👍", "sentiment": "negative", "aspects": ["drink", "ambience"]}
+{"text": "Hôm nay mình ghé quán, trà đào pha sai món mình gọi, bàn ghế bẩn, nhiều ruồi 👍", "sentiment": "negative", "aspects": ["drink", "ambience"]}
+{"text": "Lần đầu ghé: matcha thơm và vừa miệng. bạn phục vụ lịch sự, tư vấn món dễ thương Sẽ quay lại.", "sentiment": "positive", "aspects": ["drink", "service"]}
+{"text": "Lan dau ghe: dong khach la phuc vu roi tung. ban ghe ban, nhieu ruoi 👍", "sentiment": "negative", "aspects": ["ambience", "speed"]}
+{"text": "ra đồ không nhanh không chậm Mọi người thử xem.", "sentiment": "neutral", "aspects": ["speed"]}
+{"text": "cuối tuần rồi mà nhân viên bình thường, không nổi bật hơi tiếc.", "sentiment": "neutral", "aspects": ["service"]}
+{"text": "Cuối tuần rồi mà chỗ ngồi thoải mái, nhạc nhẹ dễ chịu và giá hợp lý, đáng tiền ☕", "sentiment": "positive", "aspects": ["price", "ambience"]}
+{"text": "Hôm nay mình ghé quán, giá hợp lý, đáng tiền, latte béo ngậy mà không ngấy", "sentiment": "positive", "aspects": ["drink", "price"]}
+{"text": "Lan dau ghe: nhac qua to, dau dau. doi lau ma con lam sai", "sentiment": "negative", "aspects": ["ambience", "speed"]}
+{"text": "Cuối tuần rồi mà phục vụ chu đáo, nhớ cả tên khách Hơi tiếc.", "sentiment": "positive", "aspects": ["service"]}
+{"text": "Hôm nay mình ghé quán, giá ngang mặt bằng chung và thái độ nhân viên ổn", "sentiment": "neutral", "aspects": ["service", "price"]}
+{"text": "ra đồ rất nhanh dù đang đông và nhân viên rất thân thiện và nhhiệt tình sẽ quay lại.", "sentiment": "positive", "aspects": ["service", "speed"]}
+{"text": "Hôm nay mình ghé quán, thái độ nhân viên ổn", "sentiment": "neutral", "aspects": ["service"]}
+{"text": "cappuccino thơm và vừa miệng và view đẹp, chụp ảnh sống ảo thích lắm 👍", "sentiment": "positive", "aspects": ["drink", "ambience"]}
+{"text": "giá cao mà ly nhỏ xíu. không gian chật chội, nóng bức Hơi tiếc.", "sentiment": "negative", "aspects": ["price", "ambience"]}
+{"text": "goi may lan khong ai ra phuc vu, cho gan 30 phut moi co nuoc, cho ngoi thoai mai, nhac nhe de chiu", "sentiment": "negative", "aspects": ["service", "ambience", "speed"]}
+{"text": "Hôm nay mình ghé quán, giá cao mà ly nhỏ xíu 👍", "sentiment": "negative", "aspects": ["price"]}
+{"text": "đợi lâu mà còn làm sai, nhưng nhân viên cứ mải nói chuyện, mặc kệ khách", "sentiment": "negative", "aspects": ["service", "speed"]}
+{"text": "phụ thu lung tung, giá ko rõ ràng Mọi người thử xem.", "sentiment": "negative", "aspects": ["price"]}
+{"text": "Đi với bạn bè, nhân viên cứ mải nói chuyện, mặc kệ khách, phụ thu lung tung, giá không rõ ràng", "sentiment": "negative", "aspects": ["service", "price"]}
+{"text": "Đi với bạn bè, nhân viên cứ mải nói chuyện, mặc kệ khách Sẽ quay lại.", "sentiment": "negative", "aspects": ["service"]}
+{"text": "Hôm nay mình ghé quán, phục vụ thiếu chuyên nghiệp, hỏi mãi mới trả lời", "sentiment": "negative", "aspects": ["service"]}
+{"text": "nhân viên cứ mải nói chuyện, mặc kệ khách, nhưng đợi lâu mà còn làm sai, nhưng matcha chua, hình như hạt cũ Nói chung vậy đó.", "sentiment": "negative", "aspects": ["drink", "service", "speed"]}
+{"text": "Review nhanh: ban thu ngan vui ve, ho tro tan tinh ☕", "sentiment": "positive", "aspects": ["service"]}
+{"text": "Hôm nay mình ghé quán, giá hợp lý, đáng tiền Nói chung vậy đó.", "sentiment": "positive", "aspects": ["price"]}
+{"text": "view đẹp, chụp ảnh sống ảo thích lắm. cold brew thơm và vừa miệng Sẽ quay lại.", "sentiment": "positive", "aspects": ["drink", "ambience"]}
+{"text": "Cuối tuần rồi mà giá cao mà ly nhỏ xíu. nhạc quá to, đau đầu. đông khách là phục vụ rối tung 👍", "sentiment": "negative", "aspects": ["price", "ambience", "speed"]}
+{"text": "bạn phục vụ lịch sự, tư vấn món dễ thương, americano pha chuẩn, không bị chua hay đắng gắt, quán nhỏ nhưng cũng ổn", "sentiment": "positive", "aspects": ["drink", "service", "ambience"]}
+{"text": "hôm nay mình ghé quán, nhiều ưu đãi, tích điểm có lợi. cà phê ở đây chuẩn vị, uống là nghiền hơi tiếc.", "sentiment": "positive", "aspects": ["drink", "price"]}
+{"text": "Đi với bạn bè, cà phê sữa béo ngậy mà không ngấy. gọi mấy lần không ai ra phục vụ. nhạc quá to, đau đầu", "sentiment": "negative", "aspects": ["drink", "service", "ambience"]}
+{"text": "ban phuc vu lich su, tu van mon de thuong, gia mem so voi chat luong", "sentiment": "positive", "aspects": ["service", "price"]}
+{"text": "giá hợp lý, đáng tiền, nhạc quá to, đau đầu ☕", "sentiment": "neutral", "aspects": ["price", "ambience"]}
+{"text": "Cuối tuần rồi mà quán nhỏ nhưng cũng ổn", "sentiment": "neutral", "aspects": ["ambience"]}
+{"text": "lần đầu ghé: ra đồ rất nhanh dù đang đông và nhiều ưu đãi, tích điểm có lợi nói chung vậy đó.", "sentiment": "positive", "aspects": ["price", "speed"]}
+{"text": "Review nhanh: nhân viên cứ mải nói chuyện, mặc kệ khách. bàn ghế bẩn, nhiều ruồi", "sentiment": "negative", "aspects": ["service", "ambience"]}
+{"text": "Cuối tuần rồi mà thời gian chờ bình thường Mọi người thử xem.", "sentiment": "neutral", "aspects": ["speed"]}
+{"text": "đồ uống có mùi lạ, không tươi hơi tiếc.", "sentiment": "negative", "aspects": ["drink"]}
+{"text": "Đi với bạn bè, ra đồ rất nhanh dù đang đông, nhiều ưu đãi, tích điểm có lợi, điều hòa mát, sạch sẽ :(", "sentiment": "positive", "aspects": ["price", "ambience", "speed"]}
+{"text": "Lần đầu ghé: quán yên tĩnh, làm việc rất tốt và phục vụ chu đáo, nhớ cả tên khách :(", "sentiment": "positive", "aspects": ["service", "ambience"]}
+{"text": "Cuối tuần rồi mà giá ngang mặt bằng chung 👍", "sentiment": "neutral", "aspects": ["price"]}
+{"text": "phụ thu lung tung, giá không rõ ràng, ra đồ không nhanh không chậm, nhân viên thái độ khó chịu, trả lời cộc lốc", "sentiment": "negative", "aspects": ["service", "price", "speed"]}
+{"text": "Đi với bạn bè, cà phê ssữa đúng kiểu mình thích, sẽ gọi lại", "sentiment": "positive", "aspects": ["drink"]}
+{"text": "quán ồn ào, khó nói chuyện Nói chung vậy đó.", "sentiment": "negative", "aspects": ["ambience"]}
+{"text": "gia binh thuong va len mon nhanh, cho chua toi 5 phut Noi chung vay do.", "sentiment": "positive", "aspects": ["price", "speed"]}
+{"text": "Cuối tuần rồi mà giá quá đắt so với chất lượng Nói chung vậy đó.", "sentiment": "negative", "aspects": ["price"]}
+{"text": "Lần đầu ghé: nhân viên rất thân thiện và nhiệt tình. cà phê ở đây chuẩn vị, uống là nghiền", "sentiment": "positive", "aspects": ["drink", "service"]}
+{"text": "lan dau ghe: gia hoi nhinh mot chut nhung chap nhan duoc, khong phai cho lau, tra dao dung kieu minh thich, se goi lai se quay lai.", "sentiment": "positive", "aspects": ["drink", "price", "speed"]}
+{"text": "đắt hơn quán bên cạnh mà ko ngon hơn. phục vụ thiếu chuyên nghiệp, hỏi mãi mới trả lời. nhạc quá to, đau đầu 👍", "sentiment": "negative", "aspects": ["service", "price", "ambience"]}
+{"text": "bạn thu ngân vui vẻ, hỗ trợ tận tình Sẽ quay lại.", "sentiment": "positive", "aspects": ["service"]}
+{"text": "Đi với bạn bè, giá quá đắt so với chất lượng :(", "sentiment": "negative", "aspects": ["price"]}
+{"text": "Cuối tuần rồi mà không phải chờ lâu và nhân viên rất thân thiện và nhiệt tình Mọi người thử xem.", "sentiment": "positive", "aspects": ["service", "speed"]}
+{"text": "Lần đầu ghé: cappuccino uống được, vị bình thường ☕", "sentiment": "neutral", "aspects": ["drink"]}
+{"text": "Lần đầu ghé: bạc xỉu rất ngon, vị đậm đà. giá sinh viên dễ chịu. bạn phục vụ lịch sự, tư vấn món dễ thương", "sentiment": "positive", "aspects": ["drink", "service", "price"]}
+{"text": "khong gian binh thuong, gia hoi nhinh mot chut nhung chap nhan duoc, thoi gian cho binh thuong", "sentiment": "neutral", "aspects": ["price", "ambience", "speed"]}
+{"text": "Di voi ban be, ca phe muoi nhat toet, nhu pha loang Moi nguoi thu xem.", "sentiment": "negative", "aspects": ["drink"]}
+{"text": "Di voi ban be, thoi gian cho binh thuong Moi nguoi thu xem.", "sentiment": "neutral", "aspects": ["speed"]}
+{"text": "Lần đầu ghé: bạn thu ngân tính nhầm tiền mà không xin lỗi, nhưng americano quá ngọt, uống bị ngán, nhưng quán ồn ào, khó nói chuyện Mọi người thử xem.", "sentiment": "negative", "aspects": ["drink", "service", "ambience"]}
+{"text": "Cuối tuần rồi mà ra đồ rất nhanh dù đang đông Hơi tiếc.", "sentiment": "positive", "aspects": ["speed"]}
+{"text": "Đi với bạn bè, latte pha sai món mình gọi, đông khách là phục vụ rối tung, không gian chật chội, nóng bức", "sentiment": "negative", "aspects": ["drink", "ambience", "speed"]}
+{"text": "Đi với bạn bè, phục vụ tạm được. giá hơi nhỉnh một chút nhưng chấp nhận được 👍", "sentiment": "neutral", "aspects": ["service", "price"]}
+{"text": "Đi với bạn bè, lên món nhanh, chờ chưa tới 5 phút và quán đẹp, không gian ấm cúng và bạn thu ngân vui vẻ, hỗ trợ tận tình ☕", "sentiment": "positive", "aspects": ["service", "ambience", "speed"]}
+{"text": "chờ gần 30 phút mới có nướcc", "sentiment": "negative", "aspects": ["speed"]}
+{"text": "Cuối tuần rồi mà giá ngang mặt bằng chung và quán nhỏ nhưng cũng ổn Hơi tiếc.", "sentiment": "neutral", "aspects": ["price", "ambience"]}
+{"text": "view đẹp, chụp ảnh sống ảo thích lắm, matcha rất ngon, vị đậậm đà, giá sinh viên dễ chịu", "sentiment": "positive", "aspects": ["drink", "price", "ambience"]}
+{"text": "Di voi ban be, dong khach la phuc vu roi tung", "sentiment": "negative", "aspects": ["speed"]}
+{"text": "giá ngang mặt bằng chung. latte chua, hình như hạt cũ", "sentiment": "negative", "aspects": ["drink", "price"]}
+{"text": "Cuối tuần rồi mà bàn ghế bẩn, nhiều ruồi ☕", "sentiment": "negative", "aspects": ["ambience"]}
+{"text": "Review nhanh: trà đào cũng được thôi, không quá ấn tượng và giá hơi nhỉnh một chút nhưng chấp nhận được :(", "sentiment": "neutral", "aspects": ["drink", "price"]}
+{"text": "Hom nay minh ghe quan, quan nho nhung cung on va thoi gian cho binh thuong va gia binh thuong", "sentiment": "neutral", "aspects": ["price", "ambience", "speed"]}
+{"text": "Cuoi tuan roi ma cappuccino qua ngot, uong bi ngan, quan dep, khong gian am cung Hoi tiec.", "sentiment": "neutral", "aspects": ["drink", "ambience"]}
+{"text": "Đi với bạn bè, giá quá đắt so với chất lượng", "sentiment": "negative", "aspects": ["price"]}
+{"text": "Lần đầu ghé: latte cũng được thôi, không quá ấnn tượng", "sentiment": "neutral", "aspects": ["drink"]}
+{"text": "Lần đầu ghé: chỗ ngồi thoải mái, nhạc nhẹ dễ chịu Hơi tiếc.", "sentiment": "positive", "aspects": ["ambience"]}
+{"text": "Đi với bạn bè, điều hòa mát, sạch sẽ và giá ngang mặt bằng chung :(", "sentiment": "positive", "aspects": ["price", "ambience"]}
+{"text": "lần đầu ghé: ra đồ r nhanh dù đang đông. giá hợp lý, đáng tiền :(", "sentiment": "positive", "aspects": ["price", "speed"]}
+{"text": "Cuối tuần rồi mà giá sinh viên dễ chịu, không phải chờ lâu Nói chung vậy đó.", "sentiment": "positive", "aspects": ["price", "speed"]}
+{"text": "tra sua rat ngon, vi dam da, dieu hoa mat, sach se", "sentiment": "positive", "aspects": ["drink", "ambience"]}
+{"text": "Di voi bann be, ra do khong nhanh khong cham va phuc vu tam duoc", "sentiment": "neutral", "aspects": ["service", "speed"]}
+{"text": "Hôm nay mình ghé quán, giá ngang mặt bằng chung, quán nhỏ nhưng cũng ổn Mọi người thử xem.", "sentiment": "neutral", "aspects": ["price", "ambience"]}
+{"text": "nhân viên rất thân thiện và nhiiệt tình Sẽ quay lại.", "sentiment": "positive", "aspects": ["service"]}
+{"text": "Lần đầu ghé: quán đẹp, không ggian ấm cúng Sẽ quay lại.", "sentiment": "positive", "aspects": ["ambience"]}
+{"text": "Đi với bạn bè, điều hòa mát, sạch sẽ, phục vụ tạm được, matcha thơm và vừa miệng", "sentiment": "positive", "aspects": ["drink", "service", "ambience"]}
+{"text": "Đi với bạn bè, ccold brew pha sai món mình gọi 👍", "sentiment": "negative", "aspects": ["drink"]}
+{"text": "phục vụ tạm được, không gian bình thường", "sentiment": "neutral", "aspects": ["service", "ambience"]}
+{"text": "Đi với bạn bè, chờ gần 30 phút mới có nước ☕", "sentiment": "negative", "aspects": ["speed"]}
+{"text": "cho gan 30 phut moi co nuoc va phu thu lung tung, gia khong ro rang va ca phe sua qua ngot, uong bi ngan", "sentiment": "negative", "aspects": ["drink", "price", "speed"]}
+{"text": "gia hop ly, dang tien, ban phuc vu lich su, tu van mon de thuong, quan yen tinh, lam viec rat tot Noi chung vay do.", "sentiment": "positive", "aspects": ["service", "price", "ambience"]}
+{"text": "Cuối tuần rồi mà bạc xỉu pha chuẩn, ko bị chua hay đắng gắt", "sentiment": "positive", "aspects": ["drink"]}
+{"text": "Đi với bạn bè, giá ngang mặt bằng chung, bạn thu ngân vui vẻ, hỗ trợ tận tình, cappuccino thơm và vừa miệng Sẽ quay lại.", "sentiment": "positive", "aspects": ["drink", "service", "price"]}
+{"text": "Cuối tuần rồi mà giá ngang mặt bằng chung và ra đồ không nhanh không chậm và thái độ nhân viên ổn", "sentiment": "neutral", "aspects": ["service", "price", "speed"]}
+{"text": "Lần đầu ghé: ra đồ không nhanh không chậm, giá ngang mặt bằng chung", "sentiment": "neutral", "aspects": ["price", "speed"]}
+{"text": "chờ gần 30 phút mới có nước, đắt hơn quán bên cạnh mà không ngon hơn ☕", "sentiment": "negative", "aspects": ["price", "speed"]}
+{"text": "Lần đầu ghé: giá quá đắt so với chất lượngg, cappuccino nhạt toẹt, như pha loãng", "sentiment": "negative", "aspects": ["drink", "price"]}
+{"text": "Lần đầu ghé: giá ngang mặt bằng chung, chỗ ngồi tạm được, ra đồ không nhanh không chậm", "sentiment": "neutral", "aspects": ["price", "ambience", "speed"]}
+{"text": "quán đẹp, không gian ấm cúng Hơơi tiếc.", "sentiment": "positive", "aspects": ["ambience"]}
+{"text": "gia hoi nhinh mot chut nhung chap nhan duoc Moi nguoi thu xem.", "sentiment": "neutral", "aspects": ["price"]}
+{"text": "Di voi ban be, khhong phai cho lau. view dep, chup anh song ao thich lam", "sentiment": "positive", "aspects": ["ambience", "speed"]}
+{"text": "Lần đầu ghé: chỗ ngồi tạm được. phục vụ tạm được 👍", "sentiment": "neutral", "aspects": ["service", "ambience"]}
+{"text": "Lần đầu ghé: giá quá đắt so với chất lượng và bạn thu ngân tính nhầm tiền mà không xin lỗi và matcha pha sai món mình gọi", "sentiment": "negative", "aspects": ["drink", "service", "price"]}
+{"text": "Lần đđầu ghé: matcha bị đắng gắt khó uống Hơi tiếc.", "sentiment": "negative", "aspects": ["drink"]}
+{"text": "Đi với bạn bè, ra đồ r nhanh dù đang đông, chỗ ngồi thoải mái, nhạc nhẹ dễ chịu", "sentiment": "positive", "aspects": ["ambience", "speed"]}
+{"text": "cà phê ở đây chuẩn vị, uống là nghiền sẽ quay lại.", "sentiment": "positive", "aspects": ["drink"]}
+{"text": "giá sinh viên dễ chịu. trà trái cây tươi mát, topping giòn Nói chung vậy đó.", "sentiment": "positive", "aspects": ["drink", "price"]}
+{"text": "Review nhanh: giá cao mà ly nhỏ xíu, lên món quá chậm, hỏi hoài", "sentiment": "negative", "aspects": ["price", "speed"]}
+{"text": "Hôm nay mình ghé quán, đồ uống ngon hơn mình nghĩ 👍", "sentiment": "positive", "aspects": ["drink"]}
+{"text": "Hôm nay mình ghé quán, phục vụ chu đáo, nhớ cả tên khách, quán đẹp, không gian ấm cúng Mọi người thử xem.", "sentiment": "positive", "aspects": ["service", "ambience"]}
+{"text": "điều hòa mát, sạch sẽ 👍", "sentiment": "positive", "aspects": ["ambience"]}
+{"text": "giá ngang mặt bằng chung. quán nhỏ nhưng cũng ổn. phục vụ tạm được :(", "sentiment": "neutral", "aspects": ["service", "price", "ambience"]}
+{"text": "gia ngang mat bang chung, matcha tam on, khong co gi dac biet :(", "sentiment": "neutral", "aspects": ["drink", "price"]}
+{"text": "cho ngoi tam duoc Hoi tiec.", "sentiment": "neutral", "aspects": ["ambience"]}
+{"text": "Hôm nay mình ghé quán, trà trái cây tươi mát, topping giòn 👍", "sentiment": "positive", "aspects": ["drink"]}
+{"text": "đi với bạn bè, lên món quá chậm, hỏi hoài, quán ồn ào, khó nói chuyện 👍", "sentiment": "negative", "aspects": ["ambience", "speed"]}
+{"text": "Lần đầu ghé: gọi mấy lần không ai ra phục vụ. americano quá ngọt, uống bị ngán Hơi tiếc.", "sentiment": "negative", "aspects": ["drink", "service"]}
+{"text": "Hôm nay mình ghé quán, lên món quá chậm, hỏi hoài", "sentiment": "negative", "aspects": ["speed"]}
+{"text": "Review nhanh: cà phê ở đây chuẩn vị, uống là nghiền và lên món nhanh, chờ chưa tới 5 phút Hơi tiếc.", "sentiment": "positive", "aspects": ["drink", "speed"]}
+{"text": "nhân viên thái độ khó chịu, trả lời cộc lốc, quán ồn ào, khó nói chuyện ☕", "sentiment": "negative", "aspects": ["service", "ambience"]}
+{"text": "Hôm nay mình ghé quán, giá bình thường, điều hòa mát, sạch sẽ", "sentiment": "positive", "aspects": ["price", "ambience"]}
+{"text": "lần đầu ghé: phục vụ chu đáo, nhớ cả tên khách sẽ quay lại.", "sentiment": "positive", "aspects": ["service"]}
+{"text": "Hôm nay mình ghé quán, phục vụ thiếu chuyên nghiệp, hỏi mãi mới trả lời, giá mềm so với chất lượng, bàn ghế bẩn, nhiều ruồi Hơi tiếc.", "sentiment": "negative", "aspects": ["service", "price", "ambience"]}
+{"text": "americano rất ngon, vị đậm đà. không phải chờ lâu Mọi người thử xem.", "sentiment": "positive", "aspects": ["drink", "speed"]}
+{"text": "trà trái cây tươi mát, topping giòn, pphục vụ chu đáo, nhớ cả tên khách :(", "sentiment": "positive", "aspects": ["drink", "service"]}
+{"text": "ra đồ rất nhanh dù đang đông, view đẹp, chụp ảnh sống ảo thích lắm, phục vụ chu đáo, nhớ cả tên khách Hơi tiếc.", "sentiment": "positive", "aspects": ["service", "ambience", "speed"]}
+{"text": "nhân viên bình thường, không nổi bật Nói chung vậy đó.", "sentiment": "neutral", "aspects": ["service"]}
+{"text": "nhieu uu dai, tich diem co loi va khong phai cho lau va quan dep, khong gian am cung Noi chung vay do.", "sentiment": "positive", "aspects": ["price", "ambience", "speed"]}
+{"text": "bạn thu ngân tính nhầm tiền mà ko xin lỗi. đồ uống ở mức trung bình ☕", "sentiment": "negative", "aspects": ["drink", "service"]}
+{"text": "giá hợp lý, đáng tiền, view đẹp, chụp ảnh sống ảo thích lắm Nói chung vậy đó.", "sentiment": "positive", "aspects": ["price", "ambience"]}
+{"text": "Review nhanh: khong gian binh thuong va phuc vu chu dao, nho ca ten khach va ca phe muoi thom va vua mieng :(", "sentiment": "positive", "aspects": ["drink", "service", "ambience"]}
+{"text": "Lần đầu ghé: phục vụ thiếu chuyên nghiệp, hỏi mãi mới trả lời Mọi người thử xem.", "sentiment": "negative", "aspects": ["service"]}
+{"text": "Review nhanh: nhân viên bình thường, không nổi bật và view đẹp, chụp ảnh sống ảo thích lắm và ra đồ rất nhanh dù đang đông 👍", "sentiment": "positive", "aspects": ["service", "ambience", "speed"]}
+{"text": "đợi lâu mà còn làm sai và cà phê ở đây chuẩn vị, uống là nghiền và giá quá đắt so với chất lượng Nói chung vậy đó.", "sentiment": "negative", "aspects": ["drink", "price", "speed"]}
+{"text": "đồ uống có mùi lạ, không tươi và nhiều ưu đãi, tích điểm có lợi", "sentiment": "neutral", "aspects": ["drink", "price"]}
+{"text": "điều hòa mát, sạch sẽ :(", "sentiment": "positive", "aspects": ["ambience"]}
+{"text": "Review nhanh: dong khach la phuc vu roi tung va dat hon quan ben canh ma khong ngon hon Moi nguoi thu xem.", "sentiment": "negative", "aspects": ["price", "speed"]}
+{"text": "Cuối tuần rồi mà quán đẹp, không gian ấm cúng. cold brew pha chuẩn, không bị chua hay đắng gắt 👍", "sentiment": "positive", "aspects": ["drink", "ambience"]}
+{"text": "nv rất thân thiện và nhiệt tình, nhưng giá hợp lý, đáng tiền Hơi tiếc.", "sentiment": "positive", "aspects": ["service", "price"]}
+{"text": "Đi với bạn bè, giá quá đắt so với chất lượng, đông khách là phục vụ rối tung ☕", "sentiment": "negative", "aspects": ["price", "speed"]}
+{"text": "Lần đầu ghé: nhạc quá to, đau đầu, cold brew tạm ổn, không có gì đặc biệt, ra đồ không nhanh không chậm 👍", "sentiment": "negative", "aspects": ["drink", "ambience", "speed"]}
+{"text": "Lần đầu ghé: nhạc quá to, đau đầu, giá quá đắt so với chất lượng 👍", "sentiment": "negative", "aspects": ["price", "ambience"]}
+{"text": "Review nhanh: chỗ ngồi tạm được, giá hơi nhỉnh một chút nhưng chấp nhận được, ra đồ không nhanh không chậm", "sentiment": "neutral", "aspects": ["price", "ambience", "speed"]}
+{"text": "review nhanh: giá bình thường, trà đào uống được, vị bình thường, nhân viên bình thường, không nổi bật sẽ quay lại.", "sentiment": "neutral", "aspects": ["drink", "service", "price"]}
+{"text": "Hôm nay mình ghé quan, thời gian chờ bình thường ☕", "sentiment": "neutral", "aspects": ["speed"]}
+{"text": "Hôm nay mình ghé quán, chỗ ngồi thoải mái, nhạc nhẹ dễ chịu, nhân viên rất thân thiện và nhiệt tình Nói chung vậy đó.", "sentiment": "positive", "aspects": ["service", "ambience"]}
+{"text": "nhân viên cứ mải nói chuyện, mặc kệ khách, cold brew quá ngọt, uống bị ngán, giá bình thường ☕", "sentiment": "negative", "aspects": ["drink", "service", "price"]}
+{"text": "cuối tuần rồi mà bạn thu ngân vui vẻ, hỗ trợ ttận tình, ra đồ r nhanh dù đang đông", "sentiment": "positive", "aspects": ["service", "speed"]}
+{"text": "Cuối tuần rồi mà quán nhỏ nhưng cũng ổn và đồ uống có mùi lạ, không tươi Mọi người thử xem.", "sentiment": "negative", "aspects": ["drink", "ambience"]}
+{"text": "nhân viên cứ mải nói chuyện, mặc kệ khách. giá quá đắt so với chất lượng. cà phê sữa tạm ổn, không có gì đặc biệt :(", "sentiment": "negative", "aspects": ["drink", "service", "price"]}
+{"text": "Lần đầu ghé: ra đồ rất nhanh dù đang đông. giá mềm so với chất lượng", "sentiment": "positive", "aspects": ["price", "speed"]}
+{"text": "Review nhanh: nhan vien rat than thien va nhiet tinh. gia mem so voi chat luong", "sentiment": "positive", "aspects": ["service", "price"]}
+{"text": "Lan dau ghe: cho ngoi tam duoc, ra do khong nhanh khong cham :(", "sentiment": "neutral", "aspects": ["ambience", "speed"]}
+{"text": "giá hơi nhỉnh một chút nhưng chấp nhận được, ko gian bình thường Nói chung vậy đó.", "sentiment": "neutral", "aspects": ["price", "ambience"]}
+{"text": "Review nhanh: thoi gian cho binh thuong, ca phe muoi uong duoc, vi binh thuong, nhan vien binh thuong, khong noi bat", "sentiment": "neutral", "aspects": ["drink", "service", "speed"]}
+{"text": "Đi với bạn bè, không gian bình thường, thái độ nhân viên ổn :(", "sentiment": "neutral", "aspects": ["service", "ambience"]}
+{"text": "Cuối tuần rồi mà không phải chờ lâu. điều hòa mát, sạch sẽ 👍", "sentiment": "positive", "aspects": ["ambience", "speed"]}
+{"text": "di voi ban be, len mon qua cham, hoi hoai, gia cao ma ly nho xiu 👍", "sentiment": "negative", "aspects": ["price", "speed"]}
+{"text": "giá bình thường và phục vụ tạm được và đồ uống ở mức trung bình 👍", "sentiment": "neutral", "aspects": ["drink", "service", "price"]}
+{"text": "Đi với bạn bè, nhân viên bình thường, không nổi bật :(", "sentiment": "neutral", "aspects": ["service"]}
+{"text": "Cuối tuần rồi mà bạn thu ngân vui vẻ, hỗ trợ tận tình Hơi tiếc.", "sentiment": "positive", "aspects": ["service"]}
+{"text": "lan dau ghe: cappuccino nhat toet, nhu pha loang", "sentiment": "negative", "aspects": ["drink"]}
+{"text": "Hôm nay mình ghé quán, cappuccino cũng được thôi, không quá ấn tượng và giá ngang mặt bằng chung Sẽ quay lại.", "sentiment": "neutral", "aspects": ["drink", "price"]}
+{"text": "giá cao mà ly nhỏ xíu, nhà vệ sinh dơ, matcha chua, hình như hạt cũ", "sentiment": "negative", "aspects": ["drink", "price", "ambience"]}
+{"text": "Lần đầầu ghé: ra đồ ko nhanh ko chậm Hơi tiếc.", "sentiment": "neutral", "aspects": ["speed"]}
+{"text": "Đi với bạn bè, không gian chật chội, nóng bức. phục vụ thiếu chuyên nghiệp, hỏi mãi mới trả lời Sẽ quay lại.", "sentiment": "negative", "aspects": ["service", "ambience"]}
+{"text": "Cuối tuần rồi mà latte chua, hình như hạt cũ. chờ gần 30 phút mới có nước. nhạc quá to, đau đầu Hơi tiếc.", "sentiment": "negative", "aspects": ["drink", "ambience", "speed"]}
+{"text": "quán ồn ào, khó nói chuyện và trà đào chua, hình như hạt cũ Hơi tiếc.", "sentiment": "negative", "aspects": ["drink", "ambience"]}
+{"text": "Đi với bạn bè, quán yên tĩnh, làm việc rất tốt", "sentiment": "positive", "aspects": ["ambience"]}
+{"text": "nhiều ưu đãi, tích điểm có lợi :(", "sentiment": "positive", "aspects": ["price"]}
+{"text": "phụ thu lung tung, giá không rõ ràng, nhưng đợi lâu mà còn làm sai :(", "sentiment": "negative", "aspects": ["price", "speed"]}
+{"text": "Lần đầu ghé: đồ uống ở mức trung bình, phục vụ chu đáo, nhớ cả tên khách", "sentiment": "positive", "aspects": ["drink", "service"]}
+{"text": "Review nhanh: trà bị nhạt, topping dai nhách", "sentiment": "negative", "aspects": ["drink"]}
+{"text": "Hôm nay mình ghé quán, lên món nhanh, chờ chưa tới 5 phút và giá sinh viên dễ chịu và chỗ ngồi thoải mái, nhạc nhẹ dễ chịu :(", "sentiment": "positive", "aspects": ["price", "ambience", "speed"]}
+{"text": "Review nhanh: lên món nhanh, chờ chưa tới 5 phút và nhân viên rất thân thiện và nhiệt tình và cappuccino nhạt toẹt, như pha loãng", "sentiment": "positive", "aspects": ["drink", "service", "speed"]}
+{"text": "Đi với bạn bè, trà sữa cũng dc thôi, ko quá ấn tượng 👍", "sentiment": "neutral", "aspects": ["drink"]}
+{"text": "Đi với bạn bè, đồ uống ngon hơn mình nghĩ, lên món nhanh, chờ chưa tới 5 phút Hơi tiếc.", "sentiment": "positive", "aspects": ["drink", "speed"]}
+{"text": "khong gian chat choi, nong buc Hoi tiec.", "sentiment": "negative", "aspects": ["ambience"]}
+{"text": "quán ồn ào, khó nói chuyện và lên món nhanh, chờ chưa tới 5 phút Nói chung vậy đó.", "sentiment": "neutral", "aspects": ["ambience", "speed"]}
+{"text": "bàn ghế bẩn, nhiều ruồi, ra đồ không nhanh không chậm :(", "sentiment": "negative", "aspects": ["ambience", "speed"]}
+{"text": "Hôm nay mình ghé quan, ko gian chật chội, nóng bức Nói chung vậy đó.", "sentiment": "negative", "aspects": ["ambience"]}
+{"text": "Cuối tuần rồi mà nhà vệ sinh dơ, giá bình thường", "sentiment": "negative", "aspects": ["price", "ambience"]}
+{"text": "Lần đầu ghé: đắt hơn quánn bên cạnh mà không ngon hơn :(", "sentiment": "negative", "aspects": ["price"]}
+{"text": "khôông phải chờ lâu Hơi tiếc.", "sentiment": "positive", "aspects": ["speed"]}
+{"text": "latte thơm và vừa miệng 👍", "sentiment": "positive", "aspects": ["drink"]}
+{"text": "Lần đầu ghé: nhiều ưu đãi, tích điểm có lợi và view đẹp, chụp ảnh sống ảo thích lắm Nói chung vậy đó.", "sentiment": "positive", "aspects": ["price", "ambience"]}
+{"text": "Hom nay minh ghe quan, nha ve sinh do ☕", "sentiment": "negative", "aspects": ["ambience"]}
+{"text": "đợi lâu mà còn làm sai, bàn ghế bẩn, nhiều ruồi, nhân viên thái độ khó chịu, trả lời cộc lốc", "sentiment": "negative", "aspects": ["service", "ambience", "speed"]}
+{"text": "Review nhanh: giá ngang mặt bằng chung, không gian bình thường", "sentiment": "neutral", "aspects": ["price", "ambience"]}
+{"text": "Review nhanh: đồ uống ngon hơn mình nghĩ :(", "sentiment": "positive", "aspects": ["drink"]}
+{"text": "matcha đúng kiểu mình thích, sẽ gọi lại 👍", "sentiment": "positive", "aspects": ["drink"]}
+{"text": "view dep, chup anh song ao thich lam va len mon nhanh, cho chua toi 5 phut Hoi tiec.", "sentiment": "positive", "aspects": ["ambience", "speed"]}
+{"text": "Review nhanh: điều hòa mát, sạch sẽ 👍", "sentiment": "positive", "aspects": ["ambience"]}
+{"text": "Lần đầu ghé: nhân viên bình thường, không nổi bật. quán nhỏ nhưng cũng ổn. ra đồ không nhanh không chậm ☕", "sentiment": "neutral", "aspects": ["service", "ambience", "speed"]}
+{"text": "Review nhanh: tra sua bi dang gat kho uong, nhan vien cu mai noi chuyen, mac ke khach, dong khach la phuc vu roi tung :(", "sentiment": "negative", "aspects": ["drink", "service", "speed"]}
+{"text": "Đi với bạn bè, lên món nhanh, chờ chưa tới 5 phút ☕", "sentiment": "positive", "aspects": ["speed"]}
+{"text": "Di voi bban be, nhieu uu dai, tich diem co loi", "sentiment": "positive", "aspects": ["price"]}
+{"text": "lần đầu ghé: phục vụ tạm được ☕", "sentiment": "neutral", "aspects": ["service"]}
+{"text": "Lần đầu ghé: phụ thu lung tung, giá không rõ ràng và chờ gần 30 phút mới có nước ☕", "sentiment": "negative", "aspects": ["price", "speed"]}
+{"text": "quán ồn ào, khó nói chuyện hơi tiếc.", "sentiment": "negative", "aspects": ["ambience"]}
+{"text": "quan on ao, kho noi chuyen, gia qua dat so voi chat luong :(", "sentiment": "negative", "aspects": ["price", "ambience"]}
+{"text": "quan nho nhung cung on Noi chung vay do.", "sentiment": "neutral", "aspects": ["ambience"]}
+{"text": "Review nhanh: doi lau ma con lam sai va americano bi dang gat kho uong", "sentiment": "negative", "aspects": ["drink", "speed"]}
+{"text": "Lần đầu ghé: cà phê sữa cũng được thôi, không quá ấn tượng, nhân viên bình thường, không nổi bật 👍", "sentiment": "neutral", "aspects": ["drink", "service"]}
+{"text": "nhà vệ sinh dơ, chờ gần 30 phút mới có nước Sẽ quay lại.", "sentiment": "negative", "aspects": ["ambience", "speed"]}
+{"text": "lên món quá chậm, hỏi hoài. giá cao mà ly nhỏ xíu Hơi tiếc.", "sentiment": "negative", "aspects": ["price", "speed"]}
+{"text": "cold brew nhạt toẹt, như pha loãng Nói chung vậy đó.", "sentiment": "negative", "aspects": ["drink"]}
+{"text": "giá mềm so với chất lượng và điều hòa mát, sạch sẽ và cà phê ở đây chuẩn vị, uống là nghiền", "sentiment": "positive", "aspects": ["drink", "price", "ambience"]}
+{"text": "Hôm nay mình ghé quán, nhạc quá to, đau đầu. cold brew chua, hình như hạt cũ Hơi tiếc.", "sentiment": "negative", "aspects": ["drink", "ambience"]}
+{"text": "Đi với bạn bè, trà sữa bị đắng gắt khó uống :(", "sentiment": "negative", "aspects": ["drink"]}
+{"text": "Review nhanh: nhân viên rất thân thiện và nhiệt tình, lên món nhanh, chờ chưa tới 5 phút, giá hợp lý, đáng tiền Sẽ quay lại.", "sentiment": "positive", "aspects": ["service", "price", "speed"]}
+{"text": "Lần đầu ghé: view đẹp, chụp ảnh sống ảo thích lắm ☕", "sentiment": "positive", "aspects": ["ambience"]}
+{"text": "Đi với bạn bè, nhạc quá to, đau đầu, nhưng trà trái cây tươi mát, topping giòn 👍", "sentiment": "neutral", "aspects": ["drink", "ambience"]}
+{"text": "Cuối tuần rồi mà trà sữa r ngon, vị đậm đà, nhưng đợi lâu mà còn làm sai ☕", "sentiment": "neutral", "aspects": ["drink", "speed"]}
+{"text": "Cuối tuần rồi mà giá hơi nhỉnh một chút nhưng chấp nhận được, latte tạm ổn, ko có gì đặc biệt", "sentiment": "neutral", "aspects": ["drink", "price"]}
+{"text": "ca phe muoi thom va vua mieng, ra do rat nhanh du dang dong, gia mem so voi chat luong Hoi tiec.", "sentiment": "positive", "aspects": ["drink", "price", "speed"]}
+{"text": "phu thu lung tung, gia khong ro rang, cho gan 30 phut moi co nuoc, quan on ao, kho noi chuyen Se quay lai.", "sentiment": "negative", "aspects": ["price", "ambience", "speed"]}
+{"text": "latte pha chuẩn, không bị chua hay đắng gắt 👍", "sentiment": "positive", "aspects": ["drink"]}
+{"text": "Hôm nay mình ghé quán, đông khách là phục vụ rối tung và phục vụ tạm được ☕", "sentiment": "negative", "aspects": ["service", "speed"]}
+{"text": "đông khách là phục vụ rối tung và matcha quá ngọt, uống bị ngán Hơi tiếc.", "sentiment": "negative", "aspects": ["drink", "speed"]}
+{"text": "Cuối tuần rồi mà bạn phục vụ lịch sự, tư vấn món dễ thương Mọi người thử xem.", "sentiment": "positive", "aspects": ["service"]}
+{"text": "Lần đầu ghé: nhà vệ sinh dơ và giá quá đắt so với chất lượng", "sentiment": "negative", "aspects": ["price", "ambience"]}
+{"text": "cappuccino pha chuẩn, không bị chua hay đắng gắt, nhưng quán đẹp, không gian ấm cúng", "sentiment": "positive", "aspects": ["drink", "ambience"]}
+{"text": "ban ghe ban, nhieu ruoi. cho gan 30 phut moi co nuoc. gia cao ma ly nho xiu Moi nguoi thu xem.", "sentiment": "negative", "aspects": ["price", "ambience", "speed"]}
+{"text": "Hom nay minh ghe quan, dieu hoa mat, sach se, phuc vu chu dao, nho ca ten khach :(", "sentiment": "positive", "aspects": ["service", "ambience"]}
+{"text": "Review nhanh: giá bình thường và chỗ ngồi tạm được Mọi người thử xem.", "sentiment": "neutral", "aspects": ["price", "ambience"]}
+{"text": "Cuoi tuan roi ma ban phuc vu lich su, tu van mon de thuong 👍", "sentiment": "positive", "aspects": ["service"]}
+{"text": "lên món quá chậm, hỏi hoài, ly cà phê muối bị thiếu đá và nhạt nhẽo ☕", "sentiment": "negative", "aspects": ["drink", "speed"]}
+{"text": "phục vụ tạm được và giá sinh viên dễ chịu", "sentiment": "positive", "aspects": ["service", "price"]}
+{"text": "Lần đầu ghé: matcha chua, hình như hạt cũ, phụ thu lung tung, giá không rõ ràng ☕", "sentiment": "negative", "aspects": ["drink", "price"]}
+{"text": "tra dao tam on, khong co gi dac biet va nhieu uu dai, tich diem co loi 👍", "sentiment": "positive", "aspects": ["drink", "price"]}
+{"text": "ra do rat nhanh du dang dong va goi may lan khong ai ra phuc vu Moi nguoi thu xem.", "sentiment": "neutral", "aspects": ["service", "speed"]}
+{"text": "nhà vệ sinh dơ, giá quá đắt so với chất lượng", "sentiment": "negative", "aspects": ["price", "ambience"]}
+{"text": "Cuối tuần rồi mà đồ uống ở mức trung bình Sẽ quay lại.", "sentiment": "neutral", "aspects": ["drink"]}
+{"text": "bạn thu ngân tính nhầm tiền mà không xin lỗi, chờ gần 30 phút mới có nước, phụ thu lung tung, giá không rõ ràng :(", "sentiment": "negative", "aspects": ["service", "price", "speed"]}
+{"text": "Cuối tuần rồi mà nhạc quá to, đau đầu và bạn thu ngân tính nhầm tiền mà không xin lỗi Mọi người thử xem.", "sentiment": "negative", "aspects": ["service", "ambience"]}
+{"text": "Cuối tuần rồi mà trà đào bị đắng gắt khó uống, gọi mấy lần không ai ra phục vụ, bàn ghế bẩn, nhiều ruồi", "sentiment": "negative", "aspects": ["drink", "service", "ambience"]}
+{"text": "Hôm nay mình ghé quán, chờ gần 30 phút mới có nước. bạc xỉu béo ngậy mà không ngấy", "sentiment": "neutral", "aspects": ["drink", "speed"]}
+{"text": "ban thu ngan vui ve, ho tro tan tinh 👍", "sentiment": "positive", "aspects": ["service"]}
+{"text": "Hôm nay mình ghé quán, ra đồ không nhanh không chậm :(", "sentiment": "neutral", "aspects": ["speed"]}
+{"text": "giá mềm so với chất lượng và nhân viên rất thân thiện và nhiệt tình và thời gian chờ bình thường Nói chung vậy đó.", "sentiment": "positive", "aspects": ["service", "price", "speed"]}
+{"text": "chỗ ngồi thoải mái, nhạc nhẹ dễ chịu 👍", "sentiment": "positive", "aspects": ["ambience"]}
+{"text": "Hôm nay mình ghé quán, đồ uống ngon hơn mình nghĩ và giá hợp lý, đáng tiền ☕", "sentiment": "positive", "aspects": ["drink", "price"]}
+{"text": "cà phê ở đây chuẩn vị, uống là nghiền.. nhân viên cứ mải nói chuyện, mặc kệ khách", "sentiment": "neutral", "aspects": ["drink", "service"]}
+{"text": "phục vụ thiếu chuyên nghiệp, hỏi mãi mới trả lời Sẽ quay lại.", "sentiment": "negative", "aspects": ["service"]}
+{"text": "Cuối tuần rồi mà giá hơi nhỉnh một chút nhưng chấp nhận được", "sentiment": "neutral", "aspects": ["price"]}
+{"text": "Cuối tuần rồi mà quán ồn ào, khó nói chuyện, đợi lâu mà còn làm sai", "sentiment": "negative", "aspects": ["ambience", "speed"]}
+{"text": "Lần đầu ghé: nhạc quá to, đau đầu Mọi người thử xem.", "sentiment": "negative", "aspects": ["ambience"]}
+{"text": "Review nhanh: gia binh thuong, khong gian binh thuong, nhan vien binh thuong, khong noi bat :(", "sentiment": "neutral", "aspects": ["service", "price", "ambience"]}
+{"text": "gọi mấy lần không ai ra phục vụ, không gian chật chội, nóng bức Sẽ quay lại.", "sentiment": "negative", "aspects": ["service", "ambience"]}
+{"text": "Review nhanh: nhân viên bình thường, không nổi bật", "sentiment": "neutral", "aspects": ["service"]}
+{"text": "Cuối tuần rồi mà quan đẹp, ko gian ấm cúng. đồ uống ngon hơn mình nghĩ ☕", "sentiment": "positive", "aspects": ["drink", "ambience"]}
+{"text": "Review nhanh: nhiều ưu đãi, tích điểm có lợi, quán yên tĩnh, làm việc rất tốt :(", "sentiment": "positive", "aspects": ["price", "ambience"]}
+{"text": "Review nhanh: cà phê sữa thơm và vừa miệng Mọi người thử xem.", "sentiment": "positive", "aspects": ["drink"]}
+{"text": "thái độ nhân viên ổn Nói chung vậy đó.", "sentiment": "neutral", "aspects": ["service"]}
+{"text": "Review nhanh: phụ thu llung tung, giá không rõ ràng", "sentiment": "negative", "aspects": ["price"]}
+{"text": "Lần đầu ghé: ra đồ không nhanh không chậm và không gian chật chội, nóng bức và matcha quá ngọt, uống bị ngán Mọi người thử xem.", "sentiment": "negative", "aspects": ["drink", "ambience", "speed"]}
+{"text": "nhà vệ sinh dơ. đợi lâu mà còn làm sai :(", "sentiment": "negative", "aspects": ["ambience", "speed"]}
+{"text": "Cuối tuần rồi mà nhân viên rất thân thiện và nhiệt tình, trà đào đúng kiểu mình thích, sẽ gọi lại 👍", "sentiment": "positive", "aspects": ["drink", "service"]}
+{"text": "gia binh thuong va phuc vu chu dao, nho ca ten khach 👍", "sentiment": "positive", "aspects": ["service", "price"]}
+{"text": "Review nhanh: bạc xỉu đúng kiểu mình thích, sẽ gọi lại", "sentiment": "positive", "aspects": ["drink"]}
+{"text": "Cuối tuần rồi mà nhiều ưu đãi, tích điểm có lợi Mọi người thử xem.", "sentiment": "positive", "aspects": ["price"]}
+{"text": "Lần đầu ghé: cappuccino bị đắng gắt khó uống. đắt hơn quán bên cạnh mà không ngon hơn. không gian chật chội, nóng bức", "sentiment": "negative", "aspects": ["drink", "price", "ambience"]}
+{"text": "Cuoi tuan roi ma phuc vu thieu chuyen nghiep, hoi mai moi tra loi Se quay lai.", "sentiment": "negative", "aspects": ["service"]}
+{"text": "Hôm nay mình ghé quán, chỗ ngồi tạm được. ra đồ không nhanh không chậm", "sentiment": "neutral", "aspects": ["ambience", "speed"]}
+{"text": "nhạc quá to, đau đầu. latte nhạt toẹt, như pha loãng ☕", "sentiment": "negative", "aspects": ["drink", "ambience"]}
+{"text": "hom nay minh ghe quan, ra do rat nhanh du dang dong, nhung gia mem so voi chat luong", "sentiment": "positive", "aspects": ["price", "speed"]}
+{"text": "bạn thu ngân vui vẻ, hỗ trợ tận tình và ra đồ rất nhanh dù đang đông Hơi tiếc.", "sentiment": "positive", "aspects": ["service", "speed"]}
+{"text": "Cuối tuần rồi mà chờ gần 30 phút mới có nước, phục vụ thiếu chuyên nghiệp, hỏi mãi mới trả lời, giá ngang mặt bằng chung", "sentiment": "negative", "aspects": ["service", "price", "speed"]}
+{"text": "nv bình thường, không nổi bật", "sentiment": "neutral", "aspects": ["service"]}
+{"text": "Đi với bạn bè, bạc xỉu pha chuẩn, không bị chua hay đắng gắt, ra đồ rất nhanh dù đang đông", "sentiment": "positive", "aspects": ["drink", "speed"]}
+{"text": "dat hon quan ben canh ma khong ngon hon va len mon qua cham, hoi hoai Moi nguoi thu xem.", "sentiment": "negative", "aspects": ["price", "speed"]}
+{"text": "ra đồ rất nhanh dù đang đông. không gian chật chội, nóng bức. phụ thu lung tung, giá không rõ ràng :(", "sentiment": "negative", "aspects": ["price", "ambience", "speed"]}
+{"text": "di voi ban be, thoi gian cho binh thuong, khong gian chat choi, nong buc hoi ttiec.", "sentiment": "negative", "aspects": ["ambience", "speed"]}
+{"text": "hôm nay mình ghé quán, gọi mấy lần không ai ra phục vụ :(", "sentiment": "negative", "aspects": ["service"]}
+{"text": "len mon qua cham,, hoi hoai Noi chung vay do.", "sentiment": "negative", "aspects": ["speed"]}
+{"text": "lên món quá chậm, hỏi hoài, bàn ghế bẩn, nhiều ruồi, phụ thu lung tung, giá không rõ ràng Mọi người thử xem.", "sentiment": "negative", "aspects": ["price", "ambience", "speed"]}
+{"text": "Review nhanh: cà phê muối bị đắng gắt khó uống :(", "sentiment": "negative", "aspects": ["drink"]}
+{"text": "Review nhanh: quán yên tĩnh, làm việc rất tốt và giá mềm so với chất lượng Nói chung vậy đó.", "sentiment": "positive", "aspects": ["price", "ambience"]}
+{"text": "matcha béo ngậy mà không ngấy, nhưng lên món quá chậm, hỏi hoài, nhưng giá hợp lý, đáng tiền Nói chung vậy đó.", "sentiment": "positive", "aspects": ["drink", "price", "speed"]}
+{"text": "hôm nay mình ghé quán, giá hơi nhỉnh một chút nhưng chấp nhận được hơi tiếc.", "sentiment": "neutral", "aspects": ["price"]}
+{"text": "Đi với bạn bè, đắt hơn quan bên cạnh mà ko ngon hơn. chờ gần 30 phút mới có nước ☕", "sentiment": "negative", "aspects": ["price", "speed"]}
+{"text": "giá ngaang mặt bằng chung, không phải chờ lâu", "sentiment": "positive", "aspects": ["price", "speed"]}
+{"text": "Lần đầu ghé: phục vụ thiếu chuyên nghiệp, hỏi mãi mới trả lời và đợi lâu mà còn làm sai và chỗ ngồi thoải mái, nhạc nhẹ dễ chịu", "sentiment": "negative", "aspects": ["service", "ambience", "speed"]}
+{"text": "Cuối tuần rồi mà bạn thu ngân vui vẻ,, hỗ trợ tận tình Sẽ quay lại.", "sentiment": "positive", "aspects": ["service"]}
+{"text": "thai do nhan vien on. ca phe muoi cung duoc thoi, khong qua an tuong. quan nho nhung cung on ☕", "sentiment": "neutral", "aspects": ["drink", "service", "ambience"]}
+{"text": "Hôm nay mình ghé quán, nhân viên thái độ khó chịu, trả lời cộc lốc Mọi người thử xem.", "sentiment": "negative", "aspects": ["service"]}
+{"text": "Đi với bạn bè, giá quá đắt so với chất lượng Mọi người thử xem.", "sentiment": "negative", "aspects": ["price"]}
+{"text": "không gian bình thường mọi người thử xem.", "sentiment": "neutral", "aspects": ["ambience"]}
+{"text": "Review nhanh: bạn thu ngân vui vẻ, hỗ trợ tận tình, view đẹp, chụp ảnh sống ảo thích lắm", "sentiment": "positive", "aspects": ["service", "ambience"]}
+{"text": "ra đồ rất nhanh dù đang đông, nhưng chỗ ngồi thoải mái, nhạc nhẹ dễ chịu", "sentiment": "positive", "aspects": ["ambience", "speed"]}
+{"text": "thái độ nv ổn và giá ngang mặt bằng chung", "sentiment": "neutral", "aspects": ["service", "price"]}
+{"text": "cuối tuần rồi mà quán đẹp, không gian ấm cúng. latte đúng kiểu mình thích, sẽ gọi lại ☕", "sentiment": "positive", "aspects": ["drink", "ambience"]}
+{"text": "Hom nay minh ghe quan, dong khach la phuc vu roi tung, bac xiu chua, hinh nhu hat cu ☕", "sentiment": "negative", "aspects": ["drink", "speed"]}
+{"text": "Đi với bạn bè, phụ thu lung tung, giá không rõ ràng Sẽ quay lại.", "sentiment": "negative", "aspects": ["price"]}
+{"text": "Review nhanh: chờ gần 30 phút mới có nước và giá ngang mặt bằng chung", "sentiment": "negative", "aspects": ["price", "speed"]}
+{"text": "trà trái cây tươi mát, topping giòn và đắt hơn quán bên cạnh mà không ngon hơn", "sentiment": "neutral", "aspects": ["drink", "price"]}
+{"text": "hôm nay mình ghé quán, nhạc quá to, đau đầu, lên món nhanh, chờ chưa tới 5 phút, đồ uống ngon hơn mình nghĩ", "sentiment": "positive", "aspects": ["drink", "ambience", "speed"]}
+{"text": "giá bình thường :(", "sentiment": "neutral", "aspects": ["price"]}
+{"text": "Review nhanh: giá sinh viên dễ chịu.. ra đồ rất nhanh dù đang đông Sẽ quay lại.", "sentiment": "positive", "aspects": ["price", "speed"]}
+{"text": "Đi với bạn bè, quán ồn ào, khó nói chuyện. giá quá đắt so với chất lượng Mọi người thử xem.", "sentiment": "negative", "aspects": ["price", "ambience"]}
+{"text": "Lần đầu ghé: giá mềm so với chất lượng và lên món nhanh, chờ chưa tới 5 phút và bạn thu ngân vui vẻ, hỗ trợ tận tình :(", "sentiment": "positive", "aspects": ["service", "price", "speed"]}
+{"text": "Đi với bạn bè, chỗ ngồi thoải mái, nhạc nhẹ dễ chịu. lên món nhanh, chờ chưa tới 5 phút", "sentiment": "positive", "aspects": ["ambience", "speed"]}
+{"text": "không gian bình thường, bạc xỉu uống được, vị bình thường", "sentiment": "neutral", "aspects": ["drink", "ambience"]}
+{"text": "Hôm nay mình ghé quán, quán yên tĩnh, làm việc rất tốt, lên món nhanh, chờ chưa tới 5 phút", "sentiment": "positive", "aspects": ["ambience", "speed"]}
+{"text": "cho ngoi thoai mai, nhac nhe de chiu va khong phai cho lau va nhieu uu dai, tich diem co loi :(", "sentiment": "positive", "aspects": ["price", "ambience", "speed"]}
+{"text": "Hôm nay mình ghé quán, cold brew uống được, vị bình thường Mọi người thử xem.", "sentiment": "neutral", "aspects": ["drink"]}
+{"text": "Cuoi tuan roi ma nhan vien binh thuong, khong noi bat Noi chung vay do.", "sentiment": "neutral", "aspects": ["service"]}
+{"text": "cà phê ở đây chuẩn vị, uống là nghiền, ra đồ rất nhanh dù đang đông, nhiều ưu đãi, tích điểm có lợi :(", "sentiment": "positive", "aspects": ["drink", "price", "speed"]}
+{"text": "đồ uống ở mức trung bình ☕", "sentiment": "neutral", "aspects": ["drink"]}
+{"text": "Hôm nay mình ghé quán, nhân viên cứ mải nói chuyện, mặc kệ khách. quán nhỏ nhưng cũng ổn", "sentiment": "negative", "aspects": ["service", "ambience"]}
+{"text": "Review nhanh: ra đồ không nhanh không chậm, giá ngang mặt bằng chung", "sentiment": "neutral", "aspects": ["price", "speed"]}
+{"text": "dong khach la phuc vu roi tung 👍", "sentiment": "negative", "aspects": ["speed"]}
+{"text": "Lần đầu ghé: không gian chật chội, nóng bức và giá cao mà ly nhỏ xíu và đợi lâu mà còn làm sai Nói chung vậy đó.", "sentiment": "negative", "aspects": ["price", "ambience", "speed"]}
+{"text": "Review nhanh: nha ve sinh do, doi lau ma con lam sai", "sentiment": "negative", "aspects": ["ambience", "speed"]}
+{"text": "bac xiu thom va vua mieng, khong phai cho lau, quan nho nhung cung on", "sentiment": "positive", "aspects": ["drink", "ambience", "speed"]}
+{"text": "Đi với bạn bè, nv rất thân thiện và nhiệt tình, giá sinh viên dễ chịu Nói chung vậy đó.", "sentiment": "positive", "aspects": ["service", "price"]}
+{"text": "Đi với bạn bè, trà sữa pha chuẩn, không bị chua hay đắng gắt Hơi tiếc.", "sentiment": "positive", "aspects": ["drink"]}
+{"text": "giá ngang mặt bằng chung và thời gian chờ bình thường và cappuccino tạm ổn, không có gì đặc biệt Nói chung vậy đó.", "sentiment": "neutral", "aspects": ["drink", "price", "speed"]}
+{"text": "Đi với bạn bè, bạn phục vụ lịch sự, tư vấn món dễ thương. quán yên tĩnh, làm việc rất tốt", "sentiment": "positive", "aspects": ["service", "ambience"]}
+{"text": "Review nhanh: quán đẹp, không gian ấm cúng, americano rất ngon, vị đậm đà", "sentiment": "positive", "aspects": ["drink", "ambience"]}
+{"text": "Lần đầu ghé: thời gian chờ bình thường", "sentiment": "neutral", "aspects": ["speed"]}
+{"text": "Hom nay minh ghe quan, ra do rat nhanh du dang dong, nhung nhan vien ccu mai noi chuyen, mac ke khach Se quay lai.", "sentiment": "neutral", "aspects": ["service", "speed"]}
+{"text": "Đi với bạn bè, quán ồn ào, khó nói chuyện, giá quá đắt so với chất lượng ☕", "sentiment": "negative", "aspects": ["price", "ambience"]}
+{"text": "quán ồn ào, khó nói chuyện. đồ uống ở mức trung bình. phụ thu lung tung, giá không rõ rràng", "sentiment": "negative", "aspects": ["drink", "price", "ambience"]}
+{"text": "view đẹp, chụp ảnh sống ảo thích lắm. nhân viên rất thân thiện và nhiệt tình. ra đồ rất nhanh dù đang đông mọi người thử xem.", "sentiment": "positive", "aspects": ["service", "ambience", "speed"]}
+{"text": "Review nhanh: bạn thu ngân tính nhầm tiền mà không xin lỗi, chờ gần 30 phút mới có nước 👍", "sentiment": "negative", "aspects": ["service", "speed"]}
+{"text": "Hôm nay mình ghé quán, ra đồ rất nhanh dù đang đông và phục vụ tạm được Hơi tiếc.", "sentiment": "positive", "aspects": ["service", "speed"]}
+{"text": "Cuối tuần rồi mà giá cao mà ly nhỏ xíu, phục vụ thiếu chuyên nghiệp, hỏi mãi mới trả lời, lên món quá chậm, hỏi hoài 👍", "sentiment": "negative", "aspects": ["service", "price", "speed"]}
+{"text": "cho ngoi thoai mai, nhac nhe de chiu, len mon nhanh, cho chua toi 5 phut Se quay lai.", "sentiment": "positive", "aspects": ["ambience", "speed"]}
+{"text": "Cuối tuần rồi mà bạn thu ngân tính nhầm tiền mà không xin lỗi và đợi lâu mà còn làm sai và giá quá đắt so với chất lượng", "sentiment": "negative", "aspects": ["service", "price", "speed"]}
+{"text": "Cuối tuần rồi mà bạn thu ngân tính nhầm tiền mà không xin lỗi. nhà vệ ssinh dơ :(", "sentiment": "negative", "aspects": ["service", "ambience"]}
+{"text": "Hom nay minh ghe quan, do uong o muc trung binh ☕", "sentiment": "neutral", "aspects": ["drink"]}
+{"text": "Hôm nay mình ghé quán, giá sinh viên dễ chịu và đồ uống ngon hơn mình nghĩ Sẽ quay lại.", "sentiment": "positive", "aspects": ["drink", "price"]}
+{"text": "quán đẹp, không gian ấm cúng và nhân viên thái độ khó chịu, trả lời cộc lốc", "sentiment": "neutral", "aspects": ["service", "ambience"]}
+{"text": "cà phê sữa bị đắng gắt khó uống Mọi người thử xem.", "sentiment": "negative", "aspects": ["drink"]}
+{"text": "Review nhanh: ra đồ không nhanh không chậm Mọi người thử xem.", "sentiment": "neutral", "aspects": ["speed"]}
+{"text": "review nhanh: cà phê ở đây chuẩn vị, uống là nghiền :((", "sentiment": "positive", "aspects": ["drink"]}
+{"text": "Hôm nay mình ghé quán, quán nhỏ nhưng cũng ổn, ra đồ không nhanh không chậm", "sentiment": "neutral", "aspects": ["ambience", "speed"]}
+{"text": "nhạc quá to, đau đầu Nói chung vậy đó.", "sentiment": "negative", "aspects": ["ambience"]}
+{"text": "Đi với bạn bè, giá mềm so với chất lượng, nhưng trà bị nhạt, topping dai nhách", "sentiment": "neutral", "aspects": ["drink", "price"]}
+{"text": "Hôm nay mình ghé quan, nv bình thường, không nổi bật Nói chung vậy đó.", "sentiment": "neutral", "aspects": ["service"]}
+{"text": "giá hợp lý, đáng tiền, bạn phục vụ lịch sự, tư vấn món dễ thương, quán đẹp, không gian ấm cúng", "sentiment": "positive", "aspects": ["service", "price", "ambience"]}
+{"text": "nhân viên cứ mải nói chuyện, mặc kệ khách, giá quá đắt so với chất lượng :(", "sentiment": "negative", "aspects": ["service", "price"]}
+{"text": "nhân viên cứ mải nói chuyện, mặc kệ khách Sẽ quay lại.", "sentiment": "negative", "aspects": ["service"]}
+{"text": "Cuối tuần rồi mà cold brew quá ngọt, uống bị ngán. nhà vệ sinh dơ :(", "sentiment": "negative", "aspects": ["drink", "ambience"]}
+{"text": "Cuối tuần rồi mà giá quá đắt so với chất lượng, nhưng view đẹp, chụp ảnh sống ảo thích lắm", "sentiment": "neutral", "aspects": ["price", "ambience"]}
+{"text": "điều hòa mát, sạch sẽ, phụ thu lung tung, giá không rõ ràng, nhân viên cứ mải nói chuyện, mặc kệ khách", "sentiment": "negative", "aspects": ["service", "price", "ambience"]}
+{"text": "Đi với bạn bè, trà trái cây tươi mát, topping giòn, nhiều ưu đãi, tích điểm có lợi", "sentiment": "positive", "aspects": ["drink", "price"]}
+{"text": "Di voi ban be, khong phai cho lau, nhung gia hop ly, dang tien ☕", "sentiment": "positive", "aspects": ["price", "speed"]}
+{"text": "Review nhanh: giá sinh viên dễ chịu và đồ uống ngon hơn mình nghĩ và bạn thu ngân vui vẻ, hỗ trợ tận tình", "sentiment": "positive", "aspects": ["drink", "service", "price"]}
+{"text": "giá mềm so với chất lượng, nhạc quá to, đau đầu Hơi tiếc.", "sentiment": "neutral", "aspects": ["price", "ambience"]}
+{"text": "Lần đầu ghé: nnhiều ưu đãi, tích điểm có lợi và trà sữa đúng kiểu mình thích, sẽ gọi lại và quán nhỏ nhưng cũng ổn", "sentiment": "positive", "aspects": ["drink", "price", "ambience"]}
+{"text": "Lần đầu ghé: đồ uống ở mức trung bình 👍", "sentiment": "neutral", "aspects": ["drink"]}
+{"text": "Đi với bạn bè, thời gian chờ bình thường và trà trái cây tươi mát, topping giòn Mọi người thử xem.", "sentiment": "positive", "aspects": ["drink", "speed"]}
+{"text": "view đẹp, chụp ảnh sống ảo thích lắm, nhiều ưu đãi, tích điểm có lợi, ra đồ rất nhanh dù đang đông", "sentiment": "positive", "aspects": ["price", "ambience", "speed"]}
+{"text": "thái độ nhân viên ổn, giá cao mà ly nhỏ xíu :(", "sentiment": "negative", "aspects": ["service", "price"]}
+{"text": "matcha pha chuẩn, không bị chua hay đắng gắt. ra đồ rất nhanh dù đang đông. nhiều ưu đãi, tích điểm có lợi", "sentiment": "positive", "aspects": ["drink", "price", "speed"]}
+{"text": "Lần đầu ghé: điều hòa mát, sạch sẽ", "sentiment": "positive", "aspects": ["ambience"]}
+{"text": "cà phê sữa béo ngậy mà không ngấy :(", "sentiment": "positive", "aspects": ["drink"]}
+{"text": "Lần đầu ghé: gọi mấy lần không ai ra phục vụ, trà sữa chua, hình như hạt cũ", "sentiment": "negative", "aspects": ["drink", "service"]}
+{"text": "Đi với bạn bè, phục vụ chu đáo, nhớ cả tên khách và ra đồ rất nhanh dù đang đông", "sentiment": "positive", "aspects": ["service", "speed"]}
+{"text": "Hôm nay mình ghé quán, phục vụ thiếu chuyên nghiệp, hỏi mãi mới trả lời. giá cao mà ly nhỏ xíu Sẽ quay lại.", "sentiment": "negative", "aspects": ["service", "price"]}
+{"text": "bạn phục vụ lịch sự, tư vấn món dễ thương và đồ uống ngon hơn mình nghĩ và ra đồ rất nhanh dù đang đông ☕", "sentiment": "positive", "aspects": ["drink", "service", "speed"]}
+{"text": "Lần đầu ghé: trà sữa béo ngậy mà không ngấy, giá mềm so với chất lượng, không phải chờ lâu", "sentiment": "positive", "aspects": ["drink", "price", "speed"]}
+{"text": "Cuối tuần rồi mà giá mềm so với chất lượng. không phải chờ lâu. chỗ ngồi thoải mái, nhạc nhẹ dễ chịu Sẽ quay lại.", "sentiment": "positive", "aspects": ["price", "ambience", "speed"]}
+{"text": "đồ uống ngon hơn mình nghĩ. ra đồ không nhanh không chậm", "sentiment": "positive", "aspects": ["drink", "speed"]}
+{"text": "không phải chờ lâu. trà trái cây tươi mát, topping giòn", "sentiment": "positive", "aspects": ["drink", "speed"]}
+{"text": "Review nhanh: đông khách là phục vụ rối tung, quan ồn ào, khó nói chuyện", "sentiment": "negative", "aspects": ["ambience", "speed"]}
+{"text": "Đi với bạn bè, cappuccino đúng kiểu mình thích, sẽ gọi lại, không gian chật chội, nóng bức", "sentiment": "neutral", "aspects": ["drink", "ambience"]}
+{"text": "Lần đầu ghé: nv thái độ khó chịu, trả lời cộc lốc Sẽ quay lại.", "sentiment": "negative", "aspects": ["service"]}
+{"text": "Review nhanh: phuc vu tam duoc, thoi gian cho binh thuong Moi nguoi thu xem.", "sentiment": "neutral", "aspects": ["service", "speed"]}
+{"text": "giá quá đắt so với chất lượng, chờ gần 30 phút mới có nước, nhân viên thái độ khó chịu, trả lời cộc lốc Nói chung vậy đó.", "sentiment": "negative", "aspects": ["service", "price", "speed"]}
+{"text": "Cuối tuần rồi mà nhân viên bình tthường, không nổi bật", "sentiment": "neutral", "aspects": ["service"]}
+{"text": "bàn ghế bẩn, nhiều ruồi. phụ thu lung tung, giá không rõ ràng", "sentiment": "negative", "aspects": ["price", "ambience"]}
+{"text": "cuối tuần rồi mà đồ uống ngon hơn mình nghĩ và không phải chờ lâu", "sentiment": "positive", "aspects": ["drink", "speed"]}
+{"text": "ly cà phê muối bị thiếu đá và nhạt nhẽo. đợi lâu mà còòn làm sai. phục vụ thiếu chuyên nghiệp, hỏi mãi mới trả lời", "sentiment": "negative", "aspects": ["drink", "service", "speed"]}
+{"text": "Hom nay minh ghe quan, quan nho nhung cung on. tra sua cung duoc thoi, khong qua an tuong Se quay lai.", "sentiment": "neutral", "aspects": ["drink", "ambience"]}
+{"text": "Review nhanh: nhạc quá to, đau đầu, lên món quá chậm, hỏi hoài Sẽ quay lại.", "sentiment": "negative", "aspects": ["ambience", "speed"]}
+{"text": "Lan dau ghe: dong khach la phuc vu roi tung, gia qua dat so voi chat luong Moi nguoi thu xem.", "sentiment": "negative", "aspects": ["price", "speed"]}
+{"text": "đồ uống có mùi lạ, không tươi mọi người thử xem.", "sentiment": "negative", "aspects": ["drink"]}
+{"text": "đi với bạn bè, lên món quá chậm, hỏi hoài, nhưng latte quá ngọt, uống bị ngán, nhưng bạn phục vụ lịch sự, tư vấn món dễ thương", "sentiment": "negative", "aspects": ["drink", "service", "speed"]}
+{"text": "Hôm nay mình ghé quán, bạn thu ngân tính nhầm tiền mà không xin lỗi, đồ uống có mùi lạ, không tươi 👍", "sentiment": "negative", "aspects": ["drink", "service"]}
+{"text": "bạn thu ngân tính nhầm tiền mà không xin lỗi, nhạc quá to, đau đầu", "sentiment": "negative", "aspects": ["service", "ambience"]}
+{"text": "Cuối tuần rồi mà cà phê muối rất nggon, vị đậm đà. quán đẹp, không gian ấm cúng Hơi tiếc.", "sentiment": "positive", "aspects": ["drink", "ambience"]}
+{"text": "Lần đầu ghé: nhân viên thái độ khó chịu, trả lời cộc lốc. quán đẹp, không gian ấm cúng Sẽ quay lại.", "sentiment": "neutral", "aspects": ["service", "ambience"]}
+{"text": "Review nhanh: ko phải chờ lâu", "sentiment": "positive", "aspects": ["speed"]}
+{"text": "Đi với bạn bè, chỗ ngồi thoải mái, nhạc nhẹ dễ chịu và phục vụ thiếu chuyên nghiệp, hỏi mãi mới trả lời Mọi người thử xem.", "sentiment": "neutral", "aspects": ["service", "ambience"]}
+{"text": "Lần đầu ghé: bàn ghế bẩn, nhiều ruồi Nói chung vậy đó.", "sentiment": "negative", "aspects": ["ambience"]}
+{"text": "Review nhanh: lên món quá chậm, hỏi hoài, đắt hơn quán bên cạnh mà không ngon hơn, không gian chật chội, nóng bức 👍", "sentiment": "negative", "aspects": ["price", "ambience", "speed"]}
+{"text": "Review nhhanh: đắt hơn quán bên cạnh mà không ngon hơn, đông khách là phục vụ rối tung 👍", "sentiment": "negative", "aspects": ["price", "speed"]}
+{"text": "Đi với bạn bè, quán yên tĩnh, làm việc rất tốt và nhân viên cứ mải nói chuyện, mặc kệ khách", "sentiment": "neutral", "aspects": ["service", "ambience"]}
+{"text": "nhà vệ sinh dơ và đồ uống ở mức trung bình :(", "sentiment": "negative", "aspects": ["drink", "ambience"]}
+{"text": "Cuoi tuan roi ma ban thu ngan tinh nham tien ma khong xin loi va tra sua cung duoc thoi, khong qua an tuong :(", "sentiment": "negative", "aspects": ["drink", "service"]}
+{"text": "Cuối tuần rồi mà ko phải chờ lâu, ko gian bình thường, đồ uống ở mức trung bình", "sentiment": "positive", "aspects": ["drink", "ambience", "speed"]}
+{"text": "Di voi ban be, gia mem so voi chat luong, nhung dong khach la phuc vu roi tung, nhung tra bi nhat, topping dai nhach 👍", "sentiment": "negative", "aspects": ["drink", "price", "speed"]}
+{"text": "quan dep, khong gian am cung. ra do rat nhanh du dang dong. nhieu uu dai, tich diem co loi Moi nguoi thu xem.", "sentiment": "positive", "aspects": ["price", "ambience", "speed"]}
+{"text": "dieu hoa mat, sachh se", "sentiment": "positive", "aspects": ["ambience"]}
+{"text": "Review nhanh: bạn thu ngân tính nhầm tiền mà không xin lỗi. phụ thu lung tung, giá không rõ ràng Mọi người thử xem.", "sentiment": "negative", "aspects": ["service", "price"]}
+{"text": "lần đầu ghé: nhà vệ sinh dơ và phụ thu lung tung, giá không rõ ràng và lên món quá chậm, hỏi hoài sẽ quay lại.", "sentiment": "negative", "aspects": ["price", "ambience", "speed"]}
+{"text": "không phải chờ lâu, phục vụ chu đáo, nhớ cả tên khách Sẽ quay lại.", "sentiment": "positive", "aspects": ["service", "speed"]}
+{"text": "ra đồ rất nhanh dù đđang đông Nói chung vậy đó.", "sentiment": "positive", "aspects": ["speed"]}
+{"text": "nhiều ưu đãi, tích điểm có lợi. bạn phục vụ lịch sự, tư vấn món dễ thương nói chung vậy đó.", "sentiment": "positive", "aspects": ["service", "price"]}
+{"text": "Đi với bạn bè, giá sinh viên dễ chịu, nhưng ko gian chật chội, nóng bức, nhưng đồ uống ngon hơn mình nghĩ", "sentiment": "positive", "aspects": ["drink", "price", "ambience"]}
+{"text": "trà đào đúng kiểu mình thích, sẽ gọi lại và giá sinh viên dễ chịu và quán yên tĩnh, làm việc rất tốt", "sentiment": "positive", "aspects": ["drink", "price", "ambience"]}
+{"text": "Review nhanh: bạc xỉu béo ngậy mà không ngấy và ra đồ rất nhanh dù đang đông và view đẹp, chụp ảnh sống ảo thích lắm Nói chung vậy đó.", "sentiment": "positive", "aspects": ["drink", "ambience", "speed"]}
+{"text": "quán đẹp, không gian ấm cúng, bạc xỉu pha chuẩn, không bị chua hay đắng gắt Hơi tiếc.", "sentiment": "positive", "aspects": ["drink", "ambience"]}
+{"text": "Cuối tuần rồi mà cold brew rất ngon, vị đậm đà, bạn phục vụ lịch sự, tư vấn món dễ thương Hơi tiếc.", "sentiment": "positive", "aspects": ["drink", "service"]}
+{"text": "Lần đầu ghé: chờ gần 30 phút mới có nước, nhạc quá to, đau đầu 👍", "sentiment": "negative", "aspects": ["ambience", "speed"]}
+{"text": "Review nhanh: quán nhỏ nhưng cũng ổn Mọi ngưười thử xem.", "sentiment": "neutral", "aspects": ["ambience"]}
+{"text": "Đi với bạn bè, giá hơi nhỉnh một chút nhưng chấp nhận được, phục vụ tạm được Hơi tiếc.", "sentiment": "neutral", "aspects": ["service", "price"]}
+{"text": "chỗ ngồi tạm được. nhân viên bình thường, không nổi bật Mọi người thử xem.", "sentiment": "neutral", "aspects": ["service", "ambience"]}
+{"text": "Lan dau ghe: nha ve sinh do. len mon qua cham, hoi hoai", "sentiment": "negative", "aspects": ["ambience", "speed"]}
+{"text": "không phải chờ lâu. quán đẹp, không gian ấm cúng. nhân viên rất thân thiện và nhiệt tình ☕", "sentiment": "positive", "aspects": ["service", "ambience", "speed"]}
+{"text": "Hôm nay mình ghé quán, chỗ ngồi tạm được, phục vụ thiếu chuyên nghiệp, hỏi mãi mới trả lời ☕", "sentiment": "negative", "aspects": ["service", "ambience"]}
+{"text": "giá cao mà ly nhỏ xíu và ra đồ rất nhanh dù đang đông và view đẹp, chụp ảnh sống ảo thích lắm ☕", "sentiment": "positive", "aspects": ["price", "ambience", "speed"]}
+{"text": "view đẹp, chụp ảnh sống ảo thích lắm ☕", "sentiment": "positive", "aspects": ["ambience"]}
+{"text": "Hom nay minh ghe quan, cappuccino beo ngay ma khong ngay", "sentiment": "positive", "aspects": ["drink"]}
+{"text": "Cuối tuần rồi mà không gian chật chội, nóng bức", "sentiment": "negative", "aspects": ["ambience"]}
+{"text": "Cuối tuần rồi mà cà phê muối pha chuẩn, không bị chua hay đắng gắt, giá hơi nhỉnh một chút nhưng chấp nhận được Nói chung vậy đó.", "sentiment": "positive", "aspects": ["drink", "price"]}
+{"text": "Đi với bạn bè, không gian bình thường Mọi người thử xem.", "sentiment": "neutral", "aspects": ["ambience"]}
+{"text": "Cuối tuần rồi mà bạc xỉu cũng được thôi, không quá ấn tượng. phục vụ tạm được. ra đồ không nhanh không chậm :(", "sentiment": "neutral", "aspects": ["drink", "service", "speed"]}
+{"text": "đồ uống ở mức trung bình và giá bình thường 👍", "sentiment": "neutral", "aspects": ["drink", "price"]}
+{"text": "không phải chờ lâu. phục vụ chu đáo, nhớ cả têên khách Sẽ quay lại.", "sentiment": "positive", "aspects": ["service", "speed"]}
+{"text": "latte nhạt toẹt, như pha loãng, ko gian chật chội, nóng bức Mọi người thử xem.", "sentiment": "negative", "aspects": ["drink", "ambience"]}
+{"text": "Hôm nay mình ghé quán, chỗ ngồi thoải mái, nhạc nhẹ dễ chịu", "sentiment": "positive", "aspects": ["ambience"]}
+{"text": "Lần đầu ghé: matcha béo ngậyy mà không ngấy và điều hòa mát, sạch sẽ 👍", "sentiment": "positive", "aspects": ["drink", "ambience"]}
+{"text": "Review nhanh: cà phê sữa thơmm và vừa miệng Hơi tiếc.", "sentiment": "positive", "aspects": ["drink"]}
+{"text": "Đi với bạn bè, điều hòa mát, sạch sẽ. giá hợp lý, đáng tiền. americano béo ngậy mà không ngấy Hơi tiếc.", "sentiment": "positive", "aspects": ["drink", "price", "ambience"]}
+{"text": "Cuối tuần rồi mà không phải chờ lâu, bạn phục vụ lịch sự, tư vấn món dễ thương, cà phê sữa thơm và vừa miệng", "sentiment": "positive", "aspects": ["drink", "service", "speed"]}
+{"text": "nhân viên bình thường, không nổi bật nói chung vậy đó.", "sentiment": "neutral", "aspects": ["service"]}
+{"text": "Lan dau ghe: nhan vien cu mai noi chuyen, mac ke khach", "sentiment": "negative", "aspects": ["service"]}
+{"text": "Cuoi tuan roi ma ban phuc vu lich su, tu van mon de thuong, len mon nhanh, cho chua toi 5 phut 👍", "sentiment": "positive", "aspects": ["service", "speed"]}
+{"text": "Đi với bạn bè, gọi mấy lần không ai ra phục vụ. phụ thu lung tung, giá không rõ ràng", "sentiment": "negative", "aspects": ["service", "price"]}
+{"text": "gia sinh vien de chiu, ban thu ngan vui ve, ho tro tan tinh ☕", "sentiment": "positive", "aspects": ["service", "price"]}
+{"text": "Lần đầu ghé: đắt hơn quán bên cạnh mà không ngon hơn, nhân viên bình thường, không nổi bật Mọi người thử xem.", "sentiment": "negative", "aspects": ["service", "price"]}
+{"text": "Hôm nay mình ghé quán, không phải chờ lâu Nói chung vậy đó.", "sentiment": "positive", "aspects": ["speed"]}
+{"text": "Cuoi tuan roi ma cho ngoi thoai mai, nhac nhe de chiu :(", "sentiment": "positive", "aspects": ["ambience"]}
+{"text": "Cuối tuần rồi mà đồ uống ở mức trung bình, thái độ nhân viên ổn, thời gian chờ bình thường 👍", "sentiment": "neutral", "aspects": ["drink", "service", "speed"]}
+{"text": "Đi với bạn bè, latte pha sai món mình gọi và giá quá đắt so với chất lượng", "sentiment": "negative", "aspects": ["drink", "price"]}
+{"text": "Đi với bạn bè, trà đàào quá ngọt, uống bị ngán và đông khách là phục vụ rối tung Mọi người thử xem.", "sentiment": "negative", "aspects": ["drink", "speed"]}
+{"text": "Review nhanh: ca phe muoi dung kieu minh thich, se goi lai, dieu hoa mat, sach se :(", "sentiment": "positive", "aspects": ["drink", "ambience"]}
+{"text": "Hom nay minh ghe quan, ban thu ngan tinh nham tien ma khong xin loi, doi lau ma con lam sai, phu thu lung tung, gia khong ro rang", "sentiment": "negative", "aspects": ["service", "price", "speed"]}
+{"text": "lần đầu ghé: phục vụ tạm được, chỗ ngồi tạm được, giá bình thường 👍", "sentiment": "neutral", "aspects": ["service", "price", "ambience"]}
+{"text": "Di voi ban be, goi may lan khong ai ra phuc vu :(", "sentiment": "negative", "aspects": ["service"]}
+{"text": "Cuối tuần rồi mà không phải chờ lâu, giá sinh viên dễ chịu Mọi người thử xem.", "sentiment": "positive", "aspects": ["price", "speed"]}
+{"text": "Đi với bạn bè, chỗ ngồi thoải mái, nhạc nhẹ dễ chịu, chờ gần 30 phút mới có nước Mọi người thử xem.", "sentiment": "neutral", "aspects": ["ambience", "speed"]}
+{"text": "review nhanh: chỗ ngồi thoải mái, nhạc nhẹ dễ chịu", "sentiment": "positive", "aspects": ["ambience"]}
+{"text": "Review nhanh: chờ gần 30 phút mới có nước, nhân viên cứ mải nói chuyện, mặc kệ khách ☕", "sentiment": "negative", "aspects": ["service", "speed"]}
+{"text": "quán yên tĩnh, làm việc rất tốt và đắt hơn quán bên cạnh mà không ngon hơn và chờ gần 30 phút mới có nước", "sentiment": "negative", "aspects": ["price", "ambience", "speed"]}
+{"text": "Cuối tuần rồi mà giá cao mà ly nhỏ xíu Nói chung vậy đđó.", "sentiment": "negative", "aspects": ["price"]}
+{"text": "lên món nhanh, chờ chưa tới 5 phút, trà sữa pha chuẩn, không bị chua hay đắng gắt ☕", "sentiment": "positive", "aspects": ["drink", "speed"]}
+{"text": "Cuoi tuan roi ma matcha bi dang gat kho uong", "sentiment": "negative", "aspects": ["drink"]}
+{"text": "Lần đầu ghé: phục vụ chu đáo, nhớ cả tên khách, nhưng giá sinh viên dễ chịu, nhưng quán ồn ào, khó nói chuyện", "sentiment": "positive", "aspects": ["service", "price", "ambience"]}
