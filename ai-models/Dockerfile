@@ -12,7 +12,10 @@ RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 WORKDIR /build
 COPY requirements-serve.txt .
-RUN pip install -r requirements-serve.txt
+# Newest build tools for the install, then removed: their vendored libraries carry known CVEs and the runtime does not need pip (Trivy gate in CI)
+RUN pip install --upgrade pip setuptools wheel \
+    && pip install -r requirements-serve.txt \
+    && pip uninstall -y pip setuptools wheel
 
 # ---- trainer: produce the small models --------------------------------------------------------
 FROM builder AS trainer
@@ -27,7 +30,10 @@ FROM python:3.11-slim AS runtime
 ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 \
     PATH="/opt/venv/bin:$PATH" \
     HF_HOME=/tmp/hf TRANSFORMERS_CACHE=/tmp/hf
-RUN groupadd --system --gid 10001 app && useradd --system --uid 10001 --gid app --no-create-home app
+# pip, setuptools and wheel of the base image carry the same kind of vendored CVEs; nothing is installed at run time
+RUN python -m pip uninstall -y pip setuptools wheel \
+    && rm -rf /usr/local/lib/python3.11/ensurepip/_bundled \
+    && groupadd --system --gid 10001 app && useradd --system --uid 10001 --gid app --no-create-home app
 WORKDIR /app
 COPY --from=builder /opt/venv /opt/venv
 COPY --chown=app:app common ./common
