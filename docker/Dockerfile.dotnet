@@ -4,7 +4,7 @@
 #     --build-arg PROJECT=src/Services/Ordering/AICOS.Ordering.Api \
 #     --build-arg ASSEMBLY=AICOS.Ordering.Api -t aicos/order .
 
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG PROJECT
 WORKDIR /src
 
