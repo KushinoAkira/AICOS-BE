@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -36,7 +37,8 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="AICOS AI models service", version="0.1.0", lifespan=lifespan)
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+ORIGINS = [o.strip() for o in os.environ.get("CORS_ORIGINS", "http://localhost:8443,http://localhost:5173").split(",") if o.strip()]
+app.add_middleware(CORSMiddleware, allow_origins=ORIGINS, allow_methods=["GET", "POST"], allow_headers=["Content-Type", "Authorization"])
 P = "/api/v1/ai"
 
 

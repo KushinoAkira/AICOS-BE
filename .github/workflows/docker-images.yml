@@ -1,0 +1,179 @@
+name: Docker images
+
+# Builds every service image, scans it, smoke-tests the compose stack, and (main / tags) pushes to GHCR.
+on:
+  push:
+    branches: [main]
+    tags: ["v*.*.*"]
+    paths: ["src/**", "docker/**", "docker-compose.yml", "Directory.*.props", "global.json", ".github/workflows/docker-images.yml"]
+  pull_request:
+    paths: ["src/**", "docker/**", "docker-compose.yml", "Directory.*.props", "global.json"]
+
+concurrency:
+  group: docker-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  REGISTRY: ghcr.io
+  OWNER: ${{ github.repository_owner }}
+
+jobs:
+  images:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      packages: write
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: gateway,   project: src/Gateway/AICOS.Gateway,                                 assembly: AICOS.Gateway }
+          - { name: identity,  project: src/Services/IdentityOrganization/AICOS.IdentityOrganization.Api, assembly: AICOS.IdentityOrganization.Api }
+          - { name: menu,      project: src/Services/MenuCatalog/AICOS.MenuCatalog.Api,            assembly: AICOS.MenuCatalog.Api }
+          - { name: table,     project: src/Services/TableReservation/AICOS.TableReservation.Api,  assembly: AICOS.TableReservation.Api }
+          - { name: order,     project: src/Services/Ordering/AICOS.Ordering.Api,                  assembly: AICOS.Ordering.Api }
+          - { name: payment,   project: src/Services/Payments/AICOS.Payments.Api,                  assembly: AICOS.Payments.Api }
+          - { name: kitchen,   project: src/Services/KitchenOperations/AICOS.KitchenOperations.Api, assembly: AICOS.KitchenOperations.Api }
+          - { name: workforce, project: src/Services/WorkforceScheduling/AICOS.WorkforceScheduling.Api, assembly: AICOS.WorkforceScheduling.Api }
+          - { name: reporting, project: src/Services/ReportingAnalytics/AICOS.ReportingAnalytics.Api, assembly: AICOS.ReportingAnalytics.Api }
+          - { name: customer,  project: src/Services/CustomerEngagement/AICOS.CustomerEngagement.Api, assembly: AICOS.CustomerEngagement.Api }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.OWNER }}/aicos-${{ matrix.name }}
+          tags: |
+            type=sha,format=short
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+      - name: Build (local, for scanning)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile.dotnet
+          build-args: |
+            PROJECT=${{ matrix.project }}
+            ASSEMBLY=${{ matrix.assembly }}
+          load: true
+          tags: aicos/${{ matrix.name }}:scan
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+      - name: Trivy image scan (fails on HIGH/CRITICAL with a fix)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: aicos/${{ matrix.name }}:scan
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+          format: sarif
+          output: trivy-${{ matrix.name }}.sarif
+      - uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy-${{ matrix.name }}.sarif
+          category: trivy-${{ matrix.name }}
+      - uses: docker/login-action@v3
+        if: github.event_name == 'push'
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Push with SBOM and provenance
+        if: github.event_name == 'push'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile.dotnet
+          build-args: |
+            PROJECT=${{ matrix.project }}
+            ASSEMBLY=${{ matrix.assembly }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          sbom: true
+          provenance: mode=max
+          cache-from: type=gha,scope=${{ matrix.name }}
+
+  ai-image:
+    name: ai (Python)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.OWNER }}/aicos-ai
+          tags: |
+            type=sha,format=short
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+      - uses: docker/build-push-action@v6
+        with:
+          context: src/Services/Ai
+          load: true
+          tags: aicos/ai:scan
+          cache-from: type=gha,scope=ai
+          cache-to: type=gha,mode=max,scope=ai
+      - uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: aicos/ai:scan
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+          format: sarif
+          output: trivy-ai.sarif
+      - uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy-ai.sarif
+          category: trivy-ai
+      - uses: docker/login-action@v3
+        if: github.event_name == 'push'
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        if: github.event_name == 'push'
+        with:
+          context: src/Services/Ai
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          sbom: true
+          provenance: mode=max
+          cache-from: type=gha,scope=ai
+
+  compose-smoke:
+    name: Compose stack smoke test
+    needs: [images, ai-image]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate throwaway secrets
+        run: bash scripts/init-env.sh
+      - name: Build and start
+        run: docker compose up -d --build --wait --wait-timeout 600
+      - name: Smoke test through the gateway
+        run: bash scripts/smoke-docker.sh
+      - name: Logs on failure
+        if: failure()
+        run: docker compose logs --tail=200
+      - name: Tear down
+        if: always()
+        run: docker compose down -v

@@ -1,0 +1,15 @@
+title = "AICOS-BE"
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Dev placeholders and generated training text that are not live credentials"
+paths = [
+  '''(?i)\.env\.example$''',
+  '''ai-models/data/''',
+  '''ai-models/models/.*/(vocab\.txt|bpe\.codes)$''',
+]
+regexes = [
+  '''aicos_admin_dev''',
+  '''aicos_dev''',
+]

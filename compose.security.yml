@@ -1,0 +1,65 @@
+# Hardening overlay for a shared or demo host. Does not change images or env.
+#   docker compose -f docker-compose.yml -f compose.security.yml up -d
+#   docker compose -f docker-compose.yml -f ai-models/compose.yml -f compose.security.yml up -d
+
+x-hard: &hard
+  cap_drop: [ALL]
+  security_opt:
+    - no-new-privileges:true
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  postgres:
+    <<: *hard
+  redis:
+    <<: *hard
+  pgadmin:
+    <<: *hard
+  gateway:
+    <<: *hard
+    ports: !override
+      - "127.0.0.1:8080:8080"
+  identity:
+    <<: *hard
+    ports: !override
+      - "127.0.0.1:5101:8080"
+  menu:
+    <<: *hard
+    ports: !override
+      - "127.0.0.1:5102:8080"
+  table:
+    <<: *hard
+    ports: !override
+      - "127.0.0.1:5103:8080"
+  order:
+    <<: *hard
+    ports: !override
+      - "127.0.0.1:5104:8080"
+  payment:
+    <<: *hard
+    ports: !override
+      - "127.0.0.1:5105:8080"
+  kitchen:
+    <<: *hard
+    ports: !override
+      - "127.0.0.1:5107:8080"
+  workforce:
+    <<: *hard
+    ports: !override
+      - "127.0.0.1:5108:8080"
+  reporting:
+    <<: *hard
+    ports: !override
+      - "127.0.0.1:5109:8080"
+  customer:
+    <<: *hard
+    ports: !override
+      - "127.0.0.1:5110:8080"
+  ai:
+    <<: *hard
+    ports: !override
+      - "127.0.0.1:5111:8000"
