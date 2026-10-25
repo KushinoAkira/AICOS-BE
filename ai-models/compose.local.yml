@@ -1,0 +1,5 @@
+﻿# Local-only override: host port 5432 is taken by another project's postgres (vietai_postgres), so expose AICOS postgres on 5433.
+services:
+  postgres:
+    ports: !override
+      - "5433:5432"

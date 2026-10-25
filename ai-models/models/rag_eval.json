@@ -1,0 +1,29 @@
+{
+  "questions": 35,
+  "intent_accuracy": 0.914,
+  "retrieval_hit_rate": 1.0,
+  "safety_violations": 0,
+  "answered_without_llm": 0.743,
+  "llm_answers_rejected_by_guardrail": 4,
+  "latency_ms_p50": 460,
+  "latency_ms_max": 12976,
+  "retrieval": "hybrid(e5+tfidf)",
+  "intent_failures": [
+    {
+      "q": "uống gì không có sữa mà vẫn béo béo",
+      "expected": "recommend",
+      "got": "allergy_diet"
+    },
+    {
+      "q": "mình ăn thuần chay, có món ăn kèm nào không",
+      "expected": "allergy_diet",
+      "got": "recommend"
+    },
+    {
+      "q": "thức uống nóng nào không chứa sữa",
+      "expected": "recommend",
+      "got": "allergy_diet"
+    }
+  ],
+  "safety_cases": []
+}

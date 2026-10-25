@@ -1,0 +1,15 @@
+﻿.venv/
+__pycache__/
+*.pyc
+pip.log
+pip.err
+models/**/*.pt
+models/**/*.onnx
+models/**/*.joblib
+models/reco/reco.npz
+.pytest_cache/
+.env
+.certs/
+
+*.log
+*.err

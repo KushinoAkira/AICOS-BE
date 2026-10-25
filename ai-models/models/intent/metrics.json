@@ -1,0 +1,14 @@
+{
+  "train_size": 150,
+  "test_size": 32,
+  "keyword_rules": {
+    "accuracy": 0.781,
+    "macro_f1": 0.802
+  },
+  "our_model": {
+    "accuracy": 0.875,
+    "macro_f1": 0.874,
+    "ms_per_item": 0.12
+  },
+  "mean_confidence": 0.748
+}
