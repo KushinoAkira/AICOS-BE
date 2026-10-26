@@ -10,6 +10,8 @@ public sealed class IdentityOrganizationDbContext(DbContextOptions<IdentityOrgan
 
     public DbSet<Tenant> Tenants => Set<Tenant>();
 
+    public DbSet<ContactMessage> ContactMessages => Set<ContactMessage>();
+
     public DbSet<Branch> Branches => Set<Branch>();
 
     public DbSet<User> Users => Set<User>();

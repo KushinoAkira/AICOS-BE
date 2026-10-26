@@ -51,8 +51,9 @@ public sealed class SubscriptionTests : IDisposable
         plans[0].TryGetProperty("subscribers", out _).Should().BeFalse();
         plans[0].TryGetProperty("isActive", out _).Should().BeFalse();
 
-        // The admin list stays closed to anonymous callers.
-        (await anonymous.GetAsync(Plans)).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        // The price list at the admin path is open to visitors too, but creating a plan or reading one in detail is not.
+        (await anonymous.GetAsync(Plans)).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await anonymous.PostAsJsonAsync(Plans, NewPlan("Hack"), Json)).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
     [Fact]
@@ -112,7 +113,8 @@ public sealed class SubscriptionTests : IDisposable
     {
         using var client = _factory.CreateClientAs(role, Guid.NewGuid());
 
-        (await client.GetAsync(Plans)).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        (await client.GetAsync(Plans)).StatusCode.Should().Be(HttpStatusCode.OK);                      // the price list is public: this is the view of the plans on sale
+        (await client.GetAsync($"{Plans}/{Guid.NewGuid()}")).StatusCode.Should().Be(HttpStatusCode.Forbidden);
         (await client.PostAsJsonAsync(Plans, NewPlan("Hack"), Json)).StatusCode.Should().Be(HttpStatusCode.Forbidden);
         (await client.GetAsync("/api/v1/identity/subscriptions")).StatusCode.Should().Be(HttpStatusCode.Forbidden);
         (await client.GetAsync("/api/v1/identity/platform/overview")).StatusCode.Should().Be(HttpStatusCode.Forbidden);

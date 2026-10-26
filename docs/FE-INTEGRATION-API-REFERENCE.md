@@ -434,3 +434,30 @@ Thay cho việc FE hỏi lại mỗi 5 giây. Hub của Order service, qua gatew
 Thông báo được tạo cho các thay đổi: `Paid`, `Ready`, `Remake`, `Completed`, `Cancelled`, `NoShow`, `Unfulfillable` (mỗi đơn mỗi loại một lần; `Remake` tạo mới cho mỗi lần pha lại). `Created`, `Preparing`, `Delivered` chỉ đẩy live, không lưu. Đơn của khách vãng lai (không tài khoản) không có thông báo lưu, chỉ có tin live qua phiên bàn. Cách dùng gợi ý: nhận `OrderChanged` thì hiện toast rồi gọi lại `unread-count`; mở chuông thì gọi `GET .../notifications`.
 
 Lưu ý vận hành: SignalR hiện chạy một instance (chưa có Redis backplane), nên chưa scale ngang Order service được.
+
+### Đăng ký thương hiệu tự phục vụ, trang công khai của brand, form liên hệ, bảng giá (Mục 3)
+
+Tất cả lưu trong PostgreSQL (bảng `tenants`, `users`, `contact_messages`), không giữ trong RAM. Đường dẫn gốc `/api/v1/identity`.
+
+**Trạng thái brand (`tenant.status`) có thêm `Pending` và `Rejected`:** `Pending` (chờ duyệt) -> `Active` (Super Admin duyệt) hoặc `Rejected` (từ chối). `Suspended` giữ nguyên.
+
+| Việc | Method và endpoint | Quyền | Body / Kết quả |
+|---|---|---|---|
+| Đăng ký brand | `POST /auth/register-brand` | Công khai (giới hạn 10 lượt/phút/IP như đăng nhập) | `{ "brandName", "code", "ownerFullName", "email", "phone"?, "password", "confirmPassword", "description"? }` -> 201 `{ "tenantId", "code", "status": "Pending", "message" }`. Không trả token. `code` 3 đến 50 ký tự `a-z0-9-`, bắt đầu bằng chữ. Trùng mã brand hoặc email: 409 (`tenant.duplicate_code` hoặc lỗi email trùng). |
+| Đăng nhập khi chưa duyệt | `POST /auth/login` | | 403 `tenant.pending_approval` (chờ duyệt) hoặc 403 `tenant.rejected`. Brand bị tạm ngưng vẫn là 403 `tenant.suspended`. |
+| Danh sách chờ duyệt | `GET /tenants?status=Pending` | SuperAdmin | như danh sách tenant |
+| Duyệt | `POST /tenants/{id}/approve` | SuperAdmin | `{}` -> tenant `Active`; tài khoản chủ quán đăng nhập được. Gửi email báo kết quả (hiện chỉ ghi log vì chưa có nhà cung cấp email). Duyệt lần hai: 409 `tenant.not_pending`. Không tự gán gói cước. |
+| Từ chối | `POST /tenants/{id}/reject` | SuperAdmin | `{ "reason" }` (bắt buộc) -> tenant `Rejected`. Đã quyết định rồi thì 409 `tenant.not_pending`. |
+| Đổi trạng thái thông thường | `PATCH /tenants/{id}/status` | SuperAdmin | chỉ `Active`/`Suspended`; với brand đang `Pending`/`Rejected` trả 409 `tenant.use_review` (phải dùng approve/reject). |
+| Xem hồ sơ brand | `GET /brand/profile` | BrandAdmin | `{ "id", "name", "code", "status", "description", "logoUrl", "primaryColor", "secondaryColor" }` |
+| Sửa hồ sơ brand | `PUT /brand/profile` | BrandAdmin | `{ "description"?, "logoUrl"?, "primaryColor"?, "secondaryColor"? }`. `logoUrl` là **chuỗi link FE đã upload sẵn** (http/https, tối đa 500 ký tự, không chứa user:pass; `javascript:`, `data:` bị từ chối). Màu dạng `#RRGGBB`. Gửi rỗng để xóa. Có ghi nhật ký kiểm toán. |
+| Trang công khai của brand | `GET /public/brands/{code}` | Công khai | `{ "name", "code", "description", "logoUrl", "primaryColor", "secondaryColor", "branches": [ { "id", "name", "address", "phone", "openingTime", "closingTime" } ] }`. Chỉ brand `Active` (404 cho Pending/Rejected/Suspended); chỉ chi nhánh đang hoạt động. Không phân biệt hoa thường ở `code`. |
+| Gửi form liên hệ | `POST /public/contact` | Công khai (giới hạn 10 lượt/phút/IP) | `{ "fullName", "email", "phone"?, "subject"?, "message", "website"? }` -> 202. `website` là ô ẩn chống bot: người thật để trống; có giá trị thì server giả vờ nhận nhưng không lưu. Message tối đa 2000 ký tự. |
+| Xem tin liên hệ | `GET /contact-messages?status=New|Handled&page=&pageSize=` | SuperAdmin | phân trang `{ "items": [ { "id", "fullName", "email", "phone", "subject", "message", "status", "createdAtUtc", "handledAtUtc" } ], … }` |
+| Đánh dấu đã xử lý | `POST /contact-messages/{id}/handled` | SuperAdmin | tin đó |
+
+**Bảng giá cho landing page:** `GET /identity/subscription-plans` nay mở công khai, nhưng khách vãng lai và người dùng brand chỉ thấy các gói **đang bán** (không có gói đã ngừng, `subscribers` luôn 0, bỏ qua `isActive=false`); Super Admin vẫn thấy đủ kèm số lượng đăng ký. Tạo, sửa, xem chi tiết gói vẫn cần Super Admin. Đường dẫn `GET /identity/public/subscription-plans` (danh sách gọn) vẫn dùng được.
+
+Trang đăng ký của FE: sau khi `register-brand` thành công, hiện "đang chờ duyệt"; khi đăng nhập gặp `tenant.pending_approval` thì hiện lại thông báo đó.
+
+Luồng đã có sẵn từ trước, không đổi: khách quét QR gọi món và đặt món mang đi, khách tự hủy đơn trước giờ khóa (`order.pickup_locked` sau giờ khóa, `order.cannot_cancel_now` khi bar đã làm), `NoShow`, `Unfulfillable`, pha lại, quên mật khẩu bằng mã 6 số, khóa tài khoản (`403 account.temporarily_locked` kèm `lockedUntilUtc` và `retryAfterSeconds`), tiền mặt dự kiến trước khi chốt két, danh sách lịch ca (`GET /workforce/shift-assignments`), ca thay đang mở (`GET /workforce/replacement-shifts?status=Open`) và gỡ nhân viên khỏi ca (`DELETE /workforce/shift-assignments/{id}`).

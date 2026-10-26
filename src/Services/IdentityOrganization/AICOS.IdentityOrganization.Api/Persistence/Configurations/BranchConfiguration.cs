@@ -35,6 +35,13 @@ internal sealed class TenantConfiguration : IEntityTypeConfiguration<Tenant>
         builder.Property(t => t.Code).HasMaxLength(Tenant.CodeMaxLength).IsRequired();
         builder.Property(t => t.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
 
+        builder.Property(t => t.Description).HasMaxLength(Tenant.DescriptionMaxLength);
+        builder.Property(t => t.LogoUrl).HasMaxLength(Tenant.LogoUrlMaxLength);
+        builder.Property(t => t.PrimaryColor).HasMaxLength(7);
+        builder.Property(t => t.SecondaryColor).HasMaxLength(7);
+        builder.Property(t => t.ReviewNote).HasMaxLength(Tenant.ReviewNoteMaxLength);
+
         builder.HasIndex(t => t.Code).IsUnique();
+        builder.HasIndex(t => t.Status);
     }
 }
