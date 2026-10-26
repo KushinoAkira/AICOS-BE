@@ -177,6 +177,79 @@ namespace AICOS.IdentityOrganization.Api.Persistence.Migrations
                     b.ToTable("branches", "identity");
                 });
 
+            modelBuilder.Entity("AICOS.IdentityOrganization.Api.Domain.ContactMessage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("email");
+
+                    b.Property<string>("FullName")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("full_name");
+
+                    b.Property<DateTime?>("HandledAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("handled_at_utc");
+
+                    b.Property<Guid?>("HandledBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("handled_by");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("message");
+
+                    b.Property<string>("Phone")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("phone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("Subject")
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)")
+                        .HasColumnName("subject");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at_utc");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id")
+                        .HasName("pk_contact_messages");
+
+                    b.HasIndex("Status", "CreatedAtUtc")
+                        .HasDatabaseName("ix_contact_messages_status_created_at_utc");
+
+                    b.ToTable("contact_messages", "identity");
+                });
+
             modelBuilder.Entity("AICOS.IdentityOrganization.Api.Domain.OtpCode", b =>
                 {
                     b.Property<Guid>("Id")
@@ -386,11 +459,44 @@ namespace AICOS.IdentityOrganization.Api.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("created_by");
 
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("description");
+
+                    b.Property<string>("LogoUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("logo_url");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)")
                         .HasColumnName("name");
+
+                    b.Property<string>("PrimaryColor")
+                        .HasMaxLength(7)
+                        .HasColumnType("character varying(7)")
+                        .HasColumnName("primary_color");
+
+                    b.Property<string>("ReviewNote")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("review_note");
+
+                    b.Property<DateTime?>("ReviewedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("reviewed_at_utc");
+
+                    b.Property<Guid?>("ReviewedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reviewed_by");
+
+                    b.Property<string>("SecondaryColor")
+                        .HasMaxLength(7)
+                        .HasColumnType("character varying(7)")
+                        .HasColumnName("secondary_color");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -412,6 +518,9 @@ namespace AICOS.IdentityOrganization.Api.Persistence.Migrations
                     b.HasIndex("Code")
                         .IsUnique()
                         .HasDatabaseName("ix_tenants_code");
+
+                    b.HasIndex("Status")
+                        .HasDatabaseName("ix_tenants_status");
 
                     b.ToTable("tenants", "identity");
                 });

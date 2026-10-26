@@ -429,7 +429,59 @@ check "staff have no notifications" 403 "$(status_of "$r")"
 r=$(call GET "/api/v1/identity/public/subscription-plans" "")
 check "the landing page reads the plans without logging in" 200 "$(status_of "$r")"
 r=$(call GET "/api/v1/identity/subscription-plans" "")
-check "the plan admin list stays closed to anonymous callers" 401 "$(status_of "$r")"
+check "the plan list at the admin path is open to visitors (active plans only)" 200 "$(status_of "$r")"
+r=$(call POST "/api/v1/identity/subscription-plans" "" '{"name":"Hack","tier":"Basic","fee":1,"billingPeriod":"Monthly"}')
+check "creating a plan still needs the Super Admin" 401 "$(status_of "$r")"
+
+# ------------------------------------------------------------------ self-service brand registration, public page, contact form
+echo
+echo "== brand registration and public pages"
+# register, login and contact share the 10-per-minute budget of the gateway: start this block in a fresh minute
+echo "(waiting one minute for the login rate window)"; sleep 62
+REG_CODE="reg-$STAMP"
+REG_EMAIL="reg-owner-$STAMP@example.com"
+r=$(call POST /api/v1/identity/auth/register-brand "" "{\"brandName\":\"Reg $STAMP\",\"code\":\"$REG_CODE\",\"ownerFullName\":\"Reg Owner\",\"email\":\"$REG_EMAIL\",\"phone\":\"0900000077\",\"password\":\"$BRAND_PASSWORD\",\"confirmPassword\":\"$BRAND_PASSWORD\",\"description\":\"Smoke brand\"}")
+check "an owner registers a brand" 201 "$(status_of "$r")"
+REG_ID=$(body_of "$r" | json_field tenantId)
+case "$(body_of "$r")" in *'"status":"Pending"'*) check "the new brand is Pending" yes yes ;; *) check "the new brand is Pending" yes no ;; esac
+r=$(call POST /api/v1/identity/auth/register-brand "" "{\"brandName\":\"Reg $STAMP\",\"code\":\"$REG_CODE\",\"ownerFullName\":\"Reg Owner\",\"email\":\"other-$REG_EMAIL\",\"password\":\"$BRAND_PASSWORD\",\"confirmPassword\":\"$BRAND_PASSWORD\"}")
+check "the same brand code is refused" 409 "$(status_of "$r")"
+r=$(call POST /api/v1/identity/auth/login "" "{\"login\":\"$REG_EMAIL\",\"password\":\"$BRAND_PASSWORD\"}")
+check "the owner cannot sign in before approval" 403 "$(status_of "$r")"
+case "$(body_of "$r")" in *tenant.pending_approval*) check "the answer says the brand awaits approval" yes yes ;; *) check "the answer says the brand awaits approval" yes no ;; esac
+r=$(call GET "/api/v1/identity/public/brands/$REG_CODE" "")
+check "a pending brand has no public page" 404 "$(status_of "$r")"
+r=$(call GET "/api/v1/identity/tenants?status=Pending" "$SUPER")
+case "$(body_of "$r")" in *"$REG_CODE"*) check "the Super Admin sees the pending registration" yes yes ;; *) check "the Super Admin sees the pending registration" yes no ;; esac
+r=$(call POST "/api/v1/identity/tenants/$REG_ID/approve" "$BRAND" '{}')
+check "a brand admin cannot approve" 403 "$(status_of "$r")"
+r=$(call POST "/api/v1/identity/tenants/$REG_ID/approve" "$SUPER" '{}')
+check "the Super Admin approves the registration" 200 "$(status_of "$r")"
+r=$(call POST "/api/v1/identity/tenants/$REG_ID/approve" "$SUPER" '{}')
+check "a registration is decided once" 409 "$(status_of "$r")"
+r=$(call POST /api/v1/identity/auth/login "" "{\"login\":\"$REG_EMAIL\",\"password\":\"$BRAND_PASSWORD\"}")
+check "the owner signs in after approval" 200 "$(status_of "$r")"
+REG_TOKEN=$(body_of "$r" | json_field accessToken)
+r=$(call PUT /api/v1/identity/brand/profile "$REG_TOKEN" '{"description":"Ca phe rang xay","logoUrl":"https://cdn.example.com/logo.png","primaryColor":"#6F4E37","secondaryColor":"#FFF8E7"}')
+check "the brand admin edits the public profile" 200 "$(status_of "$r")"
+r=$(call PUT /api/v1/identity/brand/profile "$REG_TOKEN" '{"logoUrl":"javascript:alert(1)"}')
+check "a script link is refused as a logo" 400 "$(status_of "$r")"
+r=$(call GET "/api/v1/identity/public/brands/$REG_CODE" "")
+check "the public brand page opens without signing in" 200 "$(status_of "$r")"
+case "$(body_of "$r")" in *'"logoUrl":"https://cdn.example.com/logo.png"'*'#6F4E37'*|*'#6F4E37'*'"logoUrl":"https://cdn.example.com/logo.png"'*) check "the page carries logo and colors" yes yes ;; *) check "the page carries logo and colors" yes no ;; esac
+r=$(call GET "/api/v1/identity/public/brands/smoke-$STAMP" "")
+check "an active brand has a public page too" 200 "$(status_of "$r")"
+
+r=$(call POST /api/v1/identity/public/contact "" "{\"fullName\":\"Khach Lien He\",\"email\":\"contact-$STAMP@example.com\",\"subject\":\"Hoi gia\",\"message\":\"Cho minh xin bao gia\"}")
+check "a visitor sends the contact form" 202 "$(status_of "$r")"
+r=$(call GET "/api/v1/identity/contact-messages?status=New" "$SUPER")
+check "the Super Admin reads the messages" 200 "$(status_of "$r")"
+case "$(body_of "$r")" in *"contact-$STAMP@example.com"*) check "the message is in the database" yes yes ;; *) check "the message is in the database" yes no ;; esac
+MSG_ID=$(body_of "$r" | grep -o "\"id\":\"[^\"]*\",\"fullName\":\"Khach Lien He\"" | head -1 | json_field id)
+r=$(call POST "/api/v1/identity/contact-messages/$MSG_ID/handled" "$SUPER" '{}')
+check "the message is marked handled" 200 "$(status_of "$r")"
+r=$(call GET "/api/v1/identity/contact-messages" "$BRAND")
+check "a brand admin cannot read the contact messages" 403 "$(status_of "$r")"
 
 r=$(call GET "/api/v1/reporting/branch?branchId=$BRANCH" "$BRAND")
 check "branch report" 200 "$(status_of "$r")"
