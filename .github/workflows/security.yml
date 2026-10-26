@@ -25,11 +25,12 @@ jobs:
       - name: Gitleaks
         run: docker run --rm -v "$PWD:/src:ro" ghcr.io/gitleaks/gitleaks:v8.21.2 detect --source=/src --verbose --redact --config=/src/.gitleaks.toml
 
+  # Code scanning upload needs GitHub Advanced Security (paid on private repos).
   codeql:
     name: CodeQL (${{ matrix.language }})
+    if: ${{ !github.event.repository.private }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    continue-on-error: true
     permissions:
       contents: read
       actions: read
@@ -73,7 +74,7 @@ jobs:
 
   dependency-review:
     name: Dependency review (PR)
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' && !github.event.repository.private
     continue-on-error: true
     runs-on: ubuntu-latest
     permissions:
