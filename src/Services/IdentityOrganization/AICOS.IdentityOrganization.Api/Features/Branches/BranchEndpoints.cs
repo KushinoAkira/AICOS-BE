@@ -72,21 +72,27 @@ public static class BranchEndpoints
     }
 
     /// <summary>Public: active branches of one brand (<paramref name="tenantCode"/>) for guests/customers choosing where to order.</summary>
-    private static async Task<List<BranchResponse>> ListActiveAsync(string? tenantCode, IdentityOrganizationDbContext db, CancellationToken ct)
+    /// <summary>
+    /// The active branches of a brand. A visitor names the brand with <c>tenantCode</c>; a signed-in user of a brand may leave it out and gets the
+    /// branches of their own brand (the web app lists them for pickers in the admin screens).
+    /// </summary>
+    private static async Task<List<BranchResponse>> ListActiveAsync(string? tenantCode, IdentityOrganizationDbContext db, ICurrentUser currentUser, CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(tenantCode))
+        Guid? ownTenant = string.IsNullOrWhiteSpace(tenantCode) ? currentUser.TenantId : null;
+        if (string.IsNullOrWhiteSpace(tenantCode) && ownTenant is null)
         {
             throw new ValidationFailedException(nameof(tenantCode), "tenantCode (the brand identifier) is required.");
         }
 
-        var code = Tenant.NormalizeCode(tenantCode);
+        var code = string.IsNullOrWhiteSpace(tenantCode) ? null : Tenant.NormalizeCode(tenantCode);
         var branches = await db.Branches.AsNoTracking()
             .Where(b => b.Status == BranchStatus.Active
-                && db.Tenants.Any(t => t.Id == b.TenantId && t.Code == code && t.Status == TenantStatus.Active))
+                && db.Tenants.Any(t => t.Id == b.TenantId && (ownTenant != null ? t.Id == ownTenant : t.Code == code) && t.Status == TenantStatus.Active))
             .OrderBy(b => b.Name)
             .ToListAsync(ct);
         return branches.Select(BranchResponse.From).ToList();
     }
+
 
     private static async Task<BranchResponse> GetAsync(
         Guid id, IdentityOrganizationDbContext db, ICurrentUser currentUser, CancellationToken ct)

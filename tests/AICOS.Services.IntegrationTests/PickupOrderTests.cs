@@ -352,6 +352,40 @@ public sealed class PickupOrderTests : IDisposable
     }
 
     [Fact]
+    public async Task A_customer_lists_their_own_ratings_and_every_order_tells_whether_it_was_rated()
+    {
+        var rated = await CompletedOrderAsync();
+        var notRated = await CompletedOrderAsync();
+        await _customer.Post($"{Orders}/{rated.Id()}/feedback", new { rating = 5, comment = "Ngon" }).ShouldBe(201);
+
+        var mine = await _customer.GetFromJsonAsync<JsonElement>($"{Orders}/feedbacks/mine");
+
+        mine.GetArrayLength().Should().Be(1);
+        (mine[0].GetProperty("orderId").GetGuid(), mine[0].GetProperty("rating").GetInt32(), mine[0].GetProperty("comment").GetString()).Should().Be((rated.Id(), 5, "Ngon"));
+        var orders = (await _customer.GetFromJsonAsync<JsonElement>($"{Orders}/mine")).EnumerateArray().ToDictionary(o => o.Id(), o => o.GetProperty("hasFeedback").GetBoolean());
+        orders[rated.Id()].Should().BeTrue();
+        orders[notRated.Id()].Should().BeFalse();
+        (await _customer.GetFromJsonAsync<JsonElement>($"{Orders}/{rated.Id()}")).GetProperty("hasFeedback").GetBoolean().Should().BeTrue();
+        (await _customer.GetFromJsonAsync<JsonElement>($"{Orders}/{notRated.Id()}")).GetProperty("hasFeedback").GetBoolean().Should().BeFalse();
+        (await _manager.GetFromJsonAsync<JsonElement>($"{Orders}?limit=10")).EnumerateArray().Single(o => o.Id() == rated.Id()).GetProperty("hasFeedback").GetBoolean().Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task The_list_of_my_ratings_shows_nobody_elses_and_is_for_customers_only()
+    {
+        var order = await CompletedOrderAsync();
+        await _customer.Post($"{Orders}/{order.Id()}/feedback", new { rating = 3 }).ShouldBe(201);
+        var otherBrand = _f.As(AicosRoles.Customer, userId: _customerId, tenantId: Guid.NewGuid());       // the same account number in another brand
+
+        (await _otherCustomer.GetFromJsonAsync<JsonElement>($"{Orders}/feedbacks/mine")).GetArrayLength().Should().Be(0);
+        (await otherBrand.GetFromJsonAsync<JsonElement>($"{Orders}/feedbacks/mine")).GetArrayLength().Should().Be(0);
+        await _cashier.GetAsync($"{Orders}/feedbacks/mine").ShouldBe(403);
+        await _manager.GetAsync($"{Orders}/feedbacks/mine").ShouldBe(403);
+        await _f.CreateClient().GetAsync($"{Orders}/feedbacks/mine").ShouldBe(401);
+        (await _customer.GetFromJsonAsync<JsonElement>($"{Orders}/feedbacks/mine?limit=1")).GetArrayLength().Should().Be(1);
+    }
+
+    [Fact]
     public async Task Managers_read_the_ratings_of_their_scope()
     {
         var good = await CompletedOrderAsync();

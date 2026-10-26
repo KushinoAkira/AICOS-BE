@@ -461,3 +461,12 @@ Tất cả lưu trong PostgreSQL (bảng `tenants`, `users`, `contact_messages`)
 Trang đăng ký của FE: sau khi `register-brand` thành công, hiện "đang chờ duyệt"; khi đăng nhập gặp `tenant.pending_approval` thì hiện lại thông báo đó.
 
 Luồng đã có sẵn từ trước, không đổi: khách quét QR gọi món và đặt món mang đi, khách tự hủy đơn trước giờ khóa (`order.pickup_locked` sau giờ khóa, `order.cannot_cancel_now` khi bar đã làm), `NoShow`, `Unfulfillable`, pha lại, quên mật khẩu bằng mã 6 số, khóa tài khoản (`403 account.temporarily_locked` kèm `lockedUntilUtc` và `retryAfterSeconds`), tiền mặt dự kiến trước khi chốt két, danh sách lịch ca (`GET /workforce/shift-assignments`), ca thay đang mở (`GET /workforce/replacement-shifts?status=Open`) và gỡ nhân viên khỏi ca (`DELETE /workforce/shift-assignments/{id}`).
+
+### Bổ sung sau đối chiếu với source Frontend
+
+Đối chiếu chi tiết từng màn hình nằm ở `docs/FE-BE-RECONCILIATION.md`. Các thay đổi BE kèm theo:
+
+- **Đánh giá của tôi:** `GET /orders/feedbacks/mine?limit=` (role Customer) trả mảng `{ id, orderId, orderCode, branchId, customerId, rating, comment, createdAtUtc }`, mới nhất trước, chỉ của chính khách trong brand đó.
+- **Cờ `hasFeedback`** (bool) trên `GET /orders/mine` (mỗi phần tử), `GET /orders/{id}` và `GET /orders` (nhân viên): `true` khi đơn đã có đánh giá. Đơn chờ đánh giá = `status = Completed` và `hasFeedback = false`.
+- **`GET /identity/branches/active`:** người đã đăng nhập (thuộc một brand) có thể bỏ `tenantCode` và nhận chi nhánh đang hoạt động của brand mình. Khách vãng lai vẫn phải gửi `tenantCode`, thiếu thì 400.
+- **Email thật:** mã đặt lại mật khẩu, thư nhận đăng ký, thư duyệt, thư từ chối brand được gửi qua SMTP khi cấu hình `SMTP_*` (mục `.env`), là thư HTML tiếng Việt kèm bản văn bản. Chưa cấu hình thì chỉ ghi log và FE vẫn nhận câu trả lời như cũ. `POST /auth/forgot-password` luôn trả 202 cùng một nội dung, kể cả khi email không tồn tại hoặc máy chủ thư lỗi.

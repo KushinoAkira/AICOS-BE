@@ -173,6 +173,28 @@ public sealed class TenantEndpointsTests : IDisposable
         (await anonymous.GetAsync($"{Branches}/active")).StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
+    [Fact]
+    public async Task A_signed_in_user_gets_the_active_branches_of_their_own_brand_without_naming_it()
+    {
+        var a = await CreateTenantAsync("brand-a", "a@a.com");
+        var b = await CreateTenantAsync("brand-b", "b@b.com");
+        using var adminA = _factory.CreateClientAs(AicosRoles.BrandAdmin, tenantId: a.Id);
+        using var adminB = _factory.CreateClientAs(AicosRoles.BrandAdmin, tenantId: b.Id);
+        await CreateBranchAsync(adminA, "Only A");
+        var suspended = await CreateBranchAsync(adminA, "Closed A");
+        await adminA.PatchAsJsonAsync($"{Branches}/{suspended.Id}/status", new ChangeBranchStatusRequest(BranchStatus.Suspended), Json);
+        await CreateBranchAsync(adminB, "Only B");
+        using var customerA = _factory.CreateClientAs(AicosRoles.Customer, tenantId: a.Id);
+
+        (await adminA.GetFromJsonAsync<List<BranchResponse>>($"{Branches}/active", Json))!.Select(x => x.Name).Should().Equal("Only A");
+        (await adminB.GetFromJsonAsync<List<BranchResponse>>($"{Branches}/active", Json))!.Select(x => x.Name).Should().Equal("Only B");
+        (await customerA.GetFromJsonAsync<List<BranchResponse>>($"{Branches}/active", Json))!.Select(x => x.Name).Should().Equal("Only A");
+        // Naming another brand still works, as for any visitor: the list is public information.
+        (await adminA.GetFromJsonAsync<List<BranchResponse>>($"{Branches}/active?tenantCode=brand-b", Json))!.Select(x => x.Name).Should().Equal("Only B");
+        // The Super Admin belongs to no brand: without a brand code there is nothing to list.
+        (await _superAdmin.GetAsync($"{Branches}/active")).StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
     // ------------------------------------------------------------------ BR-06
     [Fact]
     public async Task The_super_admin_cannot_read_brand_business_data()

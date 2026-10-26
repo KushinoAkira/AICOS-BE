@@ -249,6 +249,13 @@ else
   r=$(call GET "/api/v1/orders/feedbacks" "$MANAGER")
   check "the manager reads the ratings" 200 "$(status_of "$r")"
   case "$(body_of "$r")" in *Ngon*) check "the rating is listed" yes yes ;; *) check "the rating is listed" yes no ;; esac
+  r=$(call GET "/api/v1/orders/feedbacks/mine" "$MEMBER")
+  check "the member lists their own ratings" 200 "$(status_of "$r")"
+  case "$(body_of "$r")" in *Ngon*) check "the rating is in my list" yes yes ;; *) check "the rating is in my list" yes no ;; esac
+  r=$(call GET "/api/v1/orders/$PICKUP_A" "$MEMBER")
+  case "$(body_of "$r")" in *'"hasFeedback":true'*) check "the order says it was rated" yes yes ;; *) check "the order says it was rated" yes no ;; esac
+  r=$(call GET "/api/v1/orders/feedbacks/mine" "$CASHIER")
+  check "staff have no list of my ratings" 403 "$(status_of "$r")"
 fi
 
 r=$(pickup "smoke-$STAMP-b")
@@ -471,6 +478,11 @@ check "the public brand page opens without signing in" 200 "$(status_of "$r")"
 case "$(body_of "$r")" in *'"logoUrl":"https://cdn.example.com/logo.png"'*'#6F4E37'*|*'#6F4E37'*'"logoUrl":"https://cdn.example.com/logo.png"'*) check "the page carries logo and colors" yes yes ;; *) check "the page carries logo and colors" yes no ;; esac
 r=$(call GET "/api/v1/identity/public/brands/smoke-$STAMP" "")
 check "an active brand has a public page too" 200 "$(status_of "$r")"
+r=$(call GET "/api/v1/identity/branches/active" "$BRAND")
+check "a brand admin lists the active branches of their brand without naming it" 200 "$(status_of "$r")"
+case "$(body_of "$r")" in *"$BRANCH"*) check "the own branch is in the list" yes yes ;; *) check "the own branch is in the list" yes no ;; esac
+r=$(call GET "/api/v1/identity/branches/active" "")
+check "a visitor still has to name the brand" 400 "$(status_of "$r")"
 
 r=$(call POST /api/v1/identity/public/contact "" "{\"fullName\":\"Khach Lien He\",\"email\":\"contact-$STAMP@example.com\",\"subject\":\"Hoi gia\",\"message\":\"Cho minh xin bao gia\"}")
 check "a visitor sends the contact form" 202 "$(status_of "$r")"

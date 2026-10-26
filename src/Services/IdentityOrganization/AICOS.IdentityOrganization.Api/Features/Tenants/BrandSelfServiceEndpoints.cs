@@ -9,6 +9,7 @@ using AICOS.IdentityOrganization.Api.Features.Users;
 using AICOS.IdentityOrganization.Api.Infrastructure;
 using AICOS.IdentityOrganization.Api.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace AICOS.IdentityOrganization.Api.Features.Tenants;
 
@@ -101,21 +102,20 @@ public static partial class BrandSelfServiceEndpoints
         audit.Record(AuditScope.Platform, tenant.Id, "tenant.registered", "Tenant", tenant.Id, after: AuditSnapshots.Of(tenant));
         await db.SaveChangesAsync(ct);
 
-        await SafeMailAsync(email, loggers, owner.Email, "AICOS - registration received",
-            $"Hello {owner.FullName}, we received the registration of '{tenant.Name}'. You can sign in once the platform team approves it.", ct);
+        await SafeMailAsync(email, loggers, EmailTemplates.BrandRegistrationReceived(owner.Email, owner.FullName, tenant.Name), ct);
         return Results.Created($"/api/v1/identity/public/brands/{code}", new RegisterBrandResponse(
             tenant.Id, tenant.Code, tenant.Status, "Registration received. You can sign in once the platform team approves it."));
     }
 
     private static async Task<TenantResponse> ApproveAsync(
-        Guid id, IdentityOrganizationDbContext db, ICurrentUser user, AuditLogger audit, TimeProvider clock, IEmailSender email, ILoggerFactory loggers, CancellationToken ct)
+        Guid id, IdentityOrganizationDbContext db, ICurrentUser user, AuditLogger audit, TimeProvider clock, IEmailSender email, IOptions<EmailOptions> mail, ILoggerFactory loggers, CancellationToken ct)
     {
         var tenant = await FindAsync(db, id, ct);
         var before = AuditSnapshots.Of(tenant);
         tenant.Approve(user.UserId, clock.GetUtcNow().UtcDateTime);
         audit.Record(AuditScope.Platform, tenant.Id, "tenant.approved", "Tenant", tenant.Id, before, AuditSnapshots.Of(tenant));
         await db.SaveChangesAsync(ct);
-        await NotifyOwnerAsync(db, tenant, email, loggers, "AICOS - registration approved", $"'{tenant.Name}' is approved. You can sign in now.", ct);
+        await NotifyOwnerAsync(db, tenant, email, loggers, owner => EmailTemplates.BrandApproved(owner.Email, owner.FullName, tenant.Name, mail.Value.AppUrl), ct);
         return TenantResponse.From(tenant);
     }
 
@@ -131,30 +131,30 @@ public static partial class BrandSelfServiceEndpoints
         tenant.Reject(user.UserId, r.Reason!, clock.GetUtcNow().UtcDateTime);
         audit.Record(AuditScope.Platform, tenant.Id, "tenant.rejected", "Tenant", tenant.Id, before, AuditSnapshots.Of(tenant));
         await db.SaveChangesAsync(ct);
-        await NotifyOwnerAsync(db, tenant, email, loggers, "AICOS - registration refused", $"The registration of '{tenant.Name}' was refused: {tenant.ReviewNote}", ct);
+        await NotifyOwnerAsync(db, tenant, email, loggers, owner => EmailTemplates.BrandRejected(owner.Email, owner.FullName, tenant.Name, tenant.ReviewNote ?? r.Reason!), ct);
         return TenantResponse.From(tenant);
     }
 
     private static async Task NotifyOwnerAsync(
-        IdentityOrganizationDbContext db, Tenant tenant, IEmailSender email, ILoggerFactory loggers, string subject, string body, CancellationToken ct)
+        IdentityOrganizationDbContext db, Tenant tenant, IEmailSender email, ILoggerFactory loggers, Func<User, EmailMessage> message, CancellationToken ct)
     {
         var owner = await db.Users.AsNoTracking().Where(u => u.TenantId == tenant.Id && u.Role == AicosRoles.BrandAdmin).OrderBy(u => u.CreatedAtUtc).FirstOrDefaultAsync(ct);
         if (owner is not null)
         {
-            await SafeMailAsync(email, loggers, owner.Email, subject, body, ct);
+            await SafeMailAsync(email, loggers, message(owner), ct);
         }
     }
 
     /// <summary>A mail problem never undoes the decision that was already saved.</summary>
-    private static async Task SafeMailAsync(IEmailSender email, ILoggerFactory loggers, string to, string subject, string body, CancellationToken ct)
+    private static async Task SafeMailAsync(IEmailSender email, ILoggerFactory loggers, EmailMessage message, CancellationToken ct)
     {
         try
         {
-            await email.SendAsync(to, subject, body, ct);
+            await email.SendAsync(message, ct);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            loggers.CreateLogger("AICOS.Identity.BrandRegistration").LogError(ex, "The mail '{Subject}' could not be sent.", subject);
+            loggers.CreateLogger("AICOS.Identity.BrandRegistration").LogError("The mail '{Subject}' could not be sent ({Reason}).", message.Subject, ex.GetType().Name);
         }
     }
 

@@ -130,7 +130,7 @@ public sealed class BrandSelfServiceTests : IDisposable
         (await approved.Content.ReadFromJsonAsync<TenantResponse>(Json))!.Status.Should().Be(TenantStatus.Active);
         (await LoginAsync("owner@cafesaigon.vn")).StatusCode.Should().Be(HttpStatusCode.OK);              // now the owner can sign in
         (await _anonymous.GetAsync($"{Base}/public/brands/cafe-sai-gon")).StatusCode.Should().Be(HttpStatusCode.OK);
-        _factory.Emails.Sent.Last().Subject.Should().Contain("approved");
+        _factory.Emails.Sent.Last().Subject.Should().Contain("đã được duyệt");
 
         var audit = await _superAdmin.GetFromJsonAsync<JsonElement>($"{Base}/audit-logs?pageSize=50");
         audit.GetProperty("items").EnumerateArray().Select(a => a.GetProperty("action").GetString()).Should().Contain(["tenant.registered", "tenant.approved"]);
