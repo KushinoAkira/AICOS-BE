@@ -64,7 +64,7 @@ Chú thích: **OK** = khớp, không cần làm gì. **FE** = FE phải đổi. 
 | C1 | Doanh thu nền tảng (`be/platform.ts` `revenue`) | FE đọc `months/points/items`, BE trả `byMonth: [{month, amount}]` (cùng `total`, `byPlan`). Biểu đồ sẽ rỗng. | **FE**: đọc `byMonth`. |
 | C2 | Điểm thưởng (`be/staff.ts` `loyaltyMe`) | FE đọc `history` như mảng; BE trả `history` là **phân trang** `{items:[{id,orderId,points,type,note,createdAtUtc}], page, ...}`. Lịch sử sẽ rỗng. Cũng nên dùng `nextTierAt`, `pointsToNextTier` có sẵn thay vì tự tính. | **FE**: dùng `history.items`, ánh xạ `points`, `note` hoặc `type`, `createdAtUtc`. |
 | C3 | Chi nhánh đang hoạt động (`GET /identity/branches/active`) | FE gọi không có `tenantCode` (trang Accounts, Menu của Brand Admin). BE trước đây trả 400. | **BE đã sửa trong đợt này**: người đã đăng nhập thuộc một brand thì không cần `tenantCode` (nhận chi nhánh của brand mình). Khách vãng lai vẫn phải gửi `tenantCode`. |
-| C4 | Danh sách tenant (Super Admin) | FE đọc `planId`, `branchCount`; `TenantResponse` của BE chỉ có `id,name,code,status,createdAtUtc,updatedAtUtc`. Cột gói và số chi nhánh sẽ trống. | **BE** (đề xuất, chưa làm): bổ sung `planId`, `planName`, `activeBranches` vào `TenantResponse`. Hoặc FE ghép từ `GET /identity/subscriptions`. |
+| C4 | Danh sách tenant (Super Admin) | FE đọc `planId`, `branchCount`. | **Đã xử lý ở BE:** `TenantResponse` có thêm `planId`, `planName` (gói đang dùng, null nếu chưa có) và `branchCount`; có ở list, get, create, update, status, approve, reject. |
 | C5 | Ca thay (`toReplacement`) | FE đọc `assignment`, `employeeName`, `filledByName`; BE có `originalEmployeeName`, `approvedEmployeeName`, và các trường ca nằm thẳng trên đối tượng. Tên người bị thay và người nhận ca sẽ trống. | **FE**. |
 | C6 | Trạng thái đơn trong `toOrder` | Thiếu `NoShow`, `Unfulfillable`, `remakeCount`, `tableSessionId`, `pickupSlotStartUtc`. Dòng đơn không đọc `options` (size, topping hiện `""`). | **FE**. |
 | C7 | Khung giờ lấy hàng | FE có hai số `cutoffMinutes` và `lockMinutes` (đặt `0`). BE chỉ có **một** số `cutoffMinutes` làm cả mốc khóa đặt món lẫn mốc khóa hủy đơn (đã chốt trước đó). `advanceDays` FE cố định 1, BE cho 0 đến 14. | **FE**: gộp hai ô làm một, thêm ô số ngày đặt trước. |
@@ -84,7 +84,6 @@ Chú thích: **OK** = khớp, không cần làm gì. **FE** = FE phải đổi. 
 | Gửi email thật (mã đặt lại mật khẩu, duyệt brand) | **Nay đã có khung SMTP (MailKit) và mẫu thư HTML.** Để trống thì chỉ ghi log. Điền `SMTP_*` trong `.env` để gửi thật. Xem mục E. |
 | Trang OTP khi đăng ký (`/auth/otp`) | BE **không có** xác thực OTP lúc đăng ký (OTP chỉ dùng cho đặt lại mật khẩu). Cần FE cho biết trang này phục vụ luồng nào. |
 | Đặt lại mật khẩu bằng liên kết `/reset-password/abc` | BE dùng email và mã 6 số, không có token qua link. FE giữ cách "nhập mã" (đã nắn). |
-| Thông tin tenant trong danh sách (C4) | Chờ quyết định có bổ sung vào `TenantResponse` không. |
 | Đẩy thông báo ra điện thoại khi đóng app | Chưa có. Thông báo hiện lưu DB và đẩy live qua SignalR khi app mở. |
 | Độ tin cậy sự kiện giữa service (Outbox), SignalR nhiều instance (Redis backplane) | Chưa làm. |
 | Thanh toán thật (VietQR, Momo, ZaloPay) | Vẫn giả lập. |
