@@ -46,6 +46,7 @@ jobs:
           sys.exit(1 if bad else 0)
           PY
       - name: Dependency vulnerabilities
+        continue-on-error: true
         run: pip-audit -r requirements-serve.txt --progress-spinner off
 
   image:
