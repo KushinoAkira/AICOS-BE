@@ -108,7 +108,17 @@ public static class TenantEndpoints
             throw new ValidationFailedException(nameof(request.Status), "Status is required (Active or Suspended).");
         }
 
+        if (request.Status is TenantStatus.Pending or TenantStatus.Rejected)
+        {
+            throw new ValidationFailedException(nameof(request.Status), "Use approve or reject for a registration; the status here is Active or Suspended.");
+        }
+
         var tenant = await FindAsync(db, id, ct);
+        if (tenant.Status is TenantStatus.Pending or TenantStatus.Rejected)
+        {
+            throw new ConflictException("A registration is decided with approve or reject.", "tenant.use_review");
+        }
+
         var before = AuditSnapshots.Of(tenant);
         tenant.ChangeStatus(request.Status.Value);
         audit.Record(AuditScope.Platform, tenant.Id, "tenant.status_changed", "Tenant", tenant.Id, before, AuditSnapshots.Of(tenant));
