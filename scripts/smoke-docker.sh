@@ -27,10 +27,27 @@ check() { # name expected actual
   if [ "$2" = "$3" ]; then echo "PASS  $1"; else echo "FAIL  $1 (expected $2, got $3)"; failed=$((failed + 1)); fi
 }
 
+# Sign in and wait out the gateway's 10-per-minute login window when it answers 429, so a fast machine does not turn one throttled
+# login into dozens of 401s further down. Prints "<status> <body>" like call().
+login_call() { # login password
+  tries=0
+  while :; do
+    r=$(call POST /api/v1/identity/auth/login "" "{\"login\":\"$1\",\"password\":\"$2\"}")
+    [ "$(status_of "$r")" = "429" ] && [ "$tries" -lt 3 ] || break
+    tries=$((tries + 1)); echo "(login throttled by the gateway, waiting 20s, attempt $tries)"; sleep 20
+  done
+  echo "$r"
+}
+
 echo "== gateway $GATEWAY"
-r=$(call POST /api/v1/identity/auth/login "" "{\"login\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASSWORD\"}")
+r=$(login_call "$ADMIN_EMAIL" "$ADMIN_PASSWORD")
 check "super admin signs in" 200 "$(status_of "$r")"
 SUPER=$(body_of "$r" | json_field accessToken)
+if [ -z "$SUPER" ]; then
+  # Without the Super Admin token every later check would fail with 401 and hide the real cause: stop here and say what came back.
+  echo "ABORT  the seed Super Admin could not sign in (login '$ADMIN_EMAIL', password length ${#ADMIN_PASSWORD}). Gateway answered: $(status_of "$r") $(body_of "$r" | cut -c1-300)"
+  exit 1
+fi
 
 r=$(call POST /api/v1/identity/tenants "$SUPER" "{\"name\":\"Smoke $STAMP\",\"code\":\"smoke-$STAMP\",\"firstAdmin\":{\"fullName\":\"Smoke Owner\",\"email\":\"owner-$STAMP@example.com\",\"password\":\"$BRAND_PASSWORD\"}}")
 check "tenant created with its first brand admin" 201 "$(status_of "$r")"
@@ -43,6 +60,8 @@ BRAND=$(body_of "$r" | json_field accessToken)
 r=$(call POST /api/v1/identity/branches "$BRAND" '{"name":"Quan 1","address":"1 Le Loi","phone":"0900000001","openingTime":"07:00:00","closingTime":"22:00:00"}')
 check "branch created" 201 "$(status_of "$r")"
 BRANCH=$(body_of "$r" | json_field id)
+r=$(call GET "/api/v1/identity/tenants/$TENANT" "$SUPER")
+case "$(body_of "$r")" in *'"branchCount":1'*) check "the tenant answer counts its branches" yes yes ;; *) check "the tenant answer counts its branches" yes no ;; esac
 
 r=$(call POST /api/v1/identity/users "$BRAND" "{\"fullName\":\"Thu Ngan\",\"email\":\"cashier-$STAMP@example.com\",\"username\":\"cashier$STAMP\",\"password\":\"$BRAND_PASSWORD\",\"role\":\"Cashier\",\"branchId\":\"$BRANCH\"}")
 check "cashier account created" 201 "$(status_of "$r")"
@@ -445,6 +464,11 @@ echo
 echo "== brand registration and public pages"
 # register, login and contact share the 10-per-minute budget of the gateway: start this block in a fresh minute
 echo "(waiting one minute for the login rate window)"; sleep 62
+# fresh tokens for this block, so it does not depend on how long ago the first ones were issued
+r=$(login_call "$ADMIN_EMAIL" "$ADMIN_PASSWORD"); SUPER=$(body_of "$r" | json_field accessToken)
+check "the Super Admin token is fresh" 200 "$(status_of "$r")"
+r=$(login_call "owner-$STAMP@example.com" "$BRAND_PASSWORD"); BRAND=$(body_of "$r" | json_field accessToken)
+check "the brand admin token is fresh" 200 "$(status_of "$r")"
 REG_CODE="reg-$STAMP"
 REG_EMAIL="reg-owner-$STAMP@example.com"
 r=$(call POST /api/v1/identity/auth/register-brand "" "{\"brandName\":\"Reg $STAMP\",\"code\":\"$REG_CODE\",\"ownerFullName\":\"Reg Owner\",\"email\":\"$REG_EMAIL\",\"phone\":\"0900000077\",\"password\":\"$BRAND_PASSWORD\",\"confirmPassword\":\"$BRAND_PASSWORD\",\"description\":\"Smoke brand\"}")

@@ -2,6 +2,8 @@ using System.Text.RegularExpressions;
 using AICOS.BuildingBlocks.Validation;
 using AICOS.IdentityOrganization.Api.Domain;
 using AICOS.IdentityOrganization.Api.Features.Common;
+using AICOS.IdentityOrganization.Api.Persistence;
+using Microsoft.EntityFrameworkCore;
 
 namespace AICOS.IdentityOrganization.Api.Features.Tenants;
 
@@ -16,9 +18,35 @@ public sealed record UpdateTenantRequest(string? Name);
 
 public sealed record ChangeTenantStatusRequest(TenantStatus? Status);
 
-public sealed record TenantResponse(Guid Id, string Name, string Code, TenantStatus Status, DateTime CreatedAtUtc, DateTime? UpdatedAtUtc)
+/// <summary><see cref="PlanId"/> / <see cref="PlanName"/> are the plan of the current subscription (null when the tenant has none); <see cref="BranchCount"/> counts its branches.</summary>
+public sealed record TenantResponse(
+    Guid Id, string Name, string Code, TenantStatus Status, DateTime CreatedAtUtc, DateTime? UpdatedAtUtc,
+    Guid? PlanId = null, string? PlanName = null, int BranchCount = 0)
 {
     public static TenantResponse From(Tenant t) => new(t.Id, t.Name, t.Code, t.Status, t.CreatedAtUtc, t.UpdatedAtUtc);
+
+    /// <summary>Adds the plan and the branch count with two grouped queries for the whole list, not one per tenant.</summary>
+    public static async Task<List<TenantResponse>> FromManyAsync(IReadOnlyCollection<Tenant> tenants, IdentityOrganizationDbContext db, CancellationToken ct)
+    {
+        var ids = tenants.Select(t => t.Id).ToList();
+        var plans = await db.TenantSubscriptions.AsNoTracking()
+            .Where(s => ids.Contains(s.TenantId) && s.Status == SubscriptionStatus.Active)
+            .Select(s => new { s.TenantId, s.PlanId, s.PlanName })
+            .ToListAsync(ct);
+        var branches = await db.Branches.AsNoTracking()
+            .Where(b => ids.Contains(b.TenantId))
+            .GroupBy(b => b.TenantId)
+            .Select(g => new { TenantId = g.Key, Count = g.Count() })
+            .ToListAsync(ct);
+        return tenants.Select(t =>
+        {
+            var plan = plans.FirstOrDefault(p => p.TenantId == t.Id);
+            return From(t) with { PlanId = plan?.PlanId, PlanName = plan?.PlanName, BranchCount = branches.FirstOrDefault(b => b.TenantId == t.Id)?.Count ?? 0 };
+        }).ToList();
+    }
+
+    public static async Task<TenantResponse> FromAsync(Tenant tenant, IdentityOrganizationDbContext db, CancellationToken ct) =>
+        (await FromManyAsync([tenant], db, ct))[0];
 }
 
 internal static partial class TenantRequestValidator

@@ -116,7 +116,7 @@ public static partial class BrandSelfServiceEndpoints
         audit.Record(AuditScope.Platform, tenant.Id, "tenant.approved", "Tenant", tenant.Id, before, AuditSnapshots.Of(tenant));
         await db.SaveChangesAsync(ct);
         await NotifyOwnerAsync(db, tenant, email, loggers, owner => EmailTemplates.BrandApproved(owner.Email, owner.FullName, tenant.Name, mail.Value.AppUrl), ct);
-        return TenantResponse.From(tenant);
+        return await TenantResponse.FromAsync(tenant, db, ct);
     }
 
     private static async Task<TenantResponse> RejectAsync(
@@ -132,7 +132,7 @@ public static partial class BrandSelfServiceEndpoints
         audit.Record(AuditScope.Platform, tenant.Id, "tenant.rejected", "Tenant", tenant.Id, before, AuditSnapshots.Of(tenant));
         await db.SaveChangesAsync(ct);
         await NotifyOwnerAsync(db, tenant, email, loggers, owner => EmailTemplates.BrandRejected(owner.Email, owner.FullName, tenant.Name, tenant.ReviewNote ?? r.Reason!), ct);
-        return TenantResponse.From(tenant);
+        return await TenantResponse.FromAsync(tenant, db, ct);
     }
 
     private static async Task NotifyOwnerAsync(
