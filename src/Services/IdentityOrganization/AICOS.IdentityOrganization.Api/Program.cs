@@ -34,7 +34,8 @@ builder.Services.AddOptions<SubscriptionOptions>()
 builder.Services.AddScoped<SubscriptionReminderJob>();
 builder.Services.AddHostedService<SubscriptionReminderService>();
 builder.Services.AddIntegrationEventHandler<AuditRecordedEvent, AuditRecordedHandler>(); // other services: sensitive changes for the audit history
-builder.Services.AddSingleton<IEmailSender, LoggingEmailSender>();
+// Mail: a real SMTP server when Email:Smtp:Host and Email:FromAddress are set (see .env.example), otherwise the mails are only logged.
+builder.Services.AddAicosEmail(builder.Configuration);
 
 var app = builder.Build();
 

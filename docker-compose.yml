@@ -147,6 +147,15 @@ services:
       ConnectionStrings__Default: Host=postgres;Port=5432;Database=${POSTGRES_DB:-aicos};Username=identity_svc;Password=${SERVICE_DB_PASSWORD:?Set SERVICE_DB_PASSWORD in .env - run scripts/init-env first}
       Auth__SeedAdmin__Email: ${SEED_ADMIN_EMAIL:-admin@aicos.local}
       Auth__SeedAdmin__Password: ${SEED_ADMIN_PASSWORD:?Set SEED_ADMIN_PASSWORD in .env - run scripts/init-env first}
+      # Mail (reset codes, brand approval). All empty by default: mails are only logged until SMTP_HOST and SMTP_FROM_ADDRESS are filled in .env.
+      Email__Smtp__Host: ${SMTP_HOST:-}
+      Email__Smtp__Port: ${SMTP_PORT:-587}
+      Email__Smtp__Security: ${SMTP_SECURITY:-StartTls}
+      Email__Smtp__Username: ${SMTP_USERNAME:-}
+      Email__Smtp__Password: ${SMTP_PASSWORD:-}
+      Email__FromAddress: ${SMTP_FROM_ADDRESS:-}
+      Email__FromName: ${SMTP_FROM_NAME:-AICOS}
+      Email__AppUrl: ${APP_URL:-}
     ports: ["5101:8080"]
 
   # ------------------------------------------------------------------ COMMERCE
