@@ -76,7 +76,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Trivy image scan (fails on HIGH/CRITICAL with a fix)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: aicos/ai-models:scan
           severity: HIGH,CRITICAL
@@ -86,6 +86,7 @@ jobs:
           output: trivy-ai-models.sarif
       - uses: github/codeql-action/upload-sarif@v3
         if: always()
+        continue-on-error: true
         with:
           sarif_file: trivy-ai-models.sarif
           category: trivy-ai-models
