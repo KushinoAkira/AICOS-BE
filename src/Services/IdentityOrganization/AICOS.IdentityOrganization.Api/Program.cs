@@ -47,6 +47,7 @@ api.MapAuthEndpoints();
 api.MapUserEndpoints();
 api.MapBranchEndpoints();
 api.MapTenantEndpoints();
+api.MapBrandSelfServiceEndpoints();
 api.MapAuditEndpoints();
 api.MapPlanEndpoints();
 api.MapTenantSubscriptionEndpoints();

@@ -50,7 +50,7 @@ public static class AuthEndpoints
             ?? throw new ValidationFailedException(nameof(request.TenantCode), $"Brand '{tenantCode}' does not exist.");
         if (tenant.Status != TenantStatus.Active)
         {
-            throw new ForbiddenException("This brand is suspended and cannot accept new members.", "tenant.suspended");
+            throw NotActive(tenant.Status);
         }
 
         var user = new User(request.FullName!, request.Email!, username: null, request.Phone, AicosRoles.Customer, branchId: null, tenant.Id);
@@ -366,9 +366,17 @@ public static class AuthEndpoints
         var status = await db.Tenants.Where(t => t.Id == user.TenantId).Select(t => (TenantStatus?)t.Status).FirstOrDefaultAsync(ct);
         if (status != TenantStatus.Active)
         {
-            throw new ForbiddenException("Your brand is suspended. Contact the platform administrator.", "tenant.suspended");
+            throw NotActive(status);
         }
     }
+
+    /// <summary>Why a brand cannot be used: waiting for approval, refused, or suspended.</summary>
+    private static ForbiddenException NotActive(TenantStatus? status) => status switch
+    {
+        TenantStatus.Pending => new ForbiddenException("The registration of your brand is waiting for approval. You can sign in once it is approved.", "tenant.pending_approval"),
+        TenantStatus.Rejected => new ForbiddenException("The registration of your brand was refused. Contact the platform administrator.", "tenant.rejected"),
+        _ => new ForbiddenException("Your brand is suspended. Contact the platform administrator.", "tenant.suspended"),
+    };
 
     /// <summary>BR-38: staff of a suspended branch cannot sign in.</summary>
     private static async Task EnsureBranchActiveAsync(IdentityOrganizationDbContext db, User user, CancellationToken ct)

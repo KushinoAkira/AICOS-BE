@@ -9,6 +9,8 @@ public static class RateLimitGroups
         "/api/v1/identity/auth/register",
         "/api/v1/identity/auth/forgot-password",
         "/api/v1/identity/auth/reset-password",
+        "/api/v1/identity/auth/register-brand",   // open to anyone, creates a tenant and an account
+        "/api/v1/identity/public/contact",        // open to anyone, writes to the database
     ];
 
     private const string ChatPrefix = "/api/v1/ai/chat";

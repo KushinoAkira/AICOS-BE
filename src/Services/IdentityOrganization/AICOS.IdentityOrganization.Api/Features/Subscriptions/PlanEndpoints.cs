@@ -23,7 +23,8 @@ public static class PlanEndpoints
         // Landing page pricing: no login, active plans only, public fields only.
         api.MapGet("/public/subscription-plans", PublicListAsync).WithTags("Subscription plans").AllowAnonymous();
 
-        plans.MapGet("/", ListAsync);
+        // The landing page reads the price list without signing in: anonymous callers and brand users see the active plans only (see ListAsync).
+        plans.MapGet("/", ListAsync).AllowAnonymous();
         plans.MapGet("/{id:guid}", GetAsync).WithName("GetPlan");
         plans.MapPost("/", CreateAsync);
         plans.MapPut("/{id:guid}", UpdateAsync);
@@ -31,26 +32,28 @@ public static class PlanEndpoints
     }
 
     private static async Task<PagedResponse<PlanResponse>> ListAsync(
-        IdentityOrganizationDbContext db, string? search, bool? isActive, int page = 1, int pageSize = 20, CancellationToken ct = default)
+        IdentityOrganizationDbContext db, ICurrentUser user, string? search, bool? isActive, int page = 1, int pageSize = 20, CancellationToken ct = default)
     {
         page = Math.Max(page, 1);
         pageSize = Math.Clamp(pageSize, 1, MaxPageSize);
 
-        var query = db.SubscriptionPlans.AsNoTracking();
+        // Only the Super Admin sees retired plans and subscriber counts; everyone else gets the plans on sale, with the same response shape.
+        var isPlatformAdmin = user.IsInRole(AicosRoles.SuperAdmin);
+        var query = db.SubscriptionPlans.AsNoTracking().Where(p => isPlatformAdmin || p.IsActive);
         if (!string.IsNullOrWhiteSpace(search))
         {
             var term = search.Trim().ToLower();
             query = query.Where(p => p.Name.ToLower().Contains(term) || p.Tier.ToLower().Contains(term));
         }
 
-        if (isActive is not null)
+        if (isActive is not null && isPlatformAdmin)
         {
             query = query.Where(p => p.IsActive == isActive);
         }
 
         var total = await query.CountAsync(ct);
         var plans = await query.OrderBy(p => p.Fee).ThenBy(p => p.Name).Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
-        var counts = await SubscriberCountsAsync(db, plans.Select(p => p.Id).ToList(), ct);
+        var counts = isPlatformAdmin ? await SubscriberCountsAsync(db, plans.Select(p => p.Id).ToList(), ct) : [];
 
         return new PagedResponse<PlanResponse>(plans.Select(p => PlanResponse.From(p, counts.GetValueOrDefault(p.Id))).ToList(), page, pageSize, total);
     }
