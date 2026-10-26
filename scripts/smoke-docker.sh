@@ -27,19 +27,38 @@ check() { # name expected actual
   if [ "$2" = "$3" ]; then echo "PASS  $1"; else echo "FAIL  $1 (expected $2, got $3)"; failed=$((failed + 1)); fi
 }
 
-# Sign in and wait out the gateway's 10-per-minute login window when it answers 429, so a fast machine does not turn one throttled
-# login into dozens of 401s further down. Prints "<status> <body>" like call().
+# "docker compose --wait" can return before the gateway answers on the host port (a CI run saw status 000 and 502 for the first seconds,
+# the Super Admin token stayed empty and every later check failed with 401). Wait until the gateway reaches the identity service.
+wait_for_gateway() {
+  i=0
+  while [ "$i" -lt 60 ]; do
+    code=$(curl -s -o /dev/null -w '%{http_code}' "$GATEWAY/api/v1/identity/public/subscription-plans")
+    [ "$code" = "200" ] && return 0
+    i=$((i + 1)); sleep 2
+  done
+  echo "ABORT  the gateway $GATEWAY did not reach the identity service within 120s (last status $code)"
+  exit 1
+}
+
+# Sign in, waiting out a 429 (the gateway allows 10 logins a minute) and retrying while the stack still answers 000 / 502 / 503 / 504.
+# Prints "<status> <body>" like call().
 login_call() { # login password
   tries=0
   while :; do
     r=$(call POST /api/v1/identity/auth/login "" "{\"login\":\"$1\",\"password\":\"$2\"}")
-    [ "$(status_of "$r")" = "429" ] && [ "$tries" -lt 3 ] || break
-    tries=$((tries + 1)); echo "(login throttled by the gateway, waiting 20s, attempt $tries)"; sleep 20
+    case "$(status_of "$r")" in
+      429) wait=20 ;;
+      000|502|503|504) wait=3 ;;
+      *) break ;;
+    esac
+    [ "$tries" -lt 20 ] || break
+    tries=$((tries + 1)); echo "(login answered $(status_of "$r"), waiting ${wait}s, attempt $tries)"; sleep "$wait"
   done
   echo "$r"
 }
 
 echo "== gateway $GATEWAY"
+wait_for_gateway
 r=$(login_call "$ADMIN_EMAIL" "$ADMIN_PASSWORD")
 check "super admin signs in" 200 "$(status_of "$r")"
 SUPER=$(body_of "$r" | json_field accessToken)
