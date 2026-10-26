@@ -8,6 +8,8 @@ paths = [
   '''(?i)\.env\.example$''',
   '''ai-models/data/''',
   '''ai-models/models/.*/(vocab\.txt|bpe\.codes)$''',
+  '''tests/''',
+  '''docs/TESTING-GUIDE-FOR-ME\.md''',
 ]
 regexes = [
   '''aicos_admin_dev''',
