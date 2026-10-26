@@ -67,7 +67,7 @@ jobs:
           cache-from: type=gha,scope=${{ matrix.name }}
           cache-to: type=gha,mode=max,scope=${{ matrix.name }}
       - name: Trivy image scan (fails on HIGH/CRITICAL with a fix)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: aicos/${{ matrix.name }}:scan
           severity: HIGH,CRITICAL
@@ -77,6 +77,7 @@ jobs:
           output: trivy-${{ matrix.name }}.sarif
       - uses: github/codeql-action/upload-sarif@v3
         if: always()
+        continue-on-error: true
         with:
           sarif_file: trivy-${{ matrix.name }}.sarif
           category: trivy-${{ matrix.name }}
@@ -128,7 +129,7 @@ jobs:
           tags: aicos/ai:scan
           cache-from: type=gha,scope=ai
           cache-to: type=gha,mode=max,scope=ai
-      - uses: aquasecurity/trivy-action@0.28.0
+      - uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: aicos/ai:scan
           severity: HIGH,CRITICAL
@@ -138,6 +139,7 @@ jobs:
           output: trivy-ai.sarif
       - uses: github/codeql-action/upload-sarif@v3
         if: always()
+        continue-on-error: true
         with:
           sarif_file: trivy-ai.sarif
           category: trivy-ai
