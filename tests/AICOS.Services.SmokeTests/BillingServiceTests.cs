@@ -41,6 +41,18 @@ public sealed class BillingServiceTests
     }
 
     [Fact]
+    public async Task Billing_source_endpoint_requires_an_access_token()
+    {
+        await using var factory = new WebApplicationFactory<PaymentsService>();
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync(
+            $"/api/v1/payments/bills?orderId={Guid.NewGuid()}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
     public async Task Takeaway_bill_uses_order_snapshot_and_is_idempotent()
     {
         await using var context = CreateContext();
@@ -75,6 +87,108 @@ public sealed class BillingServiceTests
 
         var exception = await action.Should().ThrowAsync<BusinessRuleException>();
         exception.Which.ErrorCode.Should().Be("billing.session_required");
+    }
+
+    [Fact]
+    public async Task Bill_can_be_loaded_by_order_source()
+    {
+        await using var context = CreateContext();
+        var order = CreateTakeawayOrder();
+        var service = CreateService(context, new FakeOrderClient(order));
+        var currentUser = new TestCurrentUser(Guid.NewGuid());
+        var created = await service.CreateAsync(
+            new CreateBillRequest(Guid.NewGuid(), null, order.Id),
+            currentUser,
+            CancellationToken.None);
+
+        var loaded = await service.GetBySourceAsync(
+            null,
+            order.Id,
+            currentUser,
+            CancellationToken.None);
+
+        loaded.Should().BeEquivalentTo(created);
+    }
+
+    [Fact]
+    public async Task Bill_can_be_loaded_by_session_source()
+    {
+        await using var context = CreateContext();
+        var sessionId = Guid.NewGuid();
+        var dineInOrder = CreateTakeawayOrder() with
+        {
+            OrderType = "DINE_IN",
+            SessionId = sessionId,
+        };
+        var service = CreateService(context, new FakeOrderClient(dineInOrder));
+        var currentUser = new TestCurrentUser(Guid.NewGuid());
+        var created = await service.CreateAsync(
+            new CreateBillRequest(Guid.NewGuid(), sessionId, null),
+            currentUser,
+            CancellationToken.None);
+
+        var loaded = await service.GetBySourceAsync(
+            sessionId,
+            null,
+            currentUser,
+            CancellationToken.None);
+
+        loaded.Should().BeEquivalentTo(created);
+    }
+
+    [Theory]
+    [InlineData(null, null)]
+    [InlineData("00000000-0000-0000-0000-000000000000", null)]
+    [InlineData(
+        "11111111-1111-1111-1111-111111111111",
+        "22222222-2222-2222-2222-222222222222")]
+    public async Task Bill_source_query_requires_exactly_one_non_empty_source(
+        string? sessionId,
+        string? orderId)
+    {
+        await using var context = CreateContext();
+        var order = CreateTakeawayOrder();
+        var service = CreateService(context, new FakeOrderClient(order));
+
+        var action = () => service.GetBySourceAsync(
+            sessionId is null ? null : Guid.Parse(sessionId),
+            orderId is null ? null : Guid.Parse(orderId),
+            new TestCurrentUser(Guid.NewGuid()),
+            CancellationToken.None);
+
+        await action.Should().ThrowAsync<ValidationFailedException>();
+    }
+
+    [Fact]
+    public async Task Session_bill_is_not_exposed_when_source_is_outside_branch()
+    {
+        await using var context = CreateContext();
+        var sessionId = Guid.NewGuid();
+        var bill = new Bill(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            sessionId,
+            null,
+            $"BL-{Guid.NewGuid():N}",
+            98000m,
+            Now.DateTime);
+        context.Bills.Add(bill);
+        await context.SaveChangesAsync();
+        var service = CreateService(context, new EmptySessionOrderClient());
+
+        var getById = () => service.GetAsync(
+            bill.Id,
+            new TestCurrentUser(Guid.NewGuid()),
+            CancellationToken.None);
+        var getBySource = () => service.GetBySourceAsync(
+            sessionId,
+            null,
+            new TestCurrentUser(Guid.NewGuid()),
+            CancellationToken.None);
+
+        await getById.Should().ThrowAsync<NotFoundException>();
+        await getBySource.Should().ThrowAsync<NotFoundException>();
     }
 
     private static PaymentsDbContext CreateContext()
@@ -119,6 +233,19 @@ public sealed class BillingServiceTests
             Guid sessionId,
             CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<BillingOrderContract>>([order]);
+    }
+
+    private sealed class EmptySessionOrderClient : IOrderBillingClient
+    {
+        public Task<BillingOrderContract> GetAsync(
+            Guid orderId,
+            CancellationToken cancellationToken) =>
+            throw new NotFoundException("Order", orderId);
+
+        public Task<IReadOnlyList<BillingOrderContract>> GetBySessionAsync(
+            Guid sessionId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<BillingOrderContract>>([]);
     }
 
     private sealed class TestCurrentUser(Guid branchId) : ICurrentUser

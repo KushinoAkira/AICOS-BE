@@ -15,7 +15,7 @@ public sealed class PostgresAuthenticationIntegrationTests
 {
     private const string ConnectionEnvironmentVariable = "AICOS_TEST_POSTGRES";
 
-    [Fact]
+    [PostgresIntegrationFact]
     public async Task Auth_round_trip_reads_and_writes_real_postgres_when_enabled()
     {
         var connectionString = Environment.GetEnvironmentVariable(ConnectionEnvironmentVariable);

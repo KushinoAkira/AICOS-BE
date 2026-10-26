@@ -1,0 +1,65 @@
+# Use with the base Compose file to reach the existing host PostgreSQL.
+# Configuration only: do not start the stack before database/roles approval.
+x-external-dependencies: &external-dependencies
+  redis:
+    condition: service_healthy
+services:
+  postgres:
+    profiles: ["provisioning-only"]
+  pgadmin:
+    depends_on: !reset {}
+  identity:
+    depends_on: !override
+      <<: *external-dependencies
+    environment:
+      ConnectionStrings__Default: Host=${AICOS_DB_HOST:-host.docker.internal};Port=${AICOS_DB_PORT:-5432};Database=aicos_db;Username=identity_svc;Password=${IDENTITY_DB_PASSWORD:?Set IDENTITY_DB_PASSWORD}
+  menu:
+    depends_on: !override
+      <<: *external-dependencies
+    environment:
+      ConnectionStrings__Default: Host=${AICOS_DB_HOST:-host.docker.internal};Port=${AICOS_DB_PORT:-5432};Database=aicos_db;Username=menu_svc;Password=${MENU_DB_PASSWORD:?Set MENU_DB_PASSWORD}
+  table:
+    depends_on: !override
+      <<: *external-dependencies
+    environment:
+      ConnectionStrings__Default: Host=${AICOS_DB_HOST:-host.docker.internal};Port=${AICOS_DB_PORT:-5432};Database=aicos_db;Username=table_reservation_svc;Password=${TABLE_DB_PASSWORD:?Set TABLE_DB_PASSWORD}
+  order:
+    depends_on: !override
+      <<: *external-dependencies
+    environment:
+      ConnectionStrings__Default: Host=${AICOS_DB_HOST:-host.docker.internal};Port=${AICOS_DB_PORT:-5432};Database=aicos_db;Username=ordering_svc;Password=${ORDERING_DB_PASSWORD:?Set ORDERING_DB_PASSWORD}
+  payment:
+    depends_on: !override
+      <<: *external-dependencies
+    environment:
+      ConnectionStrings__Default: Host=${AICOS_DB_HOST:-host.docker.internal};Port=${AICOS_DB_PORT:-5432};Database=aicos_db;Username=payment_svc;Password=${PAYMENT_DB_PASSWORD:?Set PAYMENT_DB_PASSWORD}
+  inventory:
+    depends_on: !override
+      <<: *external-dependencies
+    environment:
+      ConnectionStrings__Default: Host=${AICOS_DB_HOST:-host.docker.internal};Port=${AICOS_DB_PORT:-5432};Database=aicos_db;Username=inventory_svc;Password=${INVENTORY_DB_PASSWORD:?Set INVENTORY_DB_PASSWORD}
+  kitchen:
+    depends_on: !override
+      <<: *external-dependencies
+    environment:
+      ConnectionStrings__Default: Host=${AICOS_DB_HOST:-host.docker.internal};Port=${AICOS_DB_PORT:-5432};Database=aicos_db;Username=kitchen_svc;Password=${KITCHEN_DB_PASSWORD:?Set KITCHEN_DB_PASSWORD}
+  workforce:
+    depends_on: !override
+      <<: *external-dependencies
+    environment:
+      ConnectionStrings__Default: Host=${AICOS_DB_HOST:-host.docker.internal};Port=${AICOS_DB_PORT:-5432};Database=aicos_db;Username=workforce_svc;Password=${WORKFORCE_DB_PASSWORD:?Set WORKFORCE_DB_PASSWORD}
+  reporting:
+    depends_on: !override
+      <<: *external-dependencies
+    environment:
+      ConnectionStrings__Default: Host=${AICOS_DB_HOST:-host.docker.internal};Port=${AICOS_DB_PORT:-5432};Database=aicos_db;Username=reporting_svc;Password=${REPORTING_DB_PASSWORD:?Set REPORTING_DB_PASSWORD}
+  customer:
+    depends_on: !override
+      <<: *external-dependencies
+    environment:
+      ConnectionStrings__Default: Host=${AICOS_DB_HOST:-host.docker.internal};Port=${AICOS_DB_PORT:-5432};Database=aicos_db;Username=customer_svc;Password=${CUSTOMER_DB_PASSWORD:?Set CUSTOMER_DB_PASSWORD}
+  ai:
+    depends_on: !override
+      <<: *external-dependencies
+    environment:
+      DATABASE_URL: postgresql://ai_svc:${AI_DB_PASSWORD:?Set AI_DB_PASSWORD}@${AICOS_DB_HOST:-host.docker.internal}:${AICOS_DB_PORT:-5432}/aicos_db

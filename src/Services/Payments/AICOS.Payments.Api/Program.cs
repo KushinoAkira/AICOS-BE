@@ -4,6 +4,7 @@ using AICOS.BuildingBlocks.Messaging;
 using AICOS.BuildingBlocks.Persistence;
 using AICOS.Payments.Api;
 using AICOS.Payments.Api.Features.Billing;
+using AICOS.Payments.Api.Features.Payments;
 using AICOS.Payments.Api.Integrations;
 using AICOS.Payments.Api.Persistence;
 
@@ -13,6 +14,7 @@ builder.AddAicosServiceDefaults(PaymentsService.Info);
 builder.AddAicosPostgres<PaymentsDbContext>(PaymentsService.Info);
 builder.AddAicosEventBus();
 builder.Services.AddScoped<BillingService>();
+builder.Services.AddScoped<PaymentService>();
 builder.Services.AddAicosServiceClient<IOrderBillingClient, OrderBillingClient>(
     builder.Configuration,
     "Order");
@@ -23,9 +25,11 @@ builder.Services.AddAicosServiceClient<IOrderBillingClient, OrderBillingClient>(
 var app = builder.Build();
 
 await app.MigrateDatabaseAsync<PaymentsDbContext>();
+app.UseMiddleware<PaymentMaintenanceMiddleware>();
 app.UseAicosServiceDefaults();
 
 var api = app.MapAicosApiGroup();
 api.MapBillingEndpoints();
+api.MapPaymentEndpoints();
 
 await app.RunAsync();

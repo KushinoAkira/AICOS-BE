@@ -5,7 +5,7 @@ PyJWT>=2.9,<3.0
 
 # Added when the matching feature is implemented (pretrained / managed components only - no model training):
 # langchain, langchain-community   -> RAG chatbot ("Smart Barista")
-# psycopg[binary,pool], pgvector   -> embeddings in the `ai` schema
+# psycopg[binary,pool], pgvector   -> embeddings in an approved table in `public`
 # redis                            -> event bus consumer (OrderCompleted, StockChanged, ...)
 # httpx                            -> Groq / DeepSeek LLM API
 # insightface, onnxruntime         -> face-scan attendance

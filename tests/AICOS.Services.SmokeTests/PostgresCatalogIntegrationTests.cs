@@ -16,7 +16,7 @@ namespace AICOS.Services.SmokeTests;
 
 public sealed class PostgresCatalogIntegrationTests
 {
-    [Fact]
+    [PostgresIntegrationFact]
     public async Task Catalog_reads_branch_products_from_real_postgres_when_enabled()
     {
         var connectionString = Environment.GetEnvironmentVariable("AICOS_TEST_POSTGRES");

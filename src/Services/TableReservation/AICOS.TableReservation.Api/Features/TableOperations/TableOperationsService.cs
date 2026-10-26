@@ -2,6 +2,7 @@ using System.Data;
 using AICOS.BuildingBlocks.Exceptions;
 using AICOS.BuildingBlocks.Security;
 using AICOS.TableReservation.Api.Domain;
+using AICOS.TableReservation.Api.Integrations;
 using AICOS.TableReservation.Api.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -10,6 +11,7 @@ namespace AICOS.TableReservation.Api.Features.TableOperations;
 
 public sealed class TableOperationsService(
     TableReservationDbContext dbContext,
+    IPaymentSettlementClient payments,
     TimeProvider clock,
     ILogger<TableOperationsService> logger)
 {
@@ -131,7 +133,7 @@ public sealed class TableOperationsService(
         }, cancellationToken);
     }
 
-    public Task<TableSessionResponse> CloseSessionAsync(
+    public async Task<TableSessionResponse> CloseSessionAsync(
         Guid sessionId,
         ICurrentUser currentUser,
         CancellationToken cancellationToken)
@@ -142,7 +144,25 @@ public sealed class TableOperationsService(
         }
 
         var branchId = RequireBranch(currentUser);
-        return ExecuteSerializableAsync(async () =>
+        var sessionExists = await dbContext.TableSessions
+            .AsNoTracking()
+            .AnyAsync(
+                session => session.Id == sessionId && session.BranchId == branchId,
+                cancellationToken);
+        if (!sessionExists)
+        {
+            throw new NotFoundException("Table session", sessionId);
+        }
+
+        var settlement = await payments.GetAsync(sessionId, cancellationToken);
+        if (settlement.SessionId != sessionId || !settlement.Settled)
+        {
+            throw new ConflictException(
+                "The table session cannot close until its bill is fully settled and closed.",
+                "table.session_not_settled");
+        }
+
+        return await ExecuteSerializableAsync(async () =>
         {
             var session = await dbContext.TableSessions
                 .Include(item => item.TableLinks.Where(link => link.LeftAt == null))

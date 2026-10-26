@@ -23,7 +23,7 @@ namespace AICOS.Services.SmokeTests;
 
 public sealed class PostgresBillingIntegrationTests
 {
-    [Fact]
+    [PostgresIntegrationFact]
     public async Task Create_retry_and_read_bill_use_real_postgres_when_enabled()
     {
         var connectionString = Environment.GetEnvironmentVariable("AICOS_TEST_POSTGRES");
@@ -40,6 +40,8 @@ public sealed class PostgresBillingIntegrationTests
 
             return;
         }
+
+        PaymentPostgresTestDatabaseGuard.RequireDedicatedDatabase(connectionString);
 
         var ids = TestIds.Create();
         try
@@ -87,9 +89,12 @@ public sealed class PostgresBillingIntegrationTests
             retry.EnsureSuccessStatusCode();
             var loaded = await client.GetFromJsonAsync<BillResponse>(
                 $"/api/v1/payments/bills/{ids.BillId}");
+            var loadedBySource = await client.GetFromJsonAsync<BillResponse>(
+                $"/api/v1/payments/bills?orderId={ids.OrderId}");
 
             first.TotalAmount.Should().Be(98000m);
             loaded!.Id.Should().Be(first.Id);
+            loadedBySource!.Id.Should().Be(first.Id);
             await using var verification = CreatePaymentContext(connectionString);
             (await verification.Bills.CountAsync(bill => bill.Id == ids.BillId))
                 .Should().Be(1);

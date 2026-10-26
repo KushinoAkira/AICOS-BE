@@ -9,7 +9,7 @@ public sealed class CustomerEngagementService
         Name: "customer",
         DisplayName: "Customer Engagement Service",
         RoutePrefix: "customers",
-        Schema: "customer");
+        Schema: "public");
 
     private CustomerEngagementService()
     {

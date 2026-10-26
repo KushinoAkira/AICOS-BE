@@ -9,7 +9,7 @@ public sealed class WorkforceSchedulingService
         Name: "workforce",
         DisplayName: "Workforce & Scheduling Service",
         RoutePrefix: "workforce",
-        Schema: "workforce");
+        Schema: "public");
 
     private WorkforceSchedulingService()
     {

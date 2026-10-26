@@ -13,8 +13,8 @@ class Settings(BaseSettings):
     service_name: str = "ai"
     route_prefix: str = "/api/v1/ai"
 
-    # Connects as role `ai_svc`, which only sees schema `ai` (pgvector lives there).
-    database_url: str = "postgresql://ai_svc:aicos_dev@localhost:5432/aicos"
+    # Supply the credential through DATABASE_URL; the operational database/schema are aicos_db/public.
+    database_url: str = "postgresql://ai_svc@localhost:5432/aicos_db"
     redis_url: str = "redis://localhost:6379/0"
 
     # Must match the Jwt section of the .NET services.

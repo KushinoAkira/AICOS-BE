@@ -10,9 +10,9 @@
 
 x-dotnet-env: &dotnet-env
   ASPNETCORE_ENVIRONMENT: Development
-  Database__MigrateOnStartup: "true"
+  Database__MigrateOnStartup: "false"
   ConnectionStrings__Redis: redis:6379
-  Jwt__SigningKey: ${JWT_SIGNING_KEY:-dev-only-signing-key-change-me-0123456789abcdef}
+  Jwt__SigningKey: ${JWT_SIGNING_KEY:?Set JWT_SIGNING_KEY in .env}
   Services__Identity__BaseUrl: http://identity:8080
   Services__Menu__BaseUrl: http://menu:8080
   Services__Table__BaseUrl: http://table:8080
@@ -40,10 +40,20 @@ services:
     container_name: aicos-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-aicos}
+      POSTGRES_DB: ${POSTGRES_DB:-aicos_db}
       POSTGRES_USER: ${POSTGRES_USER:-aicos_admin}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aicos_admin_dev}
-      SERVICE_DB_PASSWORD: ${SERVICE_DB_PASSWORD:-aicos_dev}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      IDENTITY_DB_PASSWORD: ${IDENTITY_DB_PASSWORD:?Set IDENTITY_DB_PASSWORD in .env}
+      MENU_DB_PASSWORD: ${MENU_DB_PASSWORD:?Set MENU_DB_PASSWORD in .env}
+      TABLE_DB_PASSWORD: ${TABLE_DB_PASSWORD:?Set TABLE_DB_PASSWORD in .env}
+      ORDERING_DB_PASSWORD: ${ORDERING_DB_PASSWORD:?Set ORDERING_DB_PASSWORD in .env}
+      PAYMENT_DB_PASSWORD: ${PAYMENT_DB_PASSWORD:?Set PAYMENT_DB_PASSWORD in .env}
+      INVENTORY_DB_PASSWORD: ${INVENTORY_DB_PASSWORD:?Set INVENTORY_DB_PASSWORD in .env}
+      KITCHEN_DB_PASSWORD: ${KITCHEN_DB_PASSWORD:?Set KITCHEN_DB_PASSWORD in .env}
+      WORKFORCE_DB_PASSWORD: ${WORKFORCE_DB_PASSWORD:?Set WORKFORCE_DB_PASSWORD in .env}
+      REPORTING_DB_PASSWORD: ${REPORTING_DB_PASSWORD:?Set REPORTING_DB_PASSWORD in .env}
+      CUSTOMER_DB_PASSWORD: ${CUSTOMER_DB_PASSWORD:?Set CUSTOMER_DB_PASSWORD in .env}
+      AI_DB_PASSWORD: ${AI_DB_PASSWORD:?Set AI_DB_PASSWORD in .env}
     ports:
       - "5432:5432"
     volumes:
@@ -98,7 +108,7 @@ services:
         ASSEMBLY: AICOS.Gateway
     environment:
       ASPNETCORE_ENVIRONMENT: Development
-      Jwt__SigningKey: ${JWT_SIGNING_KEY:-dev-only-signing-key-change-me-0123456789abcdef}
+      Jwt__SigningKey: ${JWT_SIGNING_KEY:?Set JWT_SIGNING_KEY in .env}
       ReverseProxy__Clusters__identity__Destinations__primary__Address: http://identity:8080
       ReverseProxy__Clusters__menu__Destinations__primary__Address: http://menu:8080
       ReverseProxy__Clusters__table__Destinations__primary__Address: http://table:8080
@@ -138,7 +148,7 @@ services:
         ASSEMBLY: AICOS.IdentityOrganization.Api
     environment:
       <<: *dotnet-env
-      ConnectionStrings__Default: Host=postgres;Port=5432;Database=${POSTGRES_DB:-aicos};Username=identity_svc;Password=${SERVICE_DB_PASSWORD:-aicos_dev}
+      ConnectionStrings__Default: Host=postgres;Port=5432;Database=${POSTGRES_DB:-aicos_db};Username=identity_svc;Password=${IDENTITY_DB_PASSWORD:?Set IDENTITY_DB_PASSWORD in .env}
     ports: ["5101:8080"]
 
   # ------------------------------------------------------------------ COMMERCE
@@ -154,7 +164,7 @@ services:
         ASSEMBLY: AICOS.MenuCatalog.Api
     environment:
       <<: *dotnet-env
-      ConnectionStrings__Default: Host=postgres;Port=5432;Database=${POSTGRES_DB:-aicos};Username=menu_svc;Password=${SERVICE_DB_PASSWORD:-aicos_dev}
+      ConnectionStrings__Default: Host=postgres;Port=5432;Database=${POSTGRES_DB:-aicos_db};Username=menu_svc;Password=${MENU_DB_PASSWORD:?Set MENU_DB_PASSWORD in .env}
     ports: ["5102:8080"]
 
   table:
@@ -169,7 +179,7 @@ services:
         ASSEMBLY: AICOS.TableReservation.Api
     environment:
       <<: *dotnet-env
-      ConnectionStrings__Default: Host=postgres;Port=5432;Database=${POSTGRES_DB:-aicos};Username=table_reservation_svc;Password=${SERVICE_DB_PASSWORD:-aicos_dev}
+      ConnectionStrings__Default: Host=postgres;Port=5432;Database=${POSTGRES_DB:-aicos_db};Username=table_reservation_svc;Password=${TABLE_DB_PASSWORD:?Set TABLE_DB_PASSWORD in .env}
     ports: ["5103:8080"]
 
   order:
@@ -184,7 +194,7 @@ services:
         ASSEMBLY: AICOS.Ordering.Api
     environment:
       <<: *dotnet-env
-      ConnectionStrings__Default: Host=postgres;Port=5432;Database=${POSTGRES_DB:-aicos};Username=ordering_svc;Password=${SERVICE_DB_PASSWORD:-aicos_dev}
+      ConnectionStrings__Default: Host=postgres;Port=5432;Database=${POSTGRES_DB:-aicos_db};Username=ordering_svc;Password=${ORDERING_DB_PASSWORD:?Set ORDERING_DB_PASSWORD in .env}
     ports: ["5104:8080"]
 
   payment:
@@ -199,7 +209,8 @@ services:
         ASSEMBLY: AICOS.Payments.Api
     environment:
       <<: *dotnet-env
-      ConnectionStrings__Default: Host=postgres;Port=5432;Database=${POSTGRES_DB:-aicos};Username=payment_svc;Password=${SERVICE_DB_PASSWORD:-aicos_dev}
+      ConnectionStrings__Default: Host=postgres;Port=5432;Database=${POSTGRES_DB:-aicos_db};Username=payment_svc;Password=${PAYMENT_DB_PASSWORD:?Set PAYMENT_DB_PASSWORD in .env}
+      Payments__MutationsEnabled: ${PAYMENT_MUTATIONS_ENABLED:-false}
     ports: ["5105:8080"]
 
   # ------------------------------------------------------------------ OPERATIONS
@@ -215,7 +226,7 @@ services:
         ASSEMBLY: AICOS.InventoryPurchasing.Api
     environment:
       <<: *dotnet-env
-      ConnectionStrings__Default: Host=postgres;Port=5432;Database=${POSTGRES_DB:-aicos};Username=inventory_svc;Password=${SERVICE_DB_PASSWORD:-aicos_dev}
+      ConnectionStrings__Default: Host=postgres;Port=5432;Database=${POSTGRES_DB:-aicos_db};Username=inventory_svc;Password=${INVENTORY_DB_PASSWORD:?Set INVENTORY_DB_PASSWORD in .env}
     ports: ["5106:8080"]
 
   kitchen:
@@ -230,7 +241,7 @@ services:
         ASSEMBLY: AICOS.KitchenOperations.Api
     environment:
       <<: *dotnet-env
-      ConnectionStrings__Default: Host=postgres;Port=5432;Database=${POSTGRES_DB:-aicos};Username=kitchen_svc;Password=${SERVICE_DB_PASSWORD:-aicos_dev}
+      ConnectionStrings__Default: Host=postgres;Port=5432;Database=${POSTGRES_DB:-aicos_db};Username=kitchen_svc;Password=${KITCHEN_DB_PASSWORD:?Set KITCHEN_DB_PASSWORD in .env}
     ports: ["5107:8080"]
 
   workforce:
@@ -245,7 +256,7 @@ services:
         ASSEMBLY: AICOS.WorkforceScheduling.Api
     environment:
       <<: *dotnet-env
-      ConnectionStrings__Default: Host=postgres;Port=5432;Database=${POSTGRES_DB:-aicos};Username=workforce_svc;Password=${SERVICE_DB_PASSWORD:-aicos_dev}
+      ConnectionStrings__Default: Host=postgres;Port=5432;Database=${POSTGRES_DB:-aicos_db};Username=workforce_svc;Password=${WORKFORCE_DB_PASSWORD:?Set WORKFORCE_DB_PASSWORD in .env}
     ports: ["5108:8080"]
 
   # ------------------------------------------------------------------ INSIGHT
@@ -261,7 +272,7 @@ services:
         ASSEMBLY: AICOS.ReportingAnalytics.Api
     environment:
       <<: *dotnet-env
-      ConnectionStrings__Default: Host=postgres;Port=5432;Database=${POSTGRES_DB:-aicos};Username=reporting_svc;Password=${SERVICE_DB_PASSWORD:-aicos_dev}
+      ConnectionStrings__Default: Host=postgres;Port=5432;Database=${POSTGRES_DB:-aicos_db};Username=reporting_svc;Password=${REPORTING_DB_PASSWORD:?Set REPORTING_DB_PASSWORD in .env}
     ports: ["5109:8080"]
 
   customer:
@@ -276,7 +287,7 @@ services:
         ASSEMBLY: AICOS.CustomerEngagement.Api
     environment:
       <<: *dotnet-env
-      ConnectionStrings__Default: Host=postgres;Port=5432;Database=${POSTGRES_DB:-aicos};Username=customer_svc;Password=${SERVICE_DB_PASSWORD:-aicos_dev}
+      ConnectionStrings__Default: Host=postgres;Port=5432;Database=${POSTGRES_DB:-aicos_db};Username=customer_svc;Password=${CUSTOMER_DB_PASSWORD:?Set CUSTOMER_DB_PASSWORD in .env}
     ports: ["5110:8080"]
 
   # ------------------------------------------------------------------ AI (Python)
@@ -287,9 +298,9 @@ services:
     build:
       context: ./src/Services/Ai
     environment:
-      DATABASE_URL: postgresql://ai_svc:${SERVICE_DB_PASSWORD:-aicos_dev}@postgres:5432/${POSTGRES_DB:-aicos}
+      DATABASE_URL: postgresql://ai_svc:${AI_DB_PASSWORD:?Set AI_DB_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-aicos_db}
       REDIS_URL: redis://redis:6379/0
-      JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:-dev-only-signing-key-change-me-0123456789abcdef}
+      JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:?Set JWT_SIGNING_KEY in .env}
       GROQ_API_KEY: ${GROQ_API_KEY:-}
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
     ports: ["5111:8000"]

@@ -9,7 +9,7 @@ public sealed class InventoryPurchasingService
         Name: "inventory",
         DisplayName: "Inventory & Purchasing Service",
         RoutePrefix: "inventory",
-        Schema: "inventory");
+        Schema: "public");
 
     private InventoryPurchasingService()
     {

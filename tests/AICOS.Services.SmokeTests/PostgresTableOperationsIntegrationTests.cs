@@ -6,10 +6,13 @@ using AICOS.IdentityOrganization.Api.Persistence;
 using AICOS.TableReservation.Api;
 using AICOS.TableReservation.Api.Domain;
 using AICOS.TableReservation.Api.Features.TableOperations;
+using AICOS.TableReservation.Api.Integrations;
 using AICOS.TableReservation.Api.Persistence;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 
 namespace AICOS.Services.SmokeTests;
@@ -18,7 +21,7 @@ public sealed class PostgresTableOperationsIntegrationTests
 {
     private const string ConnectionEnvironmentVariable = "AICOS_TEST_POSTGRES";
 
-    [Fact]
+    [PostgresIntegrationFact]
     public async Task Table_lifecycle_uses_real_postgres_when_enabled()
     {
         var connectionString = Environment.GetEnvironmentVariable(ConnectionEnvironmentVariable);
@@ -42,13 +45,21 @@ public sealed class PostgresTableOperationsIntegrationTests
             await SeedAsync(connectionString, ids);
             const string signingKey = "table-integration-signing-key-0123456789-abcdef";
             await using var factory = new WebApplicationFactory<TableReservationService>()
-                .WithWebHostBuilder(builder => builder
-                    .UseSetting("ConnectionStrings:Default", connectionString)
-                    .UseSetting("Database:MigrateOnStartup", "false")
-                    .UseSetting("Jwt:Issuer", "aicos-table-integration")
-                    .UseSetting("Jwt:Audience", "aicos-table-integration-clients")
-                    .UseSetting("Jwt:SigningKey", signingKey)
-                    .UseSetting("Jwt:ExpiryMinutes", "30"));
+                .WithWebHostBuilder(builder =>
+                {
+                    builder.UseSetting("ConnectionStrings:Default", connectionString)
+                        .UseSetting("Database:MigrateOnStartup", "false")
+                        .UseSetting("Jwt:Issuer", "aicos-table-integration")
+                        .UseSetting("Jwt:Audience", "aicos-table-integration-clients")
+                        .UseSetting("Jwt:SigningKey", signingKey)
+                        .UseSetting("Jwt:ExpiryMinutes", "30");
+                    builder.ConfigureServices(services =>
+                    {
+                        services.RemoveAll<IPaymentSettlementClient>();
+                        services.AddSingleton<IPaymentSettlementClient>(
+                            new SettledPaymentClient());
+                    });
+                });
             using var client = factory.CreateClient();
             var tokenService = new JwtTokenService(
                 Options.Create(new JwtOptions
@@ -191,5 +202,22 @@ public sealed class PostgresTableOperationsIntegrationTests
                 $"TB-{suffix}",
                 $"table-integration-{suffix}");
         }
+    }
+
+    private sealed class SettledPaymentClient : IPaymentSettlementClient
+    {
+        public Task<PaymentSettlementContract> GetAsync(
+            Guid sessionId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(new PaymentSettlementContract(
+                sessionId,
+                Guid.NewGuid(),
+                "CLOSED",
+                1m,
+                1m,
+                0m,
+                false,
+                true,
+                1));
     }
 }

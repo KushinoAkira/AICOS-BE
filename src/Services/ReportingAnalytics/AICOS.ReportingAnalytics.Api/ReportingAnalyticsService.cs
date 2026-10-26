@@ -9,7 +9,7 @@ public sealed class ReportingAnalyticsService
         Name: "reporting",
         DisplayName: "Reporting & Analytics Service",
         RoutePrefix: "reporting",
-        Schema: "reporting");
+        Schema: "public");
 
     private ReportingAnalyticsService()
     {

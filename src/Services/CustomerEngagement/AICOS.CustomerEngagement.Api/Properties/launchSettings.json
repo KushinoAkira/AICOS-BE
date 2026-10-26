@@ -8,7 +8,7 @@
       "applicationUrl": "http://localhost:5110",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development",
-        "Database__MigrateOnStartup": "true"
+        "Database__MigrateOnStartup": "false"
       }
     }
   }

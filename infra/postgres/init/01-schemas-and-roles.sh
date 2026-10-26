@@ -1,35 +1,52 @@
 #!/bin/bash
 # Runs once, on first start of an empty PostgreSQL volume (docker-entrypoint-initdb.d).
 #
-# Implements "one shared instance, schema-per-service" from the architecture:
-#   - every service owns exactly one schema and connects with its own login role
-#   - a role can only see its own schema => no cross-service SQL joins are even possible
+# Creates runtime login roles for the single aicos_db/public deployment model.
+# Table ownership is enforced by reviewed grants, not by per-service schemas.
 #
-# DEV-ONLY credentials: all service roles share SERVICE_DB_PASSWORD. Use per-service secrets in real deployments.
+# Credentials are injected through environment variables. Never commit real values.
 set -euo pipefail
 
-: "${SERVICE_DB_PASSWORD:?SERVICE_DB_PASSWORD must be set}"
+: "${IDENTITY_DB_PASSWORD:?IDENTITY_DB_PASSWORD must be set}"
+: "${MENU_DB_PASSWORD:?MENU_DB_PASSWORD must be set}"
+: "${TABLE_DB_PASSWORD:?TABLE_DB_PASSWORD must be set}"
+: "${ORDERING_DB_PASSWORD:?ORDERING_DB_PASSWORD must be set}"
+: "${PAYMENT_DB_PASSWORD:?PAYMENT_DB_PASSWORD must be set}"
+: "${INVENTORY_DB_PASSWORD:?INVENTORY_DB_PASSWORD must be set}"
+: "${KITCHEN_DB_PASSWORD:?KITCHEN_DB_PASSWORD must be set}"
+: "${WORKFORCE_DB_PASSWORD:?WORKFORCE_DB_PASSWORD must be set}"
+: "${REPORTING_DB_PASSWORD:?REPORTING_DB_PASSWORD must be set}"
+: "${CUSTOMER_DB_PASSWORD:?CUSTOMER_DB_PASSWORD must be set}"
+: "${AI_DB_PASSWORD:?AI_DB_PASSWORD must be set}"
 
-# Keep in sync with AicosServiceInfo.Schema in each service (and the ai service for the Python side).
-SCHEMAS="identity menu table_reservation ordering payment inventory kitchen workforce reporting customer ai"
+create_runtime_role() {
+  local role_name="$1"
+  local role_password="$2"
 
-for schema in $SCHEMAS; do
-  echo ">> creating schema '${schema}' owned by role '${schema}_svc'"
-  psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
-    CREATE ROLE ${schema}_svc LOGIN PASSWORD '${SERVICE_DB_PASSWORD}';
-    CREATE SCHEMA ${schema} AUTHORIZATION ${schema}_svc;
-    ALTER ROLE ${schema}_svc SET search_path = ${schema};
+  echo ">> creating runtime role '${role_name}'"
+  psql -v ON_ERROR_STOP=1 \
+    --username "$POSTGRES_USER" \
+    --dbname "$POSTGRES_DB" \
+    --set=role_name="$role_name" \
+    --set=role_password="$role_password" <<-'EOSQL'
+    CREATE ROLE :"role_name" LOGIN PASSWORD :'role_password';
+    ALTER ROLE :"role_name" SET search_path = public;
 EOSQL
-done
+}
 
-# Nobody gets to create objects in 'public'.
-psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
-  REVOKE CREATE ON SCHEMA public FROM PUBLIC;
-EOSQL
+create_runtime_role identity_svc "$IDENTITY_DB_PASSWORD"
+create_runtime_role menu_svc "$MENU_DB_PASSWORD"
+create_runtime_role table_reservation_svc "$TABLE_DB_PASSWORD"
+create_runtime_role ordering_svc "$ORDERING_DB_PASSWORD"
+create_runtime_role payment_svc "$PAYMENT_DB_PASSWORD"
+create_runtime_role inventory_svc "$INVENTORY_DB_PASSWORD"
+create_runtime_role kitchen_svc "$KITCHEN_DB_PASSWORD"
+create_runtime_role workforce_svc "$WORKFORCE_DB_PASSWORD"
+create_runtime_role reporting_svc "$REPORTING_DB_PASSWORD"
+create_runtime_role customer_svc "$CUSTOMER_DB_PASSWORD"
+create_runtime_role ai_svc "$AI_DB_PASSWORD"
 
-# pgvector lives inside the AI service's schema (RAG embeddings).
-psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
-  CREATE EXTENSION IF NOT EXISTS vector WITH SCHEMA ai;
-EOSQL
+# Grants are intentionally not auto-applied. Review and explicitly execute
+# infra/postgres/security/public-service-grants.sql after the schema exists.
 
 echo ">> AICOS database initialised"

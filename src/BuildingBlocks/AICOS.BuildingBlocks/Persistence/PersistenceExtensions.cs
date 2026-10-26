@@ -7,7 +7,7 @@ public static class PersistenceExtensions
 {
     /// <summary>
     /// Registers the service's DbContext on PostgreSQL: snake_case naming, migrations history table inside the
-    /// service's own schema, audit interceptor, retry-on-failure and a readiness health check.
+    /// configured schema, audit interceptor, retry-on-failure and a readiness health check.
     /// Reads <c>ConnectionStrings:Default</c>.
     /// </summary>
     public static WebApplicationBuilder AddAicosPostgres<TContext>(this WebApplicationBuilder builder, AicosServiceInfo info)
@@ -36,8 +36,8 @@ public static class PersistenceExtensions
     }
 
     /// <summary>
-    /// Applies pending EF Core migrations when <c>Database:MigrateOnStartup</c> is true (dev / docker-compose).
-    /// In production prefer running migrations as a separate deployment step.
+    /// Applies pending EF Core migrations only when <c>Database:MigrateOnStartup</c> is explicitly enabled.
+    /// Checked-in local and Docker settings keep it disabled; use a reviewed deployment step instead.
     /// </summary>
     public static async Task MigrateDatabaseAsync<TContext>(this WebApplication app)
         where TContext : DbContext

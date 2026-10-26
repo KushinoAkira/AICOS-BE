@@ -1,5 +1,16 @@
 # API Integration
 
+## Payment Phase 2 — trạng thái hiện tại
+
+- Cash, QR pending, xác nhận QR thủ công, đóng bill và settlement status đã code.
+- Table service gọi Payments REST contract trước khi đóng session và fail-closed khi
+  chưa settlement hoặc không xác minh được.
+- PostgreSQL integration chạy thật trên database riêng `aicos_payment_test`; Cash,
+  QR, audit, concurrent confirmation và Table settlement đều đạt, không dùng mock
+  thay kết quả PostgreSQL.
+- Chưa apply payment migration lên `aicos_db`; không chạy Backend mới với database
+  chính cho đến khi migration được duyệt và thực hiện đúng thứ tự.
+
 ## Trạng thái
 
 - Backend Login/Refresh/Logout/Me API: đã triển khai và có unit/HTTP test.
@@ -16,10 +27,10 @@
   PostgreSQL integration riêng. Cross-service E2E sẽ chạy ở Phase 6.
 - Preparation: HTTP queue → PREPARING → READY đã chạy trên `aicos_db`; trạng thái
   và hai actor event được kiểm tra trực tiếp, sau đó toàn bộ dữ liệu test cleanup.
-- Billing: HTTP create → retry idempotent → read bill đã chạy trên `aicos_db`;
-  bill/order/item thử nghiệm được cleanup. Payment confirmation chưa mở.
-- Flutter: chưa kết nối; vẫn dùng mock session theo nguyên tắc chỉ tích hợp sau
-  khi API và database provisioning chạy được trong môi trường thật.
+- Billing Query: HTTP create → retry idempotent → read bill đã hoàn thành. Payment
+  mutation chỉ được kiểm thử trên `aicos_payment_test`; chưa apply schema lên `aicos_db`.
+- Flutter API Mode đã kết nối Identity, Table Map, Catalog, Ordering và Kitchen Queue;
+  Billing/Payment vẫn chưa bật cho đến khi Backend hoàn tất contract và test.
 - Base URL qua Gateway local: `http://localhost:8080`.
 
 ## Contract Flutter cần dùng
@@ -39,6 +50,9 @@
 10. Màn hình theo dõi pha chế đọc `/api/v1/kitchen/queue`; Staff chỉ xem và
     không tự giả lập Bar đã nhận/xong.
 11. Thu ngân tạo bill qua `/api/v1/payments/bills`; không gửi tổng tiền tự tính.
+12. Sau khi reload, Mobile tìm bill bằng
+    `/api/v1/payments/bills?sessionId=...` hoặc `?orderId=...`; không lưu bill ID như
+    nguồn dữ liệu duy nhất trên thiết bị.
 
 Flutter chưa tích hợp ở module này vì master plan ưu tiên hoàn thiện các API
 nghiệp vụ Backend tiếp theo. Tài khoản production đầu tiên vẫn phải được cấp qua

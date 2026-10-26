@@ -17,7 +17,7 @@ public sealed class PostgresStaffProvisioningIntegrationTests
 {
     private const string ConnectionEnvironmentVariable = "AICOS_TEST_POSTGRES";
 
-    [Fact]
+    [PostgresIntegrationFact]
     public async Task Manager_provisions_cashier_in_real_postgres_when_enabled()
     {
         var connectionString = Environment.GetEnvironmentVariable(ConnectionEnvironmentVariable);

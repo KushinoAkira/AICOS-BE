@@ -139,8 +139,9 @@ Ordering service dùng contract này qua REST để xác minh order `DINE_IN`; k
 ## POST `/api/v1/tables/sessions/{sessionId}/close`
 
 Đóng phiên thuộc branch trên JWT, ghi `closed_at`, kết thúc các liên kết bàn active
-và chuyển bàn sang `CLEANING`. Endpoint không tự xác nhận thanh toán; Payment/Billing
-sẽ chịu trách nhiệm nghiệp vụ đó ở module sau.
+và chuyển bàn sang `CLEANING`. Trước khi thay đổi dữ liệu, Table service gọi Payments
+settlement contract; session vẫn `OPEN` nếu bill chưa `CLOSED`, chưa đủ tiền hoặc
+Payments không thể xác minh.
 
 ## POST `/api/v1/tables/{tableId}/cleaned`
 
@@ -243,4 +244,84 @@ Mobile. Chỉ SystemAdmin, Manager và Cashier được tạo bill.
 ## GET `/api/v1/payments/bills/{billId}`
 
 Trả bill, bill items và các payment hiện có sau khi xác minh nguồn order/session
-thuộc branch JWT. API xác nhận thanh toán chưa mở trong foundation này.
+thuộc branch JWT, bao gồm actor audit, trạng thái in/đóng bill và version concurrency.
+
+## GET `/api/v1/payments/bills?sessionId={sessionId}`
+
+## GET `/api/v1/payments/bills?orderId={orderId}`
+
+Tìm bill theo đúng một nguồn nghiệp vụ. `sessionId` dùng cho bill tại bàn;
+`orderId` dùng cho bill mang về. Không được truyền đồng thời hai tham số hoặc UUID
+rỗng.
+
+Payments xác minh nguồn qua Ordering REST contract bằng Bearer token của người gọi
+trước khi đọc bill. Service không truy cập trực tiếp bảng thuộc Ordering.
+
+- `200 OK`: trả bill, items và payments hiện có.
+- `400 validation_failed`: thiếu nguồn, truyền cả hai nguồn hoặc UUID rỗng.
+- `401/403`: token không hợp lệ hoặc không có branch scope.
+- `404`: nguồn không thuộc branch hiện tại hoặc chưa có bill.
+
+## POST `/api/v1/payments/bills/{billId}/payments/cash`
+
+Cashier/Manager xác nhận đã nhận đủ tiền mặt. `requestId` đồng thời là payment ID;
+retry cùng payload trả lại payment cũ, payload khác trả `409`.
+
+```json
+{
+  "requestId": "55555555-5555-5555-5555-555555555555",
+  "amount": 110000,
+  "expectedBillVersion": 0
+}
+```
+
+Cash được ghi `SUCCEEDED`, actor xác nhận, thời điểm nhận tiền và audit event trong
+cùng transaction `SERIALIZABLE`. Phase hiện tại chỉ nhận đúng toàn bộ số tiền còn lại.
+
+## POST `/api/v1/payments/bills/{billId}/payments/qr`
+
+Tạo payment có method `BANK_TRANSFER`, transaction reference riêng và trạng thái
+`PENDING`. Endpoint này không bao giờ tự đánh dấu đã nhận tiền hoặc đổi bill sang
+`PAID`.
+
+Request dùng cùng contract với Cash Payment. Bill có payment pending sẽ không nhận
+thêm payment khác cho đến khi trạng thái đó được xử lý.
+
+## POST `/api/v1/payments/payments/{paymentId}/confirm`
+
+Cashier/Manager xác nhận thủ công sau khi kiểm tra tiền đã vào tài khoản.
+
+```json
+{
+  "confirmationRequestId": "66666666-6666-6666-6666-666666666666",
+  "expectedVersion": 0,
+  "evidenceReference": "BANK-TRACE-881",
+  "note": "Đã đối chiếu giao dịch nhận tiền"
+}
+```
+
+`evidenceReference` bắt buộc. Xác nhận thành công ghi audit event append-only và chỉ
+đổi bill sang `PAID` khi tổng payment thành công bằng chính xác tổng bill.
+
+## POST `/api/v1/payments/bills/{billId}/close`
+
+```json
+{ "expectedVersion": 2 }
+```
+
+Chỉ chuyển `PAID -> CLOSED` khi đủ tiền và không còn payment pending. Request đóng
+lại bill đã `CLOSED` là idempotent.
+
+## GET `/api/v1/payments/sessions/{sessionId}/settlement-status`
+
+Trả `billStatus`, tổng bill, tổng payment thành công, tiền còn thiếu, trạng thái pending,
+`settled` và `version`. `settled=true` chỉ khi bill `CLOSED`, đủ tiền và không còn payment
+pending. Table service dùng contract này trước khi đóng phiên bàn.
+
+Các lỗi quan trọng:
+
+- `400 validation_failed`: UUID, số tiền, version hoặc bằng chứng không hợp lệ.
+- `409 payment.version_conflict`: client dùng version cũ.
+- `409 payment.idempotency_conflict`: request ID bị tái sử dụng với payload khác.
+- `409 payment.pending_exists`: bill đang có payment chờ xử lý.
+- `409 billing.not_settled`: chưa đủ điều kiện đóng bill.

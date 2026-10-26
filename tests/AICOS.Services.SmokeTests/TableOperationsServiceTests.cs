@@ -4,6 +4,7 @@ using AICOS.BuildingBlocks.Security;
 using AICOS.TableReservation.Api;
 using AICOS.TableReservation.Api.Domain;
 using AICOS.TableReservation.Api.Features.TableOperations;
+using AICOS.TableReservation.Api.Integrations;
 using AICOS.TableReservation.Api.Persistence;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
@@ -117,6 +118,31 @@ public sealed class TableOperationsServiceTests
         await action.Should().ThrowAsync<NotFoundException>();
     }
 
+    [Fact]
+    public async Task Close_session_is_blocked_when_payment_is_not_settled()
+    {
+        await using var context = CreateContext();
+        var data = await SeedTableAsync(context, "S02", "Ground floor");
+        var currentUser = new TestCurrentUser(data.BranchId);
+        var opened = await CreateService(context).OpenSessionAsync(
+            new OpenTableSessionRequest(data.TableId),
+            currentUser,
+            CancellationToken.None);
+        var service = CreateService(context, new FixedSettlementClient(false));
+
+        var action = () => service.CloseSessionAsync(
+            opened.Id,
+            currentUser,
+            CancellationToken.None);
+
+        var conflict = await action.Should().ThrowAsync<ConflictException>();
+        conflict.Which.ErrorCode.Should().Be("table.session_not_settled");
+        (await context.TableSessions.FindAsync(opened.Id))!.Status
+            .Should().Be(TableSessionStatuses.Open);
+        (await context.CafeTables.FindAsync(data.TableId))!.Status
+            .Should().Be(CafeTableStatuses.Occupied);
+    }
+
     private static TableReservationDbContext CreateContext()
     {
         var options = new DbContextOptionsBuilder<TableReservationDbContext>()
@@ -125,8 +151,14 @@ public sealed class TableOperationsServiceTests
         return new TableReservationDbContext(options);
     }
 
-    private static TableOperationsService CreateService(TableReservationDbContext context) =>
-        new(context, new FixedTimeProvider(Now), NullLogger<TableOperationsService>.Instance);
+    private static TableOperationsService CreateService(
+        TableReservationDbContext context,
+        IPaymentSettlementClient? payments = null) =>
+        new(
+            context,
+            payments ?? new FixedSettlementClient(true),
+            new FixedTimeProvider(Now),
+            NullLogger<TableOperationsService>.Instance);
 
     private static async Task<TestTableData> SeedTableAsync(
         TableReservationDbContext context,
@@ -163,5 +195,22 @@ public sealed class TableOperationsServiceTests
     {
         public override DateTimeOffset GetUtcNow() => now;
         public override TimeZoneInfo LocalTimeZone => TimeZoneInfo.Utc;
+    }
+
+    private sealed class FixedSettlementClient(bool settled) : IPaymentSettlementClient
+    {
+        public Task<PaymentSettlementContract> GetAsync(
+            Guid sessionId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(new PaymentSettlementContract(
+                sessionId,
+                settled ? Guid.NewGuid() : null,
+                settled ? "CLOSED" : null,
+                settled ? 100m : 0m,
+                settled ? 100m : 0m,
+                0m,
+                false,
+                settled,
+                settled ? 3 : 0));
     }
 }

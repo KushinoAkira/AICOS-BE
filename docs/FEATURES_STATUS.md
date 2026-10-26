@@ -11,5 +11,5 @@
 | Catalog read API | Đã code + test PostgreSQL thật | Branch availability, category, product, variant, option, search |
 | Create/Add Order + Tracking | Đã code + test PostgreSQL thật | DINE_IN/TAKEAWAY, server pricing, actor event, requestId idempotency |
 | Preparation/Kitchen | Đã code + test PostgreSQL thật | Queue theo branch, PENDING → PREPARING → READY, actor event, transaction serializable |
-| Billing/Payment | Đang làm | Create/read bill đã test PostgreSQL thật; payment confirmation và print audit chờ duyệt schema |
-| Flutter API integration | Chưa làm | Mobile vẫn Mock Only |
+| Billing/Payment | Đã code + test DB riêng + Gate B/A hoàn tất | `aicos_db.public`: 38 bảng/244 cột; 11 LOGIN roles/quyền và kết nối thật PASS; startup/smoke còn chờ Gate C, chưa bật thanh toán thật |
+| Flutter API integration | Một phần | Identity, Table, Catalog, Ordering, Kitchen đã nối; Billing chưa bật |

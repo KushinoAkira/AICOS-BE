@@ -25,7 +25,8 @@ Các nguyên tắc:
   hiệu lực theo expiry.
 - `/auth/me` luôn kiểm tra lại assignment/branch active thay vì chỉ tin payload JWT.
 
-Workflow order/payment chưa được đánh dấu hoàn thành vì các API tương ứng chưa có.
+Workflow payment đã hoàn thành ở Backend và database test riêng; database chính vẫn
+chờ duyệt staged migration trước khi kích hoạt.
 
 ## Staff Provisioning
 
@@ -62,8 +63,8 @@ JWT branch-scoped
 
 - Không nhận `branchId` từ request nghiệp vụ; luôn lấy từ JWT.
 - Không cho mở hai phiên active trên cùng bàn.
-- Đóng phiên bàn không đồng nghĩa thanh toán thành công; Billing/Payment quyết định
-  khi nào workflow được phép gọi thao tác này.
+- Đóng phiên bàn không tự tạo hoặc xác nhận payment. Table chỉ đóng sau khi Payments
+  trả `settled=true` cho bill đã `CLOSED` và đủ tiền.
 - Schema hiện tại chưa có `guest_count` và `opened_by_user_id`; Backend không giả
   lập hai dữ liệu này và chưa tự ý tạo migration.
 
@@ -95,5 +96,35 @@ Cashier chọn Table Session hoặc order mang về
 
 - Bill tại bàn tổng hợp các lượt order cùng `session_id`; mang về dùng một order.
 - `requestId` chống tạo bill trùng do retry từ Mobile.
+- Bill có thể được tải lại theo `sessionId` hoặc `orderId`; Payments luôn xác minh
+  nguồn qua Ordering REST contract trước khi trả dữ liệu.
 - Tạo bill không đồng nghĩa in thành công hoặc thanh toán thành công.
-- Payment confirmation chưa mở cho đến khi có actor audit và print state rõ ràng.
+- Bill lưu branch và actor tạo từ JWT; version được tăng tại mỗi payment/close mutation.
+
+## Payment and Settlement Workflow
+
+```text
+Cash:
+  UNPAID bill -> Cashier/Manager xác nhận nhận đủ tiền
+  -> CASH SUCCEEDED + CONFIRMED audit event
+  -> bill PAID -> đóng bill -> CLOSED
+
+QR:
+  UNPAID bill -> tạo BANK_TRANSFER PENDING + CREATED audit event
+  -> hiển thị QR/reference, chưa coi là đã thanh toán
+  -> Cashier/Manager kiểm tra tiền thực nhận + nhập evidence reference
+  -> payment SUCCEEDED + CONFIRMED audit event
+  -> bill PAID -> đóng bill -> CLOSED
+
+Table close:
+  Table service -> Payments settlement-status REST contract
+  -> chưa CLOSED/đủ tiền hoặc dependency lỗi: giữ session OPEN
+  -> settled=true: đóng session và chuyển bàn CLEANING
+```
+
+- Payment mutation chạy `SERIALIZABLE`, kết hợp idempotency UUID và optimistic
+  concurrency `version`.
+- Hai xác nhận QR đồng thời chỉ một request được phép thành công.
+- `payment_events` là audit append-only; runtime không sửa/xóa event cũ.
+- QR không có bằng chứng nhận tiền không thể chuyển sang `SUCCEEDED`.
+- Table service không đọc bảng Payments và Payments không đọc trực tiếp bảng Table ở runtime.

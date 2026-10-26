@@ -20,7 +20,7 @@ namespace AICOS.Services.SmokeTests;
 
 public sealed class PostgresOrderingIntegrationTests
 {
-    [Fact]
+    [PostgresIntegrationFact]
     public async Task Takeaway_create_retry_and_tracking_use_real_postgres_when_enabled()
     {
         var connectionString = Environment.GetEnvironmentVariable("AICOS_TEST_POSTGRES");

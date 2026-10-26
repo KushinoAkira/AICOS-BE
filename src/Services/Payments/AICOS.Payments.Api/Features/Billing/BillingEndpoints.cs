@@ -9,6 +9,26 @@ public static class BillingEndpoints
 
     public static RouteGroupBuilder MapBillingEndpoints(this RouteGroupBuilder api)
     {
+        api.MapGet(
+                "/bills",
+                async (
+                    Guid? sessionId,
+                    Guid? orderId,
+                    ICurrentUser currentUser,
+                    BillingService service,
+                    CancellationToken cancellationToken) =>
+                    Results.Ok(await service.GetBySourceAsync(
+                        sessionId,
+                        orderId,
+                        currentUser,
+                        cancellationToken)))
+            .RequireAuthorization(AicosPolicies.Staff)
+            .Produces<BillResponse>()
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound);
+
         api.MapPost(
                 "/bills",
                 async (

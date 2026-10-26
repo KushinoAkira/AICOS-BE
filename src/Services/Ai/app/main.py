@@ -70,7 +70,7 @@ async def info():
     return {
         "service": settings.service_name,
         "displayName": "AI Service",
-        "schema": "ai",
+        "schema": "public",
         "environment": "python",
         "utcNow": datetime.now(timezone.utc).isoformat(),
     }

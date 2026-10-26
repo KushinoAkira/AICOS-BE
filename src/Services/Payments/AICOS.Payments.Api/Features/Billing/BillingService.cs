@@ -21,7 +21,8 @@ public sealed class BillingService(
         CancellationToken cancellationToken)
     {
         Validate(request);
-        RequireBranch(currentUser);
+        var branchId = RequireBranch(currentUser);
+        var actorUserId = RequireUser(currentUser);
 
         var sourceOrders = await ResolveOrdersAsync(request, cancellationToken);
         if (sourceOrders.Count == 0)
@@ -41,9 +42,10 @@ public sealed class BillingService(
 
         return await ExecuteSerializableAsync(async () =>
         {
-            var existingById = await LoadAsync(request.RequestId, cancellationToken);
+            var existingById = await LoadAsync(request.RequestId, branchId, cancellationToken);
             if (existingById is not null)
             {
+                EnsureIdempotentRequest(existingById, request);
                 return ToResponse(existingById);
             }
 
@@ -62,6 +64,8 @@ public sealed class BillingService(
             var now = LocalNow();
             var bill = new Bill(
                 request.RequestId,
+                branchId,
+                actorUserId,
                 request.SessionId,
                 request.OrderId,
                 $"BL-{request.RequestId:N}",
@@ -105,10 +109,38 @@ public sealed class BillingService(
             throw new ValidationFailedException("billId", "Bill is required.");
         }
 
-        RequireBranch(currentUser);
-        var bill = await LoadAsync(billId, cancellationToken) ??
+        var branchId = RequireBranch(currentUser);
+        var bill = await LoadAsync(billId, branchId, cancellationToken) ??
             throw new NotFoundException("Bill", billId);
         await VerifyAccessAsync(bill, cancellationToken);
+        return ToResponse(bill);
+    }
+
+    public async Task<BillResponse> GetBySourceAsync(
+        Guid? sessionId,
+        Guid? orderId,
+        ICurrentUser currentUser,
+        CancellationToken cancellationToken)
+    {
+        ValidateSource(sessionId, orderId);
+        var branchId = RequireBranch(currentUser);
+        await VerifySourceAccessAsync(sessionId, orderId, cancellationToken);
+
+        var bill = await dbContext.Bills
+            .AsNoTracking()
+            .AsSplitQuery()
+            .Include(item => item.Items)
+            .Include(item => item.Payments)
+            .SingleOrDefaultAsync(
+                item =>
+                    item.BranchId == branchId &&
+                    (sessionId != null && item.SessionId == sessionId ||
+                     orderId != null && item.OrderId == orderId),
+                cancellationToken) ??
+            throw new NotFoundException(
+                "Bill",
+                sessionId ?? orderId!.Value);
+
         return ToResponse(bill);
     }
 
@@ -134,15 +166,33 @@ public sealed class BillingService(
 
     private async Task VerifyAccessAsync(Bill bill, CancellationToken cancellationToken)
     {
-        if (bill.SessionId is { } sessionId)
+        await VerifySourceAccessAsync(
+            bill.SessionId,
+            bill.OrderId,
+            cancellationToken);
+    }
+
+    private async Task VerifySourceAccessAsync(
+        Guid? sessionId,
+        Guid? orderId,
+        CancellationToken cancellationToken)
+    {
+        if (sessionId is { } sourceSessionId)
         {
-            await orders.GetBySessionAsync(sessionId, cancellationToken);
+            var sourceOrders = await orders.GetBySessionAsync(
+                sourceSessionId,
+                cancellationToken);
+            if (sourceOrders.Count == 0)
+            {
+                throw new NotFoundException("Table session", sourceSessionId);
+            }
+
             return;
         }
 
-        if (bill.OrderId is { } orderId)
+        if (orderId is { } sourceOrderId)
         {
-            await orders.GetAsync(orderId, cancellationToken);
+            await orders.GetAsync(sourceOrderId, cancellationToken);
             return;
         }
 
@@ -151,12 +201,17 @@ public sealed class BillingService(
             "billing.invalid_source");
     }
 
-    private async Task<Bill?> LoadAsync(Guid billId, CancellationToken cancellationToken) =>
+    private async Task<Bill?> LoadAsync(
+        Guid billId,
+        Guid branchId,
+        CancellationToken cancellationToken) =>
         await dbContext.Bills
             .AsSplitQuery()
             .Include(bill => bill.Items)
             .Include(bill => bill.Payments)
-            .SingleOrDefaultAsync(bill => bill.Id == billId, cancellationToken);
+            .SingleOrDefaultAsync(
+                bill => bill.Id == billId && bill.BranchId == branchId,
+                cancellationToken);
 
     private async Task<T> ExecuteSerializableAsync<T>(
         Func<Task<T>> operation,
@@ -214,10 +269,43 @@ public sealed class BillingService(
         }
     }
 
+    private static void ValidateSource(Guid? sessionId, Guid? orderId)
+    {
+        var errors = new Dictionary<string, string[]>();
+        if ((sessionId is null) == (orderId is null))
+        {
+            errors["source"] = ["Provide exactly one sessionId or orderId."];
+        }
+        else if (sessionId == Guid.Empty || orderId == Guid.Empty)
+        {
+            errors["source"] = ["Billing source ID must not be empty."];
+        }
+
+        if (errors.Count > 0)
+        {
+            throw new ValidationFailedException(errors);
+        }
+    }
+
     private static Guid RequireBranch(ICurrentUser currentUser) =>
         currentUser.BranchId is { } branchId && branchId != Guid.Empty
             ? branchId
             : throw new ForbiddenException("A branch-scoped access token is required.");
+
+    private static Guid RequireUser(ICurrentUser currentUser) =>
+        currentUser.UserId is { } userId && userId != Guid.Empty
+            ? userId
+            : throw new ForbiddenException("An authenticated staff identity is required.");
+
+    private static void EnsureIdempotentRequest(Bill bill, CreateBillRequest request)
+    {
+        if (bill.SessionId != request.SessionId || bill.OrderId != request.OrderId)
+        {
+            throw new ConflictException(
+                "The request ID was already used for another bill source.",
+                "billing.idempotency_conflict");
+        }
+    }
 
     private static bool IsSerializationFailure(Exception exception)
     {
@@ -238,14 +326,20 @@ public sealed class BillingService(
         return false;
     }
 
-    private static BillResponse ToResponse(Bill bill) =>
+    internal static BillResponse ToResponse(Bill bill) =>
         new(
             bill.Id,
             bill.BillCode,
             bill.Status ?? BillStatuses.Unpaid,
+            bill.BranchId,
+            bill.CreatedByUserId,
             bill.SessionId,
             bill.OrderId,
             bill.TotalAmount,
+            bill.PrintStatus,
+            bill.ClosedAt,
+            bill.ClosedByUserId,
+            bill.Version,
             bill.CreatedAt,
             bill.Items.Select(item => new BillItemResponse(
                 item.Id,
@@ -258,5 +352,10 @@ public sealed class BillingService(
                 payment.Status ?? PaymentStatuses.Pending,
                 payment.Amount,
                 payment.TransactionReference,
-                payment.PaidAt)).ToList());
+                payment.PaidAt,
+                payment.CreatedByUserId,
+                payment.ConfirmedByUserId,
+                payment.ConfirmedAt,
+                payment.EvidenceReference,
+                payment.Version)).ToList());
 }
