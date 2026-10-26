@@ -8,6 +8,8 @@ paths = [
   '''(?i)\.env\.example$''',
   '''ai-models/data/''',
   '''ai-models/models/.*/(vocab\.txt|bpe\.codes)$''',
+  '''tests/.*\.cs$''',                        # fake keys and secrets used as test fixtures (ak_123..., mock webhook secret)
+  '''docs/TESTING-GUIDE-FOR-ME\.md$''',      # placeholders such as <JWT_SIGNING_KEY in .env>
 ]
 regexes = [
   '''aicos_admin_dev''',
