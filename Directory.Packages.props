@@ -13,7 +13,7 @@
     <PackageVersion Include="EFCore.NamingConventions" Version="8.0.3" />
     <PackageVersion Include="StackExchange.Redis" Version="2.13.17" />
     <PackageVersion Include="QRCoder" Version="1.6.0" />
-    <PackageVersion Include="ClosedXML" Version="0.104.2" />
+    <PackageVersion Include="ClosedXML" Version="0.105.1" />
   </ItemGroup>
 
   <ItemGroup Label="Web">
