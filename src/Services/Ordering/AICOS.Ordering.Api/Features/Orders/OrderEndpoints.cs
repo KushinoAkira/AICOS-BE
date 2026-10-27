@@ -168,7 +168,7 @@ public static class OrderEndpoints
 
         var orders = await query.OrderByDescending(o => o.CreatedAtUtc)
             .Skip(Math.Max(0, offset ?? 0)).Take(Math.Clamp(limit ?? 50, 1, MaxPageSize)).AsSplitQuery().ToListAsync(ct);
-        return orders.Select(OrderSummary.From).ToList();
+        return await WithFeedbackFlagsAsync(db, orders, ct);
     }
 
     private static async Task<List<OrderSummary>> MineAsync(OrderingDbContext db, ICurrentUser user, int? limit, CancellationToken ct)
@@ -177,11 +177,22 @@ public static class OrderEndpoints
         var orders = await db.Orders.AsNoTracking().Include(o => o.Items).ThenInclude(i => i.Options)
             .Where(o => o.TenantId == tenantId && o.CustomerId == user.UserId)
             .OrderByDescending(o => o.CreatedAtUtc).Take(Math.Clamp(limit ?? 50, 1, MaxPageSize)).AsSplitQuery().ToListAsync(ct);
-        return orders.Select(OrderSummary.From).ToList();
+        return await WithFeedbackFlagsAsync(db, orders, ct);
     }
 
-    private static async Task<OrderResponse> GetAsync(Guid id, OrderingDbContext db, ICurrentUser user, CancellationToken ct) =>
-        OrderResponse.From(await OrderAccess.LoadAsync(db, user, id, ct, track: false));
+    private static async Task<OrderResponse> GetAsync(Guid id, OrderingDbContext db, ICurrentUser user, CancellationToken ct)
+    {
+        var order = await OrderAccess.LoadAsync(db, user, id, ct, track: false);
+        return OrderResponse.From(order) with { HasFeedback = await db.OrderFeedbacks.AsNoTracking().AnyAsync(f => f.OrderId == order.Id, ct) };
+    }
+
+    /// <summary>The summaries of the orders, each told whether its customer already rated it (one query for all).</summary>
+    private static async Task<List<OrderSummary>> WithFeedbackFlagsAsync(OrderingDbContext db, List<Order> orders, CancellationToken ct)
+    {
+        var ids = orders.Select(o => o.Id).ToList();
+        var rated = (await db.OrderFeedbacks.AsNoTracking().Where(f => ids.Contains(f.OrderId)).Select(f => f.OrderId).ToListAsync(ct)).ToHashSet();
+        return orders.Select(o => OrderSummary.From(o) with { HasFeedback = rated.Contains(o.Id) }).ToList();
+    }
 
     /// <summary>Checks the payment of an order (SCRUM-60): what Payment reported, nothing more.</summary>
     private static async Task<PaymentVerificationResponse> PaymentAsync(Guid id, OrderingDbContext db, ICurrentUser user, CancellationToken ct)

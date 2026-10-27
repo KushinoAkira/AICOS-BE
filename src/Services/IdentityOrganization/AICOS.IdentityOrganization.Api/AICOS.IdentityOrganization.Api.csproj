@@ -11,6 +11,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Sends the emails (reset code, brand registration) over SMTP when a mail server is configured -->
+    <PackageReference Include="MailKit" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- Needed for `dotnet ef migrations add` -->
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
       <PrivateAssets>all</PrivateAssets>

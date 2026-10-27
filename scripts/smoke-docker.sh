@@ -27,10 +27,46 @@ check() { # name expected actual
   if [ "$2" = "$3" ]; then echo "PASS  $1"; else echo "FAIL  $1 (expected $2, got $3)"; failed=$((failed + 1)); fi
 }
 
+# "docker compose --wait" can return before the gateway answers on the host port (a CI run saw status 000 and 502 for the first seconds,
+# the Super Admin token stayed empty and every later check failed with 401). Wait until the gateway reaches the identity service.
+wait_for_gateway() {
+  i=0
+  while [ "$i" -lt 60 ]; do
+    code=$(curl -s -o /dev/null -w '%{http_code}' "$GATEWAY/api/v1/identity/public/subscription-plans")
+    [ "$code" = "200" ] && return 0
+    i=$((i + 1)); sleep 2
+  done
+  echo "ABORT  the gateway $GATEWAY did not reach the identity service within 120s (last status $code)"
+  exit 1
+}
+
+# Sign in, waiting out a 429 (the gateway allows 10 logins a minute) and retrying while the stack still answers 000 / 502 / 503 / 504.
+# Prints "<status> <body>" like call().
+login_call() { # login password
+  tries=0
+  while :; do
+    r=$(call POST /api/v1/identity/auth/login "" "{\"login\":\"$1\",\"password\":\"$2\"}")
+    case "$(status_of "$r")" in
+      429) wait=20 ;;
+      000|502|503|504) wait=3 ;;
+      *) break ;;
+    esac
+    [ "$tries" -lt 20 ] || break
+    tries=$((tries + 1)); echo "(login answered $(status_of "$r"), waiting ${wait}s, attempt $tries)"; sleep "$wait"
+  done
+  echo "$r"
+}
+
 echo "== gateway $GATEWAY"
-r=$(call POST /api/v1/identity/auth/login "" "{\"login\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASSWORD\"}")
+wait_for_gateway
+r=$(login_call "$ADMIN_EMAIL" "$ADMIN_PASSWORD")
 check "super admin signs in" 200 "$(status_of "$r")"
 SUPER=$(body_of "$r" | json_field accessToken)
+if [ -z "$SUPER" ]; then
+  # Without the Super Admin token every later check would fail with 401 and hide the real cause: stop here and say what came back.
+  echo "ABORT  the seed Super Admin could not sign in (login '$ADMIN_EMAIL', password length ${#ADMIN_PASSWORD}). Gateway answered: $(status_of "$r") $(body_of "$r" | cut -c1-300)"
+  exit 1
+fi
 
 r=$(call POST /api/v1/identity/tenants "$SUPER" "{\"name\":\"Smoke $STAMP\",\"code\":\"smoke-$STAMP\",\"firstAdmin\":{\"fullName\":\"Smoke Owner\",\"email\":\"owner-$STAMP@example.com\",\"password\":\"$BRAND_PASSWORD\"}}")
 check "tenant created with its first brand admin" 201 "$(status_of "$r")"
@@ -43,6 +79,8 @@ BRAND=$(body_of "$r" | json_field accessToken)
 r=$(call POST /api/v1/identity/branches "$BRAND" '{"name":"Quan 1","address":"1 Le Loi","phone":"0900000001","openingTime":"07:00:00","closingTime":"22:00:00"}')
 check "branch created" 201 "$(status_of "$r")"
 BRANCH=$(body_of "$r" | json_field id)
+r=$(call GET "/api/v1/identity/tenants/$TENANT" "$SUPER")
+case "$(body_of "$r")" in *'"branchCount":1'*) check "the tenant answer counts its branches" yes yes ;; *) check "the tenant answer counts its branches" yes no ;; esac
 
 r=$(call POST /api/v1/identity/users "$BRAND" "{\"fullName\":\"Thu Ngan\",\"email\":\"cashier-$STAMP@example.com\",\"username\":\"cashier$STAMP\",\"password\":\"$BRAND_PASSWORD\",\"role\":\"Cashier\",\"branchId\":\"$BRANCH\"}")
 check "cashier account created" 201 "$(status_of "$r")"
@@ -249,6 +287,13 @@ else
   r=$(call GET "/api/v1/orders/feedbacks" "$MANAGER")
   check "the manager reads the ratings" 200 "$(status_of "$r")"
   case "$(body_of "$r")" in *Ngon*) check "the rating is listed" yes yes ;; *) check "the rating is listed" yes no ;; esac
+  r=$(call GET "/api/v1/orders/feedbacks/mine" "$MEMBER")
+  check "the member lists their own ratings" 200 "$(status_of "$r")"
+  case "$(body_of "$r")" in *Ngon*) check "the rating is in my list" yes yes ;; *) check "the rating is in my list" yes no ;; esac
+  r=$(call GET "/api/v1/orders/$PICKUP_A" "$MEMBER")
+  case "$(body_of "$r")" in *'"hasFeedback":true'*) check "the order says it was rated" yes yes ;; *) check "the order says it was rated" yes no ;; esac
+  r=$(call GET "/api/v1/orders/feedbacks/mine" "$CASHIER")
+  check "staff have no list of my ratings" 403 "$(status_of "$r")"
 fi
 
 r=$(pickup "smoke-$STAMP-b")
@@ -438,6 +483,11 @@ echo
 echo "== brand registration and public pages"
 # register, login and contact share the 10-per-minute budget of the gateway: start this block in a fresh minute
 echo "(waiting one minute for the login rate window)"; sleep 62
+# fresh tokens for this block, so it does not depend on how long ago the first ones were issued
+r=$(login_call "$ADMIN_EMAIL" "$ADMIN_PASSWORD"); SUPER=$(body_of "$r" | json_field accessToken)
+check "the Super Admin token is fresh" 200 "$(status_of "$r")"
+r=$(login_call "owner-$STAMP@example.com" "$BRAND_PASSWORD"); BRAND=$(body_of "$r" | json_field accessToken)
+check "the brand admin token is fresh" 200 "$(status_of "$r")"
 REG_CODE="reg-$STAMP"
 REG_EMAIL="reg-owner-$STAMP@example.com"
 r=$(call POST /api/v1/identity/auth/register-brand "" "{\"brandName\":\"Reg $STAMP\",\"code\":\"$REG_CODE\",\"ownerFullName\":\"Reg Owner\",\"email\":\"$REG_EMAIL\",\"phone\":\"0900000077\",\"password\":\"$BRAND_PASSWORD\",\"confirmPassword\":\"$BRAND_PASSWORD\",\"description\":\"Smoke brand\"}")
@@ -471,6 +521,11 @@ check "the public brand page opens without signing in" 200 "$(status_of "$r")"
 case "$(body_of "$r")" in *'"logoUrl":"https://cdn.example.com/logo.png"'*'#6F4E37'*|*'#6F4E37'*'"logoUrl":"https://cdn.example.com/logo.png"'*) check "the page carries logo and colors" yes yes ;; *) check "the page carries logo and colors" yes no ;; esac
 r=$(call GET "/api/v1/identity/public/brands/smoke-$STAMP" "")
 check "an active brand has a public page too" 200 "$(status_of "$r")"
+r=$(call GET "/api/v1/identity/branches/active" "$BRAND")
+check "a brand admin lists the active branches of their brand without naming it" 200 "$(status_of "$r")"
+case "$(body_of "$r")" in *"$BRANCH"*) check "the own branch is in the list" yes yes ;; *) check "the own branch is in the list" yes no ;; esac
+r=$(call GET "/api/v1/identity/branches/active" "")
+check "a visitor still has to name the brand" 400 "$(status_of "$r")"
 
 r=$(call POST /api/v1/identity/public/contact "" "{\"fullName\":\"Khach Lien He\",\"email\":\"contact-$STAMP@example.com\",\"subject\":\"Hoi gia\",\"message\":\"Cho minh xin bao gia\"}")
 check "a visitor sends the contact form" 202 "$(status_of "$r")"

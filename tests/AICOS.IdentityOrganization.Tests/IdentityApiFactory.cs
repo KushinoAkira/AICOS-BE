@@ -115,6 +115,24 @@ public sealed partial class CapturingEmailSender : IEmailSender
         return Task.CompletedTask;
     }
 
+    /// <summary>The whole message (with its HTML part) of every mail sent through <see cref="IEmailSender.SendAsync(EmailMessage, CancellationToken)"/>.</summary>
+    public ConcurrentQueue<EmailMessage> Messages { get; } = new();
+
+    /// <summary>Set to simulate a mail server that is down.</summary>
+    public Exception? Fail { get; set; }
+
+    public Task SendAsync(EmailMessage message, CancellationToken cancellationToken)
+    {
+        if (Fail is not null)
+        {
+            throw Fail;
+        }
+
+        Messages.Enqueue(message);
+        Sent.Enqueue((message.To, message.Subject, message.TextBody));
+        return Task.CompletedTask;
+    }
+
     public string LastCodeFor(string email) =>
         SixDigits().Match(Sent.Last(m => m.To == email).Body).Value;
 
