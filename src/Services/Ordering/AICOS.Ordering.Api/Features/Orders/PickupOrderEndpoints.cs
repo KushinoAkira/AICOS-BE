@@ -27,6 +27,7 @@ public static class PickupOrderEndpoints
         api.MapPost("/{id:guid}/feedback", SubmitFeedbackAsync).WithTags("Order feedback").RequireAuthorization(b => b.RequireRole(AicosRoles.Customer));
         api.MapGet("/{id:guid}/feedback", GetFeedbackAsync).WithTags("Order feedback").RequireAuthorization();
         api.MapGet("/feedbacks", ListFeedbacksAsync).WithTags("Order feedback").RequireAuthorization(AicosPolicies.Management);
+        api.MapGet("/feedbacks/mine", MyFeedbacksAsync).WithTags("Order feedback").RequireAuthorization(b => b.RequireRole(AicosRoles.Customer));
     }
 
     // ------------------------------------------------------------------ slots
@@ -263,6 +264,16 @@ public static class PickupOrderEndpoints
         var order = await OrderAccess.LoadAsync(db, user, id, ct, track: false);
         var feedback = await db.OrderFeedbacks.AsNoTracking().FirstOrDefaultAsync(f => f.OrderId == order.Id, ct) ?? throw new NotFoundException("Feedback", id);
         return OrderFeedbackResponse.From(feedback);
+    }
+
+    /// <summary>The ratings the signed-in customer gave, newest first (the "my reviews" screen).</summary>
+    private static async Task<List<OrderFeedbackResponse>> MyFeedbacksAsync(OrderingDbContext db, ICurrentUser user, int? limit, CancellationToken ct)
+    {
+        var tenantId = TenantScope.Require(user);
+        var customerId = user.UserId ?? throw new UnauthorizedException("Not signed in.");
+        var rows = await db.OrderFeedbacks.AsNoTracking().Where(f => f.TenantId == tenantId && f.CustomerId == customerId)
+            .OrderByDescending(f => f.CreatedAtUtc).Take(Math.Clamp(limit ?? 50, 1, OrderEndpoints.MaxPageSize)).ToListAsync(ct);
+        return rows.Select(OrderFeedbackResponse.From).ToList();
     }
 
     /// <summary>Manager view: the ratings of the brand, or of the own branch for a branch manager.</summary>

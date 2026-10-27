@@ -49,11 +49,11 @@ public static class TenantEndpoints
 
         var total = await query.CountAsync(ct);
         var items = await query.OrderBy(t => t.Name).Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
-        return new PagedResponse<TenantResponse>(items.Select(TenantResponse.From).ToList(), page, pageSize, total);
+        return new PagedResponse<TenantResponse>(await TenantResponse.FromManyAsync(items, db, ct), page, pageSize, total);
     }
 
     private static async Task<TenantResponse> GetAsync(Guid id, IdentityOrganizationDbContext db, CancellationToken ct) =>
-        TenantResponse.From(await FindAsync(db, id, ct));
+        await TenantResponse.FromAsync(await FindAsync(db, id, ct), db, ct);
 
     private static async Task<IResult> CreateAsync(
         CreateTenantRequest request, IdentityOrganizationDbContext db, PasswordService passwords, AuditLogger audit, TimeProvider clock, CancellationToken ct)
@@ -84,7 +84,7 @@ public static class TenantEndpoints
 
         await db.SaveChangesAsync(ct);
 
-        return Results.CreatedAtRoute("GetTenant", new { id = tenant.Id }, TenantResponse.From(tenant));
+        return Results.CreatedAtRoute("GetTenant", new { id = tenant.Id }, await TenantResponse.FromAsync(tenant, db, ct));
     }
 
     private static async Task<TenantResponse> UpdateAsync(
@@ -96,7 +96,7 @@ public static class TenantEndpoints
         tenant.Update(request.Name!);
         audit.Record(AuditScope.Platform, tenant.Id, "tenant.updated", "Tenant", tenant.Id, before, AuditSnapshots.Of(tenant));
         await db.SaveChangesAsync(ct);
-        return TenantResponse.From(tenant);
+        return await TenantResponse.FromAsync(tenant, db, ct);
     }
 
     /// <summary>BR-07: suspending a tenant also ends every session of its users, so access stops immediately.</summary>
@@ -133,7 +133,7 @@ public static class TenantEndpoints
         }
 
         await db.SaveChangesAsync(ct);
-        return TenantResponse.From(tenant);
+        return await TenantResponse.FromAsync(tenant, db, ct);
     }
 
     private static async Task<Tenant> FindAsync(IdentityOrganizationDbContext db, Guid id, CancellationToken ct) =>

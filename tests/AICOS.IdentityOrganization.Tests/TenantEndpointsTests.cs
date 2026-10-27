@@ -6,6 +6,7 @@ using AICOS.BuildingBlocks.Security;
 using AICOS.IdentityOrganization.Api.Domain;
 using AICOS.IdentityOrganization.Api.Features.Auth;
 using AICOS.IdentityOrganization.Api.Features.Branches;
+using AICOS.IdentityOrganization.Api.Features.Subscriptions;
 using AICOS.IdentityOrganization.Api.Features.Tenants;
 using AICOS.IdentityOrganization.Api.Features.Users;
 
@@ -64,6 +65,33 @@ public sealed class TenantEndpointsTests : IDisposable
 
         (await client.GetAsync(Tenants)).StatusCode.Should().Be(HttpStatusCode.Forbidden);
         (await client.PostAsJsonAsync(Tenants, NewTenant("hack", "h@h.com"), Json)).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task Tenant_answers_carry_the_current_plan_and_the_branch_count()
+    {
+        var plan = await _superAdmin.PostAsJsonAsync("/api/v1/identity/subscription-plans", new PlanRequest("Plan tenant-stats", "Basic", 100_000, BillingPeriod.Monthly, 3, 10, null), Json);
+        plan.EnsureSuccessStatusCode();
+        var planId = (await plan.Content.ReadFromJsonAsync<PlanResponse>(Json))!.Id;
+        var created = await _superAdmin.PostAsJsonAsync(Tenants,
+            new CreateTenantRequest("Stats", "stats", new FirstAdminRequest("Owner", "owner@stats.com", null, Password), planId), Json);
+        created.EnsureSuccessStatusCode();
+        var tenant = (await created.Content.ReadFromJsonAsync<TenantResponse>(Json))!;
+        tenant.PlanId.Should().Be(planId);
+        tenant.PlanName.Should().Be("Plan tenant-stats");
+        tenant.BranchCount.Should().Be(0);
+
+        var admin = _factory.CreateClientAs(AicosRoles.BrandAdmin, tenantId: tenant.Id);
+        await CreateBranchAsync(admin, "Quan 1");
+        await CreateBranchAsync(admin, "Quan 2");
+        var other = await CreateTenantAsync("nostats", "owner@nostats.com");
+
+        var list = await _superAdmin.GetFromJsonAsync<PagedResponse<TenantResponse>>($"{Tenants}?search=stats", Json);
+        list!.Items.Single(t => t.Id == tenant.Id).BranchCount.Should().Be(2);
+        var withoutPlan = list.Items.Single(t => t.Id == other.Id);
+        withoutPlan.PlanId.Should().BeNull();
+        withoutPlan.BranchCount.Should().Be(0);
+        (await _superAdmin.GetFromJsonAsync<TenantResponse>($"{Tenants}/{tenant.Id}", Json))!.BranchCount.Should().Be(2);
     }
 
     [Fact]
@@ -171,6 +199,28 @@ public sealed class TenantEndpointsTests : IDisposable
         var forA = await anonymous.GetFromJsonAsync<List<BranchResponse>>($"{Branches}/active?tenantCode=brand-a", Json);
         forA!.Select(x => x.Name).Should().Equal("Only A");
         (await anonymous.GetAsync($"{Branches}/active")).StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task A_signed_in_user_gets_the_active_branches_of_their_own_brand_without_naming_it()
+    {
+        var a = await CreateTenantAsync("brand-a", "a@a.com");
+        var b = await CreateTenantAsync("brand-b", "b@b.com");
+        using var adminA = _factory.CreateClientAs(AicosRoles.BrandAdmin, tenantId: a.Id);
+        using var adminB = _factory.CreateClientAs(AicosRoles.BrandAdmin, tenantId: b.Id);
+        await CreateBranchAsync(adminA, "Only A");
+        var suspended = await CreateBranchAsync(adminA, "Closed A");
+        await adminA.PatchAsJsonAsync($"{Branches}/{suspended.Id}/status", new ChangeBranchStatusRequest(BranchStatus.Suspended), Json);
+        await CreateBranchAsync(adminB, "Only B");
+        using var customerA = _factory.CreateClientAs(AicosRoles.Customer, tenantId: a.Id);
+
+        (await adminA.GetFromJsonAsync<List<BranchResponse>>($"{Branches}/active", Json))!.Select(x => x.Name).Should().Equal("Only A");
+        (await adminB.GetFromJsonAsync<List<BranchResponse>>($"{Branches}/active", Json))!.Select(x => x.Name).Should().Equal("Only B");
+        (await customerA.GetFromJsonAsync<List<BranchResponse>>($"{Branches}/active", Json))!.Select(x => x.Name).Should().Equal("Only A");
+        // Naming another brand still works, as for any visitor: the list is public information.
+        (await adminA.GetFromJsonAsync<List<BranchResponse>>($"{Branches}/active?tenantCode=brand-b", Json))!.Select(x => x.Name).Should().Equal("Only B");
+        // The Super Admin belongs to no brand: without a brand code there is nothing to list.
+        (await _superAdmin.GetAsync($"{Branches}/active")).StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
     // ------------------------------------------------------------------ BR-06

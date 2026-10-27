@@ -76,7 +76,8 @@ public sealed record OrderResponse(
     DateTime? PickupSlotStartUtc = null,
     DateTime? PaymentDueAtUtc = null,
     Guid? TableSessionId = null,
-    int RemakeCount = 0)
+    int RemakeCount = 0,
+    bool HasFeedback = false)
 {
     public static OrderResponse From(Order o) => new(
         o.Id, o.OrderCode, o.BranchId, o.CashierId, o.CustomerId, o.Type, o.Status, o.PaymentStatus, o.PaymentMethod, o.PaymentProvider, o.PaymentId,
@@ -104,7 +105,8 @@ public sealed record OrderSummary(
     DateTime? PaidAtUtc,
     DateTime? CancelledAtUtc,
     DateTime CreatedAtUtc,
-    DateTime? PickupSlotStartUtc = null)
+    DateTime? PickupSlotStartUtc = null,
+    bool HasFeedback = false)
 {
     public static OrderSummary From(Order o) => new(
         o.Id, o.OrderCode, o.BranchId, o.Type, o.Status, o.PaymentStatus, o.PaymentProvider, o.TableNumber, o.OriginalAmount, o.DiscountAmount, o.FinalAmount,

@@ -234,6 +234,7 @@ public static class AuthEndpoints
         IdentityOrganizationDbContext db,
         IEmailSender email,
         IOptions<AuthOptions> options,
+        ILoggerFactory loggers,
         TimeProvider clock,
         CancellationToken ct)
     {
@@ -268,11 +269,15 @@ public static class AuthEndpoints
             target, Secrets.Sha256(code), OtpPurposes.PasswordReset, now, now.AddMinutes(settings.PasswordResetCodeMinutes)));
         await db.SaveChangesAsync(ct);
 
-        await email.SendAsync(
-            target,
-            "AICOS - Password reset code",
-            $"Your password reset code is {code}. It expires in {settings.PasswordResetCodeMinutes} minutes.",
-            ct);
+        try
+        {
+            await email.SendAsync(EmailTemplates.PasswordReset(target, user.FullName, code, settings.PasswordResetCodeMinutes), ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // The answer must not depend on the mail server: it would tell an attacker which accounts exist. The sender already logged the failure.
+            loggers.CreateLogger("AICOS.Identity.PasswordReset").LogWarning("The reset code could not be mailed ({Reason}).", ex.GetType().Name);
+        }
 
         return accepted;
     }
