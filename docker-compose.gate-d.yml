@@ -1,0 +1,61 @@
+# Gate D1-A infrastructure ONLY. Standalone; never merge with Gate C/base Compose.
+name: aicos-gate-d
+services:
+  gated-postgres:
+    image: postgres@sha256:a1d02e4bd40c94d3bf2bdd3678c137388e76d9efcd23c285e9429d336a834b44
+    container_name: aicos-gate-d-postgres
+    restart: "no"
+    environment:
+      POSTGRES_DB: aicos_payment_test
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${AICOS_GATED_POSTGRES_PASSWORD:?Use Start-GateDInfrastructure.ps1}
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256 --auth-local=scram-sha-256"
+    command: ["postgres", "-c", "shared_buffers=32MB", "-c", "max_connections=30", "-c", "work_mem=2MB"]
+    volumes:
+      - gated-pg18:/var/lib/postgresql
+    networks: [gated-internal]
+    labels:
+      com.aicos.gate: D1-A
+      com.aicos.environment: isolated-test
+    mem_limit: 256m
+    cpus: 0.5
+    shm_size: 64m
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "postgres", "-d", "aicos_payment_test"]
+      interval: 3s
+      timeout: 3s
+      retries: 25
+  gated-redis:
+    image: redis@sha256:d9436322172a5b482c187bf1f363d3c4fea086fcca6b9c8a94de8f0f39ed3193
+    container_name: aicos-gate-d-redis
+    restart: "no"
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "32mb", "--maxmemory-policy", "noeviction"]
+    volumes:
+      - gated-redis:/data
+    networks: [gated-internal]
+    labels:
+      com.aicos.gate: D1-A
+      com.aicos.environment: isolated-test
+    mem_limit: 96m
+    cpus: 0.25
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 25
+networks:
+  gated-internal:
+    name: aicos-gate-d_internal
+    internal: true
+    labels:
+      com.aicos.environment: isolated-test
+volumes:
+  gated-pg18:
+    name: aicos-gate-d_pg18-data
+    labels:
+      com.aicos.environment: isolated-test
+  gated-redis:
+    name: aicos-gate-d_redis-data
+    labels:
+      com.aicos.environment: isolated-test
+

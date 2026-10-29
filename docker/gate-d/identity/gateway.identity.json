@@ -1,0 +1,30 @@
+{
+  "AllowedHosts": "*",
+  "Serilog": {
+    "MinimumLevel": {
+      "Default": "Information",
+      "Override": { "Microsoft.AspNetCore": "Warning", "Yarp": "Warning" }
+    }
+  },
+  "Jwt": {
+    "Issuer": "aicos-gate-d",
+    "Audience": "aicos-gate-d-clients",
+    "SigningKey": "",
+    "ExpiryMinutes": 1
+  },
+  "Database": { "MigrateOnStartup": false },
+  "RateLimiting": { "PermitLimitPerMinute": 600 },
+  "ReverseProxy": {
+    "Routes": {
+      "identity-route": {
+        "ClusterId": "identity",
+        "Match": { "Path": "/api/v1/identity/{**catch-all}" }
+      }
+    },
+    "Clusters": {
+      "identity": {
+        "Destinations": { "primary": { "Address": "http://gated-identity:8080" } }
+      }
+    }
+  }
+}

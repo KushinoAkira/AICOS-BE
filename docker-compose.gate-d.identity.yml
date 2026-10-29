@@ -1,0 +1,65 @@
+# C1 preparation only. Apps only; never merge with Gate C/base Compose.
+# C2 credentials and C4 startup need separate approval. No defaults for secrets/images.
+name: aicos-gate-d
+services:
+  gated-identity:
+    image: ${AICOS_GATED_IDENTITY_IMAGE:?Use the immutable image ID from C1 manifest}
+    pull_policy: never
+    container_name: aicos-gate-d-identity
+    profiles: [d1c-runtime]
+    restart: "no"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Testing
+      ASPNETCORE_HTTP_PORTS: "8080"
+      Database__MigrateOnStartup: "false"
+      ConnectionStrings__Default: "Host=gated-postgres;Port=5432;Database=aicos_payment_test;Username=identity_svc;Password=${AICOS_GATED_IDENTITY_PASSWORD:?C2 credentials approval required};Search Path=public;Maximum Pool Size=6;Minimum Pool Size=0;Timeout=5;Command Timeout=10"
+      ConnectionStrings__Redis: gated-redis:6379
+      Jwt__Issuer: aicos-gate-d
+      Jwt__Audience: aicos-gate-d-clients
+      Jwt__SigningKey: ${AICOS_GATED_TEST_JWT_KEY:?Use the reserved Gate D key after approval}
+      Jwt__ExpiryMinutes: "1"
+      RefreshToken__ExpiryDays: "1"
+      Swagger__Enabled: "true"
+    networks: [gated-internal]
+    labels:
+      com.aicos.environment: isolated-test
+      com.aicos.gate: D1-C
+    mem_limit: 256m
+    cpus: 0.5
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+  gated-gateway:
+    image: ${AICOS_GATED_GATEWAY_IMAGE:?Use the immutable image ID from C1 manifest}
+    pull_policy: never
+    container_name: aicos-gate-d-gateway
+    profiles: [d1c-runtime]
+    restart: "no"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Testing
+      ASPNETCORE_HTTP_PORTS: "8080"
+      Database__MigrateOnStartup: "false"
+      Jwt__Issuer: aicos-gate-d
+      Jwt__Audience: aicos-gate-d-clients
+      Jwt__SigningKey: ${AICOS_GATED_TEST_JWT_KEY:?Use the reserved Gate D key after approval}
+      Jwt__ExpiryMinutes: "1"
+    configs:
+      - source: gated-gateway-identity
+        target: /app/appsettings.json
+    networks: [gated-internal]
+    labels:
+      com.aicos.environment: isolated-test
+      com.aicos.gate: D1-C
+    mem_limit: 256m
+    cpus: 0.5
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    depends_on:
+      gated-identity:
+        condition: service_started
+networks:
+  gated-internal:
+    external: true
+    name: aicos-gate-d_internal
+configs:
+  gated-gateway-identity:
+    file: ./docker/gate-d/identity/gateway.identity.json

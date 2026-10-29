@@ -1,0 +1,52 @@
+# Gate C read-only smoke: isolate Redis from the host Redis used by VietAI.
+# Append AFTER docker-compose.external-db.yml. Does not start any service.
+services:
+  redis:
+    ports: !reset []
+  identity:
+    # Dynamic Docker Desktop host mapping; avoids dependence on upstream DNS.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports: !override ["127.0.0.1:5101:8080"]
+  menu:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports: !override ["127.0.0.1:5102:8080"]
+  table:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports: !override ["127.0.0.1:5103:8080"]
+  order:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports: !override ["127.0.0.1:5104:8080"]
+  payment:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports: !override ["127.0.0.1:5105:8080"]
+  kitchen:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports: !override ["127.0.0.1:5107:8080"]
+  inventory:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports: !override ["127.0.0.1:5106:8080"]
+  workforce:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports: !override ["127.0.0.1:5108:8080"]
+  reporting:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports: !override ["127.0.0.1:5109:8080"]
+  customer:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports: !override ["127.0.0.1:5110:8080"]
+  ai:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports: !override ["127.0.0.1:5111:8000"]
+  gateway:
+    ports: !override ["127.0.0.1:8080:8080"]

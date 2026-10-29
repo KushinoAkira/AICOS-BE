@@ -1,0 +1,16 @@
+{
+  "status": "PREPARED_NOT_APPLIED",
+  "source": "%LOCALAPPDATA%/AICOS/backups/gate_a_20261026_213339/schema.sql",
+  "sha256": "CC6F19A5BAE3A8ACBCB096EC110A7D172B4C86D63C37E1AE18CF61C8E30158A3",
+  "sourcePgVersion": "18.4",
+  "tables": 38,
+  "columns": 244,
+  "includesPaymentEvents": true,
+  "containsBusinessRows": false,
+  "containsRolePasswords": false,
+  "sourceGuard": "Read-only file scan + matching backup checksums.json; no source database connection",
+  "allowedFunction": "public.reject_payment_event_mutation() append-only audit trigger",
+  "requires": "D1-B approval, private manifest system identifier, source checksum recheck, schema review before apply",
+  "applyCommand": "NOT PROVIDED IN D1-A; use guarded D1-B runner after approval"
+}
+
