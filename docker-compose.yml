@@ -107,6 +107,11 @@ services:
       Swagger__Enabled: ${SWAGGER_ENABLED:-false}
       Payments__AllowSimulation: ${PAYMENTS_ALLOW_SIMULATION:-false}
       Jwt__SigningKey: ${JWT_SIGNING_KEY:?Set JWT_SIGNING_KEY in .env - run scripts/init-env first}
+      # Browser origins allowed to call the gateway (the web app: Vite dev 8443/5173, FE Docker image 8088). Override in .env.
+      Cors__AllowedOrigins__0: ${CORS_ORIGIN_1:-http://localhost:8443}
+      Cors__AllowedOrigins__1: ${CORS_ORIGIN_2:-http://localhost:8088}
+      Cors__AllowedOrigins__2: ${CORS_ORIGIN_3:-http://localhost:5173}
+      Cors__AllowedOrigins__3: ${CORS_ORIGIN_4:-http://127.0.0.1:8088}
       ReverseProxy__Clusters__identity__Destinations__primary__Address: http://identity:8080
       ReverseProxy__Clusters__menu__Destinations__primary__Address: http://menu:8080
       ReverseProxy__Clusters__table__Destinations__primary__Address: http://table:8080
