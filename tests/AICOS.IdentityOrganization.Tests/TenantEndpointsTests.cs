@@ -131,15 +131,14 @@ public sealed class TenantEndpointsTests : IDisposable
         var tenant = await CreateTenantAsync("acme", "admin@acme.com");
         using var anonymous = _factory.CreateClient();
 
-        (await anonymous.PostAsJsonAsync($"{Auth}/register", new RegisterRequest("nope", "A", "a@x.com", null, Password, Password), Json))
+        (await anonymous.PostAsJsonAsync($"{Auth}/register", new RegisterRequest("nope", "A", "a@x.com", Password, Password), Json))
             .StatusCode.Should().Be(HttpStatusCode.BadRequest);
 
-        var ok = await anonymous.PostAsJsonAsync($"{Auth}/register", new RegisterRequest("ACME", "A", "a@x.com", null, Password, Password), Json);
-        ok.StatusCode.Should().Be(HttpStatusCode.Created);
-        (await ok.Content.ReadFromJsonAsync<UserResponse>(Json))!.TenantId.Should().Be(tenant.Id);
+        var signedUp = await AuthEndpointsTests.SignUpAsync(anonymous, _factory, "a@x.com", Password, "ACME", "A");
+        signedUp.User.TenantId.Should().Be(tenant.Id);
 
         await _superAdmin.PatchAsJsonAsync($"{Tenants}/{tenant.Id}/status", new ChangeTenantStatusRequest(TenantStatus.Suspended), Json);
-        (await anonymous.PostAsJsonAsync($"{Auth}/register", new RegisterRequest("acme", "B", "b@x.com", null, Password, Password), Json))
+        (await anonymous.PostAsJsonAsync($"{Auth}/register", new RegisterRequest("acme", "B", "b@x.com", Password, Password), Json))
             .StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 

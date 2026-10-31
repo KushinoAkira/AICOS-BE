@@ -7,6 +7,9 @@ public static class RateLimitGroups
     [
         "/api/v1/identity/auth/login",
         "/api/v1/identity/auth/register",
+        "/api/v1/identity/auth/register/verify",
+        "/api/v1/identity/auth/register/resend",
+        "/api/v1/identity/auth/google",
         "/api/v1/identity/auth/forgot-password",
         "/api/v1/identity/auth/reset-password",
         "/api/v1/identity/auth/register-brand",   // open to anyone, creates a tenant and an account

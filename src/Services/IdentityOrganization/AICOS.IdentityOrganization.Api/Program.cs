@@ -36,6 +36,10 @@ builder.Services.AddHostedService<SubscriptionReminderService>();
 builder.Services.AddIntegrationEventHandler<AuditRecordedEvent, AuditRecordedHandler>(); // other services: sensitive changes for the audit history
 // Mail: a real SMTP server when Email:Smtp:Host and Email:FromAddress are set (see .env.example), otherwise the mails are only logged.
 builder.Services.AddAicosEmail(builder.Configuration);
+// Sign in with Google: needs Google:ClientId (environment variable Google__ClientId); the ID token is checked against Google's public keys.
+builder.Services.Configure<GoogleAuthOptions>(builder.Configuration.GetSection(GoogleAuthOptions.SectionName));
+builder.Services.AddMemoryCache();
+builder.Services.AddHttpClient<IGoogleTokenVerifier, GoogleTokenVerifier>(c => c.Timeout = TimeSpan.FromSeconds(10));
 
 var app = builder.Build();
 

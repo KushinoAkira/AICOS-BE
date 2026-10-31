@@ -662,6 +662,11 @@ namespace AICOS.IdentityOrganization.Api.Persistence.Migrations
                         .HasColumnType("character varying(255)")
                         .HasColumnName("full_name");
 
+                    b.Property<string>("GoogleSubject")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("google_subject");
+
                     b.Property<DateTime?>("LastLoginAtUtc")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("last_login_at_utc");
@@ -723,6 +728,10 @@ namespace AICOS.IdentityOrganization.Api.Persistence.Migrations
                     b.HasIndex("Email")
                         .IsUnique()
                         .HasDatabaseName("ix_users_email");
+
+                    b.HasIndex("GoogleSubject")
+                        .IsUnique()
+                        .HasDatabaseName("ix_users_google_subject");
 
                     b.HasIndex("Role")
                         .HasDatabaseName("ix_users_role");

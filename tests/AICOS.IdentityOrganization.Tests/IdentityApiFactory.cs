@@ -36,8 +36,11 @@ public sealed class IdentityApiFactory : WebApplicationFactory<IdentityOrganizat
 
     public TestClock Clock { get; } = new();
 
+    public FakeGoogleVerifier Google { get; } = new();
+
     protected override void ConfigureWebHost(Microsoft.AspNetCore.Hosting.IWebHostBuilder builder)
     {
+        builder.UseSetting("Google:ClientId", "test-client.apps.googleusercontent.com");
         builder.ConfigureServices(services =>
         {
             services.RemoveAll<DbContextOptions<IdentityOrganizationDbContext>>();
@@ -59,6 +62,8 @@ public sealed class IdentityApiFactory : WebApplicationFactory<IdentityOrganizat
             services.AddSingleton<IEventBus>(Events);
             services.RemoveAll<IEmailSender>();
             services.AddSingleton<IEmailSender>(Emails);
+            services.RemoveAll<IGoogleTokenVerifier>();
+            services.AddSingleton<IGoogleTokenVerifier>(Google);
         });
     }
 
@@ -103,6 +108,17 @@ public sealed class RecordingEventBus : IEventBus
         Published.Enqueue(@event);
         return Task.CompletedTask;
     }
+}
+
+/// <summary>Stands in for Google: only the tokens a test registered with <see cref="Accept"/> are valid.</summary>
+public sealed class FakeGoogleVerifier : IGoogleTokenVerifier
+{
+    private readonly ConcurrentDictionary<string, GoogleIdentity> _tokens = new();
+
+    public void Accept(string idToken, GoogleIdentity identity) => _tokens[idToken] = identity;
+
+    public Task<GoogleIdentity?> VerifyAsync(string idToken, CancellationToken cancellationToken) =>
+        Task.FromResult(_tokens.TryGetValue(idToken, out var identity) ? identity : null);
 }
 
 public sealed partial class CapturingEmailSender : IEmailSender

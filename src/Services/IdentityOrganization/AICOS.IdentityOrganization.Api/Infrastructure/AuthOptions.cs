@@ -27,6 +27,17 @@ public sealed class AuthOptions
     [Range(0, 3600)]
     public int PasswordResetResendSeconds { get; set; } = 60;
 
+    /// <summary>Sign-up: minutes the emailed verification code stays valid.</summary>
+    [Range(1, 60)]
+    public int SignUpCodeMinutes { get; set; } = 10;
+
+    [Range(1, 10)]
+    public int SignUpMaxAttempts { get; set; } = 5;
+
+    /// <summary>Minimum delay between two verification emails to the same address.</summary>
+    [Range(0, 3600)]
+    public int SignUpResendSeconds { get; set; } = 60;
+
     /// <summary>Platform SuperAdmin, created at start-up when none exists. Leave Email empty to disable.</summary>
     public SeedAdminOptions SeedAdmin { get; set; } = new();
 

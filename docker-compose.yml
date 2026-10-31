@@ -163,6 +163,8 @@ services:
       Email__FromAddress: ${SMTP_FROM_ADDRESS:-}
       Email__FromName: ${SMTP_FROM_NAME:-AICOS}
       Email__AppUrl: ${APP_URL:-}
+      # Sign in with Google (empty: off).
+      Google__ClientId: ${GOOGLE_CLIENT_ID:-}
     ports: ["5101:8080"]
 
   # ------------------------------------------------------------------ COMMERCE

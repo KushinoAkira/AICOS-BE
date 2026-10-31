@@ -9,6 +9,9 @@ public enum UserStatus
 
     /// <summary>Locked by a BrandAdmin (UC-02). Only an admin can unlock it.</summary>
     Locked,
+
+    /// <summary>A self-registered customer who has not entered the emailed code yet. Cannot sign in; the email stays reserved until the code is verified.</summary>
+    PendingVerification,
 }
 
 /// <summary>
@@ -22,6 +25,7 @@ public sealed class User : AuditableEntity<Guid>
     public const int EmailMaxLength = 255;
     public const int UsernameMaxLength = 50;
     public const int PhoneMaxLength = 20;
+    public const int GoogleSubjectMaxLength = 64;
 
     /// <summary>Roles a BrandAdmin may assign. SuperAdmin is seeded and Guest is anonymous.</summary>
     public static readonly IReadOnlyList<string> AssignableRoles =
@@ -53,6 +57,9 @@ public sealed class User : AuditableEntity<Guid>
     public string? Username { get; private set; }
 
     public string? Phone { get; private set; }
+
+    /// <summary>The Google account id (the <c>sub</c> claim) once the customer signed in with Google.</summary>
+    public string? GoogleSubject { get; private set; }
 
     public string PasswordHash { get; private set; } = string.Empty;
 
@@ -99,6 +106,8 @@ public sealed class User : AuditableEntity<Guid>
         PasswordHash = passwordHash;
         MustChangePassword = mustChangePassword;
     }
+
+    public void LinkGoogle(string subject) => GoogleSubject = subject;
 
     public bool IsLockedOut(DateTime nowUtc) => LockoutEndUtc > nowUtc;
 
