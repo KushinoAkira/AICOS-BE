@@ -6,7 +6,7 @@
 # Without it /feedback/analyze answers available=false and everything else keeps working.
 
 # ---- builder: resolve wheels into a venv -------------------------------------------------------
-FROM python:3.11-slim AS builder
+FROM python:3.15-slim AS builder
 ENV PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
@@ -23,7 +23,7 @@ COPY reco ./reco
 RUN python -m intent.train && python -m reco.train
 
 # ---- runtime -----------------------------------------------------------------------------------
-FROM python:3.11-slim AS runtime
+FROM python:3.15-slim AS runtime
 ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 \
     PATH="/opt/venv/bin:$PATH" \
     HF_HOME=/tmp/hf TRANSFORMERS_CACHE=/tmp/hf
