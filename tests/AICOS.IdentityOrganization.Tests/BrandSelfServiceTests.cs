@@ -18,7 +18,7 @@ namespace AICOS.IdentityOrganization.Tests;
 /// <summary>Self-service brands (register, Pending to Approved or Rejected), the public page of a brand, the profile and the contact form. All of it lives in the database.</summary>
 public sealed class LogoPictureTests : IDisposable
 {
-    private readonly IdentityApiFactory _factory = new();
+    private readonly IdentityApiFactory _factory = new() { SeedPlan = false };
 
     public void Dispose() => _factory.Dispose();
 
@@ -45,7 +45,7 @@ public sealed class BrandSelfServiceTests : IDisposable
     private const string Password = "Brand1234";
     private static readonly JsonSerializerOptions Json = AuthEndpointsTests.Json;
 
-    private readonly IdentityApiFactory _factory = new();
+    private readonly IdentityApiFactory _factory = new() { SeedPlan = false };
     private readonly HttpClient _anonymous;
     private readonly HttpClient _superAdmin;
 
@@ -217,6 +217,7 @@ public sealed class BrandSelfServiceTests : IDisposable
     {
         var admin = await ApprovedBrandAdminAsync();
         var tenantId = (await admin.GetFromJsonAsync<JsonElement>($"{Base}/brand/profile")).GetProperty("id").GetGuid();
+        _factory.GivePlan(tenantId);
         var open = await (await admin.PostAsJsonAsync($"{Base}/branches", new BranchRequest("Quận 1", "1 Lê Lợi", "0901234567", new TimeOnly(7, 0), new TimeOnly(22, 0)), Json)).Content.ReadFromJsonAsync<BranchResponse>(Json);
         var closed = await (await admin.PostAsJsonAsync($"{Base}/branches", new BranchRequest("Quận 3", "3 Nguyễn Du", null, null, null), Json)).Content.ReadFromJsonAsync<BranchResponse>(Json);
         (await admin.PatchAsJsonAsync($"{Base}/branches/{closed!.Id}/status", new ChangeBranchStatusRequest(BranchStatus.Suspended), Json)).EnsureSuccessStatusCode();

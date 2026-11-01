@@ -22,6 +22,13 @@ public sealed record TableLayoutRequest(Guid? BranchId, List<TablePosition>? Pos
 
 public sealed record TableLayoutResponse(int Moved);
 
+/// <summary>Copies the floor plan of one branch to others of the brand.</summary>
+public sealed record FloorPlanCloneRequest(Guid? FromBranchId, List<Guid>? ToBranchIds);
+
+public sealed record ClonedBranch(Guid BranchId, int Tables, int AreasCreated);
+
+public sealed record FloorPlanCloneResponse(List<ClonedBranch> Branches);
+
 /// <summary>
 /// UC-25, UC-26: setting up many tables at once. Routes: /api/v1/tables/dining-tables/batch. All or nothing: one bad row creates no table, and the
 /// answer names every bad row (<c>errors["Rows[3]"]</c>). Each table gets its own QR token.
@@ -29,11 +36,13 @@ public sealed record TableLayoutResponse(int Moved);
 public static class TableBatchEndpoints
 {
     public const int MaxRows = 300;
+    private const int MaxCloneTargets = 50;
 
     public static void MapTableBatchEndpoints(this RouteGroupBuilder api)
     {
         api.MapPost("/dining-tables/batch", CreateBatchAsync).WithTags("Dining tables").RequireAuthorization(AicosPolicies.Management);
         api.MapPut("/floor-plan/layout", SaveLayoutAsync).WithTags("Dining tables").RequireAuthorization(AicosPolicies.Management);
+        api.MapPost("/floor-plan/clone", CloneAsync).WithTags("Dining tables").RequireAuthorization(AicosPolicies.AdminOnly);
     }
 
     private static async Task<IResult> CreateBatchAsync(
@@ -148,6 +157,76 @@ public static class TableBatchEndpoints
         errors.ThrowIfAny();
         await db.SaveChangesAsync(ct);
         return new TableLayoutResponse(moved.Count);
+    }
+
+    /// <summary>
+    /// Set up one shop, then copy it: areas, table codes, seats and positions go to each target with a new QR token per table, so a printed code
+    /// belongs to one table only. A target that already has tables is refused, and one refused target stops the whole copy.
+    /// </summary>
+    private static async Task<IResult> CloneAsync(
+        FloorPlanCloneRequest r, TableReservationDbContext db, ICurrentUser user, IBranchDirectory directory, IPlanLimitsClient limits, TimeProvider clock, CancellationToken ct)
+    {
+        var targets = (r.ToBranchIds ?? []).Distinct().ToList();
+        var errors = new ValidationErrors();
+        CommonRules.RequiredId(errors, "FromBranchId", r.FromBranchId, "Source branch");
+        if (targets.Count is 0 or > MaxCloneTargets)
+        {
+            errors.Add("ToBranchIds", $"Choose 1-{MaxCloneTargets} branches.");
+        }
+        else if (targets.Contains(r.FromBranchId ?? Guid.Empty))
+        {
+            errors.Add("ToBranchIds", "A branch cannot be copied onto itself.");
+        }
+
+        errors.ThrowIfAny();
+
+        var tenantId = TenantScope.Require(user);
+        var source = r.FromBranchId!.Value;
+        await BranchScope.EnsureUsableAsync(directory, source, requireActive: false, ct);
+        var sourceAreas = await db.TableAreas.AsNoTracking().Where(a => a.TenantId == tenantId && a.BranchId == source).ToListAsync(ct);
+        var sourceTables = await db.DiningTables.AsNoTracking().Where(t => t.TenantId == tenantId && t.BranchId == source).ToListAsync(ct);
+        if (sourceTables.Count == 0)
+        {
+            throw new BusinessRuleException("floor_plan.source_empty", "The source branch has no tables to copy.");
+        }
+
+        var now = clock.GetUtcNow().UtcDateTime;
+        var done = new List<ClonedBranch>();
+        var tables = new List<DiningTable>();
+        foreach (var target in targets)
+        {
+            await BranchScope.EnsureUsableAsync(directory, target, requireActive: true, ct);
+            if (await db.DiningTables.AnyAsync(t => t.TenantId == tenantId && t.BranchId == target, ct))
+            {
+                throw new ConflictException("A target branch already has tables. Remove them first, or choose another branch.", "floor_plan.target_not_empty");
+            }
+
+            await TablePlanRules.EnsureRoomAsync(db, limits, target, sourceTables.Count, ct);
+
+            var areas = await db.TableAreas.Where(a => a.TenantId == tenantId && a.BranchId == target).ToListAsync(ct);
+            var created = 0;
+            var areaIds = new Dictionary<Guid, Guid>();
+            foreach (var area in sourceAreas)
+            {
+                var same = areas.Find(a => string.Equals(a.Name, area.Name, StringComparison.OrdinalIgnoreCase));
+                if (same is null)
+                {
+                    same = new TableArea(tenantId, target, area.Name, area.SortOrder);
+                    db.TableAreas.Add(same);
+                    created++;
+                }
+
+                areaIds[area.Id] = same.Id;
+            }
+
+            tables.AddRange(sourceTables.Select(t => new DiningTable(tenantId, target, areaIds[t.AreaId], t.TableCode, t.Capacity, t.PositionX, t.PositionY, now)));
+            done.Add(new ClonedBranch(target, sourceTables.Count, created));
+        }
+
+        await db.SaveChangesAsync(ct);   // the areas first: a table refers to its area
+        db.DiningTables.AddRange(tables);
+        await db.SaveChangesAsync(ct);
+        return Results.Ok(new FloorPlanCloneResponse(done));
     }
 
     private static string? Check(TableBatchRow row, HashSet<string> taken)

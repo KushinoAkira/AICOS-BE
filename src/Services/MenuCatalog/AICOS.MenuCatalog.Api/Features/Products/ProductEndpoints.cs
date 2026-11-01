@@ -50,7 +50,19 @@ public static class ProductEndpoints
             query = query.Where(p => p.Name.ToLower().Contains(term) || (p.Description != null && p.Description.ToLower().Contains(term)));
         }
 
-        return await query.OrderBy(p => p.Name).ToPagedAsync(page, pageSize, ProductResponse.From, ct);
+        var result = await query.OrderBy(p => p.Name).ToPagedAsync(page, pageSize, ProductResponse.From, ct);
+
+        // The prices a branch sets for itself (BR-15). Someone tied to a branch only reads their own (BR-05).
+        var ids = result.Items.Select(p => p.Id).ToList();
+        var own = user.IsInRole(AicosRoles.BrandAdmin) ? null : user.BranchId;
+        var prices = await db.BranchProducts.AsNoTracking()
+            .Where(b => b.TenantId == tenantId && ids.Contains(b.ProductId) && b.PriceOverride != null && (own == null || b.BranchId == own))
+            .Select(b => new { b.ProductId, b.BranchId, Price = b.PriceOverride!.Value })
+            .ToListAsync(ct);
+        return result with
+        {
+            Items = result.Items.Select(p => p with { BranchPrices = prices.Where(x => x.ProductId == p.Id).Select(x => new BranchPriceResponse(x.BranchId, x.Price)).ToList() }).ToList(),
+        };
     }
 
     private static async Task<ProductResponse> GetAsync(Guid id, MenuCatalogDbContext db, ICurrentUser user, CancellationToken ct) =>

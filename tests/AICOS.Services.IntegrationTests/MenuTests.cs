@@ -34,6 +34,27 @@ public sealed class MenuTests : IDisposable
 
     public void Dispose() => _f.Dispose();
 
+    [Fact]
+    public async Task The_product_list_shows_branch_prices_and_clearing_one_goes_back_to_the_base_price()
+    {
+        var category = await _admin.PostOk($"{Menu}/categories", new { name = "Cà phê", sortOrder = 1 });
+        var product = await _admin.PostOk($"{Menu}/products", new { categoryId = category.Id(), name = "Bạc xỉu", basePrice = 30_000 });
+        await _admin.Put($"{Menu}/products/{product.Id()}/branches/{_b1}", new { isPublished = true, priceOverride = 42_000 });
+        await _admin.Put($"{Menu}/products/{product.Id()}/branches/{_b2}", new { isPublished = false, priceOverride = 35_000 });
+
+        var all = (await _admin.GetFromJsonAsync<JsonElement>($"{Menu}/products")).GetProperty("items")[0].GetProperty("branchPrices");
+        all.EnumerateArray().Select(p => (p.GetProperty("branchId").GetGuid(), p.GetProperty("price").GetDecimal())).Should().BeEquivalentTo([(_b1, 42_000m), (_b2, 35_000m)]);
+
+        var cashier = _f.As(AicosRoles.Cashier, _b1);
+        (await cashier.GetFromJsonAsync<JsonElement>($"{Menu}/products")).GetProperty("items")[0].GetProperty("branchPrices").EnumerateArray().Should().ContainSingle();   // only their own
+
+        await _admin.Put($"{Menu}/products/{product.Id()}/branches/{_b1}", new { isPublished = true, priceOverride = (decimal?)null });
+        var left = (await _admin.GetFromJsonAsync<JsonElement>($"{Menu}/products")).GetProperty("items")[0].GetProperty("branchPrices");
+        left.EnumerateArray().Single().GetProperty("branchId").GetGuid().Should().Be(_b2);
+        var settings = await _admin.GetFromJsonAsync<JsonElement>($"{Menu}/products/{product.Id()}/branches");
+        settings.EnumerateArray().Single(s => s.GetProperty("branchId").GetGuid() == _b1).GetProperty("effectivePrice").GetDecimal().Should().Be(30_000);
+    }
+
     // ------------------------------------------------------------------ categories
     [Fact]
     public async Task Brand_admin_creates_a_category_for_the_whole_brand_and_duplicates_are_409()

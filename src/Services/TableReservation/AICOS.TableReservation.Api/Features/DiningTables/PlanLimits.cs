@@ -49,12 +49,17 @@ internal sealed class HttpPlanLimitsClient(HttpClient http) : IPlanLimitsClient
     }
 }
 
-/// <summary>BR-11 for tables: the limit counts per branch and only stops new tables. A brand that moved to a smaller plan keeps the tables it has.</summary>
+/// <summary>BR-11 for tables: a plan is required, its limit counts per branch and only stops new tables. A brand that moved to a smaller plan keeps the tables it has.</summary>
 internal static class TablePlanRules
 {
     public static async Task EnsureRoomAsync(TableReservationDbContext db, IPlanLimitsClient limits, Guid branchId, int adding, CancellationToken ct)
     {
         var plan = await limits.GetAsync(ct);
+        if (!plan.HasPlan)
+        {
+            throw new BusinessRuleException("subscription.required", "The brand has no subscription plan yet. The platform owner assigns one before tables can be added.");
+        }
+
         if (plan.MaxTablesPerBranch is not { } max)
         {
             return;

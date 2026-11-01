@@ -76,6 +76,15 @@ r=$(call POST /api/v1/identity/auth/login "" "{\"login\":\"owner-$STAMP@example.
 check "brand admin signs in" 200 "$(status_of "$r")"
 BRAND=$(body_of "$r" | json_field accessToken)
 
+r=$(call GET /api/v1/identity/subscription "$BRAND")
+check "a brand without a plan has no subscription yet" 404 "$(status_of "$r")"
+r=$(call POST /api/v1/identity/branches "$BRAND" '{"name":"Truoc khi co goi"}')
+check "a brand without a plan cannot add a branch" 422 "$(status_of "$r")"
+r=$(call POST /api/v1/identity/subscription-plans "$SUPER" "{\"name\":\"Smoke $STAMP\",\"tier\":\"Basic\",\"fee\":500000,\"billingPeriod\":\"Monthly\",\"maxBranches\":5,\"maxStaffAccounts\":50}")
+check "plan created" 201 "$(status_of "$r")"
+PLAN=$(body_of "$r" | json_field id)
+r=$(call POST "/api/v1/identity/tenants/$TENANT/subscription" "$SUPER" "{\"planId\":\"$PLAN\"}")
+check "plan assigned to the brand" 201 "$(status_of "$r")"
 r=$(call POST /api/v1/identity/branches "$BRAND" '{"name":"Quan 1","address":"1 Le Loi","phone":"0900000001","openingTime":"07:00:00","closingTime":"22:00:00"}')
 check "branch created" 201 "$(status_of "$r")"
 BRANCH=$(body_of "$r" | json_field id)
@@ -192,13 +201,6 @@ r=$(call GET "/api/v1/reporting/branch?branchId=$BRANCH" "$BRAND")
 # ------------------------------------------------------------------ subscription (SCRUM-132) and loyalty (SCRUM-133, 134)
 echo
 echo "== subscription and loyalty"
-r=$(call GET /api/v1/identity/subscription "$BRAND")
-check "a brand without a plan has no subscription yet" 404 "$(status_of "$r")"
-r=$(call POST /api/v1/identity/subscription-plans "$SUPER" "{\"name\":\"Smoke $STAMP\",\"tier\":\"Basic\",\"fee\":500000,\"billingPeriod\":\"Monthly\",\"maxBranches\":5,\"maxStaffAccounts\":50}")
-check "plan created" 201 "$(status_of "$r")"
-PLAN=$(body_of "$r" | json_field id)
-r=$(call POST "/api/v1/identity/tenants/$TENANT/subscription" "$SUPER" "{\"planId\":\"$PLAN\"}")
-check "plan assigned to the brand" 201 "$(status_of "$r")"
 r=$(call GET /api/v1/identity/subscription "$BRAND")
 check "brand admin sees the subscription" 200 "$(status_of "$r")"
 r=$(call POST /api/v1/identity/subscription/renew "$BRAND" '{}')

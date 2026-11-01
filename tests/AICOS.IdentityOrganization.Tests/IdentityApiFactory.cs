@@ -30,6 +30,9 @@ public sealed class IdentityApiFactory : WebApplicationFactory<IdentityOrganizat
 
     private readonly string _databaseName = $"identity-tests-{Guid.NewGuid():N}";
 
+    /// <summary>False when a test counts plans or subscriptions itself and the default brand's plan would be in the way.</summary>
+    public bool SeedPlan { get; init; } = true;
+
     public RecordingEventBus Events { get; } = new();
 
     public CapturingEmailSender Emails { get; } = new();
@@ -71,6 +74,11 @@ public sealed class IdentityApiFactory : WebApplicationFactory<IdentityOrganizat
     {
         var host = base.CreateHost(builder);
         SeedTenant(host.Services);
+        if (SeedPlan)
+        {
+            GivePlan(TenantId, host.Services);
+        }
+
         return host;
     }
 
@@ -82,6 +90,17 @@ public sealed class IdentityApiFactory : WebApplicationFactory<IdentityOrganizat
         var tenant = new Tenant("Test Brand", TenantCode);
         typeof(Tenant).GetProperty(nameof(Tenant.Id))!.SetValue(tenant, TenantId);
         db.Tenants.Add(tenant);
+        db.SaveChanges();
+    }
+
+    /// <summary>Puts a brand on a plan without limits, because a brand needs a plan to open branches.</summary>
+    public void GivePlan(Guid tenantId, IServiceProvider? services = null)
+    {
+        using var scope = (services ?? Services).CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<IdentityOrganizationDbContext>();
+        var plan = new SubscriptionPlan($"Test plan {tenantId:N}", "Basic", 100_000, BillingPeriod.Monthly, null, null, null);
+        db.SubscriptionPlans.Add(plan);
+        db.TenantSubscriptions.Add(new TenantSubscription(tenantId, plan, DateTime.UtcNow));
         db.SaveChanges();
     }
 

@@ -197,6 +197,71 @@ public sealed class TableTests : IDisposable
         (await _admin.Put(Layout, new { branchId = _b2, positions = new[] { new { tableId = foreign, positionX = 2, positionY = 0 } } })).IsSuccessStatusCode.Should().BeTrue();
     }
 
+    // ------------------------------------------------------------------ one shop set up, the others copied
+    private const string Clone = "/api/v1/tables/floor-plan/clone";
+
+    private async Task<List<JsonElement>> SetUpFirstBranchAsync()
+    {
+        var area = await _admin.PostOk(Areas, new { branchId = _b1, name = "Tầng 1", sortOrder = 2 });
+        var rows = new object[] { new { areaId = area.Id(), tableCode = "A01", capacity = 4, positionX = 2, positionY = 3 }, new { areaId = area.Id(), tableCode = "A02", capacity = 6, positionX = 5, positionY = 1 } };
+        return (await _admin.PostOk(Batch, new { branchId = _b1, rows })).GetProperty("tables").EnumerateArray().ToList();
+    }
+
+    [Fact]
+    public async Task A_copy_brings_areas_seats_and_positions_with_new_qr_codes()
+    {
+        var source = await SetUpFirstBranchAsync();
+        var b3 = _f.Branches.Add(_tenant, name: "Quận 7");
+        await _admin.PostOk(Areas, new { branchId = b3, name = "tầng 1" });   // a target's own area of that name is reused
+
+        var result = await _admin.PostOk(Clone, new { fromBranchId = _b1, toBranchIds = new[] { _b2, b3 } });
+
+        result.GetProperty("branches").EnumerateArray().Select(b => (b.GetProperty("branchId").GetGuid(), b.GetProperty("tables").GetInt32(), b.GetProperty("areasCreated").GetInt32()))
+            .Should().Equal((_b2, 2, 1), (b3, 2, 0));
+        var copied = await _admin.GetFromJsonAsync<JsonElement>($"{Tables}?branchId={_b2}");
+        var a01 = copied.EnumerateArray().Single(t => t.GetProperty("tableCode").GetString() == "A01");
+        (a01.GetProperty("capacity").GetInt32(), a01.GetProperty("positionX").GetInt32(), a01.GetProperty("positionY").GetInt32(), a01.GetProperty("areaName").GetString()).Should().Be((4, 2, 3, "Tầng 1"));
+        a01.GetProperty("status").GetString().Should().Be("Available");
+
+        var tokens = (await _admin.GetFromJsonAsync<JsonElement>(Tables)).EnumerateArray().Select(t => t.GetProperty("qrToken").GetString()).ToList();
+        tokens.Should().HaveCount(6).And.OnlyHaveUniqueItems();
+        (await _f.CreateClient().GetFromJsonAsync<JsonElement>($"{PublicQr}/{a01.GetProperty("qrToken").GetString()}")).GetProperty("branchId").GetGuid().Should().Be(_b2);
+        source.Should().HaveCount(2);
+        (await _admin.GetFromJsonAsync<JsonElement>($"{Tables}?branchId={_b1}")).GetArrayLength().Should().Be(2);
+    }
+
+    [Fact]
+    public async Task A_copy_is_all_or_nothing_and_for_the_brand_admin_only()
+    {
+        await SetUpFirstBranchAsync();
+        var b3 = _f.Branches.Add(_tenant, name: "Quận 7");
+        var area = await _admin.PostOk(Areas, new { branchId = b3, name = "Sân" });
+        await _admin.PostOk(Tables, new { branchId = b3, areaId = area.Id(), tableCode = "X1", capacity = 2 });
+
+        await _admin.Post(Clone, new { fromBranchId = _b1, toBranchIds = new[] { _b2, b3 } }).ShouldBe(409, "floor_plan.target_not_empty");
+        (await _admin.GetFromJsonAsync<JsonElement>($"{Tables}?branchId={_b2}")).GetArrayLength().Should().Be(0);   // the first target got nothing either
+
+        await _admin.Post(Clone, new { fromBranchId = _b1, toBranchIds = new[] { _b1 } }).ShouldBe(400);
+        await _admin.Post(Clone, new { fromBranchId = _b1, toBranchIds = Array.Empty<Guid>() }).ShouldBe(400);
+        await _admin.Post(Clone, new { fromBranchId = _b2, toBranchIds = new[] { _b1 } }).ShouldBe(422, "floor_plan.source_empty");
+        await _admin.Post(Clone, new { fromBranchId = _b1, toBranchIds = new[] { _otherBranch } }).ShouldBe(400);
+        await _otherAdmin.Post(Clone, new { fromBranchId = _b1, toBranchIds = new[] { _otherBranch } }).ShouldBe(400);
+        await _manager.Post(Clone, new { fromBranchId = _b1, toBranchIds = new[] { _b2 } }).ShouldBe(403);
+
+        _limits.Current = new TablePlanLimits(true, 1);
+        await _admin.Post(Clone, new { fromBranchId = _b1, toBranchIds = new[] { _b2 } }).ShouldBe(422, "subscription.table_limit_reached");
+    }
+
+    [Fact]
+    public async Task Without_a_plan_no_table_can_be_added()
+    {
+        var area = await _manager.PostOk(Areas, new { name = "Tầng 1" });
+        _limits.Current = new TablePlanLimits(false, null);
+
+        await _manager.Post(Tables, new { areaId = area.Id(), tableCode = "A1", capacity = 2 }).ShouldBe(422, "subscription.required");
+        await _manager.Post(Batch, new { rows = Numbered(area.Id(), "A", 2) }).ShouldBe(422, "subscription.required");
+    }
+
     // ------------------------------------------------------------------ areas (UC-25)
     [Fact]
     public async Task A_branch_manager_adds_areas_to_their_own_branch_and_names_are_unique_per_branch()

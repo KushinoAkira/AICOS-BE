@@ -11,6 +11,8 @@ using AICOS.IdentityOrganization.Api.Features.Platform;
 using AICOS.IdentityOrganization.Api.Features.Subscriptions;
 using AICOS.IdentityOrganization.Api.Features.Tenants;
 using AICOS.IdentityOrganization.Api.Features.Users;
+using AICOS.IdentityOrganization.Api.Persistence;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace AICOS.IdentityOrganization.Tests;
@@ -25,7 +27,7 @@ public sealed class SubscriptionTests : IDisposable
     private const string Password = "Temp1234";
     private static readonly JsonSerializerOptions Json = AuthEndpointsTests.Json;
 
-    private readonly IdentityApiFactory _factory = new();
+    private readonly IdentityApiFactory _factory = new() { SeedPlan = false };
     private readonly HttpClient _superAdmin;
 
     public SubscriptionTests() => _superAdmin = _factory.CreateClientAs(AicosRoles.SuperAdmin);
@@ -438,15 +440,30 @@ public sealed class SubscriptionTests : IDisposable
     }
 
     [Fact]
-    public async Task Tenants_without_a_plan_are_not_limited()
+    public async Task A_brand_without_a_plan_cannot_add_a_branch()
     {
         var tenant = await CreateTenantAsync("acme");
         using var admin = _factory.CreateClientAs(AicosRoles.BrandAdmin, tenantId: tenant.Id);
 
-        for (var i = 0; i < 4; i++)
-        {
-            await CreateBranchAsync(admin, $"Branch {i}");
-        }
+        var blocked = await admin.PostAsJsonAsync("/api/v1/identity/branches", new { name = "Quận 1" });
+        blocked.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        (await blocked.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("errorCode").GetString().Should().Be("subscription.required");
+
+        await AssignOkAsync(tenant.Id, (await CreatePlanAsync("Basic", maxBranches: 2)).Id);
+        await CreateBranchAsync(admin, "Quận 1");
+    }
+
+    [Fact]
+    public async Task The_demo_plans_are_added_once_with_their_limits()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<IdentityOrganizationDbContext>();
+
+        (await IdentitySeeder.AddDemoPlansAsync(db)).Should().Be(3);
+        (await IdentitySeeder.AddDemoPlansAsync(db)).Should().Be(0);
+
+        var chain = await db.SubscriptionPlans.SingleAsync(p => p.Name == "Gói Chuỗi Tiêu Chuẩn - 5 Quán");
+        (chain.MaxBranches, chain.MaxStaffAccounts, chain.MaxTablesPerBranch, chain.IsActive).Should().Be(((int?)5, (int?)50, (int?)100, true));
     }
 
     [Fact]

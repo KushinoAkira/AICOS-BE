@@ -163,6 +163,7 @@ services:
       Email__FromAddress: ${SMTP_FROM_ADDRESS:-}
       Email__FromName: ${SMTP_FROM_NAME:-AICOS}
       Email__AppUrl: ${APP_URL:-}
+      Seed__DemoPlans: ${SEED_DEMO_PLANS:-true}
       # Sign in with Google (empty: off).
       Google__ClientId: ${GOOGLE_CLIENT_ID:-}
     ports: ["5101:8080"]

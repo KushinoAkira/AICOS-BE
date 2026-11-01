@@ -84,7 +84,7 @@ public sealed class TenantEndpointsTests : IDisposable
         var admin = _factory.CreateClientAs(AicosRoles.BrandAdmin, tenantId: tenant.Id);
         await CreateBranchAsync(admin, "Quan 1");
         await CreateBranchAsync(admin, "Quan 2");
-        var other = await CreateTenantAsync("nostats", "owner@nostats.com");
+        var other = await CreateTenantAsync("nostats", "owner@nostats.com", plan: false);
 
         var list = await _superAdmin.GetFromJsonAsync<PagedResponse<TenantResponse>>($"{Tenants}?search=stats", Json);
         list!.Items.Single(t => t.Id == tenant.Id).BranchCount.Should().Be(2);
@@ -270,11 +270,17 @@ public sealed class TenantEndpointsTests : IDisposable
     private static CreateTenantRequest NewTenant(string code, string adminEmail) =>
         new($"Brand {code}", code, new FirstAdminRequest("Brand Owner", adminEmail, "0901234567", Password));
 
-    private async Task<TenantResponse> CreateTenantAsync(string code, string adminEmail)
+    private async Task<TenantResponse> CreateTenantAsync(string code, string adminEmail, bool plan = true)
     {
         var response = await _superAdmin.PostAsJsonAsync(Tenants, NewTenant(code, adminEmail), Json);
         response.EnsureSuccessStatusCode();
-        return (await response.Content.ReadFromJsonAsync<TenantResponse>(Json))!;
+        var tenant = (await response.Content.ReadFromJsonAsync<TenantResponse>(Json))!;
+        if (plan)
+        {
+            _factory.GivePlan(tenant.Id);
+        }
+
+        return tenant;
     }
 
     private static async Task<BranchResponse> CreateBranchAsync(HttpClient admin, string name)

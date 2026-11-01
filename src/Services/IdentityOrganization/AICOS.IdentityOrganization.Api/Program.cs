@@ -45,6 +45,7 @@ var app = builder.Build();
 
 await app.MigrateDatabaseAsync<IdentityOrganizationDbContext>();
 await app.SeedIdentityAsync();
+await app.SeedDemoPlansAsync();
 app.UseAicosServiceDefaults();
 
 var api = app.MapAicosApiGroup();
