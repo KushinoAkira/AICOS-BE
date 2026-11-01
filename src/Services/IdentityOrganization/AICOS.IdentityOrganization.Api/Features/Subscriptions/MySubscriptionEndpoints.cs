@@ -34,6 +34,15 @@ public static class MySubscriptionEndpoints
         group.MapGet("/", GetAsync);
         group.MapGet("/payments", PaymentsAsync);
         group.MapPost("/renew", RenewAsync);
+
+        // A manager needs the limits too: the Table service reads them with the caller's token before it creates tables.
+        api.MapGet("/subscription/limits", LimitsAsync).WithTags("My subscription").RequireAuthorization(AicosPolicies.Management);
+    }
+
+    private static async Task<PlanLimitsResponse> LimitsAsync(IdentityOrganizationDbContext db, ICurrentUser user, CancellationToken ct)
+    {
+        var plan = await SubscriptionRules.PlanOfAsync(db, TenantScope.Require(user), ct);
+        return new PlanLimitsResponse(plan is not null, plan?.Name, plan?.MaxBranches, plan?.MaxStaffAccounts, plan?.MaxTablesPerBranch);
     }
 
     private static async Task<MySubscriptionResponse> GetAsync(

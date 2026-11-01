@@ -401,6 +401,10 @@ namespace AICOS.IdentityOrganization.Api.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("max_staff_accounts");
 
+                    b.Property<int?>("MaxTablesPerBranch")
+                        .HasColumnType("integer")
+                        .HasColumnName("max_tables_per_branch");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(100)

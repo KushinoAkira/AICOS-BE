@@ -248,7 +248,7 @@ public static class TenantSubscriptionEndpoints
             sub.Id, tenant.Id, tenant.Name, sub.PlanId, sub.PlanName, sub.Fee, sub.BillingPeriod, sub.Status, sub.PeriodStartUtc, sub.PeriodEndUtc,
             sub.PaymentStatus, sub.PaidAmount, sub.Outstanding, sub.PaidAtUtc,
             sub.HealthAt(now, settings.RenewalNoticeDays, settings.GracePeriodDays), DaysUntil(sub.PeriodEndUtc, now),
-            usage.ActiveBranches, usage.StaffAccounts, plan.MaxBranches, plan.MaxStaffAccounts);
+            usage.ActiveBranches, usage.StaffAccounts, plan.MaxBranches, plan.MaxStaffAccounts, plan.MaxTablesPerBranch);
     }
 
     private static async Task<Tenant> FindTenantAsync(IdentityOrganizationDbContext db, Guid id, CancellationToken ct) =>

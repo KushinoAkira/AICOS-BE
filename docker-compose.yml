@@ -195,6 +195,7 @@ services:
         ASSEMBLY: AICOS.TableReservation.Api
     environment:
       <<: *dotnet-env
+      Tables__QrBaseUrl: ${APP_URL:-http://localhost:8443}/q
       ConnectionStrings__Default: Host=postgres;Port=5432;Database=${POSTGRES_DB:-aicos}_table_reservation;Username=table_reservation_svc;Password=${SERVICE_DB_PASSWORD:?Set SERVICE_DB_PASSWORD in .env - run scripts/init-env first}
     ports: ["5103:8080"]
 

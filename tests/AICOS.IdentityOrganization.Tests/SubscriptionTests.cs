@@ -334,6 +334,28 @@ public sealed class SubscriptionTests : IDisposable
 
     // ------------------------------------------------------------------ plan limits (FR-77, BR-11)
     [Fact]
+    public async Task The_limits_of_the_plan_reach_managers_and_the_table_limit_is_kept()
+    {
+        var tenant = await CreateTenantAsync("limits");
+        using var manager = _factory.CreateClientAs(AicosRoles.BranchManager, tenantId: tenant.Id);
+        var none = await manager.GetFromJsonAsync<JsonElement>("/api/v1/identity/subscription/limits");
+        none.GetProperty("hasPlan").GetBoolean().Should().BeFalse();
+
+        using var superAdmin = _factory.CreateClientAs(AicosRoles.SuperAdmin);
+        var created = await superAdmin.PostAsJsonAsync("/api/v1/identity/subscription-plans", new { name = "Chuỗi", tier = "Standard", fee = 100000, billingPeriod = "Monthly", maxBranches = 5, maxStaffAccounts = 50, maxTablesPerBranch = 60 });
+        var plan = await created.Content.ReadFromJsonAsync<JsonElement>();
+        plan.GetProperty("maxTablesPerBranch").GetInt32().Should().Be(60);
+        await AssignOkAsync(tenant.Id, plan.GetProperty("id").GetGuid());
+
+        var limits = await manager.GetFromJsonAsync<JsonElement>("/api/v1/identity/subscription/limits");
+        (limits.GetProperty("hasPlan").GetBoolean(), limits.GetProperty("maxBranches").GetInt32(), limits.GetProperty("maxTablesPerBranch").GetInt32()).Should().Be((true, 5, 60));
+
+        using var cashier = _factory.CreateClientAs(AicosRoles.Cashier, tenantId: tenant.Id);
+        (await cashier.GetAsync("/api/v1/identity/subscription/limits")).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        (await superAdmin.PostAsJsonAsync("/api/v1/identity/subscription-plans", new { name = "Sai", tier = "Standard", fee = 100000, billingPeriod = "Monthly", maxTablesPerBranch = 0 })).StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
     public async Task The_branch_limit_counts_only_active_branches_and_applies_to_reactivation()
     {
         var tenant = await CreateTenantAsync("acme");

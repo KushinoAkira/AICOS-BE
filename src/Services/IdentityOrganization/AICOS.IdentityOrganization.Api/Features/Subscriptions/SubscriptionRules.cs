@@ -94,7 +94,7 @@ internal static class SubscriptionRules
         }
     }
 
-    private static async Task<SubscriptionPlan?> PlanOfAsync(IdentityOrganizationDbContext db, Guid tenantId, CancellationToken ct)
+    public static async Task<SubscriptionPlan?> PlanOfAsync(IdentityOrganizationDbContext db, Guid tenantId, CancellationToken ct)
     {
         var planId = await db.TenantSubscriptions
             .Where(s => s.TenantId == tenantId && s.Status == SubscriptionStatus.Active)

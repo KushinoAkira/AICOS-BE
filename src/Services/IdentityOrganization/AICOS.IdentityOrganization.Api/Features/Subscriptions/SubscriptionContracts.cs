@@ -5,7 +5,7 @@ namespace AICOS.IdentityOrganization.Api.Features.Subscriptions;
 
 /// <summary>POST/PUT /subscription-plans. Fee is VND per billing period. A null limit means unlimited.</summary>
 public sealed record PlanRequest(
-    string? Name, string? Tier, decimal? Fee, BillingPeriod? BillingPeriod, int? MaxBranches, int? MaxStaffAccounts, string? Description);
+    string? Name, string? Tier, decimal? Fee, BillingPeriod? BillingPeriod, int? MaxBranches, int? MaxStaffAccounts, string? Description, int? MaxTablesPerBranch = null);
 
 public sealed record PlanStatusRequest(bool? IsActive);
 
@@ -21,11 +21,12 @@ public sealed record PlanResponse(
     bool IsActive,
     int Subscribers,
     DateTime CreatedAtUtc,
-    DateTime? UpdatedAtUtc)
+    DateTime? UpdatedAtUtc,
+    int? MaxTablesPerBranch = null)
 {
     public static PlanResponse From(SubscriptionPlan p, int subscribers) => new(
         p.Id, p.Name, p.Tier, p.Fee, p.BillingPeriod, p.MaxBranches, p.MaxStaffAccounts, p.Description, p.IsActive, subscribers,
-        p.CreatedAtUtc, p.UpdatedAtUtc);
+        p.CreatedAtUtc, p.UpdatedAtUtc, p.MaxTablesPerBranch);
 }
 
 /// <summary>POST /tenants/{id}/subscription: put the tenant on a plan. <see cref="StartDate"/> defaults to now.</summary>
@@ -54,7 +55,11 @@ public sealed record SubscriptionResponse(
     int ActiveBranches,
     int StaffAccounts,
     int? MaxBranches,
-    int? MaxStaffAccounts);
+    int? MaxStaffAccounts,
+    int? MaxTablesPerBranch = null);
+
+/// <summary>GET /subscription/limits: what the plan of the caller's brand allows. <see cref="HasPlan"/> is false while the brand has no plan.</summary>
+public sealed record PlanLimitsResponse(bool HasPlan, string? PlanName, int? MaxBranches, int? MaxStaffAccounts, int? MaxTablesPerBranch);
 
 public sealed record SubscriptionPaymentResponse(
     Guid Id, Guid SubscriptionId, decimal Amount, DateTime PaidAtUtc, string Method, string? Reference, DateTime PeriodStartUtc, Guid? RecordedBy)
@@ -91,6 +96,11 @@ internal static class SubscriptionRequestValidator
         if (r.MaxStaffAccounts is < 1 or > 10000)
         {
             errors.Add(nameof(r.MaxStaffAccounts), "Staff account limit must be between 1 and 10000, or empty for unlimited.");
+        }
+
+        if (r.MaxTablesPerBranch is < 1 or > 5000)
+        {
+            errors.Add(nameof(r.MaxTablesPerBranch), "Table limit must be between 1 and 5000, or empty for unlimited.");
         }
 
         CommonRules.MaxLength(errors, nameof(r.Description), r.Description, "Description", SubscriptionPlan.DescriptionMaxLength);
@@ -137,4 +147,5 @@ public sealed record PublicPlanResponse(
     BillingPeriod BillingPeriod,
     int? MaxBranches,
     int? MaxStaffAccounts,
-    string? Description);
+    string? Description,
+    int? MaxTablesPerBranch = null);
