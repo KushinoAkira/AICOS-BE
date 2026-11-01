@@ -12,9 +12,10 @@ using Microsoft.Extensions.Options;
 namespace AICOS.IdentityOrganization.Api.Features.Auth;
 
 /// <summary>
-/// UC-04 Sign up of a customer, by email or with Google. By email: register (account created as pending, 6-digit code mailed)
-/// then verify (account activated and signed in); resend sends a new code. With Google: one call that signs in or creates the account.
-/// Routes: /api/v1/identity/auth/register, /register/verify, /register/resend, /google. All anonymous.
+/// UC-04 Sign up of a customer, by email or with Google. One account works at every brand: the customer picks a brand after signing in
+/// (select-brand), which also creates their profile and loyalty wallet at that brand. By email: register (account created as pending,
+/// 6-digit code mailed) then verify (account activated and signed in); resend sends a new code. With Google: one call that signs in or
+/// creates the account. Routes: /api/v1/identity/auth/register, /register/verify, /register/resend, /google (anonymous), /select-brand.
 /// </summary>
 public static class SignUpEndpoints
 {
@@ -26,6 +27,7 @@ public static class SignUpEndpoints
         auth.MapPost("/register/verify", VerifyAsync).AllowAnonymous();
         auth.MapPost("/register/resend", ResendAsync).AllowAnonymous();
         auth.MapPost("/google", GoogleAsync).AllowAnonymous();
+        auth.MapPost("/select-brand", SelectBrandAsync).RequireAuthorization();
     }
 
     // ---------------------------------------------------------------- Step 1: create the pending account and mail the code
@@ -39,17 +41,16 @@ public static class SignUpEndpoints
         CancellationToken ct)
     {
         AuthRequestValidator.EnsureValid(request);
-        var tenant = await ActiveTenantAsync(db, request.TenantCode!, ct);
         var address = User.NormalizeLogin(request.Email!);
 
-        // A pending account of the same brand is overwritten, so a mistyped address or a lost code never traps the email.
+        // A pending account is overwritten, so a mistyped address or a lost code never traps the email.
         var existing = await db.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.Email == address, ct);
-        if (existing is not null && (existing.Status != UserStatus.PendingVerification || existing.TenantId != tenant.Id || existing.DeletedAtUtc is not null))
+        if (existing is not null && (existing.Status != UserStatus.PendingVerification || existing.DeletedAtUtc is not null))
         {
             throw new ConflictException($"Email '{address}' is already registered.", "user.duplicate_email");
         }
 
-        var user = existing ?? new User(request.FullName!, address, username: null, phone: null, AicosRoles.Customer, branchId: null, tenant.Id);
+        var user = existing ?? new User(request.FullName!, address, username: null, phone: null, AicosRoles.Customer, branchId: null);
         user.UpdateProfile(request.FullName!, address, username: null, phone: null);
         user.SetPassword(passwords.Hash(user, request.Password!), mustChangePassword: false);
         if (existing is null)
@@ -67,8 +68,6 @@ public static class SignUpEndpoints
         HttpContext http,
         IdentityOrganizationDbContext db,
         AuthTokenIssuer tokens,
-        IEventBus bus,
-        ILoggerFactory loggers,
         IOptions<AuthOptions> options,
         TimeProvider clock,
         CancellationToken ct)
@@ -76,11 +75,9 @@ public static class SignUpEndpoints
         AuthRequestValidator.EnsureValid(request);
         var settings = options.Value;
         var now = clock.GetUtcNow().UtcDateTime;
-        var tenant = await ActiveTenantAsync(db, request.TenantCode!, ct);
         var address = User.NormalizeLogin(request.Email!);
 
-        var user = await db.Users.FirstOrDefaultAsync(
-                u => u.Email == address && u.TenantId == tenant.Id && u.Status == UserStatus.PendingVerification, ct)
+        var user = await db.Users.FirstOrDefaultAsync(u => u.Email == address && u.Status == UserStatus.PendingVerification, ct)
             ?? throw InvalidCode();
 
         var otp = await db.OtpCodes
@@ -104,7 +101,6 @@ public static class SignUpEndpoints
         user.RecordSuccessfulLogin(now);
         var issued = tokens.StartSession(user, http);
         await db.SaveChangesAsync(ct);
-        await AccountRules.PublishCustomerRegisteredAsync(bus, loggers.CreateLogger(LoggerCategory), user, ct);
 
         return AuthResponse.From(issued, UserResponse.From(user));
     }
@@ -120,11 +116,9 @@ public static class SignUpEndpoints
     {
         AuthRequestValidator.EnsureValid(request);
         var settings = options.Value;
-        var tenant = await ActiveTenantAsync(db, request.TenantCode!, ct);
         var address = User.NormalizeLogin(request.Email!);
 
-        var user = await db.Users.FirstOrDefaultAsync(
-            u => u.Email == address && u.TenantId == tenant.Id && u.Status == UserStatus.PendingVerification, ct);
+        var user = await db.Users.FirstOrDefaultAsync(u => u.Email == address && u.Status == UserStatus.PendingVerification, ct);
         if (user is null)
         {
             // Same answer whether or not a pending sign-up exists, so this cannot be used to discover accounts.
@@ -143,8 +137,6 @@ public static class SignUpEndpoints
         AuthTokenIssuer tokens,
         IGoogleTokenVerifier google,
         IOptions<GoogleAuthOptions> googleOptions,
-        IEventBus bus,
-        ILoggerFactory loggers,
         TimeProvider clock,
         CancellationToken ct)
     {
@@ -155,7 +147,6 @@ public static class SignUpEndpoints
         }
 
         var now = clock.GetUtcNow().UtcDateTime;
-        var tenant = await ActiveTenantAsync(db, request.TenantCode!, ct);
         var identity = await google.VerifyAsync(request.IdToken!, ct)
             ?? throw new UnauthorizedException("The Google sign-in could not be verified. Try again.", "auth.google_invalid_token");
         if (!identity.EmailVerified)
@@ -165,25 +156,23 @@ public static class SignUpEndpoints
 
         var address = User.NormalizeLogin(identity.Email);
         var user = await db.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.GoogleSubject == identity.Subject || u.Email == address, ct);
-        var newCustomer = false;
 
         if (user is null)
         {
             var name = string.IsNullOrWhiteSpace(identity.Name) ? address.Split('@')[0] : identity.Name.Trim();
             user = new User(name.Length > User.FullNameMaxLength ? name[..User.FullNameMaxLength] : name, address, username: null, phone: null,
-                AicosRoles.Customer, branchId: null, tenant.Id);
+                AicosRoles.Customer, branchId: null);
             // Nobody knows this password: the account is entered with Google, or after a password reset.
             user.SetPassword(passwords.Hash(user, Convert.ToBase64String(RandomNumberGenerator.GetBytes(32))), mustChangePassword: false);
             user.LinkGoogle(identity.Subject);
             db.Users.Add(user);
-            newCustomer = true;
         }
         else
         {
-            if (user.DeletedAtUtc is not null || user.Role != AicosRoles.Customer || user.TenantId != tenant.Id
+            if (user.DeletedAtUtc is not null || user.Role != AicosRoles.Customer
                 || (user.GoogleSubject is not null && user.GoogleSubject != identity.Subject))
             {
-                throw new ForbiddenException("This Google account cannot be used to sign in to this brand.", "auth.google_not_allowed");
+                throw new ForbiddenException("This Google account cannot be used to sign in here.", "auth.google_not_allowed");
             }
 
             if (user.Status == UserStatus.Locked)
@@ -192,8 +181,7 @@ public static class SignUpEndpoints
             }
 
             // Google has proven the address, so a sign-up that was still waiting for its code is complete.
-            newCustomer = user.Status == UserStatus.PendingVerification;
-            if (newCustomer)
+            if (user.Status == UserStatus.PendingVerification)
             {
                 user.ChangeStatus(UserStatus.Active);
             }
@@ -204,12 +192,53 @@ public static class SignUpEndpoints
         user.RecordSuccessfulLogin(now);
         var issued = tokens.StartSession(user, http);
         await db.SaveChangesAsync(ct);
-        if (newCustomer)
-        {
-            await AccountRules.PublishCustomerRegisteredAsync(bus, loggers.CreateLogger(LoggerCategory), user, ct);
-        }
 
         return AuthResponse.From(issued, UserResponse.From(user));
+    }
+
+    // ---------------------------------------------------------------- Choosing a brand
+    /// <summary>
+    /// A customer picks the brand to order from: a new access token carries that tenant, so every service keeps working inside one brand and
+    /// points stay with the brand that issued them (BR-47). The first visit creates the customer's profile there. Refreshing keeps the choice.
+    /// </summary>
+    private static async Task<AuthResponse> SelectBrandAsync(
+        SelectBrandRequest request,
+        ICurrentUser currentUser,
+        IdentityOrganizationDbContext db,
+        AuthTokenIssuer tokens,
+        IEventBus bus,
+        ILoggerFactory loggers,
+        TimeProvider clock,
+        CancellationToken ct)
+    {
+        AuthRequestValidator.EnsureValid(request);
+        if (!currentUser.IsInRole(AicosRoles.Customer))
+        {
+            throw new ForbiddenException("Only customers choose a brand.", "auth.customer_only");
+        }
+
+        var now = clock.GetUtcNow().UtcDateTime;
+        var hash = Secrets.Sha256(request.RefreshToken!.Trim());
+        var session = await db.UserSessions.Include(s => s.User).FirstOrDefaultAsync(s => s.RefreshTokenHash == hash && s.UserId == currentUser.UserId, ct);
+        if (session?.User is null || !session.IsActive(now))
+        {
+            throw new UnauthorizedException("Refresh token is invalid, expired or revoked. Please log in again.", "auth.invalid_refresh_token");
+        }
+
+        var code = string.IsNullOrWhiteSpace(request.TenantCode) ? null : Tenant.NormalizeCode(request.TenantCode);
+        var tenant = await db.Tenants.AsNoTracking().FirstOrDefaultAsync(t => code != null ? t.Code == code : t.Id == request.TenantId, ct)
+            ?? throw new NotFoundException("Brand", code ?? request.TenantId?.ToString() ?? string.Empty);
+        if (tenant.Status != TenantStatus.Active)
+        {
+            throw AuthEndpoints.NotActive(tenant.Status);
+        }
+
+        session.SetActiveTenant(tenant.Id);
+        var issued = tokens.RotateSession(session, session.User);
+        await db.SaveChangesAsync(ct);
+        await AccountRules.PublishCustomerRegisteredAsync(bus, loggers.CreateLogger(LoggerCategory), session.User, tenant.Id, ct);
+
+        return AuthResponse.From(issued, UserResponse.From(session.User), tenant.Code);
     }
 
     // ---------------------------------------------------------------- helpers
@@ -252,14 +281,6 @@ public static class SignUpEndpoints
         }
 
         return Results.Accepted(value: new SignUpPendingResponse(user.Email, expiresIn, settings.SignUpResendSeconds));
-    }
-
-    private static async Task<Tenant> ActiveTenantAsync(IdentityOrganizationDbContext db, string tenantCode, CancellationToken ct)
-    {
-        var code = Tenant.NormalizeCode(tenantCode);
-        var tenant = await db.Tenants.AsNoTracking().FirstOrDefaultAsync(t => t.Code == code, ct)
-            ?? throw new ValidationFailedException("TenantCode", $"Brand '{code}' does not exist.");
-        return tenant.Status == TenantStatus.Active ? tenant : throw AuthEndpoints.NotActive(tenant.Status);
     }
 
     private static BusinessRuleException InvalidCode() =>

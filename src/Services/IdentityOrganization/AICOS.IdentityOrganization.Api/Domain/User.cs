@@ -17,7 +17,7 @@ public enum UserStatus
 /// <summary>
 /// A login account (UC-01, UC-02, UC-33). BR-01: exactly one role per account.
 /// Staff roles (BranchManager, Barista, Cashier) belong to exactly one branch; BrandAdmin and Customer to none.
-/// Every account except the SuperAdmin belongs to exactly one tenant (BR-04).
+/// Every staff account belongs to exactly one tenant (BR-04). The SuperAdmin and customers have none: one customer account works at every brand.
 /// </summary>
 public sealed class User : AuditableEntity<Guid>
 {

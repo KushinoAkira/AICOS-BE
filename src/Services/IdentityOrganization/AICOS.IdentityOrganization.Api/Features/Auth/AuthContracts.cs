@@ -5,17 +5,19 @@ using AICOS.IdentityOrganization.Api.Infrastructure;
 
 namespace AICOS.IdentityOrganization.Api.Features.Auth;
 
-/// <summary>UC-04: a guest registers a Customer account of one brand (BR-72); the account stays pending until the emailed code is verified. <see cref="TenantCode"/> is the brand identifier.</summary>
-public sealed record RegisterRequest(
-    string? TenantCode, string? FullName, string? Email, string? Password, string? ConfirmPassword);
+/// <summary>UC-04: a guest registers one platform-wide Customer account; it stays pending until the emailed code is verified.</summary>
+public sealed record RegisterRequest(string? FullName, string? Email, string? Password, string? ConfirmPassword);
 
 /// <summary>Sign-up step 2: the 6-digit code from the email.</summary>
-public sealed record VerifyRegistrationRequest(string? TenantCode, string? Email, string? Code);
+public sealed record VerifyRegistrationRequest(string? Email, string? Code);
 
-public sealed record ResendRegistrationRequest(string? TenantCode, string? Email);
+public sealed record ResendRegistrationRequest(string? Email);
 
 /// <summary>Sign in / sign up with Google: <see cref="IdToken"/> is the credential Google Identity Services hands to the web app.</summary>
-public sealed record GoogleLoginRequest(string? TenantCode, string? IdToken);
+public sealed record GoogleLoginRequest(string? IdToken);
+
+/// <summary>A signed-in customer picks the brand to order from, by code or (from a table QR) by id. <see cref="RefreshToken"/> names the session.</summary>
+public sealed record SelectBrandRequest(string? RefreshToken, string? TenantCode, Guid? TenantId);
 
 /// <summary>A verification code is on its way (or was sent moments ago). The client counts down <see cref="ResendAfterSeconds"/> before offering a resend.</summary>
 public sealed record SignUpPendingResponse(string Email, int ExpiresInSeconds, int ResendAfterSeconds);
@@ -39,12 +41,13 @@ public sealed record AuthResponse(
     DateTime AccessTokenExpiresAtUtc,
     string RefreshToken,
     DateTime RefreshTokenExpiresAtUtc,
-    UserResponse User)
+    UserResponse User,
+    string? ActiveBrandCode = null)
 {
     public string TokenType => "Bearer";
 
-    public static AuthResponse From(IssuedTokens tokens, UserResponse user) => new(
-        tokens.AccessToken, tokens.AccessTokenExpiresAtUtc, tokens.RefreshToken, tokens.RefreshTokenExpiresAtUtc, user);
+    public static AuthResponse From(IssuedTokens tokens, UserResponse user, string? activeBrandCode = null) => new(
+        tokens.AccessToken, tokens.AccessTokenExpiresAtUtc, tokens.RefreshToken, tokens.RefreshTokenExpiresAtUtc, user, activeBrandCode);
 }
 
 public sealed record MessageResponse(string Message);
@@ -54,7 +57,6 @@ internal static class AuthRequestValidator
     public static void EnsureValid(RegisterRequest r)
     {
         var errors = new ValidationErrors();
-        CommonRules.Required(errors, nameof(r.TenantCode), r.TenantCode, "Brand code", Domain.Tenant.CodeMaxLength);
         CommonRules.Required(errors, nameof(r.FullName), r.FullName, "Full name", Domain.User.FullNameMaxLength);
         CommonRules.Email(errors, nameof(r.Email), r.Email);
         InputRules.NewPassword(errors, nameof(r.Password), r.Password, nameof(r.ConfirmPassword), r.ConfirmPassword);
@@ -64,7 +66,6 @@ internal static class AuthRequestValidator
     public static void EnsureValid(VerifyRegistrationRequest r)
     {
         var errors = new ValidationErrors();
-        CommonRules.Required(errors, nameof(r.TenantCode), r.TenantCode, "Brand code", Domain.Tenant.CodeMaxLength);
         CommonRules.Email(errors, nameof(r.Email), r.Email);
         if (string.IsNullOrWhiteSpace(r.Code) || r.Code.Trim().Length != 6 || !r.Code.Trim().All(char.IsAsciiDigit))
         {
@@ -77,7 +78,6 @@ internal static class AuthRequestValidator
     public static void EnsureValid(ResendRegistrationRequest r)
     {
         var errors = new ValidationErrors();
-        CommonRules.Required(errors, nameof(r.TenantCode), r.TenantCode, "Brand code", Domain.Tenant.CodeMaxLength);
         CommonRules.Email(errors, nameof(r.Email), r.Email);
         errors.ThrowIfAny();
     }
@@ -85,10 +85,25 @@ internal static class AuthRequestValidator
     public static void EnsureValid(GoogleLoginRequest r)
     {
         var errors = new ValidationErrors();
-        CommonRules.Required(errors, nameof(r.TenantCode), r.TenantCode, "Brand code", Domain.Tenant.CodeMaxLength);
         if (string.IsNullOrWhiteSpace(r.IdToken))
         {
             errors.Add(nameof(r.IdToken), "Google credential is required.");
+        }
+
+        errors.ThrowIfAny();
+    }
+
+    public static void EnsureValid(SelectBrandRequest r)
+    {
+        var errors = new ValidationErrors();
+        if (string.IsNullOrWhiteSpace(r.RefreshToken))
+        {
+            errors.Add(nameof(r.RefreshToken), "Refresh token is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(r.TenantCode) && r.TenantId is null)
+        {
+            errors.Add(nameof(r.TenantCode), "Choose a brand.");
         }
 
         errors.ThrowIfAny();

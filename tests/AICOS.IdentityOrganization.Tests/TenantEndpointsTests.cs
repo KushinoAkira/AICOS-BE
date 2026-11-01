@@ -126,20 +126,16 @@ public sealed class TenantEndpointsTests : IDisposable
 
     // ------------------------------------------------------------------ BR-72
     [Fact]
-    public async Task Register_requires_an_existing_active_brand_and_joins_that_brand()
+    public async Task A_customer_account_belongs_to_no_brand_and_a_suspended_brand_does_not_stop_it_signing_in()
     {
         var tenant = await CreateTenantAsync("acme", "admin@acme.com");
         using var anonymous = _factory.CreateClient();
 
-        (await anonymous.PostAsJsonAsync($"{Auth}/register", new RegisterRequest("nope", "A", "a@x.com", Password, Password), Json))
-            .StatusCode.Should().Be(HttpStatusCode.BadRequest);
-
-        var signedUp = await AuthEndpointsTests.SignUpAsync(anonymous, _factory, "a@x.com", Password, "ACME", "A");
-        signedUp.User.TenantId.Should().Be(tenant.Id);
+        var signedUp = await AuthEndpointsTests.SignUpAsync(anonymous, _factory, "a@x.com", Password, "A");
+        signedUp.User.TenantId.Should().BeNull();
 
         await _superAdmin.PatchAsJsonAsync($"{Tenants}/{tenant.Id}/status", new ChangeTenantStatusRequest(TenantStatus.Suspended), Json);
-        (await anonymous.PostAsJsonAsync($"{Auth}/register", new RegisterRequest("acme", "B", "b@x.com", Password, Password), Json))
-            .StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        (await LoginAsync("a@x.com")).User.Email.Should().Be("a@x.com");
     }
 
     // ------------------------------------------------------------------ BR-04 tenant isolation

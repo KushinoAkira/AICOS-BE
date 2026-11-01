@@ -127,10 +127,16 @@ public static class AuthEndpoints
         await EnsureTenantActiveAsync(db, user, ct);
         await EnsureBranchActiveAsync(db, user, ct);
 
+        // A customer whose chosen brand was suspended stays signed in and picks another brand.
+        var activeBrand = session.ActiveTenantId is null
+            ? null
+            : await db.Tenants.AsNoTracking().FirstOrDefaultAsync(t => t.Id == session.ActiveTenantId && t.Status == TenantStatus.Active, ct);
+        session.SetActiveTenant(activeBrand?.Id);
+
         var issued = tokens.RotateSession(session, user);
         await db.SaveChangesAsync(ct);
 
-        return AuthResponse.From(issued, UserResponse.From(user));
+        return AuthResponse.From(issued, UserResponse.From(user), activeBrand?.Code);
     }
 
     private static async Task<IResult> LogoutAsync(

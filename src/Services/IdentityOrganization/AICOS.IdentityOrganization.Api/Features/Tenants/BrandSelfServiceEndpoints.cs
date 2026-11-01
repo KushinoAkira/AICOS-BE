@@ -34,6 +34,9 @@ public sealed record PublicBranchResponse(Guid Id, string Name, string? Address,
 public sealed record PublicBrandResponse(
     string Name, string Code, string? Description, string? LogoUrl, string? PrimaryColor, string? SecondaryColor, IReadOnlyList<PublicBranchResponse> Branches);
 
+/// <summary>One row of the brand picker customers see after signing in.</summary>
+public sealed record PublicBrandCardResponse(Guid Id, string Code, string Name, string? Description, string? LogoUrl, string? PrimaryColor, int BranchCount);
+
 /// <summary>POST /public/contact. <c>Website</c> is a hidden field of the form: a person leaves it empty, a bot fills it.</summary>
 public sealed record ContactRequest(string? FullName, string? Email, string? Phone, string? Subject, string? Message, string? Website = null);
 
@@ -61,6 +64,7 @@ public static partial class BrandSelfServiceEndpoints
         profile.MapPut("/", UpdateProfileAsync);
 
         api.MapGet("/public/brands/{code}", PublicBrandAsync).WithTags("Public").AllowAnonymous();
+        api.MapGet("/public/brands", PublicBrandsAsync).WithTags("Public").AllowAnonymous();
         api.MapPost("/public/contact", ContactAsync).WithTags("Public").AllowAnonymous();
 
         var messages = api.MapGroup("/contact-messages").WithTags("Contact messages").RequireAuthorization(AicosPolicies.PlatformAdmin);
@@ -203,6 +207,17 @@ public static partial class BrandSelfServiceEndpoints
     }
 
     // ------------------------------------------------------------------ the public page
+    /// <summary>Every active brand with at least one active branch: nothing to order from otherwise.</summary>
+    private static async Task<IReadOnlyList<PublicBrandCardResponse>> PublicBrandsAsync(IdentityOrganizationDbContext db, CancellationToken ct)
+    {
+        var branchCounts = await db.Branches.AsNoTracking().Where(b => b.Status == BranchStatus.Active)
+            .GroupBy(b => b.TenantId).Select(g => new { TenantId = g.Key, Count = g.Count() }).ToDictionaryAsync(x => x.TenantId, x => x.Count, ct);
+        var tenants = await db.Tenants.AsNoTracking().Where(t => t.Status == TenantStatus.Active).OrderBy(t => t.Name).ToListAsync(ct);
+        return tenants.Where(t => branchCounts.ContainsKey(t.Id))
+            .Select(t => new PublicBrandCardResponse(t.Id, t.Code, t.Name, t.Description, t.LogoUrl, t.PrimaryColor, branchCounts[t.Id]))
+            .ToList();
+    }
+
     private static async Task<PublicBrandResponse> PublicBrandAsync(string code, IdentityOrganizationDbContext db, CancellationToken ct)
     {
         var normalized = Tenant.NormalizeCode(code);

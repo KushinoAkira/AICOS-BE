@@ -27,13 +27,13 @@ public sealed class LoyaltyOptions
     public LoyaltyTierThresholds Thresholds => new(SilverThreshold, GoldThreshold);
 }
 
-/// <summary>Identity -> Customer: create the customer profile for a newly registered Customer account. Idempotent.</summary>
+/// <summary>Identity -> Customer: create the customer's profile at a brand the first time they choose it. Idempotent per account and brand.</summary>
 public sealed class CustomerRegisteredHandler(CustomerEngagementDbContext db, ILogger<CustomerRegisteredHandler> logger)
     : IIntegrationEventHandler<CustomerRegisteredEvent>
 {
     public async Task HandleAsync(CustomerRegisteredEvent @event, CancellationToken cancellationToken)
     {
-        if (await db.Customers.AnyAsync(c => c.UserId == @event.UserId, cancellationToken))
+        if (await db.Customers.AnyAsync(c => c.UserId == @event.UserId && c.TenantId == @event.TenantId, cancellationToken))
         {
             return;
         }
@@ -150,13 +150,13 @@ public sealed class UserProfileUpdatedHandler(CustomerEngagementDbContext db) : 
 {
     public async Task HandleAsync(UserProfileUpdatedEvent @event, CancellationToken cancellationToken)
     {
-        var customer = await db.Customers.FirstOrDefaultAsync(c => c.UserId == @event.UserId, cancellationToken);
-        if (customer is null)
+        // One account has a profile at every brand it has visited.
+        var profiles = await db.Customers.Where(c => c.UserId == @event.UserId).ToListAsync(cancellationToken);
+        foreach (var customer in profiles)
         {
-            return; // the profile is created by CustomerRegisteredEvent; nothing to sync yet
+            customer.UpdateProfile(@event.FullName, @event.Phone, customer.Birthday, customer.MarketingOptIn);
         }
 
-        customer.UpdateProfile(@event.FullName, @event.Phone, customer.Birthday, customer.MarketingOptIn);
         await db.SaveChangesAsync(cancellationToken);
     }
 }

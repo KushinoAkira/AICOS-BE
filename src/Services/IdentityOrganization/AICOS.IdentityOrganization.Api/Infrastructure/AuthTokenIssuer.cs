@@ -40,7 +40,7 @@ public sealed class AuthTokenIssuer(
         var expires = now.AddDays(_options.RefreshTokenDays);
 
         session.Rotate(Secrets.Sha256(refreshToken), now, expires);
-        return Issue(user, refreshToken, expires);
+        return Issue(user, refreshToken, expires, session.ActiveTenantId);
     }
 
     /// <summary>Signs the user out everywhere (password change/reset, lock, role change, delete). Caller saves changes.</summary>
@@ -57,9 +57,9 @@ public sealed class AuthTokenIssuer(
         }
     }
 
-    private IssuedTokens Issue(User user, string refreshToken, DateTime refreshExpires)
+    private IssuedTokens Issue(User user, string refreshToken, DateTime refreshExpires, Guid? activeTenantId = null)
     {
-        var (accessToken, accessExpires) = jwt.CreateAccessToken(user.Id, user.FullName, user.Role, user.BranchId, user.TenantId);
+        var (accessToken, accessExpires) = jwt.CreateAccessToken(user.Id, user.FullName, user.Role, user.BranchId, user.TenantId ?? activeTenantId);
         return new IssuedTokens(accessToken, accessExpires, refreshToken, refreshExpires);
     }
 }

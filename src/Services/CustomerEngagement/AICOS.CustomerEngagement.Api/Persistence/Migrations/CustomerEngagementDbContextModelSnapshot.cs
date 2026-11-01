@@ -123,12 +123,12 @@ namespace AICOS.CustomerEngagement.Api.Persistence.Migrations
                     b.HasIndex("Phone")
                         .HasDatabaseName("ix_customers_phone");
 
-                    b.HasIndex("TenantId")
-                        .HasDatabaseName("ix_customers_tenant_id");
-
                     b.HasIndex("UserId")
-                        .IsUnique()
                         .HasDatabaseName("ix_customers_user_id");
+
+                    b.HasIndex("TenantId", "UserId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_customers_tenant_id_user_id");
 
                     b.ToTable("customers", "customer", t =>
                         {

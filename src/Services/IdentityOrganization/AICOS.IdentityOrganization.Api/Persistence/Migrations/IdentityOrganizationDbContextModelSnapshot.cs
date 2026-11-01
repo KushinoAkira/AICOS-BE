@@ -752,6 +752,10 @@ namespace AICOS.IdentityOrganization.Api.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<Guid?>("ActiveTenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("active_tenant_id");
+
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at_utc");

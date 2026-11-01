@@ -37,8 +37,8 @@ internal sealed class CustomerConfiguration : IEntityTypeConfiguration<Customer>
         builder.Property(c => c.PreferredIce).HasMaxLength(20);
         builder.Property(c => c.PreferenceNotes).HasMaxLength(500);
         builder.Property(c => c.Tier).HasConversion<string>().HasMaxLength(20);
-        builder.HasIndex(c => c.UserId).IsUnique();
-        builder.HasIndex(c => c.TenantId);
+        builder.HasIndex(c => new { c.TenantId, c.UserId }).IsUnique();
+        builder.HasIndex(c => c.UserId);
         builder.HasIndex(c => c.Phone);
     }
 }

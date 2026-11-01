@@ -45,6 +45,9 @@ public sealed class UserSession : Entity<Guid>
 
     public DateTime? RevokedAtUtc { get; private set; }
 
+    /// <summary>The brand a customer is ordering from on this device. Customer accounts are platform-wide, so the brand lives on the session.</summary>
+    public Guid? ActiveTenantId { get; private set; }
+
     public bool IsActive(DateTime nowUtc) => RevokedAtUtc is null && ExpiresAtUtc > nowUtc;
 
     public void Rotate(string newRefreshTokenHash, DateTime nowUtc, DateTime expiresAtUtc)
@@ -55,6 +58,8 @@ public sealed class UserSession : Entity<Guid>
     }
 
     public void Revoke(DateTime nowUtc) => RevokedAtUtc ??= nowUtc;
+
+    public void SetActiveTenant(Guid? tenantId) => ActiveTenantId = tenantId;
 
     private static string? Truncate(string? value, int maxLength) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Length <= maxLength ? value : value[..maxLength];

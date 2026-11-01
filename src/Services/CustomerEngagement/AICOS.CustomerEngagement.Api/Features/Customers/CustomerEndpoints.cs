@@ -210,7 +210,8 @@ public static class CustomerEndpoints
     private static async Task<Customer> CurrentAsync(CustomerEngagementDbContext db, ICurrentUser user, CancellationToken ct)
     {
         var userId = user.UserId ?? throw new UnauthorizedException("Not signed in.");
-        return await db.Customers.FirstOrDefaultAsync(c => c.UserId == userId, ct)
+        var tenantId = TenantScope.Require(user);
+        return await db.Customers.FirstOrDefaultAsync(c => c.UserId == userId && c.TenantId == tenantId, ct)
             ?? throw new NotFoundException("Customer profile for user", userId); // created asynchronously after registration
     }
 
