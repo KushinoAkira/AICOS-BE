@@ -145,6 +145,17 @@ internal static class LoyaltyLookup
         db.Customers.FirstOrDefaultAsync(c => c.TenantId == tenantId && (c.Id == id || c.UserId == id), ct);
 }
 
+/// <summary>Identity -> Customer: a customer deleted their personal data (UC-66): anonymize the profile at every brand. Idempotent.</summary>
+public sealed class CustomerDataErasedHandler(CustomerEngagementDbContext db) : IIntegrationEventHandler<CustomerDataErasedEvent>
+{
+    public async Task HandleAsync(CustomerDataErasedEvent @event, CancellationToken cancellationToken)
+    {
+        var profiles = await db.Customers.Where(c => c.UserId == @event.UserId).ToListAsync(cancellationToken);
+        profiles.ForEach(c => c.Anonymize());
+        await db.SaveChangesAsync(cancellationToken);
+    }
+}
+
 /// <summary>Identity -> Customer: a customer edited their name or phone in Identity (UC-03); keep this copy in sync. Idempotent.</summary>
 public sealed class UserProfileUpdatedHandler(CustomerEngagementDbContext db) : IIntegrationEventHandler<UserProfileUpdatedEvent>
 {

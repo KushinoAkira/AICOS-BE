@@ -32,6 +32,9 @@ public sealed record UpdateProfileRequest(string? FullName, string? Phone, strin
 
 public sealed record ChangePasswordRequest(string? CurrentPassword, string? NewPassword, string? ConfirmNewPassword);
 
+/// <summary>UC-66: the password confirms the request; accounts that only sign in with Google have none to give.</summary>
+public sealed record DeleteMyDataRequest(string? Password);
+
 public sealed record ForgotPasswordRequest(string? Email);
 
 public sealed record ResetPasswordRequest(string? Email, string? Code, string? NewPassword, string? ConfirmNewPassword);

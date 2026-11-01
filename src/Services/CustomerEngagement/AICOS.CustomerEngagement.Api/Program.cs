@@ -24,6 +24,7 @@ builder.Services.AddAicosBranchDirectory(builder.Configuration);   // asks Ident
 builder.Services.AddIntegrationEventHandler<CustomerRegisteredEvent, CustomerRegisteredHandler>(); // Identity: new Customer account
 builder.Services.AddIntegrationEventHandler<OrderPaidIntegrationEvent, OrderPaidHandler>();                    // Order: BR-25 points after payment
 builder.Services.AddIntegrationEventHandler<OrderCancelledIntegrationEvent, OrderCancelledLoyaltyHandler>();      // Order: voucher back / points taken back
+builder.Services.AddIntegrationEventHandler<CustomerDataErasedEvent, CustomerDataErasedHandler>();   // Identity: UC-66 personal data deleted
 builder.Services.AddIntegrationEventHandler<UserProfileUpdatedEvent, UserProfileUpdatedHandler>();   // Identity: name/phone edited (UC-03)
 builder.Services.AddIntegrationEventHandler<OrderStatusChangedIntegrationEvent, OrderStatusNotificationHandler>();   // Order: a notification for the member
 

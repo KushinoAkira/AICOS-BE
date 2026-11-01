@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using AICOS.BuildingBlocks.Exceptions;
 using AICOS.BuildingBlocks.Messaging;
 using AICOS.BuildingBlocks.Security;
+using AICOS.Contracts.Events;
 using AICOS.IdentityOrganization.Api.Domain;
 using AICOS.IdentityOrganization.Api.Features.Users;
 using AICOS.IdentityOrganization.Api.Infrastructure;
@@ -28,6 +29,7 @@ public static class SignUpEndpoints
         auth.MapPost("/register/resend", ResendAsync).AllowAnonymous();
         auth.MapPost("/google", GoogleAsync).AllowAnonymous();
         auth.MapPost("/select-brand", SelectBrandAsync).RequireAuthorization();
+        auth.MapPost("/me/delete", DeleteMyDataAsync).RequireAuthorization();
     }
 
     // ---------------------------------------------------------------- Step 1: create the pending account and mail the code
@@ -239,6 +241,49 @@ public static class SignUpEndpoints
         await AccountRules.PublishCustomerRegisteredAsync(bus, loggers.CreateLogger(LoggerCategory), session.User, tenant.Id, ct);
 
         return AuthResponse.From(issued, UserResponse.From(session.User), tenant.Code);
+    }
+
+    // ---------------------------------------------------------------- UC-66 Delete my personal data
+    /// <summary>BR-57, BR-70: the account is anonymized at once and every session ends; orders and audit records stay, without the person.</summary>
+    private static async Task<IResult> DeleteMyDataAsync(
+        DeleteMyDataRequest request,
+        ICurrentUser currentUser,
+        IdentityOrganizationDbContext db,
+        PasswordService passwords,
+        AuthTokenIssuer tokens,
+        AuditLogger audit,
+        IEventBus bus,
+        ILoggerFactory loggers,
+        TimeProvider clock,
+        CancellationToken ct)
+    {
+        if (!currentUser.IsInRole(AicosRoles.Customer))
+        {
+            throw new ForbiddenException("Only customers can delete their data here.", "auth.customer_only");
+        }
+
+        var user = await db.Users.FirstOrDefaultAsync(u => u.Id == currentUser.UserId, ct)
+            ?? throw new NotFoundException("User", currentUser.UserId ?? Guid.Empty);
+        if (user.GoogleSubject is null && (string.IsNullOrEmpty(request.Password) || !passwords.Verify(user, request.Password).Verified))
+        {
+            throw new ValidationFailedException(nameof(request.Password), "Password is incorrect.");
+        }
+
+        audit.RecordUser("customer.data_deleted", user);
+        user.Anonymize(passwords.Hash(user, Convert.ToBase64String(RandomNumberGenerator.GetBytes(32))), clock.GetUtcNow().UtcDateTime);
+        await tokens.RevokeAllSessionsAsync(user.Id, ct);
+        await db.SaveChangesAsync(ct);
+
+        try
+        {
+            await bus.PublishAsync(new CustomerDataErasedEvent(user.Id), ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            loggers.CreateLogger(LoggerCategory).LogWarning(ex, "Could not publish CustomerDataErasedEvent for user {UserId}", user.Id);
+        }
+
+        return Results.NoContent();
     }
 
     // ---------------------------------------------------------------- helpers

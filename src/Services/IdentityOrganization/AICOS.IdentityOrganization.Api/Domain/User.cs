@@ -148,4 +148,13 @@ public sealed class User : AuditableEntity<Guid>
     }
 
     public void MarkDeleted(DateTime nowUtc) => DeletedAtUtc = nowUtc;
+
+    /// <summary>BR-70: removes what identifies the person and closes the account; the row stays so that orders keep a valid reference.</summary>
+    public void Anonymize(string unusablePasswordHash, DateTime nowUtc)
+    {
+        UpdateProfile("Deleted customer", $"deleted-{Id:N}@anonymized.invalid", username: null, phone: null);
+        GoogleSubject = null;
+        SetPassword(unusablePasswordHash, mustChangePassword: false);
+        MarkDeleted(nowUtc);
+    }
 }

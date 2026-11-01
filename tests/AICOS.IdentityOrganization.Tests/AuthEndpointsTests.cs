@@ -314,6 +314,30 @@ public sealed class AuthEndpointsTests : IDisposable
         brands[0].GetProperty("branchCount").GetInt32().Should().Be(1);
     }
 
+    // ------------------------------------------------------------------ UC-66 delete my data
+    [Fact]
+    public async Task Deleting_my_data_needs_the_password_anonymizes_the_account_and_ends_every_session()
+    {
+        var signedIn = await SignUpAsync(_anonymous, _factory, "xoa@example.com");
+        using var client = ClientWith(signedIn.AccessToken);
+
+        (await client.PostAsJsonAsync($"{Auth}/me/delete", new DeleteMyDataRequest("Wrong1234"), Json)).StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        (await client.PostAsJsonAsync($"{Auth}/me/delete", new DeleteMyDataRequest(Password), Json)).StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+        _factory.Events.Published.OfType<CustomerDataErasedEvent>().Should().ContainSingle(e => e.UserId == signedIn.User.Id);
+        (await LoginAsync("xoa@example.com", Password)).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        (await _anonymous.PostAsJsonAsync($"{Auth}/refresh", new RefreshTokenRequest(signedIn.RefreshToken))).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        (await StartSignUpAsync("xoa@example.com")).StatusCode.Should().Be(HttpStatusCode.Accepted); // the address is free again
+    }
+
+    [Fact]
+    public async Task Staff_cannot_use_the_customer_data_deletion()
+    {
+        using var staff = _factory.CreateClientAs(AicosRoles.Cashier);
+        (await staff.PostAsJsonAsync($"{Auth}/me/delete", new DeleteMyDataRequest(Password), Json)).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
     // ------------------------------------------------------------------ login
     [Fact]
     public async Task Login_with_email_or_username_returns_tokens_usable_on_me()
