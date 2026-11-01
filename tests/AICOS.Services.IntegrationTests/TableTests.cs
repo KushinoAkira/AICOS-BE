@@ -160,6 +160,43 @@ public sealed class TableTests : IDisposable
         await _manager.Post(Tables, new { areaId = area.Id(), tableCode = "C3", capacity = 2 }).ShouldBe(422, "subscription.table_limit_reached");
     }
 
+    // ------------------------------------------------------------------ floor plan layout
+    private const string Layout = "/api/v1/tables/floor-plan/layout";
+
+    [Fact]
+    public async Task Moved_tables_are_saved_together_and_appear_on_the_floor_plan()
+    {
+        var area = await _manager.PostOk(Areas, new { name = "Tầng 1" });
+        var tables = (await _manager.PostOk(Batch, new { rows = Numbered(area.Id(), "A", 2) })).GetProperty("tables").EnumerateArray().Select(t => t.Id()).ToList();
+
+        var saved = await _manager.Put(Layout, new { positions = new[] { new { tableId = tables[0], positionX = 3, positionY = 1 }, new { tableId = tables[1], positionX = 4, positionY = 1 } } });
+        saved.IsSuccessStatusCode.Should().BeTrue();
+
+        var plan = await _cashier.GetFromJsonAsync<JsonElement>("/api/v1/tables/floor-plan");
+        var first = plan.GetProperty("areas")[0].GetProperty("tables").EnumerateArray().Single(t => t.Id() == tables[0]);
+        (first.GetProperty("positionX").GetInt32(), first.GetProperty("positionY").GetInt32()).Should().Be((3, 1));
+
+        // two tables swap places in one save
+        (await _manager.Put(Layout, new { positions = new[] { new { tableId = tables[0], positionX = 4, positionY = 1 }, new { tableId = tables[1], positionX = 3, positionY = 1 } } })).IsSuccessStatusCode.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task A_layout_refuses_shared_cells_foreign_tables_and_the_wrong_people()
+    {
+        var area = await _manager.PostOk(Areas, new { name = "Tầng 1" });
+        var tables = (await _manager.PostOk(Batch, new { rows = Numbered(area.Id(), "A", 2) })).GetProperty("tables").EnumerateArray().Select(t => t.Id()).ToList();
+        var otherArea = await _admin.PostOk(Areas, new { branchId = _b2, name = "Tầng 1" });
+        var foreign = (await _admin.PostOk(Batch, new { branchId = _b2, rows = Numbered(otherArea.Id(), "B", 1) })).GetProperty("tables")[0].Id();
+
+        (await _manager.Put(Layout, new { positions = new[] { new { tableId = tables[0], positionX = 1, positionY = 1 }, new { tableId = tables[1], positionX = 1, positionY = 1 } } })).StatusCode.Should().Be(System.Net.HttpStatusCode.BadRequest);
+        (await _manager.Put(Layout, new { positions = new[] { new { tableId = foreign, positionX = 1, positionY = 1 } } })).StatusCode.Should().Be(System.Net.HttpStatusCode.BadRequest);
+        (await _manager.Put(Layout, new { positions = new[] { new { tableId = tables[0], positionX = -1, positionY = 1 } } })).StatusCode.Should().Be(System.Net.HttpStatusCode.BadRequest);
+        (await _manager.Put(Layout, new { positions = Array.Empty<object>() })).StatusCode.Should().Be(System.Net.HttpStatusCode.BadRequest);
+        (await _cashier.Put(Layout, new { positions = new[] { new { tableId = tables[0], positionX = 1, positionY = 1 } } })).StatusCode.Should().Be(System.Net.HttpStatusCode.Forbidden);
+
+        (await _admin.Put(Layout, new { branchId = _b2, positions = new[] { new { tableId = foreign, positionX = 2, positionY = 0 } } })).IsSuccessStatusCode.Should().BeTrue();
+    }
+
     // ------------------------------------------------------------------ areas (UC-25)
     [Fact]
     public async Task A_branch_manager_adds_areas_to_their_own_branch_and_names_are_unique_per_branch()

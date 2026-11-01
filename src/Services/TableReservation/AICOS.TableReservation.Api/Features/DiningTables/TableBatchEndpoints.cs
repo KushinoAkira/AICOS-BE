@@ -15,6 +15,13 @@ public sealed record TableBatchRequest(Guid? BranchId, List<TableBatchRow>? Rows
 
 public sealed record TableBatchResponse(int Created, int AreasCreated, List<DiningTableResponse> Tables);
 
+public sealed record TablePosition(Guid? TableId, int? PositionX, int? PositionY);
+
+/// <summary>Tables that moved on the floor plan. <see cref="BranchId"/> is only read for a BrandAdmin.</summary>
+public sealed record TableLayoutRequest(Guid? BranchId, List<TablePosition>? Positions);
+
+public sealed record TableLayoutResponse(int Moved);
+
 /// <summary>
 /// UC-25, UC-26: setting up many tables at once. Routes: /api/v1/tables/dining-tables/batch. All or nothing: one bad row creates no table, and the
 /// answer names every bad row (<c>errors["Rows[3]"]</c>). Each table gets its own QR token.
@@ -26,6 +33,7 @@ public static class TableBatchEndpoints
     public static void MapTableBatchEndpoints(this RouteGroupBuilder api)
     {
         api.MapPost("/dining-tables/batch", CreateBatchAsync).WithTags("Dining tables").RequireAuthorization(AicosPolicies.Management);
+        api.MapPut("/floor-plan/layout", SaveLayoutAsync).WithTags("Dining tables").RequireAuthorization(AicosPolicies.Management);
     }
 
     private static async Task<IResult> CreateBatchAsync(
@@ -92,6 +100,54 @@ public static class TableBatchEndpoints
         var names = areas.Concat(newAreas).ToDictionary(a => a.Id, a => a.Name);
         return Results.Created(
             "/api/v1/tables/dining-tables", new TableBatchResponse(tables.Count, newAreas.Count, tables.Select(t => DiningTableEndpoints.Map(t, names, config)).ToList()));
+    }
+
+    /// <summary>UC-25: saves where tables stand, all together. Two tables of one area cannot share a cell once the move is done.</summary>
+    private static async Task<TableLayoutResponse> SaveLayoutAsync(
+        TableLayoutRequest r, TableReservationDbContext db, ICurrentUser user, IBranchDirectory directory, CancellationToken ct)
+    {
+        var positions = r.Positions ?? [];
+        if (positions.Count is 0 or > MaxRows)
+        {
+            throw new ValidationFailedException("Positions", $"Give 1-{MaxRows} tables.");
+        }
+
+        var tenantId = TenantScope.Require(user);
+        var branchId = await BranchScope.ResolveAsync(user, directory, r.BranchId, requireActive: true, ct);
+        var tables = await db.DiningTables.Where(t => t.TenantId == tenantId && t.BranchId == branchId).ToListAsync(ct);
+
+        var errors = new ValidationErrors();
+        var moved = new List<DiningTable>();
+        for (var i = 0; i < positions.Count; i++)
+        {
+            var p = positions[i];
+            var table = tables.Find(t => t.Id == p.TableId);
+            if (table is null)
+            {
+                errors.Add($"Positions[{i}]", "The table does not exist in this branch.");
+            }
+            else if (p.PositionX is null or < 0 or > 10000 || p.PositionY is null or < 0 or > 10000)
+            {
+                errors.Add($"Positions[{i}]", $"Table {table.TableCode}: floor-plan positions must be between 0 and 10000.");
+            }
+            else
+            {
+                table.MoveTo(p.PositionX.Value, p.PositionY.Value);
+                moved.Add(table);
+            }
+        }
+
+        foreach (var table in moved)
+        {
+            if (tables.Any(t => t.Id != table.Id && t.AreaId == table.AreaId && t.PositionX == table.PositionX && t.PositionY == table.PositionY))
+            {
+                errors.Add("Positions", $"Table {table.TableCode} stands on a cell another table already uses.");
+            }
+        }
+
+        errors.ThrowIfAny();
+        await db.SaveChangesAsync(ct);
+        return new TableLayoutResponse(moved.Count);
     }
 
     private static string? Check(TableBatchRow row, HashSet<string> taken)
