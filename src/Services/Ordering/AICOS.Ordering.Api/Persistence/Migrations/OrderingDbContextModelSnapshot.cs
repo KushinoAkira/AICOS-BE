@@ -472,6 +472,15 @@ namespace AICOS.Ordering.Api.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<DateTime?>("BillRequestedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("bill_requested_at_utc");
+
+                    b.Property<string>("BillRequestedMethod")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("bill_requested_method");
+
                     b.Property<Guid>("BranchId")
                         .HasColumnType("uuid")
                         .HasColumnName("branch_id");

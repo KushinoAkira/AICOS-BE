@@ -69,6 +69,7 @@ public sealed class KitchenPaymentSucceededHandler(KitchenOperationsDbContext db
 {
     public async Task HandleAsync(PaymentSucceededEvent @event, CancellationToken cancellationToken)
     {
+        await notifier.NotifyCounterAsync(@event.TenantId, @event.BranchId, "PaymentSucceeded", new { @event.OrderId, @event.Amount, @event.Method }, cancellationToken);
         var ticket = await TicketLookup.ByOrderAsync(db, @event.TenantId, @event.OrderId, cancellationToken);
         if (ticket is null || ticket.IsPaid)
         {
@@ -82,6 +83,13 @@ public sealed class KitchenPaymentSucceededHandler(KitchenOperationsDbContext db
             await TicketLookup.AnnounceAsync(ticket, notifier, clock, db, logger, cancellationToken);
         }
     }
+}
+
+/// <summary>A table asked for the bill: tell the cashier screens of the branch.</summary>
+public sealed class KitchenBillRequestedHandler(IKitchenNotifier notifier) : IIntegrationEventHandler<TableBillRequestedIntegrationEvent>
+{
+    public Task HandleAsync(TableBillRequestedIntegrationEvent @event, CancellationToken cancellationToken) =>
+        notifier.NotifyCounterAsync(@event.TenantId, @event.BranchId, "TableBillRequested", new { @event.SessionId, @event.TableCode, @event.Method }, cancellationToken);
 }
 
 public sealed class KitchenOrderCancelledHandler(KitchenOperationsDbContext db, IKitchenNotifier notifier, TimeProvider clock, ILogger<KitchenOrderCancelledHandler> logger)

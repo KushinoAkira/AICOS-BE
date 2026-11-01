@@ -70,6 +70,64 @@ public sealed class QrOrderTests : IDisposable
 
     public void Dispose() => _f.Dispose();
 
+    private async Task<(Guid SessionId, HttpClient Phone, Guid OrderId)> TableWithAnOrderAsync(string? code = null)
+    {
+        var (token, sessionId) = await ScanAsync(code);
+        var phone = _f.CreateClient();
+        phone.DefaultRequestHeaders.Add(Header, token);
+        (await phone.PostAsJsonAsync($"{Qr}/cart/items", new { productId = _cake, quantity = 1 })).EnsureSuccessStatusCode();
+        var order = await (await phone.PostAsJsonAsync($"{Qr}/checkout", new { note = (string?)null })).Content.ReadFromJsonAsync<JsonElement>();
+        return (sessionId, phone, order.GetProperty("id").GetGuid());
+    }
+
+    [Fact]
+    public async Task A_table_asks_for_the_bill_and_the_counter_sees_it()
+    {
+        var (sessionId, phone, _) = await TableWithAnOrderAsync();
+        (await phone.PostAsJsonAsync($"{Qr}/session/bill-request", new { method = "bitcoin" })).StatusCode.Should().Be(System.Net.HttpStatusCode.BadRequest);
+
+        (await phone.PostAsJsonAsync($"{Qr}/session/bill-request", new { method = "transfer" })).StatusCode.Should().Be(System.Net.HttpStatusCode.NoContent);
+
+        _f.Events.Published.OfType<TableBillRequestedIntegrationEvent>().Should().ContainSingle(e => e.SessionId == sessionId && e.Method == "Transfer" && e.TableCode == "A1");
+        using var cashier = _f.As(AicosRoles.Cashier, _b1);
+        var sessions = await cashier.GetFromJsonAsync<JsonElement>($"{Qr}/sessions");
+        var row = sessions.EnumerateArray().Single(s => s.GetProperty("id").GetGuid() == sessionId);
+        row.GetProperty("billRequestedMethod").GetString().Should().Be("Transfer");
+        row.GetProperty("billRequestedAtUtc").GetDateTime().Should().NotBe(default);
+    }
+
+    [Fact]
+    public async Task A_table_with_nothing_to_pay_cannot_ask_for_the_bill()
+    {
+        var (token, _) = await ScanAsync();
+        await Phone(token).PostAsJsonAsync($"{Qr}/session/bill-request", new { method = "Cash" }).ShouldBe(422, "qr.nothing_to_pay");
+    }
+
+    [Fact]
+    public async Task The_payment_token_of_a_table_reads_only_the_orders_of_that_table()
+    {
+        var (sessionId, phone, orderId) = await TableWithAnOrderAsync();
+        var (_, _, otherOrderId) = await TableWithAnOrderAsync(_t2);
+
+        _f.Clock.Now = DateTimeOffset.UtcNow; // the token is signed with the test clock but validated with the real one
+        var access = await (await phone.PostAsync($"{Qr}/session/payment-access", null)).Content.ReadFromJsonAsync<JsonElement>();
+        access.GetProperty("branchId").GetGuid().Should().Be(_b1);
+
+        using var table = _f.CreateClient();
+        table.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", access.GetProperty("accessToken").GetString());
+        (await table.GetAsync($"/api/v1/orders/{orderId}")).StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
+        (await table.GetAsync($"/api/v1/orders/{otherOrderId}")).StatusCode.Should().Be(System.Net.HttpStatusCode.NotFound);
+        (await table.GetAsync("/api/v1/orders")).StatusCode.Should().Be(System.Net.HttpStatusCode.Forbidden);
+        (await table.GetAsync($"{Qr}/sessions")).StatusCode.Should().Be(System.Net.HttpStatusCode.Forbidden);
+        sessionId.Should().NotBeEmpty();
+    }
+
+    [Fact]
+    public async Task No_payment_token_without_a_table_session()
+    {
+        await _guest.PostAsync($"{Qr}/session/payment-access", null).ShouldBe(401, "qr.session_invalid");
+    }
+
     private async Task<(string Token, Guid SessionId)> ScanAsync(string? code = null, HttpClient? client = null)
     {
         var scan = await (await (client ?? _guest).Post($"{Qr}/scan", new { qrToken = code ?? _t1 })).Body();

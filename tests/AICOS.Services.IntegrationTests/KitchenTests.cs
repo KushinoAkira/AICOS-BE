@@ -22,6 +22,14 @@ public sealed class RecordingNotifier : IKitchenNotifier
 
     public List<(Guid Tenant, Guid Branch, int Count)> Stickers { get; } = [];
 
+    public List<string> CounterEvents { get; } = [];
+
+    public Task NotifyCounterAsync(Guid tenantId, Guid branchId, string eventName, object payload, CancellationToken ct = default)
+    {
+        CounterEvents.Add(eventName);
+        return Task.CompletedTask;
+    }
+
     public Task NotifyNewTicketAsync(Guid tenantId, Guid branchId, KitchenTicketDto ticket, CancellationToken ct = default)
     {
         NewTickets.Add((tenantId, branchId, ticket.OrderCode));

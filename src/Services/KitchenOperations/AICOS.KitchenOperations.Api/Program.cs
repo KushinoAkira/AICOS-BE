@@ -23,6 +23,7 @@ builder.Services.AddScoped<IKitchenNotifier, KitchenSignalRNotifier>();
 // The bar queue is fed by events from the order and payment services.
 builder.Services.AddIntegrationEventHandler<OrderCreatedIntegrationEvent, OrderCreatedHandler>();
 builder.Services.AddIntegrationEventHandler<PaymentSucceededEvent, KitchenPaymentSucceededHandler>();
+builder.Services.AddIntegrationEventHandler<TableBillRequestedIntegrationEvent, KitchenBillRequestedHandler>();
 builder.Services.AddIntegrationEventHandler<OrderCancelledIntegrationEvent, KitchenOrderCancelledHandler>();
 builder.Services.AddIntegrationEventHandler<OrderCompletedIntegrationEvent, KitchenOrderCompletedHandler>();
 
