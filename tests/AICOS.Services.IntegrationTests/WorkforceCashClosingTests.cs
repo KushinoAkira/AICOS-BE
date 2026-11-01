@@ -42,6 +42,7 @@ public sealed class WorkforceCashClosingTests : WorkforceTestBase
         SetLocal(Monday, 12, 0);
 
         var closing = await cashier.PostOk(Closings, new { assignmentId = assignment, countedAmount = 170_000, note = "Đủ" });
+        F.Events.Published.OfType<CashClosingSubmittedEvent>().Should().ContainSingle(e => e.ClosingId == closing.Id() && e.CountedAmount == 170_000);
 
         closing.GetProperty("expectedAmount").GetDecimal().Should().Be(170_000);
         closing.GetProperty("countedAmount").GetDecimal().Should().Be(170_000);

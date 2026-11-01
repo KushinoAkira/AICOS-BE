@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using AICOS.BuildingBlocks.Persistence;
 using AICOS.BuildingBlocks.Security;
+using AICOS.Contracts.Events;
 using AICOS.IdentityOrganization.Api.Domain;
 using AICOS.IdentityOrganization.Api.Features.Auth;
 using AICOS.IdentityOrganization.Api.Features.Branches;
@@ -146,6 +147,10 @@ public sealed class BrandSelfServiceTests : IDisposable
         var tenant = await RegisterOkAsync();
         var pending = await _superAdmin.GetFromJsonAsync<PagedResponse<TenantResponse>>($"{Base}/tenants?status=Pending", Json);
         pending!.Items.Select(t => t.Code).Should().Equal("cafe-sai-gon");
+
+        var listed = await _superAdmin.GetFromJsonAsync<JsonElement>($"{Base}/tenants?status=Pending", Json);
+        listed.GetProperty("items").EnumerateArray().Single(t => t.GetProperty("id").GetGuid() == tenant.Id).GetProperty("ownerEmail").GetString().Should().Be("owner@cafesaigon.vn");
+        _factory.Events.Published.OfType<BrandRegisteredEvent>().Should().ContainSingle(e => e.TenantId == tenant.Id);
 
         var approved = await _superAdmin.PostAsJsonAsync($"{Base}/tenants/{tenant.Id}/approve", new { });
 

@@ -124,7 +124,9 @@ public sealed record SubscriptionSummaryResponse(
     SubscriptionPaymentStatus PaymentStatus,
     decimal Outstanding,
     SubscriptionHealth Health,
-    int DaysUntilRenewal);
+    int DaysUntilRenewal,
+    Guid PlanId,
+    TenantStatus TenantStatus);
 
 /// <summary>What the landing page shows for a plan that can be bought: no subscriber counts or audit fields.</summary>
 public sealed record PublicPlanResponse(

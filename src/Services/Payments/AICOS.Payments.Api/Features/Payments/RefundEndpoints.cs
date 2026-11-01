@@ -121,6 +121,10 @@ public static class RefundEndpoints
             await refunds.ProcessAsync(refund, payment, user.UserId, ct);
             await AuditTrail.PublishAsync(bus, user, audit, tenantId, "refund.auto_approved", "PaymentRefund", refund.Id, null, Snapshot(refund));
         }
+        else
+        {
+            await bus.PublishAsync(new RefundRequestedEvent(tenantId, refund.BranchId, refund.Id, payment.OrderId, amount, refund.Reason), ct);
+        }
 
         return Results.Created($"/api/v1/payments/refunds/{refund.Id}", RefundResponse.From(refund));
     }

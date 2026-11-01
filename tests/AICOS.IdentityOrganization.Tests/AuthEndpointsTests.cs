@@ -612,6 +612,36 @@ public sealed class AuthEndpointsTests : IDisposable
     private Task<HttpResponseMessage> LoginAsync(string login, string password) =>
         _anonymous.PostAsJsonAsync($"{Auth}/login", new LoginRequest(login, password), Json);
 
+    [Fact]
+    public async Task A_person_lists_their_devices_and_signs_the_others_out()
+    {
+        await RegisterAsync("dan@example.com");
+        var here = await LoginOkAsync("dan@example.com");
+        var phone = await LoginOkAsync("dan@example.com");
+        var tablet = await LoginOkAsync("dan@example.com");
+        await RegisterAsync("em@example.com");
+        var stranger = await LoginOkAsync("em@example.com");
+        using var client = ClientWith(here.AccessToken);
+
+        var sessions = (await client.GetFromJsonAsync<List<SessionResponse>>($"{Auth}/sessions", Json))!;
+        sessions.Where(s => s.IsCurrent).Should().ContainSingle();
+        var others = sessions.Where(s => !s.IsCurrent).ToList();
+
+        using var strangerClient = ClientWith(stranger.AccessToken);
+        (await strangerClient.DeleteAsync($"{Auth}/sessions/{others[0].Id}")).StatusCode.Should().Be(HttpStatusCode.NotFound);   // only your own
+        (await client.DeleteAsync($"{Auth}/sessions/{others[0].Id}")).StatusCode.Should().Be(HttpStatusCode.NoContent);
+        (await client.GetFromJsonAsync<List<SessionResponse>>($"{Auth}/sessions", Json))!.Should().HaveCount(sessions.Count - 1);
+
+        var revoked = await client.PostAsJsonAsync($"{Auth}/sessions/revoke-others", new { }, Json);
+        (await revoked.Content.ReadFromJsonAsync<RevokedSessionsResponse>(Json))!.Revoked.Should().Be(sessions.Count - 2);
+        var left = (await client.GetFromJsonAsync<List<SessionResponse>>($"{Auth}/sessions", Json))!;
+        left.Should().ContainSingle().Which.IsCurrent.Should().BeTrue();
+
+        (await _anonymous.PostAsJsonAsync($"{Auth}/refresh", new RefreshTokenRequest(phone.RefreshToken), Json)).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        (await _anonymous.PostAsJsonAsync($"{Auth}/refresh", new RefreshTokenRequest(tablet.RefreshToken), Json)).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        (await _anonymous.PostAsJsonAsync($"{Auth}/refresh", new RefreshTokenRequest(here.RefreshToken), Json)).StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
     private async Task<AuthResponse> LoginOkAsync(string login)
     {
         var response = await LoginAsync(login, Password);

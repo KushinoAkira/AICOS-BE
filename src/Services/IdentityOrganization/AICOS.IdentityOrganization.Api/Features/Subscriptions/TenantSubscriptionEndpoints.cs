@@ -224,7 +224,7 @@ public static class TenantSubscriptionEndpoints
         var items = rows.Select(x => new SubscriptionSummaryResponse(
             x.Sub.Id, x.Tenant.Id, x.Tenant.Name, x.Tenant.Code, x.Sub.PlanName, x.Sub.Fee, x.Sub.BillingPeriod, x.Sub.PeriodEndUtc,
             x.Sub.PaymentStatus, x.Sub.Outstanding, x.Sub.HealthAt(now, settings.RenewalNoticeDays, settings.GracePeriodDays),
-            DaysUntil(x.Sub.PeriodEndUtc, now))).ToList();
+            DaysUntil(x.Sub.PeriodEndUtc, now), x.Sub.PlanId, x.Tenant.Status)).ToList();
 
         return new PagedResponse<SubscriptionSummaryResponse>(items, page, pageSize, total);
     }

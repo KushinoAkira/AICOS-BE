@@ -74,7 +74,7 @@ public static class CashClosingEndpoints
 
     /// <summary>The Cashier records what was counted. The shift must have been worked (checked in), and each shift is closed once.</summary>
     private static async Task<IResult> SubmitAsync(
-        SubmitCashClosingRequest r, WorkforceSchedulingDbContext db, ICurrentUser user, ShopClock shop, CancellationToken ct)
+        SubmitCashClosingRequest r, WorkforceSchedulingDbContext db, ICurrentUser user, ShopClock shop, IEventBus bus, CancellationToken ct)
     {
         var errors = new ValidationErrors();
         CommonRules.RequiredId(errors, "AssignmentId", r.AssignmentId, "Shift");
@@ -108,7 +108,9 @@ public static class CashClosingEndpoints
         var closing = new Domain.CashClosing(assignment.TenantId, assignment.BranchId, assignment.Id, assignment.EmployeeId, expected, r.CountedAmount!.Value, r.Note, now);
         db.CashClosings.Add(closing);
         await db.SaveChangesAsync(ct);
-        return Results.CreatedAtRoute("GetCashClosing", new { id = closing.Id }, (await MapAsync(db, [closing], ct))[0]);
+        var response = (await MapAsync(db, [closing], ct))[0];
+        await bus.PublishAsync(new CashClosingSubmittedEvent(closing.TenantId, closing.BranchId, closing.Id, response.EmployeeName, response.ExpectedAmount, response.CountedAmount), ct);
+        return Results.CreatedAtRoute("GetCashClosing", new { id = closing.Id }, response);
     }
 
     /// <summary>

@@ -17,3 +17,6 @@ public sealed record UserProfileUpdatedEvent(Guid UserId, string FullName, strin
 /// Consumed by Customer Engagement to anonymize the customer's profile at every brand; transaction records are kept.
 /// </summary>
 public sealed record CustomerDataErasedEvent(Guid UserId) : IntegrationEvent;
+
+/// <summary>A shop owner registered a brand, which now waits for the Super Admin. Customer Engagement tells the Super Admin.</summary>
+public sealed record BrandRegisteredEvent(Guid TenantId, string BrandName, string Code, string OwnerEmail) : IntegrationEvent;

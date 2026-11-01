@@ -23,6 +23,7 @@ public static class AuthEndpoints
         var auth = api.MapGroup("/auth").WithTags("Auth");
 
         auth.MapSignUpEndpoints();
+        auth.MapSessionEndpoints();
         auth.MapPost("/login", LoginAsync).AllowAnonymous();
         auth.MapPost("/refresh", RefreshAsync).AllowAnonymous();
         auth.MapPost("/logout", LogoutAsync).AllowAnonymous();

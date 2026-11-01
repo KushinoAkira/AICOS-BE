@@ -1,5 +1,7 @@
 using System.Text.RegularExpressions;
 using AICOS.BuildingBlocks.Exceptions;
+using AICOS.BuildingBlocks.Messaging;
+using AICOS.Contracts.Events;
 using AICOS.BuildingBlocks.Persistence;
 using AICOS.BuildingBlocks.Security;
 using AICOS.BuildingBlocks.Validation;
@@ -74,7 +76,7 @@ public static partial class BrandSelfServiceEndpoints
 
     // ------------------------------------------------------------------ registration and review
     private static async Task<IResult> RegisterBrandAsync(
-        RegisterBrandRequest r, IdentityOrganizationDbContext db, PasswordService passwords, AuditLogger audit, IEmailSender email, ILoggerFactory loggers, CancellationToken ct)
+        RegisterBrandRequest r, IdentityOrganizationDbContext db, PasswordService passwords, AuditLogger audit, IEventBus bus, IEmailSender email, ILoggerFactory loggers, CancellationToken ct)
     {
         var errors = new ValidationErrors();
         CommonRules.Required(errors, nameof(r.BrandName), r.BrandName, "Brand name", Tenant.NameMaxLength);
@@ -106,6 +108,7 @@ public static partial class BrandSelfServiceEndpoints
         audit.Record(AuditScope.Platform, tenant.Id, "tenant.registered", "Tenant", tenant.Id, after: AuditSnapshots.Of(tenant));
         await db.SaveChangesAsync(ct);
 
+        await bus.PublishAsync(new BrandRegisteredEvent(tenant.Id, tenant.Name, tenant.Code, owner.Email), ct);
         await SafeMailAsync(email, loggers, EmailTemplates.BrandRegistrationReceived(owner.Email, owner.FullName, tenant.Name), ct);
         return Results.Created($"/api/v1/identity/public/brands/{code}", new RegisterBrandResponse(
             tenant.Id, tenant.Code, tenant.Status, "Registration received. You can sign in once the platform team approves it."));

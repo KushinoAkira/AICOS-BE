@@ -2,6 +2,7 @@ using AICOS.BuildingBlocks.Exceptions;
 using AICOS.BuildingBlocks.Messaging;
 using AICOS.BuildingBlocks.Security;
 using AICOS.BuildingBlocks.Validation;
+using AICOS.Contracts.Events;
 using AICOS.WorkforceScheduling.Api.Domain;
 using AICOS.WorkforceScheduling.Api.Features.Employees;
 using AICOS.WorkforceScheduling.Api.Features.Scheduling;
@@ -113,7 +114,7 @@ public static class ReplacementEndpoints
 
     // ------------------------------------------------------------------ manager: open / approve / cancel
     private static async Task<IResult> OpenAsync(
-        OpenReplacementRequest r, WorkforceSchedulingDbContext db, ICurrentUser user, IBranchDirectory directory, ShopClock shop, CancellationToken ct)
+        OpenReplacementRequest r, WorkforceSchedulingDbContext db, ICurrentUser user, IBranchDirectory directory, ShopClock shop, IEventBus bus, CancellationToken ct)
     {
         var errors = new ValidationErrors();
         CommonRules.Required(errors, "Reason", r.Reason, "Reason", 500);
@@ -173,6 +174,7 @@ public static class ReplacementEndpoints
 
         db.ReplacementShifts.Add(replacement);
         await db.SaveChangesAsync(ct);
+        await bus.PublishAsync(new ReplacementShiftOpenedEvent(replacement.TenantId, replacement.BranchId, replacement.Id, replacement.WorkDate, replacement.StartTime, replacement.EndTime), ct);
         return Results.CreatedAtRoute("GetReplacementShift", new { id = replacement.Id }, (await MapAsync(db, user, [replacement], ct))[0]);
     }
 
@@ -282,7 +284,7 @@ public static class ReplacementEndpoints
 
     // ------------------------------------------------------------------ employee: register / withdraw
     private static async Task<ReplacementShiftResponse> RegisterAsync(
-        Guid id, RegisterReplacementRequest r, WorkforceSchedulingDbContext db, ICurrentUser user, ShopClock shop, IConfiguration config, CancellationToken ct)
+        Guid id, RegisterReplacementRequest r, WorkforceSchedulingDbContext db, ICurrentUser user, ShopClock shop, IConfiguration config, IEventBus bus, CancellationToken ct)
     {
         var errors = new ValidationErrors();
         CommonRules.MaxLength(errors, "Note", r.Note, "Note", 500);
@@ -316,6 +318,7 @@ public static class ReplacementEndpoints
 
         db.ReplacementApplications.Add(new ReplacementApplication(id, me.Id, r.Note));
         await db.SaveChangesAsync(ct);
+        await bus.PublishAsync(new ReplacementRegisteredEvent(replacement.TenantId, replacement.BranchId, replacement.Id, me.Id, me.FullName, replacement.WorkDate), ct);
         return (await MapAsync(db, user, [replacement], ct))[0];
     }
 
