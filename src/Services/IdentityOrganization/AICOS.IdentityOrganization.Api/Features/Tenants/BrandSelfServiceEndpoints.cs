@@ -174,7 +174,7 @@ public static partial class BrandSelfServiceEndpoints
     {
         var errors = new ValidationErrors();
         CommonRules.MaxLength(errors, nameof(r.Description), r.Description, "Description", Tenant.DescriptionMaxLength);
-        if (!string.IsNullOrWhiteSpace(r.LogoUrl) && !IsWebUrl(r.LogoUrl.Trim()))
+        if (!string.IsNullOrWhiteSpace(r.LogoUrl) && !IsWebUrl(r.LogoUrl.Trim()) && !IsLogoPicture(r.LogoUrl.Trim()))
         {
             errors.Add(nameof(r.LogoUrl), $"The logo must be a link starting with http:// or https:// (at most {Tenant.LogoUrlMaxLength} characters, no user name or password in it).");
         }
@@ -190,6 +190,13 @@ public static partial class BrandSelfServiceEndpoints
         await db.SaveChangesAsync(ct);
         return BrandProfileResponse.From(tenant);
     }
+
+    private static bool IsLogoPicture(string value) =>
+        value.Length <= Tenant.LogoDataMaxLength
+        && (value.StartsWith("data:image/png;base64,", StringComparison.Ordinal)
+            || value.StartsWith("data:image/jpeg;base64,", StringComparison.Ordinal)
+            || value.StartsWith("data:image/webp;base64,", StringComparison.Ordinal)
+            || value.StartsWith("data:image/svg+xml;base64,", StringComparison.Ordinal));
 
     private static bool IsWebUrl(string value) =>
         value.Length <= Tenant.LogoUrlMaxLength

@@ -465,8 +465,8 @@ namespace AICOS.IdentityOrganization.Api.Persistence.Migrations
                         .HasColumnName("description");
 
                     b.Property<string>("LogoUrl")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)")
+                        .HasMaxLength(200000)
+                        .HasColumnType("character varying(200000)")
                         .HasColumnName("logo_url");
 
                     b.Property<string>("Name")

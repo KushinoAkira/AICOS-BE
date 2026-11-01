@@ -15,6 +15,29 @@ using Microsoft.Extensions.DependencyInjection;
 namespace AICOS.IdentityOrganization.Tests;
 
 /// <summary>Self-service brands (register, Pending to Approved or Rejected), the public page of a brand, the profile and the contact form. All of it lives in the database.</summary>
+public sealed class LogoPictureTests : IDisposable
+{
+    private readonly IdentityApiFactory _factory = new();
+
+    public void Dispose() => _factory.Dispose();
+
+    [Fact]
+    public async Task A_small_picture_is_kept_as_the_logo_but_other_data_urls_are_refused()
+    {
+        using var admin = _factory.CreateClientAs(AicosRoles.BrandAdmin);
+        const string picture = "data:image/png;base64,iVBORw0KGgo=";
+
+        var saved = await admin.PutAsJsonAsync("/api/v1/identity/brand/profile", new BrandProfileRequest("Quán", picture, "#C97B4A", null), AuthEndpointsTests.Json);
+        saved.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await saved.Content.ReadFromJsonAsync<BrandProfileResponse>(AuthEndpointsTests.Json))!.LogoUrl.Should().Be(picture);
+
+        (await admin.PutAsJsonAsync("/api/v1/identity/brand/profile", new BrandProfileRequest(null, "data:text/html;base64,AAAA", null, null), AuthEndpointsTests.Json))
+            .StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await admin.PutAsJsonAsync("/api/v1/identity/brand/profile", new BrandProfileRequest(null, "data:image/png;base64," + new string('A', 200_001), null, null), AuthEndpointsTests.Json))
+            .StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+}
+
 public sealed class BrandSelfServiceTests : IDisposable
 {
     private const string Base = "/api/v1/identity";
@@ -215,7 +238,7 @@ public sealed class BrandSelfServiceTests : IDisposable
         foreach (var bad in new[]
                  {
                      new BrandProfileRequest(null, "javascript:alert(1)", null, null),
-                     new BrandProfileRequest(null, "data:image/png;base64,AAAA", null, null),
+                     new BrandProfileRequest(null, "data:text/html;base64,AAAA", null, null),
                      new BrandProfileRequest(null, "ftp://example.com/logo.png", null, null),
                      new BrandProfileRequest(null, "https://user:pass@example.com/logo.png", null, null),
                      new BrandProfileRequest(null, "https://example.com/" + new string('a', 500), null, null),

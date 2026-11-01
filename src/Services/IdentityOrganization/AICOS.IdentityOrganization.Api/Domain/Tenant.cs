@@ -24,6 +24,9 @@ public sealed class Tenant : AuditableEntity<Guid>
     public const int CodeMaxLength = 50;
     public const int DescriptionMaxLength = 500;
     public const int LogoUrlMaxLength = 500;
+
+    /// <summary>A logo picture sent as a data URL; the web app shrinks it to at most 256 px first.</summary>
+    public const int LogoDataMaxLength = 200_000;
     public const int ReviewNoteMaxLength = 300;
 
     private Tenant()
