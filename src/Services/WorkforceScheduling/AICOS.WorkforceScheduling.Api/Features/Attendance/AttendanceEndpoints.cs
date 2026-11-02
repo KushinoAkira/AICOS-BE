@@ -68,6 +68,8 @@ public sealed record AttendanceReportResponse(DateOnly From, DateOnly To, List<A
 /// </summary>
 public static class AttendanceEndpoints
 {
+    private const string ClosedOnApprovalNote = "Duyệt trong ca, giờ ra tính đến lúc duyệt";
+
     public const int EarlyCheckInMinutes = 15;
     public const int MinIntervalMinutes = 5;
     public const int MaxReportDays = 62;
@@ -215,15 +217,34 @@ public static class AttendanceEndpoints
         return new AttendanceReportResponse(start, end, rows, summary);
     }
 
+    /// <summary>
+    /// UC-29: approve what was recorded. The manager need not wait for the end of the shift: once the employee has checked in the record can be
+    /// approved, and a shift still running is closed at this moment, because payroll counts hours up to a check-out. That close is audited.
+    /// </summary>
     private static async Task<ShiftAssignmentResponse> ApproveAsync(
-        Guid id, ApproveAttendanceRequest r, WorkforceSchedulingDbContext db, ICurrentUser user, ShopClock shop, CancellationToken ct)
+        Guid id, ApproveAttendanceRequest r, WorkforceSchedulingDbContext db, ICurrentUser user, ShopClock shop, IEventBus bus, ILoggerFactory loggers, CancellationToken ct)
     {
         var errors = new ValidationErrors();
         CommonRules.MaxLength(errors, "Note", r.Note, "Note", 500);
         errors.ThrowIfAny();
         var assignment = await ReviewableAsync(db, user, id, shop, requireEnded: true, ct);
-        assignment.ApproveAsRecorded(user.UserId, r.Note, shop.UtcNow);
+        var now = shop.UtcNow;
+        var running = assignment.EffectiveCheckInUtc is not null && assignment.EffectiveCheckOutUtc is null && now < shop.ToUtc(assignment.WorkDate, assignment.EndTime);
+        var before = Snapshot(assignment);
+        if (running)
+        {
+            assignment.CheckOut(now);
+        }
+
+        assignment.ApproveAsRecorded(user.UserId, string.IsNullOrWhiteSpace(r.Note) && running ? ClosedOnApprovalNote : r.Note, now);
         await db.SaveChangesAsync(ct);
+        if (running)
+        {
+            await AuditTrail.PublishAsync(
+                bus, user, loggers.CreateLogger("AICOS.Workforce.Attendance"), assignment.TenantId, "attendance.closed_on_approval", "ShiftAssignment", assignment.Id,
+                before, Snapshot(assignment));
+        }
+
         return (await ScheduleEndpoints.MapAsync(db, [assignment], ct))[0];
     }
 
@@ -323,7 +344,7 @@ public static class AttendanceEndpoints
         foreach (var assignment in await query.ToListAsync(ct))
         {
             var ended = shop.ToUtc(assignment.WorkDate, assignment.EndTime) <= now;
-            if (ended && assignment.CheckInAtUtc is not null && assignment.CheckOutAtUtc is not null)
+            if (assignment.CheckInAtUtc is not null && assignment.CheckOutAtUtc is not null)
             {
                 assignment.ApproveAsRecorded(user.UserId, null, now);
                 approved++;
@@ -348,11 +369,17 @@ public static class AttendanceEndpoints
             throw new BusinessRuleException("attendance.not_reviewable", $"A shift that is {assignment.Status} has no attendance to review.");
         }
 
+        // Approving needs something to approve: the employee has checked in, or the shift is over (and the record says what happened).
         var startsAt = shop.ToUtc(assignment.WorkDate, assignment.StartTime);
         var endsAt = shop.ToUtc(assignment.WorkDate, assignment.EndTime);
-        if (shop.UtcNow < startsAt || (requireEnded && shop.UtcNow < endsAt))
+        if (requireEnded && assignment.EffectiveCheckInUtc is null && shop.UtcNow < endsAt)
         {
-            throw new BusinessRuleException("attendance.shift_not_over", requireEnded ? "The shift has not ended yet." : "The shift has not started yet.");
+            throw new BusinessRuleException("attendance.shift_not_over", "The employee has not checked in and the shift has not ended yet.");
+        }
+
+        if (!requireEnded && shop.UtcNow < startsAt)
+        {
+            throw new BusinessRuleException("attendance.shift_not_over", "The shift has not started yet.");
         }
 
         return assignment;
