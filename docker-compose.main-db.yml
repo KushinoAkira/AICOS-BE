@@ -1,0 +1,45 @@
+# Isolated infrastructure for the freshly cloned main Backend.
+# docker compose -f docker-compose.main-db.yml up -d
+name: aicos-main
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: aicos-main-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-aicos}
+      POSTGRES_USER: ${POSTGRES_USER:-aicos_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Initialize the ignored .env first}
+      SERVICE_DB_PASSWORD: ${SERVICE_DB_PASSWORD:?Initialize the ignored .env first}
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    container_name: aicos-main-redis
+    restart: unless-stopped
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Initialize the ignored .env first}
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:?Initialize the ignored .env first}"]
+    ports:
+      - "127.0.0.1:6380:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a $${REDIS_PASSWORD} --no-auth-warning ping | grep -q PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  postgres-data:
+  redis-data:

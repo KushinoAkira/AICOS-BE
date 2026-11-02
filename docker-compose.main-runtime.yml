@@ -1,0 +1,90 @@
+# Runtime overlay for the isolated main infrastructure.
+# Use with: docker compose -f docker-compose.yml -f docker-compose.main-runtime.yml ...
+name: aicos-main
+
+x-main-environment: &main-environment
+  Database__MigrateOnStartup: "false"
+  Jwt__Issuer: aicos-main
+  Jwt__Audience: aicos-main-clients
+  Swagger__Enabled: "true"
+  Payments__AllowSimulation: "false"
+
+services:
+  postgres:
+    container_name: aicos-main-postgres
+    ports: !override ["127.0.0.1:5433:5432"]
+  redis:
+    container_name: aicos-main-redis
+    ports: !override ["127.0.0.1:6380:6379"]
+  pgadmin:
+    container_name: aicos-main-pgadmin
+    ports: !override ["127.0.0.1:5051:80"]
+  identity:
+    container_name: aicos-main-identity
+    image: aicos-main/identity:local
+    ports: !override ["127.0.0.1:5201:8080"]
+    environment:
+      <<: *main-environment
+      Seed__DemoPlans: "false"
+      Subscriptions__ReminderIntervalMinutes: "0"
+  menu:
+    container_name: aicos-main-menu
+    image: aicos-main/menu:local
+    ports: !override ["127.0.0.1:5202:8080"]
+    environment:
+      <<: *main-environment
+  table:
+    container_name: aicos-main-table
+    image: aicos-main/table:local
+    ports: !override ["127.0.0.1:5203:8080"]
+    environment:
+      <<: *main-environment
+  order:
+    container_name: aicos-main-order
+    image: aicos-main/order:local
+    ports: !override ["127.0.0.1:5204:8080"]
+    environment:
+      <<: *main-environment
+  payment:
+    container_name: aicos-main-payment
+    image: aicos-main/payment:local
+    ports: !override ["127.0.0.1:5205:8080"]
+    environment:
+      <<: *main-environment
+  kitchen:
+    container_name: aicos-main-kitchen
+    image: aicos-main/kitchen:local
+    ports: !override ["127.0.0.1:5207:8080"]
+    environment:
+      <<: *main-environment
+  workforce:
+    container_name: aicos-main-workforce
+    image: aicos-main/workforce:local
+    ports: !override ["127.0.0.1:5208:8080"]
+    environment:
+      <<: *main-environment
+  reporting:
+    container_name: aicos-main-reporting
+    image: aicos-main/reporting:local
+    ports: !override ["127.0.0.1:5209:8080"]
+    environment:
+      <<: *main-environment
+  customer:
+    container_name: aicos-main-customer
+    image: aicos-main/customer:local
+    ports: !override ["127.0.0.1:5210:8080"]
+    environment:
+      <<: *main-environment
+  gateway:
+    container_name: aicos-main-gateway
+    image: aicos-main/gateway:local
+    ports: !override ["127.0.0.1:8081:8080"]
+    environment:
+      <<: *main-environment
+  ai:
+    container_name: aicos-main-ai
+    image: aicos-main/ai:local
+    ports: !override ["127.0.0.1:5211:8000"]
+    environment:
+      JWT_ISSUER: aicos-main
+      JWT_AUDIENCE: aicos-main-clients

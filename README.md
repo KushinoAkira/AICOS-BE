@@ -1,5 +1,15 @@
 # AICOS Backend
 
+> Cấu hình local của workspace này dùng database main mới, Gateway port 8081 và
+> PostgreSQL port 5433. Xem [hướng dẫn runtime local](docs/MAIN_RUNTIME_SETUP.md)
+> trước khi chạy; dùng Compose overlay được ghi trong tài liệu để giữ hạ tầng cũ.
+
+Audit source main hiện tại (2026-11-03):
+
+- [Kiến trúc, database ownership và luồng nghiệp vụ](docs/BACKEND_ARCHITECTURE_AUDIT.md)
+- [Danh mục 268 HTTP operation, quyền và DTO](docs/BACKEND_API_CATALOG.md)
+- [Đối chiếu API với các màn hình Mobile](docs/MOBILE_MAIN_API_MAPPING.md)
+
 Nền backend microservice cho **AI-Integrated Smart Coffee Shop Platform** (.NET 8 · PostgreSQL · Redis · Docker).
 Kiến trúc bám theo sơ đồ `AICOS_Architecture_Diagram.png`: API Gateway + 11 service (10 .NET + 1 Python AI).
 
