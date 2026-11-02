@@ -167,6 +167,38 @@ public sealed class WorkforceReviewTests : WorkforceTestBase
     }
 
     [Fact]
+    public async Task After_a_correction_the_employee_can_no_longer_check_out_of_that_shift()
+    {
+        var shift = await NewShiftAsync("Sáng", "07:00", "12:00");
+        var (userId, employee) = await NewEmployeeAsync("An");
+        var id = await AssignAsync(employee, shift, Monday);
+        await WorkAsync(Staff(userId), id, Monday, (7, 0), null);
+        SetLocal(Monday, 9, 0);
+        var checkOut = new DateTimeOffset(Monday.ToDateTime(new TimeOnly(8, 30)), TimeSpan.FromHours(7));
+
+        var corrected = await Manager.PostOk($"{Attendance}/{id}/adjust", new { checkOutAt = checkOut, reason = "Về sớm có phép" });
+        corrected.GetProperty("checkOutAtUtc").ValueKind.Should().Be(JsonValueKind.Null);      // what the employee tapped stays as it was
+        corrected.GetProperty("adjustedCheckOutAtUtc").ValueKind.Should().NotBe(JsonValueKind.Null);
+
+        SetLocal(Monday, 9, 30);
+        await Staff(userId).Post($"{Attendance}/check-out", new { assignmentId = id }).ShouldBe(409, "attendance.already_reviewed");
+        (await ReportAsync()).GetProperty("rows").EnumerateArray().Single(r => r.GetProperty("shift").GetProperty("id").GetGuid() == id)
+            .GetProperty("shift").GetProperty("workedHours").GetDouble().Should().Be(1.5);
+    }
+
+    [Fact]
+    public async Task An_employee_marked_absent_can_no_longer_check_in_to_that_shift()
+    {
+        var shift = await NewShiftAsync("Sáng", "07:00", "12:00");
+        var (userId, employee) = await NewEmployeeAsync("An");
+        var id = await AssignAsync(employee, shift, Monday);
+        SetLocal(Monday, 12, 30);
+        await Manager.PostOk($"{Attendance}/{id}/absent", new { reason = "Nghỉ không phép" });
+
+        await Staff(userId).Post($"{Attendance}/check-in", new { assignmentId = id }).ShouldBe(409, "attendance.already_reviewed");
+    }
+
+    [Fact]
     public async Task The_manager_corrects_a_forgotten_check_out_and_the_correction_is_approved_and_audited()
     {
         var shift = await NewShiftAsync("Sáng", "07:00", "12:00");

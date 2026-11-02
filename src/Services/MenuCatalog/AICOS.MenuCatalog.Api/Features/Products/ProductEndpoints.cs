@@ -52,16 +52,20 @@ public static class ProductEndpoints
 
         var result = await query.OrderBy(p => p.Name).ToPagedAsync(page, pageSize, ProductResponse.From, ct);
 
-        // The prices a branch sets for itself (BR-15). Someone tied to a branch only reads their own (BR-05).
+        // The prices a branch sets for itself (BR-15) and where the product is sold out right now (UC-24). Someone tied to a branch only reads their own (BR-05).
         var ids = result.Items.Select(p => p.Id).ToList();
         var own = user.IsInRole(AicosRoles.BrandAdmin) ? null : user.BranchId;
-        var prices = await db.BranchProducts.AsNoTracking()
-            .Where(b => b.TenantId == tenantId && ids.Contains(b.ProductId) && b.PriceOverride != null && (own == null || b.BranchId == own))
-            .Select(b => new { b.ProductId, b.BranchId, Price = b.PriceOverride!.Value })
+        var settings = await db.BranchProducts.AsNoTracking()
+            .Where(b => b.TenantId == tenantId && ids.Contains(b.ProductId) && (b.PriceOverride != null || !b.IsAvailable) && (own == null || b.BranchId == own))
+            .Select(b => new { b.ProductId, b.BranchId, b.PriceOverride, b.IsAvailable })
             .ToListAsync(ct);
         return result with
         {
-            Items = result.Items.Select(p => p with { BranchPrices = prices.Where(x => x.ProductId == p.Id).Select(x => new BranchPriceResponse(x.BranchId, x.Price)).ToList() }).ToList(),
+            Items = result.Items.Select(p => p with
+            {
+                BranchPrices = settings.Where(x => x.ProductId == p.Id && x.PriceOverride != null).Select(x => new BranchPriceResponse(x.BranchId, x.PriceOverride!.Value)).ToList(),
+                SoldOutBranchIds = settings.Where(x => x.ProductId == p.Id && !x.IsAvailable).Select(x => x.BranchId).ToList(),
+            }).ToList(),
         };
     }
 

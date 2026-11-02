@@ -41,7 +41,8 @@ public sealed record ProductResponse(
     List<OptionGroupResponse> OptionGroups,
     DateTime CreatedAtUtc,
     DateTime? UpdatedAtUtc,
-    List<BranchPriceResponse>? BranchPrices = null)
+    List<BranchPriceResponse>? BranchPrices = null,
+    List<Guid>? SoldOutBranchIds = null)
 {
     public static ProductResponse From(Product p) => new(
         p.Id,

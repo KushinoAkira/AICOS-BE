@@ -103,6 +103,8 @@ public static class AttendanceEndpoints
             throw new ConflictException("You already checked in for this shift.", "attendance.already_checked_in");
         }
 
+        EnsureNotReviewed(assignment);
+
         var now = shop.UtcNow;
         var opens = shop.ToUtc(assignment.WorkDate, assignment.StartTime).AddMinutes(-EarlyCheckInMinutes);
         var closes = shop.ToUtc(assignment.WorkDate, assignment.EndTime);
@@ -125,14 +127,15 @@ public static class AttendanceEndpoints
         AttendanceRequest r, WorkforceSchedulingDbContext db, ICurrentUser user, ShopClock shop, IEventBus bus, ILoggerFactory loggers, CancellationToken ct)
     {
         var assignment = await FindOwnAsync(db, user, r, ct);
-        if (assignment.CheckInAtUtc is null)
-        {
-            throw new BusinessRuleException("attendance.not_checked_in", "You have not checked in for this shift.");
-        }
-
         if (assignment.CheckOutAtUtc is not null)
         {
             throw new ConflictException("You already checked out of this shift.", "attendance.already_checked_out");
+        }
+
+        EnsureNotReviewed(assignment);
+        if (assignment.CheckInAtUtc is null)
+        {
+            throw new BusinessRuleException("attendance.not_checked_in", "You have not checked in for this shift.");
         }
 
         var now = shop.UtcNow;
@@ -453,6 +456,15 @@ public static class AttendanceEndpoints
     }
 
     /// <summary>BR-50.</summary>
+    /// <summary>Once the manager approved the record, corrected the times or marked an absence, the employee can no longer tap in or out of that shift.</summary>
+    private static void EnsureNotReviewed(ShiftAssignment assignment)
+    {
+        if (assignment.ReviewStatus == AttendanceReviewStatus.Approved)
+        {
+            throw new ConflictException("Your manager has already reviewed this shift.", "attendance.already_reviewed");
+        }
+    }
+
     private static async Task EnsureMinIntervalAsync(WorkforceSchedulingDbContext db, Guid employeeId, DateTime nowUtc, CancellationToken ct)
     {
         var since = nowUtc.AddMinutes(-MinIntervalMinutes);

@@ -450,6 +450,30 @@ public sealed class MenuTests : IDisposable
     }
 
     [Fact]
+    public async Task The_product_list_says_where_a_product_is_sold_out_and_a_branch_only_reads_its_own()
+    {
+        var category = await _admin.PostOk($"{Menu}/categories", new { name = "Cà phê" });
+        var product = await PublishedProductAsync(category.Id(), "Bạc xỉu", _b1, _b2);
+        var url = $"{Menu}/branches/{_b1}/products/{product.Id()}/availability";
+        async Task<List<Guid>> SoldOutSeenBy(HttpClient client)
+        {
+            var list = await client.GetFromJsonAsync<JsonElement>($"{Menu}/products");
+            return list.GetProperty("items")[0].GetProperty("soldOutBranchIds").EnumerateArray().Select(b => b.GetGuid()).ToList();
+        }
+
+        (await SoldOutSeenBy(_admin)).Should().BeEmpty();
+
+        await _f.As(AicosRoles.BranchManager, _b1).Patch(url, new { isAvailable = false }).ShouldBe(200);
+        (await SoldOutSeenBy(_admin)).Should().Equal(_b1);
+        (await SoldOutSeenBy(_f.As(AicosRoles.BranchManager, _b1))).Should().Equal(_b1);
+        (await SoldOutSeenBy(_f.As(AicosRoles.Cashier, _b1))).Should().Equal(_b1);
+        (await SoldOutSeenBy(_f.As(AicosRoles.BranchManager, _b2))).Should().BeEmpty();
+
+        await _f.As(AicosRoles.BranchManager, _b1).Patch(url, new { isAvailable = true }).ShouldBe(200);
+        (await SoldOutSeenBy(_admin)).Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task Baristas_and_the_brand_admin_can_switch_availability_but_cashiers_and_other_branches_cannot()
     {
         var category = await _admin.PostOk($"{Menu}/categories", new { name = "Cà phê" });
