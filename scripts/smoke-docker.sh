@@ -210,10 +210,23 @@ check "renewing a paid period too early is refused" 422 "$(status_of "$r")"
 
 r=$(call PUT /api/v1/customers/loyalty/rules "$BRAND" '{"isActive":true,"amountPerPoint":1000,"redeemValuePerPoint":1000,"minPointsToRedeem":10,"silverThreshold":100,"goldThreshold":500}')
 check "loyalty rules saved" 200 "$(status_of "$r")"
-r=$(call POST /api/v1/identity/auth/register "" "{\"tenantCode\":\"smoke-$STAMP\",\"fullName\":\"Khach Hang\",\"email\":\"member-$STAMP@example.com\",\"phone\":\"0900000099\",\"password\":\"$BRAND_PASSWORD\",\"confirmPassword\":\"$BRAND_PASSWORD\"}")
-check "member registers" 201 "$(status_of "$r")"
-MEMBER_ID=$(body_of "$r" | json_field id)
-MEMBER=$(call POST /api/v1/identity/auth/login "" "{\"login\":\"member-$STAMP@example.com\",\"password\":\"$BRAND_PASSWORD\"}" | sed "s/ [0-9]*$//" | json_field accessToken)
+# A customer account belongs to no brand: sign up with an emailed code, then pick the brand. No mail goes out here, so the code is set in the database.
+r=$(call POST /api/v1/identity/auth/register "" "{\"fullName\":\"Khach Hang\",\"email\":\"member-$STAMP@example.com\",\"password\":\"$BRAND_PASSWORD\",\"confirmPassword\":\"$BRAND_PASSWORD\"}")
+check "member registers" 202 "$(status_of "$r")"
+r=$(call POST /api/v1/identity/auth/login "" "{\"login\":\"member-$STAMP@example.com\",\"password\":\"$BRAND_PASSWORD\"}")
+check "an unverified member cannot sign in" 403 "$(status_of "$r")"
+docker exec aicos-postgres psql -q -U "$(env_value POSTGRES_USER | grep . || echo aicos_admin)" -d "$(env_value POSTGRES_DB | grep . || echo aicos)_identity" \
+  -c "UPDATE identity.otp_codes SET code_hash = encode(sha256('123456'), 'hex') WHERE target = 'member-$STAMP@example.com'"
+r=$(call POST /api/v1/identity/auth/register/verify "" "{\"email\":\"member-$STAMP@example.com\",\"code\":\"123456\"}")
+check "the emailed code verifies the member" 200 "$(status_of "$r")"
+MEMBER_ID=$(body_of "$r" | sed 's/.*"user":{//' | json_field id)
+GLOBAL_TOKEN=$(body_of "$r" | json_field accessToken)
+GLOBAL_REFRESH=$(body_of "$r" | json_field refreshToken)
+r=$(call GET /api/v1/customers/me "$GLOBAL_TOKEN")
+check "before picking a brand the member has no brand data" 403 "$(status_of "$r")"
+r=$(call POST /api/v1/identity/auth/select-brand "$GLOBAL_TOKEN" "{\"refreshToken\":\"$GLOBAL_REFRESH\",\"tenantCode\":\"smoke-$STAMP\"}")
+check "the member picks the brand" 200 "$(status_of "$r")"
+MEMBER=$(body_of "$r" | json_field accessToken)
 wait_until "the member profile exists in Customer service" "call GET /api/v1/customers/me \"\$MEMBER\" | sed 's/ [0-9]*\$//' | grep -c fullName" 1
 
 r=$(call POST /api/v1/orders "$CASHIER" "{\"type\":\"Takeaway\",\"customerId\":\"$MEMBER_ID\",\"items\":[{\"productId\":\"$PRODUCT\",\"quantity\":2}]}")
