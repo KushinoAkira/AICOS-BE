@@ -96,7 +96,9 @@ public sealed class WorkforceReplacementTests : WorkforceTestBase
         (await Staff(outsider, branch: B2).GetFromJsonAsync<JsonElement>(Replacements)).GetArrayLength().Should().Be(0);    // another branch sees nothing
         await Staff(outsider, branch: B2).Post($"{Replacements}/{replacement.Id()}/register", new { }).ShouldBe(403, "branch.forbidden");
 
+        F.Events.Published.OfType<ReplacementShiftOpenedEvent>().Should().Contain(e => e.ReplacementId == replacement.Id());
         var registered = await colleague.PostOk($"{Replacements}/{replacement.Id()}/register", new { note = "Em làm được" });
+        F.Events.Published.OfType<ReplacementRegisteredEvent>().Should().ContainSingle(e => e.ReplacementId == replacement.Id());
         registered.GetProperty("myApplication").GetString().Should().Be("Pending");
         registered.GetProperty("applications").GetInt32().Should().Be(1);
         await colleague.Post($"{Replacements}/{replacement.Id()}/register", new { }).ShouldBe(409, "replacement.already_registered");

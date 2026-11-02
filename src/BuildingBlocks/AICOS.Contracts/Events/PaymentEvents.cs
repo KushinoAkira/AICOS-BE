@@ -18,3 +18,6 @@ public sealed record PaymentRefundedEvent(
 /// <summary>Published when a refund was refused by the approver or the provider could not pay it. Order Service shows the order as RefundFailed.</summary>
 public sealed record PaymentRefundFailedEvent(
     Guid TenantId, Guid BranchId, Guid PaymentId, Guid RefundId, Guid OrderId, string Reason) : IntegrationEvent;
+
+/// <summary>A refund waits for a manager's decision (it was not approved automatically). Customer Engagement tells the managers of the branch.</summary>
+public sealed record RefundRequestedEvent(Guid TenantId, Guid BranchId, Guid RefundId, Guid OrderId, decimal Amount, string Reason) : IntegrationEvent;

@@ -18,6 +18,17 @@ public static class EmailTemplates
         return new EmailMessage(to, "AICOS - Mã đặt lại mật khẩu", text, html);
     }
 
+    public static EmailMessage SignUpCode(string to, string? fullName, string code, int validMinutes)
+    {
+        var text = $"{Greeting(fullName)}\n\nMã xác thực tài khoản AICOS của bạn là: {code}\nMã có hiệu lực trong {validMinutes} phút. Nếu bạn không đăng ký, hãy bỏ qua email này.";
+        var html = Layout(
+            "Xác thực email",
+            $"<p>{Html(Greeting(fullName))}</p><p>Mã xác thực tài khoản của bạn là:</p>"
+            + $"<p style=\"font-size:30px;letter-spacing:8px;font-weight:700;margin:16px 0\">{Html(code)}</p>"
+            + $"<p>Mã có hiệu lực trong {validMinutes} phút. Nếu bạn không đăng ký, hãy bỏ qua email này.</p>");
+        return new EmailMessage(to, "AICOS - Mã xác thực tài khoản", text, html);
+    }
+
     public static EmailMessage BrandRegistrationReceived(string to, string? ownerName, string brandName)
     {
         var text = $"{Greeting(ownerName)}\n\nChúng tôi đã nhận đăng ký thương hiệu \"{brandName}\". Đội ngũ nền tảng sẽ xem xét và báo kết quả qua email này. Bạn đăng nhập được sau khi đăng ký được duyệt.";

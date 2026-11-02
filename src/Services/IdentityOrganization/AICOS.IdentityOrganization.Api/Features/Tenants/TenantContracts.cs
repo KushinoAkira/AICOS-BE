@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using AICOS.BuildingBlocks.Security;
 using AICOS.BuildingBlocks.Validation;
 using AICOS.IdentityOrganization.Api.Domain;
 using AICOS.IdentityOrganization.Api.Features.Common;
@@ -21,9 +22,10 @@ public sealed record ChangeTenantStatusRequest(TenantStatus? Status);
 /// <summary><see cref="PlanId"/> / <see cref="PlanName"/> are the plan of the current subscription (null when the tenant has none); <see cref="BranchCount"/> counts its branches.</summary>
 public sealed record TenantResponse(
     Guid Id, string Name, string Code, TenantStatus Status, DateTime CreatedAtUtc, DateTime? UpdatedAtUtc,
-    Guid? PlanId = null, string? PlanName = null, int BranchCount = 0)
+    Guid? PlanId = null, string? PlanName = null, int BranchCount = 0, string? OwnerName = null, string? OwnerEmail = null, string? OwnerPhone = null,
+    string? ReviewNote = null, string? LogoUrl = null)
 {
-    public static TenantResponse From(Tenant t) => new(t.Id, t.Name, t.Code, t.Status, t.CreatedAtUtc, t.UpdatedAtUtc);
+    public static TenantResponse From(Tenant t) => new(t.Id, t.Name, t.Code, t.Status, t.CreatedAtUtc, t.UpdatedAtUtc, ReviewNote: t.ReviewNote, LogoUrl: t.LogoUrl);
 
     /// <summary>Adds the plan and the branch count with two grouped queries for the whole list, not one per tenant.</summary>
     public static async Task<List<TenantResponse>> FromManyAsync(IReadOnlyCollection<Tenant> tenants, IdentityOrganizationDbContext db, CancellationToken ct)
@@ -38,10 +40,24 @@ public sealed record TenantResponse(
             .GroupBy(b => b.TenantId)
             .Select(g => new { TenantId = g.Key, Count = g.Count() })
             .ToListAsync(ct);
+        var owners = await db.Users.AsNoTracking()
+            .Where(u => u.TenantId != null && ids.Contains(u.TenantId.Value) && u.Role == AicosRoles.BrandAdmin)
+            .OrderBy(u => u.CreatedAtUtc)
+            .Select(u => new { u.TenantId, u.FullName, u.Email, u.Phone })
+            .ToListAsync(ct);
         return tenants.Select(t =>
         {
             var plan = plans.FirstOrDefault(p => p.TenantId == t.Id);
-            return From(t) with { PlanId = plan?.PlanId, PlanName = plan?.PlanName, BranchCount = branches.FirstOrDefault(b => b.TenantId == t.Id)?.Count ?? 0 };
+            var owner = owners.FirstOrDefault(o => o.TenantId == t.Id);
+            return From(t) with
+            {
+                PlanId = plan?.PlanId,
+                PlanName = plan?.PlanName,
+                BranchCount = branches.FirstOrDefault(b => b.TenantId == t.Id)?.Count ?? 0,
+                OwnerName = owner?.FullName,
+                OwnerEmail = owner?.Email,
+                OwnerPhone = owner?.Phone,
+            };
         }).ToList();
     }
 

@@ -142,6 +142,7 @@ internal sealed class TableSessionConfiguration : IEntityTypeConfiguration<Table
 {
     public void Configure(EntityTypeBuilder<TableSession> builder)
     {
+        builder.Property(s => s.BillRequestedMethod).HasMaxLength(20);
         builder.ToTable("table_sessions");
         builder.HasKey(s => s.Id);
         builder.Property(s => s.Id).ValueGeneratedNever();

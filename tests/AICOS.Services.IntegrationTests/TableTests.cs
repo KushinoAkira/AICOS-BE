@@ -2,9 +2,20 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using AICOS.BuildingBlocks.Security;
 using AICOS.TableReservation.Api;
+using AICOS.TableReservation.Api.Features.DiningTables;
 using AICOS.TableReservation.Api.Persistence;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace AICOS.Services.IntegrationTests;
+
+/// <summary>Stands in for the Identity service: what the plan of the brand allows.</summary>
+public sealed class FakePlanLimits : IPlanLimitsClient
+{
+    public TablePlanLimits Current { get; set; } = new(true, null);
+
+    public Task<TablePlanLimits> GetAsync(CancellationToken ct) => Task.FromResult(Current);
+}
 
 /// <summary>UC-25 floor plan (areas and tables), UC-26 table QR codes and BR-18 QR tokens, with tenant and branch isolation.</summary>
 public sealed class TableTests : IDisposable
@@ -13,7 +24,10 @@ public sealed class TableTests : IDisposable
     private const string Tables = "/api/v1/tables/dining-tables";
     private const string PublicQr = "/api/v1/tables/public/qr";
 
-    private readonly ServiceFactory<TableReservationService, TableReservationDbContext> _f = new();
+    private const string Batch = "/api/v1/tables/dining-tables/batch";
+
+    private readonly FakePlanLimits _limits = new();
+    private readonly ServiceFactory<TableReservationService, TableReservationDbContext> _f;
     private readonly Guid _tenant = ServiceFactory<TableReservationService, TableReservationDbContext>.DefaultTenantId;
     private readonly Guid _otherTenant = Guid.NewGuid();
     private readonly Guid _b1;
@@ -26,6 +40,11 @@ public sealed class TableTests : IDisposable
 
     public TableTests()
     {
+        _f = new(s =>
+        {
+            s.RemoveAll<IPlanLimitsClient>();
+            s.AddSingleton<IPlanLimitsClient>(_limits);
+        });
         _b1 = _f.Branches.Add(_tenant, name: "Quận 1");
         _b2 = _f.Branches.Add(_tenant, name: "Quận 3");
         _otherBranch = _f.Branches.Add(_otherTenant, name: "Foreign");
@@ -36,6 +55,212 @@ public sealed class TableTests : IDisposable
     }
 
     public void Dispose() => _f.Dispose();
+
+    // ------------------------------------------------------------------ many tables at once
+    private static object[] Numbered(Guid area, string prefix, int count) =>
+        Enumerable.Range(1, count).Select(i => (object)new { areaId = area, tableCode = $"{prefix}{i:00}", capacity = 4 }).ToArray();
+
+    [Fact]
+    public async Task Generating_creates_every_table_with_its_own_qr_code_in_one_call()
+    {
+        var area = await _manager.PostOk(Areas, new { name = "Tầng 1" });
+
+        var result = await _manager.PostOk(Batch, new { rows = Numbered(area.Id(), "A", 20) });
+
+        result.GetProperty("created").GetInt32().Should().Be(20);
+        var tables = result.GetProperty("tables").EnumerateArray().ToList();
+        tables.Select(t => t.GetProperty("tableCode").GetString()).Should().Contain(["A01", "A20"]);
+        tables.Select(t => t.GetProperty("qrToken").GetString()).Distinct().Should().HaveCount(20);
+        tables.Should().OnlyContain(t => t.GetProperty("branchId").GetGuid() == _b1 && t.GetProperty("areaName").GetString() == "Tầng 1");
+        (await _manager.GetFromJsonAsync<JsonElement>(Tables)).GetArrayLength().Should().Be(20);
+    }
+
+    [Fact]
+    public async Task One_bad_row_creates_nothing_and_every_bad_row_is_named()
+    {
+        var area = await _manager.PostOk(Areas, new { name = "Tầng 1" });
+        await _manager.PostOk(Tables, new { areaId = area.Id(), tableCode = "A01", capacity = 2 });
+
+        var response = await _manager.Post(Batch, new
+        {
+            rows = new object[]
+            {
+                new { areaId = area.Id(), tableCode = "A02", capacity = 2 },
+                new { areaId = area.Id(), tableCode = "a01", capacity = 2 },   // already there
+                new { areaId = area.Id(), tableCode = "A02", capacity = 2 },   // twice in the file
+                new { areaId = area.Id(), tableCode = "A 3", capacity = 2 },
+                new { areaId = area.Id(), tableCode = "A04", capacity = 99 },
+                new { areaId = Guid.NewGuid(), tableCode = "A05", capacity = 2 },
+                new { areaName = "", tableCode = "A06", capacity = 2 },
+            },
+        });
+
+        response.StatusCode.Should().Be(System.Net.HttpStatusCode.BadRequest);
+        var errors = (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("errors");
+        errors.EnumerateObject().Select(e => e.Name).Should().BeEquivalentTo(["Rows[1]", "Rows[2]", "Rows[3]", "Rows[4]", "Rows[5]", "Rows[6]"]);
+        errors.GetProperty("Rows[1]")[0].GetString().Should().Contain("Row 2").And.Contain("A01");
+        (await _manager.GetFromJsonAsync<JsonElement>(Tables)).GetArrayLength().Should().Be(1);
+        await _manager.Post(Batch, new { rows = Array.Empty<object>() }).ShouldBe(400);
+    }
+
+    [Fact]
+    public async Task An_import_names_areas_and_creates_the_missing_ones()
+    {
+        var existing = await _manager.PostOk(Areas, new { name = "Tầng 1", sortOrder = 5 });
+
+        var result = await _manager.PostOk(Batch, new
+        {
+            rows = new object[]
+            {
+                new { areaName = "tầng 1", tableCode = "T1", capacity = 2 },
+                new { areaName = "Sân vườn", tableCode = "G1", capacity = 4 },
+                new { areaName = "sân vườn", tableCode = "G2", capacity = 4 },
+            },
+        });
+
+        result.GetProperty("areasCreated").GetInt32().Should().Be(1);
+        var areas = await _manager.GetFromJsonAsync<JsonElement>(Areas);
+        areas.GetArrayLength().Should().Be(2);
+        areas.EnumerateArray().Single(a => a.Id() == existing.Id()).GetProperty("tableCount").GetInt32().Should().Be(1);
+        var garden = areas.EnumerateArray().Single(a => a.Id() != existing.Id());
+        (garden.GetProperty("name").GetString(), garden.GetProperty("tableCount").GetInt32(), garden.GetProperty("sortOrder").GetInt32()).Should().Be(("Sân vườn", 2, 6));
+    }
+
+    [Fact]
+    public async Task A_batch_stays_inside_the_branch_of_the_caller()
+    {
+        var area = await _admin.PostOk(Areas, new { branchId = _b2, name = "Tầng 1" });
+
+        await _manager.Post(Batch, new { rows = Numbered(area.Id(), "A", 1) }).ShouldBe(400);                                 // an area of another branch
+        await _manager.Post(Batch, new { branchId = _b2, rows = Numbered(area.Id(), "A", 1) }).ShouldBe(403, "branch.forbidden");
+        await _otherAdmin.Post(Batch, new { branchId = _b2, rows = Numbered(area.Id(), "A", 1) }).ShouldBe(400);              // a branch of another brand
+        await _cashier.Post(Batch, new { rows = Numbered(area.Id(), "A", 1) }).ShouldBe(403);
+
+        var created = await _admin.PostOk(Batch, new { branchId = _b2, rows = Numbered(area.Id(), "A", 3) });
+        created.GetProperty("created").GetInt32().Should().Be(3);
+    }
+
+    [Fact]
+    public async Task The_plan_limits_the_tables_of_each_branch_but_keeps_the_ones_already_there()
+    {
+        var area = await _manager.PostOk(Areas, new { name = "Tầng 1" });
+        await _manager.PostOk(Batch, new { rows = Numbered(area.Id(), "A", 3) });
+
+        _limits.Current = new TablePlanLimits(true, 4);
+        await _manager.Post(Batch, new { rows = Numbered(area.Id(), "B", 2) }).ShouldBe(422, "subscription.table_limit_reached");
+        (await _manager.GetFromJsonAsync<JsonElement>(Tables)).GetArrayLength().Should().Be(3);
+        await _manager.PostOk(Tables, new { areaId = area.Id(), tableCode = "C1", capacity = 2 });
+        await _manager.Post(Tables, new { areaId = area.Id(), tableCode = "C2", capacity = 2 }).ShouldBe(422, "subscription.table_limit_reached");
+
+        var otherArea = await _admin.PostOk(Areas, new { branchId = _b2, name = "Tầng 1" });   // another branch has its own count
+        await _admin.PostOk(Batch, new { branchId = _b2, rows = Numbered(otherArea.Id(), "A", 4) });
+
+        _limits.Current = new TablePlanLimits(true, 2);                                         // a smaller plan: what exists keeps working
+        (await _manager.GetFromJsonAsync<JsonElement>(Tables)).GetArrayLength().Should().Be(4);
+        await _manager.Post(Tables, new { areaId = area.Id(), tableCode = "C3", capacity = 2 }).ShouldBe(422, "subscription.table_limit_reached");
+    }
+
+    // ------------------------------------------------------------------ floor plan layout
+    private const string Layout = "/api/v1/tables/floor-plan/layout";
+
+    [Fact]
+    public async Task Moved_tables_are_saved_together_and_appear_on_the_floor_plan()
+    {
+        var area = await _manager.PostOk(Areas, new { name = "Tầng 1" });
+        var tables = (await _manager.PostOk(Batch, new { rows = Numbered(area.Id(), "A", 2) })).GetProperty("tables").EnumerateArray().Select(t => t.Id()).ToList();
+
+        var saved = await _manager.Put(Layout, new { positions = new[] { new { tableId = tables[0], positionX = 3, positionY = 1 }, new { tableId = tables[1], positionX = 4, positionY = 1 } } });
+        saved.IsSuccessStatusCode.Should().BeTrue();
+
+        var plan = await _cashier.GetFromJsonAsync<JsonElement>("/api/v1/tables/floor-plan");
+        var first = plan.GetProperty("areas")[0].GetProperty("tables").EnumerateArray().Single(t => t.Id() == tables[0]);
+        (first.GetProperty("positionX").GetInt32(), first.GetProperty("positionY").GetInt32()).Should().Be((3, 1));
+
+        // two tables swap places in one save
+        (await _manager.Put(Layout, new { positions = new[] { new { tableId = tables[0], positionX = 4, positionY = 1 }, new { tableId = tables[1], positionX = 3, positionY = 1 } } })).IsSuccessStatusCode.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task A_layout_refuses_shared_cells_foreign_tables_and_the_wrong_people()
+    {
+        var area = await _manager.PostOk(Areas, new { name = "Tầng 1" });
+        var tables = (await _manager.PostOk(Batch, new { rows = Numbered(area.Id(), "A", 2) })).GetProperty("tables").EnumerateArray().Select(t => t.Id()).ToList();
+        var otherArea = await _admin.PostOk(Areas, new { branchId = _b2, name = "Tầng 1" });
+        var foreign = (await _admin.PostOk(Batch, new { branchId = _b2, rows = Numbered(otherArea.Id(), "B", 1) })).GetProperty("tables")[0].Id();
+
+        (await _manager.Put(Layout, new { positions = new[] { new { tableId = tables[0], positionX = 1, positionY = 1 }, new { tableId = tables[1], positionX = 1, positionY = 1 } } })).StatusCode.Should().Be(System.Net.HttpStatusCode.BadRequest);
+        (await _manager.Put(Layout, new { positions = new[] { new { tableId = foreign, positionX = 1, positionY = 1 } } })).StatusCode.Should().Be(System.Net.HttpStatusCode.BadRequest);
+        (await _manager.Put(Layout, new { positions = new[] { new { tableId = tables[0], positionX = -1, positionY = 1 } } })).StatusCode.Should().Be(System.Net.HttpStatusCode.BadRequest);
+        (await _manager.Put(Layout, new { positions = Array.Empty<object>() })).StatusCode.Should().Be(System.Net.HttpStatusCode.BadRequest);
+        (await _cashier.Put(Layout, new { positions = new[] { new { tableId = tables[0], positionX = 1, positionY = 1 } } })).StatusCode.Should().Be(System.Net.HttpStatusCode.Forbidden);
+
+        (await _admin.Put(Layout, new { branchId = _b2, positions = new[] { new { tableId = foreign, positionX = 2, positionY = 0 } } })).IsSuccessStatusCode.Should().BeTrue();
+    }
+
+    // ------------------------------------------------------------------ one shop set up, the others copied
+    private const string Clone = "/api/v1/tables/floor-plan/clone";
+
+    private async Task<List<JsonElement>> SetUpFirstBranchAsync()
+    {
+        var area = await _admin.PostOk(Areas, new { branchId = _b1, name = "Tầng 1", sortOrder = 2 });
+        var rows = new object[] { new { areaId = area.Id(), tableCode = "A01", capacity = 4, positionX = 2, positionY = 3 }, new { areaId = area.Id(), tableCode = "A02", capacity = 6, positionX = 5, positionY = 1 } };
+        return (await _admin.PostOk(Batch, new { branchId = _b1, rows })).GetProperty("tables").EnumerateArray().ToList();
+    }
+
+    [Fact]
+    public async Task A_copy_brings_areas_seats_and_positions_with_new_qr_codes()
+    {
+        var source = await SetUpFirstBranchAsync();
+        var b3 = _f.Branches.Add(_tenant, name: "Quận 7");
+        await _admin.PostOk(Areas, new { branchId = b3, name = "tầng 1" });   // a target's own area of that name is reused
+
+        var result = await _admin.PostOk(Clone, new { fromBranchId = _b1, toBranchIds = new[] { _b2, b3 } });
+
+        result.GetProperty("branches").EnumerateArray().Select(b => (b.GetProperty("branchId").GetGuid(), b.GetProperty("tables").GetInt32(), b.GetProperty("areasCreated").GetInt32()))
+            .Should().Equal((_b2, 2, 1), (b3, 2, 0));
+        var copied = await _admin.GetFromJsonAsync<JsonElement>($"{Tables}?branchId={_b2}");
+        var a01 = copied.EnumerateArray().Single(t => t.GetProperty("tableCode").GetString() == "A01");
+        (a01.GetProperty("capacity").GetInt32(), a01.GetProperty("positionX").GetInt32(), a01.GetProperty("positionY").GetInt32(), a01.GetProperty("areaName").GetString()).Should().Be((4, 2, 3, "Tầng 1"));
+        a01.GetProperty("status").GetString().Should().Be("Available");
+
+        var tokens = (await _admin.GetFromJsonAsync<JsonElement>(Tables)).EnumerateArray().Select(t => t.GetProperty("qrToken").GetString()).ToList();
+        tokens.Should().HaveCount(6).And.OnlyHaveUniqueItems();
+        (await _f.CreateClient().GetFromJsonAsync<JsonElement>($"{PublicQr}/{a01.GetProperty("qrToken").GetString()}")).GetProperty("branchId").GetGuid().Should().Be(_b2);
+        source.Should().HaveCount(2);
+        (await _admin.GetFromJsonAsync<JsonElement>($"{Tables}?branchId={_b1}")).GetArrayLength().Should().Be(2);
+    }
+
+    [Fact]
+    public async Task A_copy_is_all_or_nothing_and_for_the_brand_admin_only()
+    {
+        await SetUpFirstBranchAsync();
+        var b3 = _f.Branches.Add(_tenant, name: "Quận 7");
+        var area = await _admin.PostOk(Areas, new { branchId = b3, name = "Sân" });
+        await _admin.PostOk(Tables, new { branchId = b3, areaId = area.Id(), tableCode = "X1", capacity = 2 });
+
+        await _admin.Post(Clone, new { fromBranchId = _b1, toBranchIds = new[] { _b2, b3 } }).ShouldBe(409, "floor_plan.target_not_empty");
+        (await _admin.GetFromJsonAsync<JsonElement>($"{Tables}?branchId={_b2}")).GetArrayLength().Should().Be(0);   // the first target got nothing either
+
+        await _admin.Post(Clone, new { fromBranchId = _b1, toBranchIds = new[] { _b1 } }).ShouldBe(400);
+        await _admin.Post(Clone, new { fromBranchId = _b1, toBranchIds = Array.Empty<Guid>() }).ShouldBe(400);
+        await _admin.Post(Clone, new { fromBranchId = _b2, toBranchIds = new[] { _b1 } }).ShouldBe(422, "floor_plan.source_empty");
+        await _admin.Post(Clone, new { fromBranchId = _b1, toBranchIds = new[] { _otherBranch } }).ShouldBe(400);
+        await _otherAdmin.Post(Clone, new { fromBranchId = _b1, toBranchIds = new[] { _otherBranch } }).ShouldBe(400);
+        await _manager.Post(Clone, new { fromBranchId = _b1, toBranchIds = new[] { _b2 } }).ShouldBe(403);
+
+        _limits.Current = new TablePlanLimits(true, 1);
+        await _admin.Post(Clone, new { fromBranchId = _b1, toBranchIds = new[] { _b2 } }).ShouldBe(422, "subscription.table_limit_reached");
+    }
+
+    [Fact]
+    public async Task Without_a_plan_no_table_can_be_added()
+    {
+        var area = await _manager.PostOk(Areas, new { name = "Tầng 1" });
+        _limits.Current = new TablePlanLimits(false, null);
+
+        await _manager.Post(Tables, new { areaId = area.Id(), tableCode = "A1", capacity = 2 }).ShouldBe(422, "subscription.required");
+        await _manager.Post(Batch, new { rows = Numbered(area.Id(), "A", 2) }).ShouldBe(422, "subscription.required");
+    }
 
     // ------------------------------------------------------------------ areas (UC-25)
     [Fact]
@@ -259,7 +484,7 @@ public sealed class TableTests : IDisposable
         var token = table.GetProperty("qrToken").GetString()!;
 
         token.Should().MatchRegex("^[0-9a-f]{32}$");
-        table.GetProperty("qrCodeUrl").GetString().Should().EndWith($"/qr/{token}");
+        table.GetProperty("qrCodeUrl").GetString().Should().EndWith($"/q/{token}");
 
         var scan = await _f.CreateClient().GetFromJsonAsync<JsonElement>($"{PublicQr}/{token.ToUpperInvariant()}");   // case-insensitive
         scan.GetProperty("tenantId").GetGuid().Should().Be(_tenant);

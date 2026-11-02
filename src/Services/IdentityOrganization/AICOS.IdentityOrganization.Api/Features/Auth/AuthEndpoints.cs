@@ -11,7 +11,7 @@ using Microsoft.Extensions.Options;
 namespace AICOS.IdentityOrganization.Api.Features.Auth;
 
 /// <summary>
-/// UC-01 Login, UC-33 Register, refresh/logout, change password and forgot/reset password.
+/// UC-01 Login, UC-33 Register (see <see cref="SignUpEndpoints"/>), refresh/logout, change password and forgot/reset password.
 /// Routes: /api/v1/identity/auth. Everything is anonymous except /me and /change-password.
 /// </summary>
 public static class AuthEndpoints
@@ -22,7 +22,8 @@ public static class AuthEndpoints
     {
         var auth = api.MapGroup("/auth").WithTags("Auth");
 
-        auth.MapPost("/register", RegisterAsync).AllowAnonymous();
+        auth.MapSignUpEndpoints();
+        auth.MapSessionEndpoints();
         auth.MapPost("/login", LoginAsync).AllowAnonymous();
         auth.MapPost("/refresh", RefreshAsync).AllowAnonymous();
         auth.MapPost("/logout", LogoutAsync).AllowAnonymous();
@@ -31,36 +32,6 @@ public static class AuthEndpoints
         auth.MapPost("/change-password", ChangePasswordAsync).RequireAuthorization();
         auth.MapPost("/forgot-password", ForgotPasswordAsync).AllowAnonymous();
         auth.MapPost("/reset-password", ResetPasswordAsync).AllowAnonymous();
-    }
-
-    // ---------------------------------------------------------------- UC-33 Register (Customer only)
-    private static async Task<IResult> RegisterAsync(
-        RegisterRequest request,
-        IdentityOrganizationDbContext db,
-        PasswordService passwords,
-        IEventBus bus,
-        ILoggerFactory loggers,
-        CancellationToken ct)
-    {
-        AuthRequestValidator.EnsureValid(request);
-        await AccountRules.EnsureUniqueAsync(db, request.Email!, username: null, excludeUserId: null, ct);
-
-        var tenantCode = Tenant.NormalizeCode(request.TenantCode!);
-        var tenant = await db.Tenants.AsNoTracking().FirstOrDefaultAsync(t => t.Code == tenantCode, ct)
-            ?? throw new ValidationFailedException(nameof(request.TenantCode), $"Brand '{tenantCode}' does not exist.");
-        if (tenant.Status != TenantStatus.Active)
-        {
-            throw NotActive(tenant.Status);
-        }
-
-        var user = new User(request.FullName!, request.Email!, username: null, request.Phone, AicosRoles.Customer, branchId: null, tenant.Id);
-        user.SetPassword(passwords.Hash(user, request.Password!), mustChangePassword: false);
-
-        db.Users.Add(user);
-        await db.SaveChangesAsync(ct);
-        await AccountRules.PublishCustomerRegisteredAsync(bus, loggers.CreateLogger(LoggerCategory), user, ct);
-
-        return Results.Created($"/api/v1/identity/auth/me", UserResponse.From(user));
     }
 
     // ---------------------------------------------------------------- UC-01 Login
@@ -108,6 +79,11 @@ public static class AuthEndpoints
                 "auth.invalid_credentials");
         }
 
+        if (user.Status == UserStatus.PendingVerification)
+        {
+            throw new ForbiddenException("Verify your email with the code we sent before signing in.", "auth.email_not_verified");
+        }
+
         await EnsureTenantActiveAsync(db, user, ct);
         await EnsureBranchActiveAsync(db, user, ct);
 
@@ -152,10 +128,16 @@ public static class AuthEndpoints
         await EnsureTenantActiveAsync(db, user, ct);
         await EnsureBranchActiveAsync(db, user, ct);
 
+        // A customer whose chosen brand was suspended stays signed in and picks another brand.
+        var activeBrand = session.ActiveTenantId is null
+            ? null
+            : await db.Tenants.AsNoTracking().FirstOrDefaultAsync(t => t.Id == session.ActiveTenantId && t.Status == TenantStatus.Active, ct);
+        session.SetActiveTenant(activeBrand?.Id);
+
         var issued = tokens.RotateSession(session, user);
         await db.SaveChangesAsync(ct);
 
-        return AuthResponse.From(issued, UserResponse.From(user));
+        return AuthResponse.From(issued, UserResponse.From(user), activeBrand?.Code);
     }
 
     private static async Task<IResult> LogoutAsync(
@@ -331,7 +313,7 @@ public static class AuthEndpoints
     private static UnauthorizedException InvalidCredentials() =>
         new("Invalid email/username or password.", "auth.invalid_credentials");
 
-    private static ForbiddenException AccountLocked() =>
+    internal static ForbiddenException AccountLocked() =>
         new("This account has been locked by an administrator.", "account.locked");
 
     private static void EnsureNotLocked(User user, DateTime now)
@@ -361,7 +343,7 @@ public static class AuthEndpoints
         };
 
     /// <summary>BR-07: every user of a suspended tenant is denied login.</summary>
-    private static async Task EnsureTenantActiveAsync(IdentityOrganizationDbContext db, User user, CancellationToken ct)
+    internal static async Task EnsureTenantActiveAsync(IdentityOrganizationDbContext db, User user, CancellationToken ct)
     {
         if (user.TenantId is null)
         {
@@ -376,7 +358,7 @@ public static class AuthEndpoints
     }
 
     /// <summary>Why a brand cannot be used: waiting for approval, refused, or suspended.</summary>
-    private static ForbiddenException NotActive(TenantStatus? status) => status switch
+    internal static ForbiddenException NotActive(TenantStatus? status) => status switch
     {
         TenantStatus.Pending => new ForbiddenException("The registration of your brand is waiting for approval. You can sign in once it is approved.", "tenant.pending_approval"),
         TenantStatus.Rejected => new ForbiddenException("The registration of your brand was refused. Contact the platform administrator.", "tenant.rejected"),

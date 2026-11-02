@@ -93,6 +93,7 @@ public sealed class PaymentRefundTests : PaymentTestBase
         await Cashier1.Post(RefundsOf(payment), new { kind = "Exception", reason = "Cold drink" }).ShouldBe(400);                // exceptions need an amount
         var request = await Manager1.PostOk(RefundsOf(payment), new { kind = "Exception", amount = 30_000, reason = "Cold drink" });
         request.GetProperty("status").GetString().Should().Be("PendingApproval");
+        F.Events.Published.OfType<RefundRequestedEvent>().Should().ContainSingle(e => e.RefundId == request.Id() && e.Amount == 30_000);
 
         await Manager1.Post($"{Refunds}/{request.Id()}/approve", new { }).ShouldBe(403, "refund.self_approval");
         await Cashier1.Post($"{Refunds}/{request.Id()}/approve", new { }).ShouldBe(403);

@@ -106,11 +106,14 @@ public sealed record OrderSummary(
     DateTime? CancelledAtUtc,
     DateTime CreatedAtUtc,
     DateTime? PickupSlotStartUtc = null,
-    bool HasFeedback = false)
+    bool HasFeedback = false,
+    IReadOnlyList<OrderItemResponse>? Items = null,
+    Guid? CustomerId = null,
+    DateTime? CompletedAtUtc = null)
 {
-    public static OrderSummary From(Order o) => new(
+    public static OrderSummary From(Order o) => new OrderSummary(
         o.Id, o.OrderCode, o.BranchId, o.Type, o.Status, o.PaymentStatus, o.PaymentProvider, o.TableNumber, o.OriginalAmount, o.DiscountAmount, o.FinalAmount,
-        o.RefundedAmount, o.EffectiveRefundStatus, o.Items.Count, o.PaidAtUtc, o.CancelledAtUtc, o.CreatedAtUtc, o.PickupSlotStartUtc);
+        o.RefundedAmount, o.EffectiveRefundStatus, o.Items.Count, o.PaidAtUtc, o.CancelledAtUtc, o.CreatedAtUtc, o.PickupSlotStartUtc) with { Items = o.Items.Select(OrderItemResponse.From).ToList(), CustomerId = o.CustomerId, CompletedAtUtc = o.CompletedAtUtc };
 }
 
 /// <summary>The result of checking an order's payment (SCRUM-60): what Payment reported, in one small answer.</summary>

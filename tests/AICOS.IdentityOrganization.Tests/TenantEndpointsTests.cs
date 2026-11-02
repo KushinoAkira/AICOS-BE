@@ -84,7 +84,7 @@ public sealed class TenantEndpointsTests : IDisposable
         var admin = _factory.CreateClientAs(AicosRoles.BrandAdmin, tenantId: tenant.Id);
         await CreateBranchAsync(admin, "Quan 1");
         await CreateBranchAsync(admin, "Quan 2");
-        var other = await CreateTenantAsync("nostats", "owner@nostats.com");
+        var other = await CreateTenantAsync("nostats", "owner@nostats.com", plan: false);
 
         var list = await _superAdmin.GetFromJsonAsync<PagedResponse<TenantResponse>>($"{Tenants}?search=stats", Json);
         list!.Items.Single(t => t.Id == tenant.Id).BranchCount.Should().Be(2);
@@ -126,21 +126,16 @@ public sealed class TenantEndpointsTests : IDisposable
 
     // ------------------------------------------------------------------ BR-72
     [Fact]
-    public async Task Register_requires_an_existing_active_brand_and_joins_that_brand()
+    public async Task A_customer_account_belongs_to_no_brand_and_a_suspended_brand_does_not_stop_it_signing_in()
     {
         var tenant = await CreateTenantAsync("acme", "admin@acme.com");
         using var anonymous = _factory.CreateClient();
 
-        (await anonymous.PostAsJsonAsync($"{Auth}/register", new RegisterRequest("nope", "A", "a@x.com", null, Password, Password), Json))
-            .StatusCode.Should().Be(HttpStatusCode.BadRequest);
-
-        var ok = await anonymous.PostAsJsonAsync($"{Auth}/register", new RegisterRequest("ACME", "A", "a@x.com", null, Password, Password), Json);
-        ok.StatusCode.Should().Be(HttpStatusCode.Created);
-        (await ok.Content.ReadFromJsonAsync<UserResponse>(Json))!.TenantId.Should().Be(tenant.Id);
+        var signedUp = await AuthEndpointsTests.SignUpAsync(anonymous, _factory, "a@x.com", Password, "A");
+        signedUp.User.TenantId.Should().BeNull();
 
         await _superAdmin.PatchAsJsonAsync($"{Tenants}/{tenant.Id}/status", new ChangeTenantStatusRequest(TenantStatus.Suspended), Json);
-        (await anonymous.PostAsJsonAsync($"{Auth}/register", new RegisterRequest("acme", "B", "b@x.com", null, Password, Password), Json))
-            .StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        (await LoginAsync("a@x.com")).User.Email.Should().Be("a@x.com");
     }
 
     // ------------------------------------------------------------------ BR-04 tenant isolation
@@ -275,11 +270,17 @@ public sealed class TenantEndpointsTests : IDisposable
     private static CreateTenantRequest NewTenant(string code, string adminEmail) =>
         new($"Brand {code}", code, new FirstAdminRequest("Brand Owner", adminEmail, "0901234567", Password));
 
-    private async Task<TenantResponse> CreateTenantAsync(string code, string adminEmail)
+    private async Task<TenantResponse> CreateTenantAsync(string code, string adminEmail, bool plan = true)
     {
         var response = await _superAdmin.PostAsJsonAsync(Tenants, NewTenant(code, adminEmail), Json);
         response.EnsureSuccessStatusCode();
-        return (await response.Content.ReadFromJsonAsync<TenantResponse>(Json))!;
+        var tenant = (await response.Content.ReadFromJsonAsync<TenantResponse>(Json))!;
+        if (plan)
+        {
+            _factory.GivePlan(tenant.Id);
+        }
+
+        return tenant;
     }
 
     private static async Task<BranchResponse> CreateBranchAsync(HttpClient admin, string name)

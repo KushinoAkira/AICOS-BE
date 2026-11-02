@@ -172,8 +172,8 @@ public sealed class EmailTests
     {
         using var factory = new IdentityApiFactory();
         var client = factory.CreateClient();
-        await client.PostAsJsonAsync("/api/v1/identity/auth/register",
-            new RegisterRequest(IdentityApiFactory.TenantCode, "Nguyễn An", "an@example.com", "0901234567", "Brand1234", "Brand1234"), AuthEndpointsTests.Json);
+        await AuthEndpointsTests.SignUpAsync(client, factory, "an@example.com", "Brand1234", fullName: "Nguyễn An");
+        factory.Emails.Messages.Clear();
 
         var ok = await client.PostAsJsonAsync("/api/v1/identity/auth/forgot-password", new ForgotPasswordRequest("an@example.com"), AuthEndpointsTests.Json);
 

@@ -157,7 +157,7 @@ public static class UserEndpoints
 
         if (canonicalRole == AicosRoles.Customer)
         {
-            await AccountRules.PublishCustomerRegisteredAsync(bus, loggers.CreateLogger("AICOS.Identity.Users"), user, ct);
+            await AccountRules.PublishCustomerRegisteredAsync(bus, loggers.CreateLogger("AICOS.Identity.Users"), user, user.TenantId ?? Guid.Empty, ct);
         }
 
         return Results.CreatedAtRoute("GetUser", new { id = user.Id }, UserResponse.From(user));

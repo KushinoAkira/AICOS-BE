@@ -94,15 +94,66 @@ public sealed class WorkforceReviewTests : WorkforceTestBase
 
     // ------------------------------------------------------------------ approve / adjust / absent (BR-54, FR-82)
     [Fact]
-    public async Task A_complete_record_is_approved_as_recorded_but_only_after_the_shift_ended()
+    public async Task A_running_shift_can_be_approved_and_is_closed_at_that_moment()
+    {
+        var shift = await NewShiftAsync("Sáng", "07:00", "12:00");
+        var (userId, employee) = await NewEmployeeAsync("An");
+        var id = await AssignAsync(employee, shift, Monday);
+        await WorkAsync(Staff(userId), id, Monday, (7, 0), null);
+        SetLocal(Monday, 10, 0);
+
+        var approved = await Manager.PostOk($"{Attendance}/{id}/approve", new { });
+
+        approved.GetProperty("reviewStatus").GetString().Should().Be("Approved");
+        approved.GetProperty("workedHours").GetDouble().Should().Be(3);
+        approved.GetProperty("reviewNote").GetString().Should().Contain("Duyệt trong ca");
+        approved.GetProperty("checkOutAtUtc").ValueKind.Should().NotBe(JsonValueKind.Null);
+        F.Events.Published.OfType<AuditRecordedEvent>().Should().ContainSingle(e => e.Action == "attendance.closed_on_approval");
+
+        SetLocal(Monday, 10, 10);
+        await Staff(userId).Post($"{Attendance}/check-out", new { assignmentId = id }).ShouldBe(409, "attendance.already_checked_out");
+        await Manager.Post($"{Attendance}/{id}/approve", new { note = "Lần hai" }).ShouldBe(200);
+    }
+
+    [Fact]
+    public async Task A_record_checked_out_early_is_approved_before_the_shift_ends_without_touching_the_times()
+    {
+        var shift = await NewShiftAsync("Sáng", "07:00", "12:00");
+        var (userId, employee) = await NewEmployeeAsync("An");
+        var id = await AssignAsync(employee, shift, Monday);
+        await WorkAsync(Staff(userId), id, Monday, (7, 0), (9, 0));
+        SetLocal(Monday, 9, 30);
+
+        var approved = await Manager.PostOk($"{Attendance}/{id}/approve", new { });
+
+        approved.GetProperty("workedHours").GetDouble().Should().Be(2);
+        approved.GetProperty("reviewNote").ValueKind.Should().Be(JsonValueKind.Null);
+        F.Events.Published.OfType<AuditRecordedEvent>().Should().NotContain(e => e.Action == "attendance.closed_on_approval");
+    }
+
+    [Fact]
+    public async Task Nothing_to_approve_while_the_employee_has_not_checked_in()
+    {
+        var shift = await NewShiftAsync("Sáng", "07:00", "12:00");
+        var (_, employee) = await NewEmployeeAsync("An");
+        var id = await AssignAsync(employee, shift, Monday);
+
+        SetLocal(Monday, 6, 0);
+        await Manager.Post($"{Attendance}/{id}/approve", new { }).ShouldBe(422, "attendance.shift_not_over");
+        SetLocal(Monday, 10, 0);
+        await Manager.Post($"{Attendance}/{id}/approve", new { }).ShouldBe(422, "attendance.shift_not_over");
+        SetLocal(Monday, 12, 30);
+        await Manager.Post($"{Attendance}/{id}/approve", new { }).ShouldBe(422, "attendance.incomplete");
+    }
+
+    [Fact]
+    public async Task A_complete_record_is_approved_as_recorded_and_a_forgotten_check_out_needs_a_correction()
     {
         var shift = await NewShiftAsync("Sáng", "07:00", "12:00");
         var (userId, employee) = await NewEmployeeAsync("An");
         var id = await AssignAsync(employee, shift, Monday);
         await WorkAsync(Staff(userId), id, Monday, (7, 0), null);
 
-        SetLocal(Monday, 10, 0);
-        await Manager.Post($"{Attendance}/{id}/approve", new { }).ShouldBe(422, "attendance.shift_not_over");
         SetLocal(Monday, 12, 30);
         await Manager.Post($"{Attendance}/{id}/approve", new { }).ShouldBe(422, "attendance.incomplete");        // no check-out yet
 
@@ -113,6 +164,38 @@ public sealed class WorkforceReviewTests : WorkforceTestBase
         approved.GetProperty("reviewStatus").GetString().Should().Be("Approved");
         approved.GetProperty("reviewNote").GetString().Should().Be("Đủ công");
         approved.GetProperty("workedHours").GetDouble().Should().Be(5.08);
+    }
+
+    [Fact]
+    public async Task After_a_correction_the_employee_can_no_longer_check_out_of_that_shift()
+    {
+        var shift = await NewShiftAsync("Sáng", "07:00", "12:00");
+        var (userId, employee) = await NewEmployeeAsync("An");
+        var id = await AssignAsync(employee, shift, Monday);
+        await WorkAsync(Staff(userId), id, Monday, (7, 0), null);
+        SetLocal(Monday, 9, 0);
+        var checkOut = new DateTimeOffset(Monday.ToDateTime(new TimeOnly(8, 30)), TimeSpan.FromHours(7));
+
+        var corrected = await Manager.PostOk($"{Attendance}/{id}/adjust", new { checkOutAt = checkOut, reason = "Về sớm có phép" });
+        corrected.GetProperty("checkOutAtUtc").ValueKind.Should().Be(JsonValueKind.Null);      // what the employee tapped stays as it was
+        corrected.GetProperty("adjustedCheckOutAtUtc").ValueKind.Should().NotBe(JsonValueKind.Null);
+
+        SetLocal(Monday, 9, 30);
+        await Staff(userId).Post($"{Attendance}/check-out", new { assignmentId = id }).ShouldBe(409, "attendance.already_reviewed");
+        (await ReportAsync()).GetProperty("rows").EnumerateArray().Single(r => r.GetProperty("shift").GetProperty("id").GetGuid() == id)
+            .GetProperty("shift").GetProperty("workedHours").GetDouble().Should().Be(1.5);
+    }
+
+    [Fact]
+    public async Task An_employee_marked_absent_can_no_longer_check_in_to_that_shift()
+    {
+        var shift = await NewShiftAsync("Sáng", "07:00", "12:00");
+        var (userId, employee) = await NewEmployeeAsync("An");
+        var id = await AssignAsync(employee, shift, Monday);
+        SetLocal(Monday, 12, 30);
+        await Manager.PostOk($"{Attendance}/{id}/absent", new { reason = "Nghỉ không phép" });
+
+        await Staff(userId).Post($"{Attendance}/check-in", new { assignmentId = id }).ShouldBe(409, "attendance.already_reviewed");
     }
 
     [Fact]

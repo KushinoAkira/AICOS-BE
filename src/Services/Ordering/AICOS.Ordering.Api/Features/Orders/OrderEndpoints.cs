@@ -25,6 +25,8 @@ public static class OrderEndpoints
     {
         var group = api.MapGroup(string.Empty).WithTags("Orders");
 
+        group.MapRecommendationEndpoints();
+
         group.MapPost("/", CreateAsync).RequireAuthorization(b => b.RequireRole(OrderAccess.CounterRoles));
         group.MapGet("/", ListAsync).RequireAuthorization(AicosPolicies.Staff);
         group.MapGet("/mine", MineAsync).RequireAuthorization(b => b.RequireRole(AicosRoles.Customer));

@@ -14,6 +14,9 @@ public interface IKitchenNotifier
     Task NotifyOrderReadyForPickupAsync(Guid tenantId, Guid branchId, OrderReadyNotificationDto notification, CancellationToken ct = default);
 
     Task NotifyStickersPrintedAsync(Guid tenantId, Guid branchId, IReadOnlyList<CupStickerDto> stickers, CancellationToken ct = default);
+
+    /// <summary>To the cashier screens: a table asked for the bill, or a payment came in, so the table map is out of date.</summary>
+    Task NotifyCounterAsync(Guid tenantId, Guid branchId, string eventName, object payload, CancellationToken ct = default);
 }
 
 public sealed class KitchenSignalRNotifier(IHubContext<KitchenHub> hub) : IKitchenNotifier
@@ -31,6 +34,9 @@ public sealed class KitchenSignalRNotifier(IHubContext<KitchenHub> hub) : IKitch
         Task.WhenAll(
             hub.Clients.Group(KitchenHub.PosGroup(tenantId, branchId)).SendAsync("OrderReadyForPickup", notification, ct),
             hub.Clients.Group(KitchenHub.KitchenGroup(tenantId, branchId)).SendAsync("OrderReadyForPickup", notification, ct));
+
+    public Task NotifyCounterAsync(Guid tenantId, Guid branchId, string eventName, object payload, CancellationToken ct = default) =>
+        hub.Clients.Group(KitchenHub.PosGroup(tenantId, branchId)).SendAsync(eventName, payload, ct);
 
     public Task NotifyStickersPrintedAsync(Guid tenantId, Guid branchId, IReadOnlyList<CupStickerDto> stickers, CancellationToken ct = default) =>
         hub.Clients.Group(KitchenHub.KitchenGroup(tenantId, branchId)).SendAsync("CupStickersPrinted", stickers, ct);

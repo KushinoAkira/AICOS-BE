@@ -98,6 +98,12 @@ public sealed class DiningTable : AuditableEntity<Guid>, IBranchScoped
         PositionY = positionY;
     }
 
+    public void MoveTo(int positionX, int positionY)
+    {
+        PositionX = positionX;
+        PositionY = positionY;
+    }
+
     public void ChangeStatus(TableStatus status) => Status = status;
 
     public void RegenerateQr(DateTime nowUtc)

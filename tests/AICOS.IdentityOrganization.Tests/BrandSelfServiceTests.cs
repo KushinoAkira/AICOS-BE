@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using AICOS.BuildingBlocks.Persistence;
 using AICOS.BuildingBlocks.Security;
+using AICOS.Contracts.Events;
 using AICOS.IdentityOrganization.Api.Domain;
 using AICOS.IdentityOrganization.Api.Features.Auth;
 using AICOS.IdentityOrganization.Api.Features.Branches;
@@ -15,13 +16,36 @@ using Microsoft.Extensions.DependencyInjection;
 namespace AICOS.IdentityOrganization.Tests;
 
 /// <summary>Self-service brands (register, Pending to Approved or Rejected), the public page of a brand, the profile and the contact form. All of it lives in the database.</summary>
+public sealed class LogoPictureTests : IDisposable
+{
+    private readonly IdentityApiFactory _factory = new() { SeedPlan = false };
+
+    public void Dispose() => _factory.Dispose();
+
+    [Fact]
+    public async Task A_small_picture_is_kept_as_the_logo_but_other_data_urls_are_refused()
+    {
+        using var admin = _factory.CreateClientAs(AicosRoles.BrandAdmin);
+        const string picture = "data:image/png;base64,iVBORw0KGgo=";
+
+        var saved = await admin.PutAsJsonAsync("/api/v1/identity/brand/profile", new BrandProfileRequest("Quán", picture, "#C97B4A", null), AuthEndpointsTests.Json);
+        saved.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await saved.Content.ReadFromJsonAsync<BrandProfileResponse>(AuthEndpointsTests.Json))!.LogoUrl.Should().Be(picture);
+
+        (await admin.PutAsJsonAsync("/api/v1/identity/brand/profile", new BrandProfileRequest(null, "data:text/html;base64,AAAA", null, null), AuthEndpointsTests.Json))
+            .StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await admin.PutAsJsonAsync("/api/v1/identity/brand/profile", new BrandProfileRequest(null, "data:image/png;base64," + new string('A', 200_001), null, null), AuthEndpointsTests.Json))
+            .StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+}
+
 public sealed class BrandSelfServiceTests : IDisposable
 {
     private const string Base = "/api/v1/identity";
     private const string Password = "Brand1234";
     private static readonly JsonSerializerOptions Json = AuthEndpointsTests.Json;
 
-    private readonly IdentityApiFactory _factory = new();
+    private readonly IdentityApiFactory _factory = new() { SeedPlan = false };
     private readonly HttpClient _anonymous;
     private readonly HttpClient _superAdmin;
 
@@ -124,6 +148,10 @@ public sealed class BrandSelfServiceTests : IDisposable
         var pending = await _superAdmin.GetFromJsonAsync<PagedResponse<TenantResponse>>($"{Base}/tenants?status=Pending", Json);
         pending!.Items.Select(t => t.Code).Should().Equal("cafe-sai-gon");
 
+        var listed = await _superAdmin.GetFromJsonAsync<JsonElement>($"{Base}/tenants?status=Pending", Json);
+        listed.GetProperty("items").EnumerateArray().Single(t => t.GetProperty("id").GetGuid() == tenant.Id).GetProperty("ownerEmail").GetString().Should().Be("owner@cafesaigon.vn");
+        _factory.Events.Published.OfType<BrandRegisteredEvent>().Should().ContainSingle(e => e.TenantId == tenant.Id);
+
         var approved = await _superAdmin.PostAsJsonAsync($"{Base}/tenants/{tenant.Id}/approve", new { });
 
         approved.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -189,6 +217,7 @@ public sealed class BrandSelfServiceTests : IDisposable
     {
         var admin = await ApprovedBrandAdminAsync();
         var tenantId = (await admin.GetFromJsonAsync<JsonElement>($"{Base}/brand/profile")).GetProperty("id").GetGuid();
+        _factory.GivePlan(tenantId);
         var open = await (await admin.PostAsJsonAsync($"{Base}/branches", new BranchRequest("Quận 1", "1 Lê Lợi", "0901234567", new TimeOnly(7, 0), new TimeOnly(22, 0)), Json)).Content.ReadFromJsonAsync<BranchResponse>(Json);
         var closed = await (await admin.PostAsJsonAsync($"{Base}/branches", new BranchRequest("Quận 3", "3 Nguyễn Du", null, null, null), Json)).Content.ReadFromJsonAsync<BranchResponse>(Json);
         (await admin.PatchAsJsonAsync($"{Base}/branches/{closed!.Id}/status", new ChangeBranchStatusRequest(BranchStatus.Suspended), Json)).EnsureSuccessStatusCode();
@@ -215,7 +244,7 @@ public sealed class BrandSelfServiceTests : IDisposable
         foreach (var bad in new[]
                  {
                      new BrandProfileRequest(null, "javascript:alert(1)", null, null),
-                     new BrandProfileRequest(null, "data:image/png;base64,AAAA", null, null),
+                     new BrandProfileRequest(null, "data:text/html;base64,AAAA", null, null),
                      new BrandProfileRequest(null, "ftp://example.com/logo.png", null, null),
                      new BrandProfileRequest(null, "https://user:pass@example.com/logo.png", null, null),
                      new BrandProfileRequest(null, "https://example.com/" + new string('a', 500), null, null),

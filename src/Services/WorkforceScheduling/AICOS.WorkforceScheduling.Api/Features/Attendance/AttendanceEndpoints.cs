@@ -68,6 +68,8 @@ public sealed record AttendanceReportResponse(DateOnly From, DateOnly To, List<A
 /// </summary>
 public static class AttendanceEndpoints
 {
+    private const string ClosedOnApprovalNote = "Duyệt trong ca, giờ ra tính đến lúc duyệt";
+
     public const int EarlyCheckInMinutes = 15;
     public const int MinIntervalMinutes = 5;
     public const int MaxReportDays = 62;
@@ -101,6 +103,8 @@ public static class AttendanceEndpoints
             throw new ConflictException("You already checked in for this shift.", "attendance.already_checked_in");
         }
 
+        EnsureNotReviewed(assignment);
+
         var now = shop.UtcNow;
         var opens = shop.ToUtc(assignment.WorkDate, assignment.StartTime).AddMinutes(-EarlyCheckInMinutes);
         var closes = shop.ToUtc(assignment.WorkDate, assignment.EndTime);
@@ -123,14 +127,15 @@ public static class AttendanceEndpoints
         AttendanceRequest r, WorkforceSchedulingDbContext db, ICurrentUser user, ShopClock shop, IEventBus bus, ILoggerFactory loggers, CancellationToken ct)
     {
         var assignment = await FindOwnAsync(db, user, r, ct);
-        if (assignment.CheckInAtUtc is null)
-        {
-            throw new BusinessRuleException("attendance.not_checked_in", "You have not checked in for this shift.");
-        }
-
         if (assignment.CheckOutAtUtc is not null)
         {
             throw new ConflictException("You already checked out of this shift.", "attendance.already_checked_out");
+        }
+
+        EnsureNotReviewed(assignment);
+        if (assignment.CheckInAtUtc is null)
+        {
+            throw new BusinessRuleException("attendance.not_checked_in", "You have not checked in for this shift.");
         }
 
         var now = shop.UtcNow;
@@ -215,15 +220,34 @@ public static class AttendanceEndpoints
         return new AttendanceReportResponse(start, end, rows, summary);
     }
 
+    /// <summary>
+    /// UC-29: approve what was recorded. The manager need not wait for the end of the shift: once the employee has checked in the record can be
+    /// approved, and a shift still running is closed at this moment, because payroll counts hours up to a check-out. That close is audited.
+    /// </summary>
     private static async Task<ShiftAssignmentResponse> ApproveAsync(
-        Guid id, ApproveAttendanceRequest r, WorkforceSchedulingDbContext db, ICurrentUser user, ShopClock shop, CancellationToken ct)
+        Guid id, ApproveAttendanceRequest r, WorkforceSchedulingDbContext db, ICurrentUser user, ShopClock shop, IEventBus bus, ILoggerFactory loggers, CancellationToken ct)
     {
         var errors = new ValidationErrors();
         CommonRules.MaxLength(errors, "Note", r.Note, "Note", 500);
         errors.ThrowIfAny();
         var assignment = await ReviewableAsync(db, user, id, shop, requireEnded: true, ct);
-        assignment.ApproveAsRecorded(user.UserId, r.Note, shop.UtcNow);
+        var now = shop.UtcNow;
+        var running = assignment.EffectiveCheckInUtc is not null && assignment.EffectiveCheckOutUtc is null && now < shop.ToUtc(assignment.WorkDate, assignment.EndTime);
+        var before = Snapshot(assignment);
+        if (running)
+        {
+            assignment.CheckOut(now);
+        }
+
+        assignment.ApproveAsRecorded(user.UserId, string.IsNullOrWhiteSpace(r.Note) && running ? ClosedOnApprovalNote : r.Note, now);
         await db.SaveChangesAsync(ct);
+        if (running)
+        {
+            await AuditTrail.PublishAsync(
+                bus, user, loggers.CreateLogger("AICOS.Workforce.Attendance"), assignment.TenantId, "attendance.closed_on_approval", "ShiftAssignment", assignment.Id,
+                before, Snapshot(assignment));
+        }
+
         return (await ScheduleEndpoints.MapAsync(db, [assignment], ct))[0];
     }
 
@@ -323,7 +347,7 @@ public static class AttendanceEndpoints
         foreach (var assignment in await query.ToListAsync(ct))
         {
             var ended = shop.ToUtc(assignment.WorkDate, assignment.EndTime) <= now;
-            if (ended && assignment.CheckInAtUtc is not null && assignment.CheckOutAtUtc is not null)
+            if (assignment.CheckInAtUtc is not null && assignment.CheckOutAtUtc is not null)
             {
                 assignment.ApproveAsRecorded(user.UserId, null, now);
                 approved++;
@@ -348,11 +372,17 @@ public static class AttendanceEndpoints
             throw new BusinessRuleException("attendance.not_reviewable", $"A shift that is {assignment.Status} has no attendance to review.");
         }
 
+        // Approving needs something to approve: the employee has checked in, or the shift is over (and the record says what happened).
         var startsAt = shop.ToUtc(assignment.WorkDate, assignment.StartTime);
         var endsAt = shop.ToUtc(assignment.WorkDate, assignment.EndTime);
-        if (shop.UtcNow < startsAt || (requireEnded && shop.UtcNow < endsAt))
+        if (requireEnded && assignment.EffectiveCheckInUtc is null && shop.UtcNow < endsAt)
         {
-            throw new BusinessRuleException("attendance.shift_not_over", requireEnded ? "The shift has not ended yet." : "The shift has not started yet.");
+            throw new BusinessRuleException("attendance.shift_not_over", "The employee has not checked in and the shift has not ended yet.");
+        }
+
+        if (!requireEnded && shop.UtcNow < startsAt)
+        {
+            throw new BusinessRuleException("attendance.shift_not_over", "The shift has not started yet.");
         }
 
         return assignment;
@@ -426,6 +456,15 @@ public static class AttendanceEndpoints
     }
 
     /// <summary>BR-50.</summary>
+    /// <summary>Once the manager approved the record, corrected the times or marked an absence, the employee can no longer tap in or out of that shift.</summary>
+    private static void EnsureNotReviewed(ShiftAssignment assignment)
+    {
+        if (assignment.ReviewStatus == AttendanceReviewStatus.Approved)
+        {
+            throw new ConflictException("Your manager has already reviewed this shift.", "attendance.already_reviewed");
+        }
+    }
+
     private static async Task EnsureMinIntervalAsync(WorkforceSchedulingDbContext db, Guid employeeId, DateTime nowUtc, CancellationToken ct)
     {
         var since = nowUtc.AddMinutes(-MinIntervalMinutes);

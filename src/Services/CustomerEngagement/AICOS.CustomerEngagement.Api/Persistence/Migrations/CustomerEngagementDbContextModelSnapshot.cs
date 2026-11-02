@@ -123,12 +123,12 @@ namespace AICOS.CustomerEngagement.Api.Persistence.Migrations
                     b.HasIndex("Phone")
                         .HasDatabaseName("ix_customers_phone");
 
-                    b.HasIndex("TenantId")
-                        .HasDatabaseName("ix_customers_tenant_id");
-
                     b.HasIndex("UserId")
-                        .IsUnique()
                         .HasDatabaseName("ix_customers_user_id");
+
+                    b.HasIndex("TenantId", "UserId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_customers_tenant_id_user_id");
 
                     b.ToTable("customers", "customer", t =>
                         {
@@ -348,6 +348,89 @@ namespace AICOS.CustomerEngagement.Api.Persistence.Migrations
                     b.ToTable("loyalty_transactions", "customer");
                 });
 
+            modelBuilder.Entity("AICOS.CustomerEngagement.Api.Domain.StaffNotification", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Audience")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("audience");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("body");
+
+                    b.Property<Guid?>("BranchId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("branch_id");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<string>("DedupeKey")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("dedupe_key");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("kind");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)")
+                        .HasColumnName("title");
+
+                    b.HasKey("Id")
+                        .HasName("pk_staff_notifications");
+
+                    b.HasIndex("TenantId", "Audience", "DedupeKey")
+                        .IsUnique()
+                        .HasDatabaseName("ix_staff_notifications_tenant_id_audience_dedupe_key");
+
+                    NpgsqlIndexBuilderExtensions.AreNullsDistinct(b.HasIndex("TenantId", "Audience", "DedupeKey"), false);
+
+                    b.HasIndex("TenantId", "Audience", "BranchId", "CreatedAtUtc")
+                        .HasDatabaseName("ix_staff_notifications_tenant_id_audience_branch_id_created_at");
+
+                    b.ToTable("staff_notifications", "customer");
+                });
+
+            modelBuilder.Entity("AICOS.CustomerEngagement.Api.Domain.StaffNotificationRead", b =>
+                {
+                    b.Property<Guid>("NotificationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("notification_id");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<DateTime>("ReadAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("read_at_utc");
+
+                    b.HasKey("NotificationId", "UserId")
+                        .HasName("pk_staff_notification_reads");
+
+                    b.ToTable("staff_notification_reads", "customer");
+                });
+
             modelBuilder.Entity("AICOS.CustomerEngagement.Api.Domain.Voucher", b =>
                 {
                     b.Property<Guid>("Id")
@@ -478,6 +561,16 @@ namespace AICOS.CustomerEngagement.Api.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_loyalty_transactions_customers_customer_id");
+                });
+
+            modelBuilder.Entity("AICOS.CustomerEngagement.Api.Domain.StaffNotificationRead", b =>
+                {
+                    b.HasOne("AICOS.CustomerEngagement.Api.Domain.StaffNotification", null)
+                        .WithMany()
+                        .HasForeignKey("NotificationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_staff_notification_reads_staff_notifications_notification_id");
                 });
 #pragma warning restore 612, 618
         }

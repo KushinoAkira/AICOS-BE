@@ -141,6 +141,7 @@ public sealed class AuditLogTests : IDisposable
     {
         using var superAdmin = _factory.CreateClientAs(AicosRoles.SuperAdmin);
         var other = await CreateTenantAsync(superAdmin, "other-brand", "owner@other.com");
+        _factory.GivePlan(other.Id);
         using var otherAdmin = _factory.CreateClientAs(AicosRoles.BrandAdmin, tenantId: other.Id);
         await CreateBranchAsync("Mine");
         await CreateBranchAsync("Theirs", otherAdmin);

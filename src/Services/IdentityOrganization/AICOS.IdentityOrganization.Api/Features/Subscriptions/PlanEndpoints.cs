@@ -60,7 +60,7 @@ public static class PlanEndpoints
 
     private static async Task<List<PublicPlanResponse>> PublicListAsync(IdentityOrganizationDbContext db, CancellationToken ct) =>
         await db.SubscriptionPlans.AsNoTracking().Where(p => p.IsActive).OrderBy(p => p.Fee).ThenBy(p => p.Name)
-            .Select(p => new PublicPlanResponse(p.Id, p.Name, p.Tier, p.Fee, p.BillingPeriod, p.MaxBranches, p.MaxStaffAccounts, p.Description))
+            .Select(p => new PublicPlanResponse(p.Id, p.Name, p.Tier, p.Fee, p.BillingPeriod, p.MaxBranches, p.MaxStaffAccounts, p.Description, p.MaxTablesPerBranch))
             .ToListAsync(ct);
 
     private static async Task<PlanResponse> GetAsync(Guid id, IdentityOrganizationDbContext db, CancellationToken ct)
@@ -75,7 +75,7 @@ public static class PlanEndpoints
         await EnsureNameIsUniqueAsync(db, request.Name!, excludeId: null, ct);
 
         var plan = new SubscriptionPlan(
-            request.Name!, request.Tier!, request.Fee!.Value, request.BillingPeriod!.Value, request.MaxBranches, request.MaxStaffAccounts, request.Description);
+            request.Name!, request.Tier!, request.Fee!.Value, request.BillingPeriod!.Value, request.MaxBranches, request.MaxStaffAccounts, request.Description, request.MaxTablesPerBranch);
         db.SubscriptionPlans.Add(plan);
         audit.Record(AuditScope.Platform, null, "plan.created", "SubscriptionPlan", plan.Id, after: Snapshot(plan));
         await db.SaveChangesAsync(ct);
@@ -92,7 +92,7 @@ public static class PlanEndpoints
         await EnsureNameIsUniqueAsync(db, request.Name!, excludeId: id, ct);
 
         var before = Snapshot(plan);
-        plan.Update(request.Name!, request.Tier!, request.Fee!.Value, request.BillingPeriod!.Value, request.MaxBranches, request.MaxStaffAccounts, request.Description);
+        plan.Update(request.Name!, request.Tier!, request.Fee!.Value, request.BillingPeriod!.Value, request.MaxBranches, request.MaxStaffAccounts, request.Description, request.MaxTablesPerBranch);
         audit.Record(AuditScope.Platform, null, "plan.updated", "SubscriptionPlan", plan.Id, before, Snapshot(plan));
         await db.SaveChangesAsync(ct);
 
@@ -118,7 +118,7 @@ public static class PlanEndpoints
 
     private static object Snapshot(SubscriptionPlan p) => new
     {
-        p.Name, p.Tier, p.Fee, BillingPeriod = p.BillingPeriod.ToString(), p.MaxBranches, p.MaxStaffAccounts, p.IsActive,
+        p.Name, p.Tier, p.Fee, BillingPeriod = p.BillingPeriod.ToString(), p.MaxBranches, p.MaxStaffAccounts, p.MaxTablesPerBranch, p.IsActive,
     };
 
     private static async Task<SubscriptionPlan> FindAsync(IdentityOrganizationDbContext db, Guid id, CancellationToken ct) =>

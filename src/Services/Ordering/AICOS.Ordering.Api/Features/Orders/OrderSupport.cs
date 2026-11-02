@@ -37,6 +37,14 @@ internal static class OrderAccess
         {
             BranchAccess.EnsureCanAccess(user, order.BranchId);
         }
+        else if (user.IsInRole(AicosRoles.Guest))
+        {
+            // A table token (see QrOrderEndpoints.PaymentAccessAsync): its user id is the table session.
+            if (order.TableSessionId is null || order.TableSessionId != user.UserId)
+            {
+                throw new NotFoundException("Order", order.Id);
+            }
+        }
         else if (order.CustomerId is null || order.CustomerId != user.UserId)
         {
             throw new NotFoundException("Order", order.Id);
@@ -73,6 +81,10 @@ public sealed class OrderEventPublisher(IEventBus bus, IOrderNotifier notifier, 
     }
 
     public Task SessionClosedAsync(TableSession session, CancellationToken ct) => notifier.SessionClosedAsync(session, ct);
+
+    /// <summary>The guests of a table asked for the bill: the counter hears about it through the Kitchen hub.</summary>
+    public Task BillRequestedAsync(TableSession session, string method, CancellationToken ct) =>
+        SafeAsync(new TableBillRequestedIntegrationEvent(session.TenantId, session.BranchId, session.Id, session.TableCode, method), ct);
 
     private static IReadOnlyList<OrderItemDto> Items(Order o) =>
         o.Items.Select(i => new OrderItemDto(i.ProductId, i.ProductName, i.UnitPrice, i.Quantity, BarNote(i))).ToList();

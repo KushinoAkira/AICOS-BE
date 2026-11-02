@@ -5,9 +5,10 @@ namespace AICOS.IdentityOrganization.Api.Domain;
 public static class OtpPurposes
 {
     public const string PasswordReset = "password_reset";
+    public const string EmailVerification = "email_verification";
 }
 
-/// <summary>One-time code sent by email (forgot password). Only the SHA-256 hash of the code is stored.</summary>
+/// <summary>One-time code sent by email (forgot password, sign-up verification). Only the SHA-256 hash of the code is stored.</summary>
 public sealed class OtpCode : Entity<Guid>
 {
     private OtpCode()

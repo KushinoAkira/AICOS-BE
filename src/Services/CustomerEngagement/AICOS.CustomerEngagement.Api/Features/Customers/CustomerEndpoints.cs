@@ -33,7 +33,8 @@ public sealed record CustomerResponse(
 public sealed record LoyaltyTransactionResponse(Guid Id, Guid? OrderId, int Points, LoyaltyTransactionType Type, string? Note, DateTime CreatedAtUtc);
 
 public sealed record LoyaltySummaryResponse(
-    int PointsBalance, int LifetimePoints, LoyaltyTier Tier, int? NextTierAt, int? PointsToNextTier, PagedResponse<LoyaltyTransactionResponse> History);
+    int PointsBalance, int LifetimePoints, LoyaltyTier Tier, int? NextTierAt, int? PointsToNextTier, PagedResponse<LoyaltyTransactionResponse> History,
+    int? MinPointsToRedeem = null, decimal? RedeemValuePerPoint = null);
 
 /// <summary>
 /// UC-44 Manage Customer Profile, UC-30 View Loyalty Points. Routes: /api/v1/customers.
@@ -128,7 +129,9 @@ public static class CustomerEndpoints
         CustomerEngagementDbContext db, ICurrentUser user, LoyaltyRulesService rules, int page = 1, int pageSize = 20, CancellationToken ct = default)
     {
         var customer = await CurrentAsync(db, user, ct);
-        return await SummaryAsync(db, customer, (await rules.ForTenantAsync(customer.TenantId, ct)).Thresholds, page, pageSize, ct);
+        var rule = await rules.ForTenantAsync(customer.TenantId, ct);
+        var summary = await SummaryAsync(db, customer, rule.Thresholds, page, pageSize, ct);
+        return summary with { MinPointsToRedeem = rule.MinPointsToRedeem, RedeemValuePerPoint = rule.RedeemValuePerPoint };   // the rule set itself is for managers
     }
 
     /// <summary>POS lookup: search by phone, name or email, among the customers of the staff member own brand (BR-04).</summary>
@@ -210,7 +213,8 @@ public static class CustomerEndpoints
     private static async Task<Customer> CurrentAsync(CustomerEngagementDbContext db, ICurrentUser user, CancellationToken ct)
     {
         var userId = user.UserId ?? throw new UnauthorizedException("Not signed in.");
-        return await db.Customers.FirstOrDefaultAsync(c => c.UserId == userId, ct)
+        var tenantId = TenantScope.Require(user);
+        return await db.Customers.FirstOrDefaultAsync(c => c.UserId == userId && c.TenantId == tenantId, ct)
             ?? throw new NotFoundException("Customer profile for user", userId); // created asynchronously after registration
     }
 

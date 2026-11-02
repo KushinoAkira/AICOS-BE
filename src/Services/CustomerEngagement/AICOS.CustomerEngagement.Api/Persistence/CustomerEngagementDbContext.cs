@@ -1,5 +1,6 @@
 using AICOS.BuildingBlocks.Persistence;
 using AICOS.CustomerEngagement.Api.Domain;
+using AICOS.CustomerEngagement.Api.Features.Notifications;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -18,6 +19,10 @@ public sealed class CustomerEngagementDbContext(DbContextOptions<CustomerEngagem
     public DbSet<LoyaltyRule> LoyaltyRules => Set<LoyaltyRule>();
 
     public DbSet<CustomerNotification> Notifications => Set<CustomerNotification>();
+
+    public DbSet<StaffNotification> StaffNotifications => Set<StaffNotification>();
+
+    public DbSet<StaffNotificationRead> StaffNotificationReads => Set<StaffNotificationRead>();
 }
 
 internal sealed class CustomerConfiguration : IEntityTypeConfiguration<Customer>
@@ -37,8 +42,8 @@ internal sealed class CustomerConfiguration : IEntityTypeConfiguration<Customer>
         builder.Property(c => c.PreferredIce).HasMaxLength(20);
         builder.Property(c => c.PreferenceNotes).HasMaxLength(500);
         builder.Property(c => c.Tier).HasConversion<string>().HasMaxLength(20);
-        builder.HasIndex(c => c.UserId).IsUnique();
-        builder.HasIndex(c => c.TenantId);
+        builder.HasIndex(c => new { c.TenantId, c.UserId }).IsUnique();
+        builder.HasIndex(c => c.UserId);
         builder.HasIndex(c => c.Phone);
     }
 }
@@ -98,6 +103,33 @@ internal sealed class LoyaltyRuleConfiguration : IEntityTypeConfiguration<Loyalt
         builder.Property(r => r.AmountPerPoint).HasPrecision(14, 2);
         builder.Property(r => r.RedeemValuePerPoint).HasPrecision(14, 2);
         builder.HasIndex(r => r.TenantId).IsUnique();
+    }
+}
+
+internal sealed class StaffNotificationConfiguration : IEntityTypeConfiguration<StaffNotification>
+{
+    public void Configure(EntityTypeBuilder<StaffNotification> builder)
+    {
+        builder.ToTable("staff_notifications");
+        builder.HasKey(n => n.Id);
+        builder.Property(n => n.Id).ValueGeneratedNever();
+        builder.Property(n => n.Audience).HasMaxLength(30).IsRequired();
+        builder.Property(n => n.Kind).HasMaxLength(30).IsRequired();
+        builder.Property(n => n.DedupeKey).HasMaxLength(120).IsRequired();
+        builder.Property(n => n.Title).HasMaxLength(StaffNotificationLimits.Title).IsRequired();
+        builder.Property(n => n.Body).HasMaxLength(StaffNotificationLimits.Body).IsRequired();
+        builder.HasIndex(n => new { n.TenantId, n.Audience, n.DedupeKey }).IsUnique().AreNullsDistinct(false);
+        builder.HasIndex(n => new { n.TenantId, n.Audience, n.BranchId, n.CreatedAtUtc });
+    }
+}
+
+internal sealed class StaffNotificationReadConfiguration : IEntityTypeConfiguration<StaffNotificationRead>
+{
+    public void Configure(EntityTypeBuilder<StaffNotificationRead> builder)
+    {
+        builder.ToTable("staff_notification_reads");
+        builder.HasKey(r => new { r.NotificationId, r.UserId });
+        builder.HasOne<StaffNotification>().WithMany().HasForeignKey(r => r.NotificationId).OnDelete(DeleteBehavior.Cascade);
     }
 }
 

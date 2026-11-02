@@ -1,5 +1,7 @@
 using System.Text.RegularExpressions;
 using AICOS.BuildingBlocks.Exceptions;
+using AICOS.BuildingBlocks.Messaging;
+using AICOS.Contracts.Events;
 using AICOS.BuildingBlocks.Persistence;
 using AICOS.BuildingBlocks.Security;
 using AICOS.BuildingBlocks.Validation;
@@ -34,6 +36,9 @@ public sealed record PublicBranchResponse(Guid Id, string Name, string? Address,
 public sealed record PublicBrandResponse(
     string Name, string Code, string? Description, string? LogoUrl, string? PrimaryColor, string? SecondaryColor, IReadOnlyList<PublicBranchResponse> Branches);
 
+/// <summary>One row of the brand picker customers see after signing in.</summary>
+public sealed record PublicBrandCardResponse(Guid Id, string Code, string Name, string? Description, string? LogoUrl, string? PrimaryColor, int BranchCount);
+
 /// <summary>POST /public/contact. <c>Website</c> is a hidden field of the form: a person leaves it empty, a bot fills it.</summary>
 public sealed record ContactRequest(string? FullName, string? Email, string? Phone, string? Subject, string? Message, string? Website = null);
 
@@ -61,6 +66,7 @@ public static partial class BrandSelfServiceEndpoints
         profile.MapPut("/", UpdateProfileAsync);
 
         api.MapGet("/public/brands/{code}", PublicBrandAsync).WithTags("Public").AllowAnonymous();
+        api.MapGet("/public/brands", PublicBrandsAsync).WithTags("Public").AllowAnonymous();
         api.MapPost("/public/contact", ContactAsync).WithTags("Public").AllowAnonymous();
 
         var messages = api.MapGroup("/contact-messages").WithTags("Contact messages").RequireAuthorization(AicosPolicies.PlatformAdmin);
@@ -70,7 +76,7 @@ public static partial class BrandSelfServiceEndpoints
 
     // ------------------------------------------------------------------ registration and review
     private static async Task<IResult> RegisterBrandAsync(
-        RegisterBrandRequest r, IdentityOrganizationDbContext db, PasswordService passwords, AuditLogger audit, IEmailSender email, ILoggerFactory loggers, CancellationToken ct)
+        RegisterBrandRequest r, IdentityOrganizationDbContext db, PasswordService passwords, AuditLogger audit, IEventBus bus, IEmailSender email, ILoggerFactory loggers, CancellationToken ct)
     {
         var errors = new ValidationErrors();
         CommonRules.Required(errors, nameof(r.BrandName), r.BrandName, "Brand name", Tenant.NameMaxLength);
@@ -102,6 +108,7 @@ public static partial class BrandSelfServiceEndpoints
         audit.Record(AuditScope.Platform, tenant.Id, "tenant.registered", "Tenant", tenant.Id, after: AuditSnapshots.Of(tenant));
         await db.SaveChangesAsync(ct);
 
+        await bus.PublishAsync(new BrandRegisteredEvent(tenant.Id, tenant.Name, tenant.Code, owner.Email), ct);
         await SafeMailAsync(email, loggers, EmailTemplates.BrandRegistrationReceived(owner.Email, owner.FullName, tenant.Name), ct);
         return Results.Created($"/api/v1/identity/public/brands/{code}", new RegisterBrandResponse(
             tenant.Id, tenant.Code, tenant.Status, "Registration received. You can sign in once the platform team approves it."));
@@ -170,7 +177,7 @@ public static partial class BrandSelfServiceEndpoints
     {
         var errors = new ValidationErrors();
         CommonRules.MaxLength(errors, nameof(r.Description), r.Description, "Description", Tenant.DescriptionMaxLength);
-        if (!string.IsNullOrWhiteSpace(r.LogoUrl) && !IsWebUrl(r.LogoUrl.Trim()))
+        if (!string.IsNullOrWhiteSpace(r.LogoUrl) && !IsWebUrl(r.LogoUrl.Trim()) && !IsLogoPicture(r.LogoUrl.Trim()))
         {
             errors.Add(nameof(r.LogoUrl), $"The logo must be a link starting with http:// or https:// (at most {Tenant.LogoUrlMaxLength} characters, no user name or password in it).");
         }
@@ -186,6 +193,13 @@ public static partial class BrandSelfServiceEndpoints
         await db.SaveChangesAsync(ct);
         return BrandProfileResponse.From(tenant);
     }
+
+    private static bool IsLogoPicture(string value) =>
+        value.Length <= Tenant.LogoDataMaxLength
+        && (value.StartsWith("data:image/png;base64,", StringComparison.Ordinal)
+            || value.StartsWith("data:image/jpeg;base64,", StringComparison.Ordinal)
+            || value.StartsWith("data:image/webp;base64,", StringComparison.Ordinal)
+            || value.StartsWith("data:image/svg+xml;base64,", StringComparison.Ordinal));
 
     private static bool IsWebUrl(string value) =>
         value.Length <= Tenant.LogoUrlMaxLength
@@ -203,6 +217,17 @@ public static partial class BrandSelfServiceEndpoints
     }
 
     // ------------------------------------------------------------------ the public page
+    /// <summary>Every active brand with at least one active branch: nothing to order from otherwise.</summary>
+    private static async Task<IReadOnlyList<PublicBrandCardResponse>> PublicBrandsAsync(IdentityOrganizationDbContext db, CancellationToken ct)
+    {
+        var branchCounts = await db.Branches.AsNoTracking().Where(b => b.Status == BranchStatus.Active)
+            .GroupBy(b => b.TenantId).Select(g => new { TenantId = g.Key, Count = g.Count() }).ToDictionaryAsync(x => x.TenantId, x => x.Count, ct);
+        var tenants = await db.Tenants.AsNoTracking().Where(t => t.Status == TenantStatus.Active).OrderBy(t => t.Name).ToListAsync(ct);
+        return tenants.Where(t => branchCounts.ContainsKey(t.Id))
+            .Select(t => new PublicBrandCardResponse(t.Id, t.Code, t.Name, t.Description, t.LogoUrl, t.PrimaryColor, branchCounts[t.Id]))
+            .ToList();
+    }
+
     private static async Task<PublicBrandResponse> PublicBrandAsync(string code, IdentityOrganizationDbContext db, CancellationToken ct)
     {
         var normalized = Tenant.NormalizeCode(code);

@@ -178,6 +178,7 @@ public sealed class CustomerTests : IDisposable
 
         await _admin.Put(Rules, NewRules(silver: 1_000, gold: 2_000)).ShouldBe(200);
         (await me.GetFromJsonAsync<JsonElement>($"{Customers}/me")).GetProperty("tier").GetString().Should().Be("Member");
+        (await me.GetFromJsonAsync<JsonElement>($"{Customers}/me/loyalty")).GetProperty("minPointsToRedeem").GetInt32().Should().BeGreaterThan(0);
         (await me.GetFromJsonAsync<JsonElement>($"{Customers}/me/loyalty")).GetProperty("nextTierAt").GetInt32().Should().Be(1_000);
     }
 

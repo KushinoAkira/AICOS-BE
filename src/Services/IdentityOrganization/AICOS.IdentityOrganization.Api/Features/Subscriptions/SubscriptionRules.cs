@@ -10,8 +10,8 @@ namespace AICOS.IdentityOrganization.Api.Features.Subscriptions;
 public sealed record TenantUsage(int ActiveBranches, int StaffAccounts);
 
 /// <summary>
-/// Plan limits (FR-77, BR-11). A tenant without a subscription is not limited: the platform owner decides which
-/// brands are on a plan. Only active branches and live staff accounts count; Customers and deleted accounts do not.
+/// Plan limits (FR-77, BR-11). A brand needs a plan before it can open branches: the platform owner assigns it after approving the brand.
+/// Only active branches and live staff accounts count; Customers and deleted accounts do not.
 /// </summary>
 internal static class SubscriptionRules
 {
@@ -30,11 +30,12 @@ internal static class SubscriptionRules
         return new TenantUsage(branches, staff);
     }
 
-    /// <summary>422 <c>subscription.limit_reached</c> when one more active branch would exceed the plan.</summary>
+    /// <summary>422 <c>subscription.required</c> without a plan, <c>subscription.limit_reached</c> when one more active branch would exceed it.</summary>
     public static async Task EnsureCanAddBranchAsync(IdentityOrganizationDbContext db, Guid tenantId, CancellationToken ct)
     {
-        var plan = await PlanOfAsync(db, tenantId, ct);
-        if (plan?.MaxBranches is not { } max)
+        var plan = await PlanOfAsync(db, tenantId, ct)
+            ?? throw new BusinessRuleException("subscription.required", "The brand has no subscription plan yet. The platform owner assigns one before branches can be added.");
+        if (plan.MaxBranches is not { } max)
         {
             return;
         }
@@ -94,7 +95,7 @@ internal static class SubscriptionRules
         }
     }
 
-    private static async Task<SubscriptionPlan?> PlanOfAsync(IdentityOrganizationDbContext db, Guid tenantId, CancellationToken ct)
+    public static async Task<SubscriptionPlan?> PlanOfAsync(IdentityOrganizationDbContext db, Guid tenantId, CancellationToken ct)
     {
         var planId = await db.TenantSubscriptions
             .Where(s => s.TenantId == tenantId && s.Status == SubscriptionStatus.Active)

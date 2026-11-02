@@ -28,6 +28,8 @@ public sealed record ProductOptionResponse(Guid Id, string Name, decimal PriceDe
 public sealed record OptionGroupResponse(
     Guid Id, string Name, OptionKind Kind, SelectionType SelectionType, bool IsRequired, int? MaxSelections, int SortOrder, List<ProductOptionResponse> Options);
 
+public sealed record BranchPriceResponse(Guid BranchId, decimal Price);
+
 public sealed record ProductResponse(
     Guid Id,
     Guid CategoryId,
@@ -38,7 +40,9 @@ public sealed record ProductResponse(
     List<string> Tags,
     List<OptionGroupResponse> OptionGroups,
     DateTime CreatedAtUtc,
-    DateTime? UpdatedAtUtc)
+    DateTime? UpdatedAtUtc,
+    List<BranchPriceResponse>? BranchPrices = null,
+    List<Guid>? SoldOutBranchIds = null)
 {
     public static ProductResponse From(Product p) => new(
         p.Id,

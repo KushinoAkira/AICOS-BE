@@ -401,6 +401,10 @@ namespace AICOS.IdentityOrganization.Api.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("max_staff_accounts");
 
+                    b.Property<int?>("MaxTablesPerBranch")
+                        .HasColumnType("integer")
+                        .HasColumnName("max_tables_per_branch");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -465,8 +469,8 @@ namespace AICOS.IdentityOrganization.Api.Persistence.Migrations
                         .HasColumnName("description");
 
                     b.Property<string>("LogoUrl")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)")
+                        .HasMaxLength(200000)
+                        .HasColumnType("character varying(200000)")
                         .HasColumnName("logo_url");
 
                     b.Property<string>("Name")
@@ -662,6 +666,11 @@ namespace AICOS.IdentityOrganization.Api.Persistence.Migrations
                         .HasColumnType("character varying(255)")
                         .HasColumnName("full_name");
 
+                    b.Property<string>("GoogleSubject")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("google_subject");
+
                     b.Property<DateTime?>("LastLoginAtUtc")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("last_login_at_utc");
@@ -724,6 +733,10 @@ namespace AICOS.IdentityOrganization.Api.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("ix_users_email");
 
+                    b.HasIndex("GoogleSubject")
+                        .IsUnique()
+                        .HasDatabaseName("ix_users_google_subject");
+
                     b.HasIndex("Role")
                         .HasDatabaseName("ix_users_role");
 
@@ -742,6 +755,10 @@ namespace AICOS.IdentityOrganization.Api.Persistence.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("uuid")
                         .HasColumnName("id");
+
+                    b.Property<Guid?>("ActiveTenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("active_tenant_id");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone")

@@ -11,3 +11,12 @@ public sealed record CustomerRegisteredEvent(Guid UserId, string FullName, strin
 /// Consumed by Customer Engagement to keep the copy of the profile in sync (Customer accounts only).
 /// </summary>
 public sealed record UserProfileUpdatedEvent(Guid UserId, string FullName, string? Phone) : IntegrationEvent;
+
+/// <summary>
+/// Published by Identity Service when a customer deletes their personal data (UC-66, BR-70).
+/// Consumed by Customer Engagement to anonymize the customer's profile at every brand; transaction records are kept.
+/// </summary>
+public sealed record CustomerDataErasedEvent(Guid UserId) : IntegrationEvent;
+
+/// <summary>A shop owner registered a brand, which now waits for the Super Admin. Customer Engagement tells the Super Admin.</summary>
+public sealed record BrandRegisteredEvent(Guid TenantId, string BrandName, string Code, string OwnerEmail) : IntegrationEvent;

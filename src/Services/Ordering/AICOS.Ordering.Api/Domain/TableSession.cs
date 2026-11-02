@@ -56,6 +56,12 @@ public sealed class TableSession : AuditableEntity<Guid>
 
     public TableSessionCloseReason? CloseReason { get; private set; }
 
+    /// <summary>The guests asked staff to come for the bill; cleared when the session ends.</summary>
+    public DateTime? BillRequestedAtUtc { get; private set; }
+
+    /// <summary>How the guests said they want to pay: Cash or Transfer.</summary>
+    public string? BillRequestedMethod { get; private set; }
+
     public bool IsOpen => Status == TableSessionStatus.Open;
 
     public void Touch(DateTime now)
@@ -64,6 +70,13 @@ public sealed class TableSession : AuditableEntity<Guid>
         {
             LastActivityAtUtc = now;
         }
+    }
+
+    public void RequestBill(string method, DateTime now)
+    {
+        BillRequestedMethod = method;
+        BillRequestedAtUtc = now;
+        Touch(now);
     }
 
     public void Close(TableSessionCloseReason reason, DateTime now)

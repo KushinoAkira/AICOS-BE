@@ -155,6 +155,32 @@ public sealed class OrderTests : IDisposable
     private async Task<JsonElement> GetAsync(Guid id, HttpClient? client = null) => await (client ?? _manager).GetFromJsonAsync<JsonElement>($"{Orders}/{id}");
 
     [Fact]
+    public async Task Recommendations_rank_what_the_branch_sold_and_what_the_customer_ordered()
+    {
+        await _f.HandleAsync(Paid(await NewOrderAsync()));
+        await NewOrderAsync();                          // not paid yet: not sold
+        var anonymous = _f.CreateClient();
+
+        var guest = await anonymous.GetFromJsonAsync<JsonElement>($"{Orders}/recommendations?branchId={_b1}");
+        var sellers = guest.GetProperty("bestSellers").EnumerateArray().ToList();
+        sellers.Select(p => (p.GetProperty("productId").GetGuid(), p.GetProperty("quantity").GetInt32())).Should().Equal((_latte, 2), (_bacXiu, 1));
+        guest.GetProperty("forYou").GetArrayLength().Should().Be(0);
+
+        var other = await anonymous.GetFromJsonAsync<JsonElement>($"{Orders}/recommendations?branchId={_b2}");
+        other.GetProperty("bestSellers").GetArrayLength().Should().Be(0);   // another branch has its own numbers
+        await anonymous.GetAsync($"{Orders}/recommendations").ShouldBe(400);
+
+        var mine = await NewOrderAsync(customerId: _customerId);
+        var member = await _customer.GetFromJsonAsync<JsonElement>($"{Orders}/recommendations?branchId={_b1}&limit=1");
+        member.GetProperty("forYou").EnumerateArray().Single().GetProperty("productId").GetGuid().Should().Be(_latte);
+        member.GetProperty("bestSellers").GetArrayLength().Should().Be(1);
+
+        await _manager.Post($"{Orders}/{mine.Id()}/cancel", new { reason = "Khách đổi ý" });
+        var stranger = _f.As(AicosRoles.Customer, userId: Guid.NewGuid());
+        (await stranger.GetFromJsonAsync<JsonElement>($"{Orders}/recommendations?branchId={_b1}")).GetProperty("forYou").GetArrayLength().Should().Be(0);
+    }
+
+    [Fact]
     public async Task A_refund_that_crossed_the_cancellation_is_shown_as_refunded()
     {
         var order = await NewOrderAsync(customerId: _customerId);

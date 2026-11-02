@@ -26,11 +26,11 @@ public sealed class SubscriptionPlan : AuditableEntity<Guid>
     }
 
     public SubscriptionPlan(
-        string name, string tier, decimal fee, BillingPeriod billingPeriod, int? maxBranches, int? maxStaffAccounts, string? description)
+        string name, string tier, decimal fee, BillingPeriod billingPeriod, int? maxBranches, int? maxStaffAccounts, string? description, int? maxTablesPerBranch = null)
     {
         Id = Guid.NewGuid();
         IsActive = true;
-        Update(name, tier, fee, billingPeriod, maxBranches, maxStaffAccounts, description);
+        Update(name, tier, fee, billingPeriod, maxBranches, maxStaffAccounts, description, maxTablesPerBranch);
     }
 
     public string Name { get; private set; } = string.Empty;
@@ -49,12 +49,15 @@ public sealed class SubscriptionPlan : AuditableEntity<Guid>
     /// <summary>Maximum number of staff accounts (BrandAdmin, BranchManager, Barista, Cashier). Null means unlimited.</summary>
     public int? MaxStaffAccounts { get; private set; }
 
+    /// <summary>Maximum number of tables (each with its QR code) in one branch. Null means unlimited.</summary>
+    public int? MaxTablesPerBranch { get; private set; }
+
     public string? Description { get; private set; }
 
     public bool IsActive { get; private set; }
 
     public void Update(
-        string name, string tier, decimal fee, BillingPeriod billingPeriod, int? maxBranches, int? maxStaffAccounts, string? description)
+        string name, string tier, decimal fee, BillingPeriod billingPeriod, int? maxBranches, int? maxStaffAccounts, string? description, int? maxTablesPerBranch = null)
     {
         Name = name.Trim();
         Tier = tier.Trim();
@@ -62,6 +65,7 @@ public sealed class SubscriptionPlan : AuditableEntity<Guid>
         BillingPeriod = billingPeriod;
         MaxBranches = maxBranches;
         MaxStaffAccounts = maxStaffAccounts;
+        MaxTablesPerBranch = maxTablesPerBranch;
         Description = string.IsNullOrWhiteSpace(description) ? null : description.Trim();
     }
 

@@ -21,15 +21,18 @@ public sealed class AuthTokenIssuer(
         var refreshToken = Secrets.NewRefreshToken();
         var expires = now.AddDays(_options.RefreshTokenDays);
 
-        db.UserSessions.Add(new UserSession(
+        // Behind the gateway the connection comes from the gateway; the first forwarded address is the person's.
+        var forwarded = http.Request.Headers["X-Forwarded-For"].ToString().Split(',')[0].Trim();
+        var session = new UserSession(
             user.Id,
             Secrets.Sha256(refreshToken),
             http.Request.Headers.UserAgent.ToString(),
-            http.Connection.RemoteIpAddress?.ToString(),
+            forwarded.Length > 0 ? forwarded : http.Connection.RemoteIpAddress?.ToString(),
             now,
-            expires));
+            expires);
+        db.UserSessions.Add(session);
 
-        return Issue(user, refreshToken, expires);
+        return Issue(user, refreshToken, expires, session.Id);
     }
 
     /// <summary>Rotates the refresh token of an existing session (refresh). Caller saves changes.</summary>
@@ -40,7 +43,7 @@ public sealed class AuthTokenIssuer(
         var expires = now.AddDays(_options.RefreshTokenDays);
 
         session.Rotate(Secrets.Sha256(refreshToken), now, expires);
-        return Issue(user, refreshToken, expires);
+        return Issue(user, refreshToken, expires, session.Id, session.ActiveTenantId);
     }
 
     /// <summary>Signs the user out everywhere (password change/reset, lock, role change, delete). Caller saves changes.</summary>
@@ -57,9 +60,9 @@ public sealed class AuthTokenIssuer(
         }
     }
 
-    private IssuedTokens Issue(User user, string refreshToken, DateTime refreshExpires)
+    private IssuedTokens Issue(User user, string refreshToken, DateTime refreshExpires, Guid sessionId, Guid? activeTenantId = null)
     {
-        var (accessToken, accessExpires) = jwt.CreateAccessToken(user.Id, user.FullName, user.Role, user.BranchId, user.TenantId);
+        var (accessToken, accessExpires) = jwt.CreateAccessToken(user.Id, user.FullName, user.Role, user.BranchId, user.TenantId ?? activeTenantId, sessionId);
         return new IssuedTokens(accessToken, accessExpires, refreshToken, refreshExpires);
     }
 }

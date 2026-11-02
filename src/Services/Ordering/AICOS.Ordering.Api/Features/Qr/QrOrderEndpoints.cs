@@ -22,6 +22,12 @@ public sealed record SetQrCartQuantityRequest(int? Quantity);
 
 public sealed record QrCheckoutRequest(string? Note);
 
+/// <summary>The guests ask staff to come for the bill. <c>Method</c> is Cash or Transfer.</summary>
+public sealed record QrBillRequest(string? Method);
+
+/// <summary>A short-lived token that lets the people at this table pay the orders of this table online, and nothing else.</summary>
+public sealed record QrPaymentAccessResponse(string AccessToken, DateTime ExpiresAtUtc, Guid BranchId);
+
 public sealed record QrOrderStatus(Guid Id, string OrderCode, OrderStatus Status, PaymentStatus PaymentStatus, int ItemCount, decimal FinalAmount, DateTime CreatedAtUtc, DateTime? ReadyAtUtc, DateTime? DeliveredAtUtc);
 
 public sealed record QrBillOrder(
@@ -45,12 +51,14 @@ public sealed record QrBillResponse(
 }
 
 public sealed record TableSessionSummary(
-    Guid Id, Guid BranchId, Guid TableId, string TableCode, TableSessionStatus Status, DateTime OpenedAtUtc, DateTime LastActivityAtUtc, int Orders, decimal Due);
+    Guid Id, Guid BranchId, Guid TableId, string TableCode, TableSessionStatus Status, DateTime OpenedAtUtc, DateTime LastActivityAtUtc, int Orders, decimal Due,
+    DateTime? BillRequestedAtUtc, string? BillRequestedMethod);
 
 /// <summary>
 /// Ordering from the table QR code, without an account (UC-49, FR-14). Routes: /api/v1/orders/qr. Everyone who scans the code of a table joins one
 /// session and shares one cart (kept in Redis) and one bill. The guest identifies the session with the <c>X-Table-Session</c> header, a token that
-/// only a scan of the real code returns. The price always comes from the Menu service. Payment is at the counter, or online as for any order.
+/// only a scan of the real code returns. The price always comes from the Menu service. The guests ask staff for the bill (cash or transfer), or pay
+/// online themselves with a short-lived token that is limited to the orders of this table.
 /// A member who signs in (Customer token) earns points: the order is linked to them.
 /// </summary>
 public static class QrOrderEndpoints
@@ -70,6 +78,8 @@ public static class QrOrderEndpoints
         group.MapPost("/checkout", CheckoutAsync).AllowAnonymous();
         group.MapGet("/orders", OrdersAsync).AllowAnonymous();
         group.MapGet("/session/bill", BillAsync).AllowAnonymous();
+        group.MapPost("/session/bill-request", RequestBillAsync).AllowAnonymous();
+        group.MapPost("/session/payment-access", PaymentAccessAsync).AllowAnonymous();
 
         group.MapGet("/sessions", ListSessionsAsync).RequireAuthorization(AicosPolicies.Staff);
         group.MapGet("/sessions/{id:guid}/bill", StaffBillAsync).RequireAuthorization(AicosPolicies.Staff);
@@ -292,6 +302,35 @@ public static class QrOrderEndpoints
         return QrBillResponse.From(session, orders);
     }
 
+    // ------------------------------------------------------------------ paying from the table
+    /// <summary>Tells the counter that this table wants to pay. Asking again only updates the method, so a second tap is harmless.</summary>
+    private static async Task<IResult> RequestBillAsync(
+        QrBillRequest r, HttpContext http, OrderingDbContext db, GuestSessionTokens tokens, ShopTime clock, OrderEventPublisher events, CancellationToken ct)
+    {
+        var method = new[] { "Cash", "Transfer" }.FirstOrDefault(m => string.Equals(m, r.Method?.Trim(), StringComparison.OrdinalIgnoreCase))
+            ?? throw new ValidationFailedException("Method", "Method must be Cash or Transfer.");
+        var session = await SessionAsync(http, db, tokens, clock, mustBeOpen: true, ct);
+        var bill = await BuildBillAsync(db, session, ct);
+        if (bill.Due <= 0)
+        {
+            throw new BusinessRuleException("qr.nothing_to_pay", "This table has nothing to pay.");
+        }
+
+        session.RequestBill(method, clock.UtcNow);
+        await db.SaveChangesAsync(ct);
+        await events.BillRequestedAsync(session, method, ct);
+        return Results.NoContent();
+    }
+
+    /// <summary>The Payment service needs a signed-in caller. This token names the session as the caller: <see cref="OrderAccess"/> lets it read only this table's orders.</summary>
+    private static async Task<QrPaymentAccessResponse> PaymentAccessAsync(
+        HttpContext http, OrderingDbContext db, GuestSessionTokens tokens, ShopTime clock, JwtTokenService jwt, CancellationToken ct)
+    {
+        var session = await SessionAsync(http, db, tokens, clock, mustBeOpen: true, ct);
+        var (token, expires) = jwt.CreateAccessToken(session.Id, $"Table {session.TableCode}", AicosRoles.Guest, session.BranchId, session.TenantId);
+        return new QrPaymentAccessResponse(token, expires, session.BranchId);
+    }
+
     // ------------------------------------------------------------------ staff
     private static async Task<List<TableSessionSummary>> ListSessionsAsync(OrderingDbContext db, ICurrentUser user, Guid? branchId, CancellationToken ct)
     {
@@ -309,7 +348,7 @@ public static class QrOrderEndpoints
         return sessions.Select(s =>
         {
             var mine = orders.Where(o => o.TableSessionId == s.Id && !o.IsVoided).ToList();
-            return new TableSessionSummary(s.Id, s.BranchId, s.TableId, s.TableCode, s.Status, s.OpenedAtUtc, s.LastActivityAtUtc, mine.Count, mine.Where(o => !o.IsPaid).Sum(o => o.FinalAmount));
+            return new TableSessionSummary(s.Id, s.BranchId, s.TableId, s.TableCode, s.Status, s.OpenedAtUtc, s.LastActivityAtUtc, mine.Count, mine.Where(o => !o.IsPaid).Sum(o => o.FinalAmount), s.BillRequestedAtUtc, s.BillRequestedMethod);
         }).ToList();
     }
 

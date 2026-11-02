@@ -49,4 +49,7 @@ public static class AicosClaimTypes
     public const string Role = "role";
     public const string TenantId = "tenant_id";
     public const string BranchId = "branch_id";
+
+    /// <summary>The sign-in the token came from, so a person can tell this device from their others.</summary>
+    public const string SessionId = "sid";
 }

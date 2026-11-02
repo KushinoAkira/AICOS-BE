@@ -133,7 +133,7 @@ builder.Services.AddAicosServiceClient<IMenuClient, MenuClient>(builder.Configur
 
 ## Quy ước kiến trúc (đã chốt)
 
-- **Mỗi service chỉ đụng schema của mình.** `infra/postgres/init` tạo role `<schema>_svc` chỉ thấy đúng schema đó → không thể join chéo service. Cần dữ liệu service khác thì gọi REST hoặc lắng nghe event.
+- **Database per service (logic), chung một instance PostgreSQL.** `infra/postgres/init` tạo mỗi service một database riêng `aicos_<service>` (ví dụ `aicos_identity`, `aicos_ordering`) và một role `<service>_svc` là chủ database đó, không được kết nối database khác → không thể join hay đặt khóa ngoại chéo service. Cần dữ liệu service khác thì gọi REST hoặc lắng nghe event. Muốn tách hẳn ra server riêng sau này chỉ cần đổi connection string của service đó.
 - **Xác thực ở 2 lớp**: gateway từ chối token sai/hết hạn ngay tại cổng; token vắng mặt vẫn đi tiếp (guest, login, menu công khai). **Phân quyền do từng service quyết định** bằng policy/role.
 - **Sync = REST trực tiếp giữa các service (không qua gateway); async = event trên Redis.**
 - **Chưa implement logic nghiệp vụ nào** (không có entity, endpoint ngoài `_info`). Chỉ có hạ tầng và quy ước.

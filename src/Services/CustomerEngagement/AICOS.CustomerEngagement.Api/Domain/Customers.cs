@@ -73,6 +73,16 @@ public sealed class Customer : AuditableEntity<Guid>
         MarketingOptIn = marketingOptIn;
     }
 
+    /// <summary>BR-70: removes what identifies the person; points and transactions stay for the brand's records.</summary>
+    public void Anonymize()
+    {
+        Email = $"deleted-{UserId:N}@anonymized.invalid";
+        UpdateProfile("Deleted customer", phone: null, birthday: null, marketingOptIn: false);
+        PreferredSugarPercent = null;
+        PreferredIce = null;
+        PreferenceNotes = null;
+    }
+
     /// <summary>Applies new tier thresholds to the points this customer has already earned.</summary>
     public void RecalculateTier(LoyaltyTierThresholds thresholds) => Tier = thresholds.TierFor(LifetimePoints);
 

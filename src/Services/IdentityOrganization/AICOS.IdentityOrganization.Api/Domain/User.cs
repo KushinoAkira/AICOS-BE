@@ -9,12 +9,15 @@ public enum UserStatus
 
     /// <summary>Locked by a BrandAdmin (UC-02). Only an admin can unlock it.</summary>
     Locked,
+
+    /// <summary>A self-registered customer who has not entered the emailed code yet. Cannot sign in; the email stays reserved until the code is verified.</summary>
+    PendingVerification,
 }
 
 /// <summary>
 /// A login account (UC-01, UC-02, UC-33). BR-01: exactly one role per account.
 /// Staff roles (BranchManager, Barista, Cashier) belong to exactly one branch; BrandAdmin and Customer to none.
-/// Every account except the SuperAdmin belongs to exactly one tenant (BR-04).
+/// Every staff account belongs to exactly one tenant (BR-04). The SuperAdmin and customers have none: one customer account works at every brand.
 /// </summary>
 public sealed class User : AuditableEntity<Guid>
 {
@@ -22,6 +25,7 @@ public sealed class User : AuditableEntity<Guid>
     public const int EmailMaxLength = 255;
     public const int UsernameMaxLength = 50;
     public const int PhoneMaxLength = 20;
+    public const int GoogleSubjectMaxLength = 64;
 
     /// <summary>Roles a BrandAdmin may assign. SuperAdmin is seeded and Guest is anonymous.</summary>
     public static readonly IReadOnlyList<string> AssignableRoles =
@@ -53,6 +57,9 @@ public sealed class User : AuditableEntity<Guid>
     public string? Username { get; private set; }
 
     public string? Phone { get; private set; }
+
+    /// <summary>The Google account id (the <c>sub</c> claim) once the customer signed in with Google.</summary>
+    public string? GoogleSubject { get; private set; }
 
     public string PasswordHash { get; private set; } = string.Empty;
 
@@ -100,6 +107,8 @@ public sealed class User : AuditableEntity<Guid>
         MustChangePassword = mustChangePassword;
     }
 
+    public void LinkGoogle(string subject) => GoogleSubject = subject;
+
     public bool IsLockedOut(DateTime nowUtc) => LockoutEndUtc > nowUtc;
 
     /// <returns>True when this failure triggered the temporary lockout.</returns>
@@ -139,4 +148,13 @@ public sealed class User : AuditableEntity<Guid>
     }
 
     public void MarkDeleted(DateTime nowUtc) => DeletedAtUtc = nowUtc;
+
+    /// <summary>BR-70: removes what identifies the person and closes the account; the row stays so that orders keep a valid reference.</summary>
+    public void Anonymize(string unusablePasswordHash, DateTime nowUtc)
+    {
+        UpdateProfile("Deleted customer", $"deleted-{Id:N}@anonymized.invalid", username: null, phone: null);
+        GoogleSubject = null;
+        SetPassword(unusablePasswordHash, mustChangePassword: false);
+        MarkDeleted(nowUtc);
+    }
 }

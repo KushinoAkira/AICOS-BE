@@ -27,13 +27,13 @@ public sealed class LoyaltyOptions
     public LoyaltyTierThresholds Thresholds => new(SilverThreshold, GoldThreshold);
 }
 
-/// <summary>Identity -> Customer: create the customer profile for a newly registered Customer account. Idempotent.</summary>
+/// <summary>Identity -> Customer: create the customer's profile at a brand the first time they choose it. Idempotent per account and brand.</summary>
 public sealed class CustomerRegisteredHandler(CustomerEngagementDbContext db, ILogger<CustomerRegisteredHandler> logger)
     : IIntegrationEventHandler<CustomerRegisteredEvent>
 {
     public async Task HandleAsync(CustomerRegisteredEvent @event, CancellationToken cancellationToken)
     {
-        if (await db.Customers.AnyAsync(c => c.UserId == @event.UserId, cancellationToken))
+        if (await db.Customers.AnyAsync(c => c.UserId == @event.UserId && c.TenantId == @event.TenantId, cancellationToken))
         {
             return;
         }
@@ -145,18 +145,29 @@ internal static class LoyaltyLookup
         db.Customers.FirstOrDefaultAsync(c => c.TenantId == tenantId && (c.Id == id || c.UserId == id), ct);
 }
 
+/// <summary>Identity -> Customer: a customer deleted their personal data (UC-66): anonymize the profile at every brand. Idempotent.</summary>
+public sealed class CustomerDataErasedHandler(CustomerEngagementDbContext db) : IIntegrationEventHandler<CustomerDataErasedEvent>
+{
+    public async Task HandleAsync(CustomerDataErasedEvent @event, CancellationToken cancellationToken)
+    {
+        var profiles = await db.Customers.Where(c => c.UserId == @event.UserId).ToListAsync(cancellationToken);
+        profiles.ForEach(c => c.Anonymize());
+        await db.SaveChangesAsync(cancellationToken);
+    }
+}
+
 /// <summary>Identity -> Customer: a customer edited their name or phone in Identity (UC-03); keep this copy in sync. Idempotent.</summary>
 public sealed class UserProfileUpdatedHandler(CustomerEngagementDbContext db) : IIntegrationEventHandler<UserProfileUpdatedEvent>
 {
     public async Task HandleAsync(UserProfileUpdatedEvent @event, CancellationToken cancellationToken)
     {
-        var customer = await db.Customers.FirstOrDefaultAsync(c => c.UserId == @event.UserId, cancellationToken);
-        if (customer is null)
+        // One account has a profile at every brand it has visited.
+        var profiles = await db.Customers.Where(c => c.UserId == @event.UserId).ToListAsync(cancellationToken);
+        foreach (var customer in profiles)
         {
-            return; // the profile is created by CustomerRegisteredEvent; nothing to sync yet
+            customer.UpdateProfile(@event.FullName, @event.Phone, customer.Birthday, customer.MarketingOptIn);
         }
 
-        customer.UpdateProfile(@event.FullName, @event.Phone, customer.Birthday, customer.MarketingOptIn);
         await db.SaveChangesAsync(cancellationToken);
     }
 }

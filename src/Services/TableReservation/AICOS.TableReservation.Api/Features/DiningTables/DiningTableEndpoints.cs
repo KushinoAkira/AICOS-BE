@@ -112,7 +112,7 @@ public static class DiningTableEndpoints
     }
 
     private static async Task<IResult> CreateAsync(
-        DiningTableRequest r, TableReservationDbContext db, ICurrentUser user, IBranchDirectory directory, IConfiguration config,
+        DiningTableRequest r, TableReservationDbContext db, ICurrentUser user, IBranchDirectory directory, IPlanLimitsClient limits, IConfiguration config,
         TimeProvider clock, CancellationToken ct)
     {
         Validate(r);
@@ -120,6 +120,7 @@ public static class DiningTableEndpoints
         var branchId = await BranchScope.ResolveAsync(user, directory, r.BranchId, requireActive: true, ct);
         await EnsureAreaInBranchAsync(db, r.AreaId!.Value, branchId, tenantId, ct);
         await EnsureCodeUniqueAsync(db, branchId, r.TableCode!, null, ct);
+        await TablePlanRules.EnsureRoomAsync(db, limits, branchId, 1, ct);
 
         var table = new DiningTable(tenantId, branchId, r.AreaId!.Value, r.TableCode!, r.Capacity!.Value, r.PositionX, r.PositionY, clock.GetUtcNow().UtcDateTime);
         db.DiningTables.Add(table);
@@ -206,7 +207,7 @@ public static class DiningTableEndpoints
         var errors = new ValidationErrors();
         CommonRules.RequiredId(errors, "AreaId", r.AreaId, "Area");
         CommonRules.Required(errors, "TableCode", r.TableCode, "Table code", DiningTable.CodeMaxLength);
-        if (!errors.Has("TableCode") && !r.TableCode!.Trim().All(c => char.IsLetterOrDigit(c) || c is '-' or '_'))
+        if (!errors.Has("TableCode") && !IsValidCode(r.TableCode!.Trim()))
         {
             errors.Add("TableCode", "Table code may only contain letters, digits, '-' and '_'.");
         }
@@ -219,6 +220,8 @@ public static class DiningTableEndpoints
 
         errors.ThrowIfAny();
     }
+
+    internal static bool IsValidCode(string code) => code.All(c => char.IsLetterOrDigit(c) || c is '-' or '_');
 
     private static async Task EnsureAreaInBranchAsync(TableReservationDbContext db, Guid areaId, Guid branchId, Guid tenantId, CancellationToken ct)
     {
@@ -252,9 +255,9 @@ public static class DiningTableEndpoints
     }
 
     private static string QrUrl(DiningTable t, IConfiguration config) =>
-        $"{(config["Tables:QrBaseUrl"] ?? "http://localhost:3000/qr").TrimEnd('/')}/{t.QrToken}";
+        $"{(config["Tables:QrBaseUrl"] ?? "http://localhost:8443/q").TrimEnd('/')}/{t.QrToken}";
 
-    private static DiningTableResponse Map(DiningTable t, Dictionary<Guid, string> areaNames, IConfiguration config) => new(
+    internal static DiningTableResponse Map(DiningTable t, Dictionary<Guid, string> areaNames, IConfiguration config) => new(
         t.Id, t.BranchId, t.AreaId, areaNames.GetValueOrDefault(t.AreaId, string.Empty), t.TableCode, t.Capacity, t.PositionX, t.PositionY,
         t.Status, t.QrToken, QrUrl(t, config), t.QrIssuedAtUtc);
 }

@@ -69,11 +69,11 @@ internal static class AccountRules
     /// Tells Customer Engagement to create the customer profile. Redis Pub/Sub is at-most-once: a publish failure is
     /// logged, not surfaced, because the account itself was created successfully.
     /// </summary>
-    public static async Task PublishCustomerRegisteredAsync(IEventBus bus, ILogger logger, User user, CancellationToken ct)
+    public static async Task PublishCustomerRegisteredAsync(IEventBus bus, ILogger logger, User user, Guid tenantId, CancellationToken ct)
     {
         try
         {
-            await bus.PublishAsync(new CustomerRegisteredEvent(user.Id, user.FullName, user.Email, user.Phone, user.TenantId ?? Guid.Empty), ct);
+            await bus.PublishAsync(new CustomerRegisteredEvent(user.Id, user.FullName, user.Email, user.Phone, tenantId), ct);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {

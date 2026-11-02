@@ -30,6 +30,9 @@ public class RateLimitTests(WebApplicationFactory<Program> factory) : IClassFixt
     [InlineData("/api/v1/identity/auth/forgot-password")]
     [InlineData("/api/v1/identity/auth/reset-password")]
     [InlineData("/api/v1/identity/auth/register")]
+    [InlineData("/api/v1/identity/auth/register/verify")]
+    [InlineData("/api/v1/identity/auth/register/resend")]
+    [InlineData("/api/v1/identity/auth/google")]
     public async Task Auth_endpoints_answer_429_after_their_own_small_budget(string path)
     {
         using var client = Gateway().CreateClient();
