@@ -1,5 +1,8 @@
 # Đối chiếu Mobile với Backend main — 2026-11-03
 
+> Bản đồ audit gốc. Tiến độ tích hợp mới, thay đổi Ordering và các giới hạn đã kiểm thử:
+> [STAFF_MOBILE_SYNC.md](STAFF_MOBILE_SYNC.md). Không coi báo cáo snapshot này là trạng thái code mới nhất.
+
 Mobile hiện chạy demo, adapter BE cũ đã gỡ. File này chỉ là audit/đề xuất tích hợp với main d7ab6b7; không bật lại API cũ, không sửa UI hoặc tự nối endpoint trong lượt này.
 
 ## Màn hình và API có thể dùng

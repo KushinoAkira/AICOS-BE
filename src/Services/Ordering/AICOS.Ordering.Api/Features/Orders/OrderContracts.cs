@@ -17,7 +17,8 @@ public sealed record CreateOrderRequest(
     PaymentMethod? PaymentMethod,
     string? PromotionCode,
     string? Note,
-    List<OrderItemRequest>? Items);
+    List<OrderItemRequest>? Items,
+    string? TableQrToken = null);
 
 /// <summary><c>OptionIds</c>: the options chosen for the line (size, sugar, ice, toppings) from the product option groups of the menu.</summary>
 public sealed record OrderItemRequest(Guid? ProductId, int? Quantity, string? Note, List<Guid>? OptionIds = null);
@@ -109,11 +110,14 @@ public sealed record OrderSummary(
     bool HasFeedback = false,
     IReadOnlyList<OrderItemResponse>? Items = null,
     Guid? CustomerId = null,
-    DateTime? CompletedAtUtc = null)
+    DateTime? CompletedAtUtc = null,
+    Guid? CashierId = null,
+    Guid? TableId = null,
+    DateTime? DeliveredAtUtc = null)
 {
     public static OrderSummary From(Order o) => new OrderSummary(
         o.Id, o.OrderCode, o.BranchId, o.Type, o.Status, o.PaymentStatus, o.PaymentProvider, o.TableNumber, o.OriginalAmount, o.DiscountAmount, o.FinalAmount,
-        o.RefundedAmount, o.EffectiveRefundStatus, o.Items.Count, o.PaidAtUtc, o.CancelledAtUtc, o.CreatedAtUtc, o.PickupSlotStartUtc) with { Items = o.Items.Select(OrderItemResponse.From).ToList(), CustomerId = o.CustomerId, CompletedAtUtc = o.CompletedAtUtc };
+        o.RefundedAmount, o.EffectiveRefundStatus, o.Items.Count, o.PaidAtUtc, o.CancelledAtUtc, o.CreatedAtUtc, o.PickupSlotStartUtc) with { Items = o.Items.Select(OrderItemResponse.From).ToList(), CustomerId = o.CustomerId, CompletedAtUtc = o.CompletedAtUtc, CashierId = o.CashierId, TableId = o.TableId, DeliveredAtUtc = o.DeliveredAtUtc };
 }
 
 /// <summary>The result of checking an order's payment (SCRUM-60): what Payment reported, in one small answer.</summary>

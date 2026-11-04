@@ -106,9 +106,9 @@ internal static class OrderChecks
     public static async Task<OrderInfo> EnsurePayableAsync(IOrderDirectory orders, Guid orderId, Guid branchId, decimal amount, CancellationToken ct)
     {
         var order = await orders.GetAsync(orderId, ct);
-        if (order.Status == "Cancelled")
+        if (order.Status is "Cancelled" or "NoShow" or "Unfulfillable")
         {
-            throw new BusinessRuleException("payment.order_cancelled", "The order was cancelled.");
+            throw new BusinessRuleException("payment.order_cancelled", "This order was closed without fulfilment and cannot accept payment.");
         }
 
         if (order.PaymentStatus is "Paid" or "Refunded")

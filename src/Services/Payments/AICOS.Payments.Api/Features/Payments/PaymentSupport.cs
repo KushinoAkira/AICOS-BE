@@ -24,11 +24,13 @@ public sealed record PaymentResponse(
     decimal RefundedAmount,
     decimal Refundable,
     DateTime CreatedAtUtc,
-    IReadOnlyList<RefundResponse>? Refunds = null)
+    IReadOnlyList<RefundResponse>? Refunds = null,
+    Guid? CreatedByUserId = null,
+    Guid? CashierUserId = null)
 {
     public static PaymentResponse From(Payment p, IReadOnlyList<RefundResponse>? refunds = null) => new(
         p.Id, p.BranchId, p.OrderId, p.Amount, p.Method, p.Status, p.TransactionRef, p.CheckoutUrl, p.ExpiresAtUtc, p.PaidAtUtc, p.FailureReason, p.PaidLate,
-        p.RefundedAmount, p.IsPaid ? p.Refundable : 0, p.CreatedAtUtc, refunds);
+        p.RefundedAmount, p.IsPaid ? p.Refundable : 0, p.CreatedAtUtc, refunds, p.CreatedBy, p.CashierUserId);
 }
 
 public sealed record RefundResponse(

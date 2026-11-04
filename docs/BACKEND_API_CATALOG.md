@@ -1,5 +1,18 @@
 # Danh mục API Backend main — 2026-11-03
 
+> API mới trong source: GET /api/v1/payments/orders/{orderId}/settlement — Staff,
+> tenant/branch-scoped, trả OrderSettlementResponse, AdvisoryOnly=true. Chỉ đọc,
+> không expire/query provider; không phải permit đóng phiên. JSON/states/errors
+> ở API_MOBILE_FUNCTION_REVIEW.md. Chưa deploy container trong lượt này.
+
+> Cập nhật source 2026-11-03: đây là snapshot OpenAPI runtime trước đồng bộ Mobile.
+> Xem [API_MOBILE_FUNCTION_REVIEW.md](API_MOBILE_FUNCTION_REVIEW.md) cho delta mới:
+> GET orders/staff/capabilities (lượt trước), filter tableId/type + tableQrToken;
+> OrderSummary.deliveredAtUtc, QrBillOrder.cashierId/customerId/readyAtUtc/deliveredAtUtc;
+> PaymentResponse.createdByUserId/cashierUserId; cash/online từ chối NoShow/Unfulfillable
+> bằng HTTP 422 payment.order_cancelled. Không xóa/đổi tên endpoint. Số 268 bên dưới
+> là snapshot cũ, không phải tổng source mới hoặc số endpoint đã test E2E.
+
 Source: main d7ab6b7cb25634a2fb4635c10ebeb9232db27534. Kiểm kê bằng GET OpenAPI thực tế ở các port 5201–5211, đối chiếu route/group authorization trong source. Không gọi API nghiệp vụ có ghi, không tạo JWT/tài khoản.
 
 **268 HTTP operations**: 263 của .NET + 5 của AI; gồm 10 metadata `_info`, nên còn 258 operation khác metadata, trong đó 4 AI placeholder. 127 GET và 141 non-GET. Không tính health/docs, 3 endpoint hạ tầng Gateway, SignalR transport hoặc ai-models standalone vào số 268.

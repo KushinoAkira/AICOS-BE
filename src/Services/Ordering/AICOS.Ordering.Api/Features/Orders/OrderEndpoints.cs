@@ -29,6 +29,8 @@ public static class OrderEndpoints
 
         group.MapPost("/", CreateAsync).RequireAuthorization(b => b.RequireRole(OrderAccess.CounterRoles));
         group.MapGet("/", ListAsync).RequireAuthorization(AicosPolicies.Staff);
+        group.MapGet("/staff/capabilities", () => new { CounterIdempotency = true, CounterTableSessions = true, TableOrderFilter = true })
+            .RequireAuthorization(AicosPolicies.Staff);
         group.MapGet("/mine", MineAsync).RequireAuthorization(b => b.RequireRole(AicosRoles.Customer));
         group.MapGet("/exceptions", ExceptionsAsync).RequireAuthorization(AicosPolicies.Management);
         group.MapGet("/by-code/{orderCode}/receipt", ReceiptByCodeAsync).RequireAuthorization(b => b.RequireRole(OrderAccess.CounterRoles));
@@ -46,6 +48,7 @@ public static class OrderEndpoints
     // ------------------------------------------------------------------ create
     private static async Task<IResult> CreateAsync(
         CreateOrderRequest r,
+        HttpContext http,
         OrderingDbContext db,
         ICurrentUser user,
         IBranchDirectory directory,
@@ -53,9 +56,13 @@ public static class OrderEndpoints
         IVoucherClient vouchers,
         OrderEventPublisher events,
         ShopTime clock,
+        ITableQrClient tables,
         CancellationToken ct)
     {
         var errors = new ValidationErrors();
+        var requestKey = http.Request.Headers["Idempotency-Key"].FirstOrDefault()?.Trim();
+        CommonRules.MaxLength(errors, "Idempotency-Key", requestKey, "Request key", 80);
+        CommonRules.MaxLength(errors, "TableQrToken", r.TableQrToken, "Table QR token", 200);
         CommonRules.RequiredEnum(errors, "Type", r.Type, "Order type");
         CommonRules.MaxLength(errors, "Note", r.Note, "Note", Order.NoteMaxLength);
         CommonRules.MaxLength(errors, "TableNumber", r.TableNumber, "Table number", 20);
@@ -72,6 +79,20 @@ public static class OrderEndpoints
 
         var tenantId = TenantScope.Require(user);
         var branchId = await BranchScope.ResolveAsync(user, directory, r.BranchId, requireActive: true, ct);
+
+        await using var transaction = await CounterOrderRequests.LockAsync(db, tenantId, user.UserId, requestKey, ct);
+        if (!string.IsNullOrEmpty(requestKey))
+        {
+            var previous = await db.Orders.Include(o => o.Items).ThenInclude(i => i.Options)
+                .FirstOrDefaultAsync(o => o.TenantId == tenantId && o.CashierId == user.UserId && o.IdempotencyKey == requestKey, ct);
+            if (previous is not null)
+            {
+                CounterOrderRequests.EnsureSame(previous, r, branchId);
+                return Results.Ok(OrderResponse.From(previous));
+            }
+        }
+
+        var session = await CounterOrderRequests.ResolveSessionAsync(db, tables, tenantId, branchId, r, clock.UtcNow, ct);
 
         var sellable = await menu.GetSellableProductsAsync(branchId, ct);
         var unavailable = r.Items!.Select(i => i.ProductId!.Value).Distinct().Where(id => !sellable.ContainsKey(id)).ToList();
@@ -96,7 +117,14 @@ public static class OrderEndpoints
         }
 
         db.Orders.Add(order);
+        order.SetCounterRequestKey(string.IsNullOrEmpty(requestKey) ? null : requestKey);
+        if (session is not null)
+        {
+            order.AttachToTableSession(session.Id);
+            session.Touch(clock.UtcNow);
+        }
         await db.SaveChangesAsync(ct);
+        if (transaction is not null) await transaction.CommitAsync(ct);
         await events.CreatedAsync(order, ct);
 
         return Results.Created($"/api/v1/orders/{order.Id}", OrderResponse.From(order));
@@ -144,12 +172,16 @@ public static class OrderEndpoints
         DateOnly? from,
         DateOnly? to,
         bool? includePaid,
+        Guid? tableId,
+        OrderType? type,
         int? limit,
         int? offset,
         CancellationToken ct)
     {
         var tenantId = TenantScope.Require(user);
         var query = db.Orders.AsNoTracking().Include(o => o.Items).ThenInclude(i => i.Options).Where(o => o.TenantId == tenantId);
+        if (tableId is not null) query = query.Where(o => o.TableId == tableId);
+        if (type is not null) query = query.Where(o => o.Type == type);
         var branch = BranchAccess.ResolveFilter(user, branchId);
         if (branch is not null)
         {

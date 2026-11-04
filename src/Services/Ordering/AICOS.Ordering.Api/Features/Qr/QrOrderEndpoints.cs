@@ -31,7 +31,8 @@ public sealed record QrPaymentAccessResponse(string AccessToken, DateTime Expire
 public sealed record QrOrderStatus(Guid Id, string OrderCode, OrderStatus Status, PaymentStatus PaymentStatus, int ItemCount, decimal FinalAmount, DateTime CreatedAtUtc, DateTime? ReadyAtUtc, DateTime? DeliveredAtUtc);
 
 public sealed record QrBillOrder(
-    Guid OrderId, string OrderCode, OrderStatus Status, PaymentStatus PaymentStatus, DateTime CreatedAtUtc, decimal FinalAmount, IReadOnlyList<OrderItemResponse> Items);
+    Guid OrderId, string OrderCode, OrderStatus Status, PaymentStatus PaymentStatus, DateTime CreatedAtUtc, decimal FinalAmount, IReadOnlyList<OrderItemResponse> Items,
+    Guid? CashierId = null, Guid? CustomerId = null, DateTime? ReadyAtUtc = null, DateTime? DeliveredAtUtc = null);
 
 /// <summary>The bill of the table: every round of the session. Cancelled orders are listed but not counted; <c>Due</c> is what is still unpaid.</summary>
 public sealed record QrBillResponse(
@@ -45,7 +46,8 @@ public sealed record QrBillResponse(
         return new QrBillResponse(
             session.Id, session.TableCode, session.Status,
             orders.OrderBy(o => o.CreatedAtUtc).Select(o => new QrBillOrder(
-                o.Id, o.OrderCode, o.Status, o.PaymentStatus, o.CreatedAtUtc, o.FinalAmount, o.Items.Select(OrderItemResponse.From).ToList())).ToList(),
+                o.Id, o.OrderCode, o.Status, o.PaymentStatus, o.CreatedAtUtc, o.FinalAmount, o.Items.Select(OrderItemResponse.From).ToList(),
+                o.CashierId, o.CustomerId, o.ReadyAtUtc, o.DeliveredAtUtc)).ToList(),
             total, paid, total - paid);
     }
 }
@@ -83,7 +85,7 @@ public static class QrOrderEndpoints
 
         group.MapGet("/sessions", ListSessionsAsync).RequireAuthorization(AicosPolicies.Staff);
         group.MapGet("/sessions/{id:guid}/bill", StaffBillAsync).RequireAuthorization(AicosPolicies.Staff);
-        group.MapPost("/sessions/{id:guid}/close", CloseSessionAsync).RequireAuthorization(AicosPolicies.Staff);
+        group.MapPost("/sessions/{id:guid}/close", CloseSessionAsync).RequireAuthorization(b => b.RequireRole(OrderAccess.CounterRoles));
     }
 
     // ------------------------------------------------------------------ the session
@@ -363,10 +365,13 @@ public static class QrOrderEndpoints
     private static async Task<QrBillResponse> StaffBillAsync(Guid id, OrderingDbContext db, ICurrentUser user, CancellationToken ct) =>
         await BuildBillAsync(db, await StaffSessionAsync(db, user, id, ct), ct);
 
-    /// <summary>The cashier or manager ends the sitting, for example when the guests left. Unpaid orders stay as they are for the counter to settle.</summary>
+    /// <summary>Ends the sitting only when no non-void round is unpaid. Never abandons an outstanding bill.</summary>
     private static async Task<IResult> CloseSessionAsync(Guid id, OrderingDbContext db, ICurrentUser user, ShopTime clock, OrderEventPublisher events, CancellationToken ct)
     {
         var session = await StaffSessionAsync(db, user, id, ct);
+        if (!session.IsOpen) return Results.NoContent();
+        if (await TableSessions.HasUnsettledOrdersAsync(db, session.Id, ct))
+            throw new ConflictException("Settle all rounds before closing the table session.", "qr.session_unsettled");
         session.Close(TableSessionCloseReason.Staff, clock.UtcNow);
         await db.SaveChangesAsync(ct);
         await events.SessionClosedAsync(session, ct);
@@ -377,6 +382,11 @@ public static class QrOrderEndpoints
 /// <summary>When a table session ends by itself.</summary>
 public static class TableSessions
 {
+    public static Task<bool> HasUnsettledOrdersAsync(OrderingDbContext db, Guid sessionId, CancellationToken ct) =>
+        db.Orders.AsNoTracking().AnyAsync(o => o.TableSessionId == sessionId
+            && o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.NoShow && o.Status != OrderStatus.Unfulfillable
+            && o.PaymentStatus != PaymentStatus.Paid && o.PaymentStatus != PaymentStatus.Refunded, ct);
+
     /// <summary>Closes the session once it has orders and every order that was not cancelled is paid (all rounds settled).</summary>
     public static async Task CloseIfSettledAsync(OrderingDbContext db, Guid? sessionId, DateTime now, OrderEventPublisher events, CancellationToken ct)
     {
@@ -429,7 +439,9 @@ public sealed class TableSessionExpiryWorker(IServiceScopeFactory scopes, TimePr
     public static async Task<int> CloseIdleAsync(OrderingDbContext db, DateTime now, TimeSpan idle, CancellationToken ct, OrderEventPublisher? events = null)
     {
         var limit = now - idle;
-        var idleSessions = await db.TableSessions.Where(s => s.Status == TableSessionStatus.Open && s.LastActivityAtUtc < limit).Take(200).ToListAsync(ct);
+        var idleSessions = await db.TableSessions.Where(s => s.Status == TableSessionStatus.Open && s.LastActivityAtUtc < limit
+            && !db.Orders.Any(o => o.TableSessionId == s.Id && o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.NoShow && o.Status != OrderStatus.Unfulfillable
+                && o.PaymentStatus != PaymentStatus.Paid && o.PaymentStatus != PaymentStatus.Refunded)).Take(200).ToListAsync(ct);
         foreach (var session in idleSessions)
         {
             session.Close(TableSessionCloseReason.Expired, now);

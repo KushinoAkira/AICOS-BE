@@ -446,6 +446,10 @@ public sealed class QrOrderTests : IDisposable
         await _f.As(AicosRoles.Cashier, _b1, tenantId: _otherTenant).Post($"{Qr}/sessions/{sessionId}/close", new { }).ShouldBe(404);
         await phone.Post($"{Qr}/sessions/{sessionId}/close", new { }).ShouldBe(401);                              // a guest cannot close it
 
+        await cashier.Post($"{Qr}/sessions/{sessionId}/close", new { }).ShouldBe(409, "qr.session_unsettled");
+        var unpaidBill = await cashier.GetFromJsonAsync<JsonElement>($"{Qr}/sessions/{sessionId}/bill");
+        var unpaidOrderId = unpaidBill.GetProperty("orders")[0].GetProperty("orderId").GetGuid();
+        await cashier.Post($"/api/v1/orders/{unpaidOrderId}/cancel", new { reason = "Test settlement guard; guest changed mind" }).ShouldBe(200);
         await cashier.Post($"{Qr}/sessions/{sessionId}/close", new { }).ShouldBe(204);
         await phone.Post($"{Qr}/cart/items", new { productId = _latte, quantity = 1 }).ShouldBe(409, "qr.session_closed");
         (await cashier.GetFromJsonAsync<JsonElement>($"{Qr}/sessions")).GetArrayLength().Should().Be(0);

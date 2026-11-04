@@ -9,6 +9,32 @@ namespace AICOS.Services.IntegrationTests;
 /// <summary>SCRUM-88 and 89 against the Order service: a payment is only taken for a real order, and reconciliation fetches the orders itself.</summary>
 public sealed class PaymentOrderTests : PaymentTestBase
 {
+    [Theory]
+    [InlineData("NoShow")]
+    [InlineData("Unfulfillable")]
+    public async Task Voided_orders_reject_cash_and_online_without_creating_payments(string status)
+    {
+        var order = Guid.NewGuid();
+        Orders.Set(order, B1, 50_000, status: status);
+        await Customer.Post(Tx, new { orderId = order, branchId = B1, amount = 50_000, providerCode = "Mock" }).ShouldBe(422, "payment.order_cancelled");
+        await Cashier1.Post($"{Tx}/cash", new { orderId = order, amount = 50_000 }).ShouldBe(422, "payment.order_cancelled");
+        var rows = await Cashier1.GetFromJsonAsync<JsonElement>($"{Tx}?orderId={order}");
+        rows.GetArrayLength().Should().Be(0);
+        F.Events.Published.OfType<PaymentSucceededEvent>().Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Cash_history_exposes_the_actual_cashier_and_payment_times()
+    {
+        var order = Guid.NewGuid();
+        await Cashier1.Post($"{Tx}/cash", new { orderId = order, amount = 50_000 }).ShouldBe(201);
+        var history = await Cashier1.GetFromJsonAsync<JsonElement>($"{Tx}?orderId={order}");
+        history[0].GetProperty("cashierUserId").GetGuid().Should().Be(CashierId);
+        history[0].GetProperty("createdByUserId").GetGuid().Should().Be(CashierId);
+        history[0].GetProperty("paidAtUtc").GetDateTime().Should().NotBe(default);
+        history[0].GetProperty("createdAtUtc").GetDateTime().Should().NotBe(default);
+    }
+
     [Fact]
     public async Task A_payment_for_an_order_that_does_not_exist_is_refused()
     {

@@ -161,6 +161,8 @@ public class Order : AuditableEntity<Guid>, IBranchScoped
 
     public void AttachToTableSession(Guid tableSessionId) => TableSessionId = tableSessionId;
 
+    public void SetCounterRequestKey(string? key) => IdempotencyKey = key;
+
     // ------------------------------------------------------------------ items and price
     public void AddItem(Guid productId, string productName, decimal unitPrice, int quantity, string? note = null, IReadOnlyList<OrderLineOption>? options = null)
     {

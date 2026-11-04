@@ -43,6 +43,7 @@ api.MapProviderEndpoints();
 api.MapCancellationPolicyEndpoints();
 api.MapMerchantSettingEndpoints();
 api.MapPaymentEndpoints();
+api.MapOrderSettlementEndpoints();
 api.MapWebhookEndpoints();
 api.MapRefundEndpoints();
 api.MapReconciliationEndpoints();
