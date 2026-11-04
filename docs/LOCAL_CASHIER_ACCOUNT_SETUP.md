@@ -2,6 +2,15 @@
 
 Date: 2026-11-04 (Asia/Saigon).
 
+Additional named email Cashiers were subsequently created for the three branches:
+[Named local Cashier fixtures](LOCAL_CASHIER_STAFF_FIXTURES.md). This original
+account's password and assignment were not modified by that follow-up.
+
+Follow-up: [Local branch and floor-plan fixtures](LOCAL_BRANCH_FLOOR_PLAN_SETUP.md)
+records the subsequent three-branch setup. The original branch ID was retained
+and renamed to Hồ Con Rùa (Q.3); Cashier assignment remains unchanged. Runtime
+and verification statements below describe the original account setup step.
+
 ## Runtime and scope
 
 - Project/container prefix: `aicos-main`.
