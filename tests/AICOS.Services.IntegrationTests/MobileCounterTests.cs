@@ -77,8 +77,15 @@ public sealed class MobileCounterTests : IDisposable
     {
         var qr = _tables.Add(_tenant, _branch, "S02");
         var table = (await _tables.LookupAsync(qr, default))!;
-        var body = new { branchId = _branch, type = "DineIn", tableId = table.TableId, tableNumber = table.TableCode,
-            tableQrToken = qr, items = new[] { new { productId = _product, quantity = 1 } } };
+        var body = new
+        {
+            branchId = _branch,
+            type = "DineIn",
+            tableId = table.TableId,
+            tableNumber = table.TableCode,
+            tableQrToken = qr,
+            items = new[] { new { productId = _product, quantity = 1 } }
+        };
         using var firstClient = await CashierAsync("round-one");
         var first = await (await firstClient.PostAsJsonAsync("/api/v1/orders", body)).Content.ReadFromJsonAsync<JsonElement>();
         var session = first.GetProperty("tableSessionId").GetGuid();
@@ -110,9 +117,14 @@ public sealed class MobileCounterTests : IDisposable
         var qr = _tables.Add(_tenant, _branch, "S02");
         var table = (await _tables.LookupAsync(qr, default))!;
         using var client = await CashierAsync("delivered-round");
-        var created = await (await client.PostAsJsonAsync("/api/v1/orders", new {
-            branchId = _branch, type = "DineIn", tableId = table.TableId, tableNumber = table.TableCode,
-            tableQrToken = qr, items = new[] { new { productId = _product, quantity = 1 } }
+        var created = await (await client.PostAsJsonAsync("/api/v1/orders", new
+        {
+            branchId = _branch,
+            type = "DineIn",
+            tableId = table.TableId,
+            tableNumber = table.TableCode,
+            tableQrToken = qr,
+            items = new[] { new { productId = _product, quantity = 1 } }
         })).Content.ReadFromJsonAsync<JsonElement>();
         var id = created.GetProperty("id").GetGuid();
         var session = created.GetProperty("tableSessionId").GetGuid();
@@ -145,10 +157,64 @@ public sealed class MobileCounterTests : IDisposable
         var qr = _tables.Add(Guid.NewGuid(), _branch, "S02");
         var table = (await _tables.LookupAsync(qr, default))!;
         using var client = await CashierAsync("wrong-tenant");
-        var response = await client.PostAsJsonAsync("/api/v1/orders", new { branchId = _branch, type = "DineIn",
-            tableId = table.TableId, tableNumber = table.TableCode, tableQrToken = qr,
-            items = new[] { new { productId = _product, quantity = 1 } } });
+        var response = await client.PostAsJsonAsync("/api/v1/orders", new
+        {
+            branchId = _branch,
+            type = "DineIn",
+            tableId = table.TableId,
+            tableNumber = table.TableCode,
+            tableQrToken = qr,
+            items = new[] { new { productId = _product, quantity = 1 } }
+        });
         response.StatusCode.Should().Be(System.Net.HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task Delivered_then_cancelled_unpaid_round_closes_without_recording_payment()
+    {
+        var qr = _tables.Add(_tenant, _branch, "S10");
+        var table = (await _tables.LookupAsync(qr, default))!;
+        using var client = await CashierAsync("cancel-delivered-round");
+        var body = new
+        {
+            branchId = _branch,
+            type = "DineIn",
+            tableId = table.TableId,
+            tableNumber = table.TableCode,
+            tableQrToken = qr,
+            items = new[] { new { productId = _product, quantity = 1 } }
+        };
+        var first = await client.PostAsJsonAsync("/api/v1/orders", body);
+        first.EnsureSuccessStatusCode();
+        var created = await first.Content.ReadFromJsonAsync<JsonElement>();
+        var id = created.GetProperty("id").GetGuid();
+        var session = created.GetProperty("tableSessionId").GetGuid();
+        (await client.PostAsJsonAsync("/api/v1/orders", body)).EnsureSuccessStatusCode();
+        _factory.Events.Published.OfType<AICOS.Contracts.Events.OrderCreatedIntegrationEvent>()
+            .Should().ContainSingle(); // Replaying a committed request must not send a second ticket event.
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<OrderingDbContext>();
+            var order = (await db.Orders.FindAsync(id))!;
+            order.MarkAsReady(_factory.Clock.Now.UtcDateTime);
+            await db.SaveChangesAsync();
+        }
+        var delivered = await (await client.PostAsJsonAsync($"/api/v1/orders/{id}/deliver", new { })).Content.ReadFromJsonAsync<JsonElement>();
+        delivered.GetProperty("paymentStatus").GetString().Should().Be("Unpaid");
+        delivered.GetProperty("deliveredAtUtc").ValueKind.Should().Be(JsonValueKind.String);
+        (await client.PostAsJsonAsync($"/api/v1/orders/qr/sessions/{session}/close", new { }))
+            .StatusCode.Should().Be(System.Net.HttpStatusCode.Conflict);
+        (await client.PostAsJsonAsync($"/api/v1/orders/{id}/cancel", new { reason = "Marked local test cleanup" }))
+            .EnsureSuccessStatusCode();
+        var bill = await client.GetFromJsonAsync<JsonElement>($"/api/v1/orders/qr/sessions/{session}/bill");
+        bill.GetProperty("due").GetDecimal().Should().Be(0);
+        (await client.PostAsJsonAsync($"/api/v1/orders/qr/sessions/{session}/close", new { }))
+            .StatusCode.Should().Be(System.Net.HttpStatusCode.NoContent);
+        var sessions = await client.GetFromJsonAsync<JsonElement>($"/api/v1/orders/qr/sessions?branchId={_branch}");
+        sessions.GetArrayLength().Should().Be(0);
+        var final = await client.GetFromJsonAsync<JsonElement>($"/api/v1/orders/{id}");
+        final.GetProperty("status").GetString().Should().Be("Cancelled");
+        final.GetProperty("paymentStatus").GetString().Should().Be("Unpaid");
     }
 
     [Fact]

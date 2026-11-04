@@ -65,3 +65,7 @@ Các path trong cùng module được viết rút gọn sau `/api/v1` khi rõ ng
 Audit dựa trên source + GET OpenAPI runtime; không thực hiện nghiệp vụ viết hoặc thay đổi Mobile. Danh mục 268 operation không chứng minh 268 flow đã PASS. Tests tên IntegrationTests hiện dùng EF InMemory/recording bus; cần PostgreSQL/Redis/API integration thật cho các điểm concurrency, FK, sự kiện và thanh toán.
 
 Tài liệu này là bản đồ tích hợp, không phê duyệt tạo fixtures, bật payment thật hoặc đổi role/database. Các bước triển khai tiếp theo cần phạm vi cụ thể; không tạo service mới chỉ để giải quyết khác biệt UI khi có thể bổ sung contract đúng service sở hữu.
+
+## 2026-11-04 — Cash v1 follow-up
+
+See [CASH_COLLECTION_MAIN.md](CASH_COLLECTION_MAIN.md): GET Payments staff/capabilities; optional Idempotency-Key replay for existing POST transactions/cash; optional amountTendered/change response fields. Pending online attempts now block cash (409), instead of silent replacement. Mobile cash confirmation is connected; QR remains disabled. No schema migration.

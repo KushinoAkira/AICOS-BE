@@ -578,3 +578,7 @@ Các bảng sau trích từ OpenAPI; required/nullable là mô tả schema, khô
 - Không dùng security global của Swagger làm bằng chứng mọi endpoint cần JWT: source có AllowAnonymous và capability/HMAC riêng.
 - Đã đối chiếu riêng auth/session, QR, order/receipt, Kitchen/status/stickers, Payment/cash/webhook/gateway, shared policies và các nguồn side effect quan trọng. Chưa chứng minh mọi nhánh handler bằng runtime test.
 - Không chạy migration/seed, không gọi API ghi, không sửa implementation hoặc restart container trong audit này.
+
+## 2026-11-04 — Cash v1 follow-up
+
+See [CASH_COLLECTION_MAIN.md](CASH_COLLECTION_MAIN.md): GET Payments staff/capabilities; optional Idempotency-Key replay for existing POST transactions/cash; optional amountTendered/change response fields. Pending online attempts now block cash (409), instead of silent replacement. Mobile cash confirmation is connected; QR remains disabled. No schema migration.

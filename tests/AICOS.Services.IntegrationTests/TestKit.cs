@@ -21,7 +21,7 @@ namespace AICOS.Services.IntegrationTests;
 /// Boots one microservice in memory: EF in-memory database (fresh per factory), recording event bus instead of Redis,
 /// and a controllable clock for time-based rules.
 /// </summary>
-public sealed class ServiceFactory<TService, TDbContext>(Action<IServiceCollection>? configure = null) : WebApplicationFactory<TService>
+public sealed class ServiceFactory<TService, TDbContext>(Action<IServiceCollection>? configure = null, string? postgresConnection = null, Action<DbContextOptionsBuilder>? configureDatabase = null) : WebApplicationFactory<TService>
     where TService : class
     where TDbContext : DbContext
 {
@@ -49,11 +49,20 @@ public sealed class ServiceFactory<TService, TDbContext>(Action<IServiceCollecti
         builder.ConfigureServices(services =>
         {
             services.RemoveAll<DbContextOptions<TDbContext>>();
-            services.AddDbContext<TDbContext>((sp, options) => options
-                .UseInMemoryDatabase(_databaseName)
-                .AddInterceptors(sp.GetRequiredService<AuditableEntityInterceptor>()));
-
-
+            services.AddDbContext<TDbContext>((sp, options) =>
+            {
+                if (postgresConnection is null) options.UseInMemoryDatabase(_databaseName);
+                else
+                {
+                    var target = new Npgsql.NpgsqlConnectionStringBuilder(postgresConnection);
+                    if (target.Database != "aicos_cashflow_test" || target.Host != "127.0.0.1" || target.Port == 5432)
+                        throw new InvalidOperationException("PostgreSQL tests require the isolated random-port cashflow cluster.");
+                    options.UseNpgsql(postgresConnection, provider => provider.EnableRetryOnFailure(3))
+                        .UseSnakeCaseNamingConvention();
+                }
+                options.AddInterceptors(sp.GetRequiredService<AuditableEntityInterceptor>());
+                configureDatabase?.Invoke(options);
+            });
             // No Redis in tests: events are recorded by RecordingEventBus and handlers are invoked directly.
             // Left running, the subscriber retries the connection for seconds and then stops the whole test host.
             foreach (var subscriber in services.Where(s => s.ImplementationType?.Name == "RedisEventBusSubscriber").ToList())

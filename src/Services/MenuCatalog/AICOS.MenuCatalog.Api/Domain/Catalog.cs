@@ -116,8 +116,17 @@ public sealed class Product : AuditableEntity<Guid>
     /// <summary>The client always sends the full list; groups not in it are deleted.</summary>
     public void ReplaceOptionGroups(IEnumerable<OptionGroup> groups)
     {
+        var incoming = groups.ToList();
+        var pairs = incoming.Select(group => (Source: group, Target: _optionGroups.FirstOrDefault(
+            old => string.Equals(old.Name, group.Name, StringComparison.OrdinalIgnoreCase)) ?? group)).ToList();
+        var ids = new Dictionary<Guid, Guid>();
+        foreach (var (source, target) in pairs)
+            foreach (var option in source.Options)
+                ids[option.Id] = target.Options.FirstOrDefault(old => string.Equals(old.Name, option.Name,
+                    StringComparison.OrdinalIgnoreCase))?.Id ?? option.Id;
+        foreach (var (source, target) in pairs) target.Synchronize(source, ids);
         _optionGroups.Clear();
-        _optionGroups.AddRange(groups);
+        _optionGroups.AddRange(pairs.Select(pair => pair.Target));
     }
 
     public void MarkDeleted(DateTime nowUtc) => DeletedAtUtc = nowUtc;
@@ -162,6 +171,25 @@ public sealed class OptionGroup : Entity<Guid>
     public int SortOrder { get; private set; }
 
     public IReadOnlyList<ProductOption> Options => _options;
+    /// <summary>Keep unchanged option ids so carts and dependency references survive menu expansion.</summary>
+    internal void Synchronize(OptionGroup source, IReadOnlyDictionary<Guid, Guid> ids)
+    {
+        var incoming = source.Options.ToList();
+        var previous = _options.ToList();
+        Name = source.Name;
+        Kind = source.Kind;
+        SelectionType = source.SelectionType;
+        IsRequired = source.IsRequired;
+        MaxSelections = source.MaxSelections;
+        SortOrder = source.SortOrder;
+        _options.Clear();
+        foreach (var option in incoming)
+        {
+            var target = previous.FirstOrDefault(old => old.Id == ids[option.Id]) ?? option;
+            target.Synchronize(option, ids);
+            _options.Add(target);
+        }
+    }
 }
 
 public sealed class ProductOption : Entity<Guid>
@@ -193,6 +221,13 @@ public sealed class ProductOption : Entity<Guid>
     public Guid? RequiresOptionId { get; private set; }
 
     public void RequireOption(Guid optionId) => RequiresOptionId = optionId;
+    internal void Synchronize(ProductOption source, IReadOnlyDictionary<Guid, Guid> ids)
+    {
+        Name = source.Name;
+        PriceDelta = source.PriceDelta;
+        IsDefault = source.IsDefault;
+        RequiresOptionId = source.RequiresOptionId is { } parent ? ids[parent] : null;
+    }
 }
 
 /// <summary>

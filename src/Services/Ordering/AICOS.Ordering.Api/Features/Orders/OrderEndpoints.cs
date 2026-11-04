@@ -80,54 +80,64 @@ public static class OrderEndpoints
         var tenantId = TenantScope.Require(user);
         var branchId = await BranchScope.ResolveAsync(user, directory, r.BranchId, requireActive: true, ct);
 
-        await using var transaction = await CounterOrderRequests.LockAsync(db, tenantId, user.UserId, requestKey, ct);
-        if (!string.IsNullOrEmpty(requestKey))
+        // A retrying Npgsql provider must execute the complete transaction as one unit.
+        // Retain the prepared order across attempts: stable ids/prices and no repeat voucher redemption.
+        Order? prepared = null;
+        var outcome = await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
         {
+            db.ChangeTracker.Clear();
+            await using var transaction = await CounterOrderRequests.LockAsync(db, tenantId, user.UserId, requestKey, ct);
             var previous = await db.Orders.Include(o => o.Items).ThenInclude(i => i.Options)
-                .FirstOrDefaultAsync(o => o.TenantId == tenantId && o.CashierId == user.UserId && o.IdempotencyKey == requestKey, ct);
+                .FirstOrDefaultAsync(o => o.TenantId == tenantId &&
+                    ((!string.IsNullOrEmpty(requestKey) && o.CashierId == user.UserId && o.IdempotencyKey == requestKey)
+                        || (prepared != null && o.Id == prepared.Id)), ct);
             if (previous is not null)
             {
                 CounterOrderRequests.EnsureSame(previous, r, branchId);
-                return Results.Ok(OrderResponse.From(previous));
+                // A retry can observe an already committed transaction after a lost commit acknowledgement.
+                return (Order: previous, Replay: prepared is null);
             }
-        }
 
-        var session = await CounterOrderRequests.ResolveSessionAsync(db, tables, tenantId, branchId, r, clock.UtcNow, ct);
+            var session = await CounterOrderRequests.ResolveSessionAsync(db, tables, tenantId, branchId, r, clock.UtcNow, ct);
+            if (prepared is null)
+            {
+                var sellable = await menu.GetSellableProductsAsync(branchId, ct);
+                var unavailable = r.Items!.Select(i => i.ProductId!.Value).Distinct().Where(id => !sellable.ContainsKey(id)).ToList();
+                if (unavailable.Count > 0)
+                    throw new BusinessRuleException("order.item_unavailable", $"These products are not on sale at this branch right now: {string.Join(", ", unavailable)}.");
 
-        var sellable = await menu.GetSellableProductsAsync(branchId, ct);
-        var unavailable = r.Items!.Select(i => i.ProductId!.Value).Distinct().Where(id => !sellable.ContainsKey(id)).ToList();
-        if (unavailable.Count > 0)
-        {
-            throw new BusinessRuleException("order.item_unavailable", $"These products are not on sale at this branch right now: {string.Join(", ", unavailable)}.");
-        }
+                var order = new Order(tenantId, branchId, r.Type!.Value, clock.UtcNow, cashierId: user.UserId, customerId: r.CustomerId,
+                    tableId: r.TableId, tableNumber: r.TableNumber, deliveryAddress: r.DeliveryAddress, paymentMethod: r.PaymentMethod, note: r.Note?.Trim());
+                foreach (var item in r.Items!)
+                {
+                    var product = sellable[item.ProductId!.Value];
+                    var priced = OrderOptions.Resolve(product, item.OptionIds);
+                    order.AddItem(product.Id, product.Name, product.Price + priced.Surcharge, item.Quantity!.Value,
+                        string.IsNullOrWhiteSpace(item.Note) ? null : item.Note.Trim(), priced.Options);
+                }
+                if (!string.IsNullOrWhiteSpace(r.PromotionCode))
+                {
+                    var quote = await vouchers.RedeemAsync(r.PromotionCode.Trim(), order.OriginalAmount, order.OrderCode, branchId, r.CustomerId, ct);
+                    order.ApplyPromotion(quote.Code, quote.Discount);
+                }
+                order.SetCounterRequestKey(string.IsNullOrEmpty(requestKey) ? null : requestKey);
+                prepared = order;
+            }
+            db.Orders.Add(prepared);
+            if (session is not null)
+            {
+                prepared.AttachToTableSession(session.Id);
+                session.Touch(clock.UtcNow);
+            }
+            await db.SaveChangesAsync(ct);
+            if (transaction is not null) await transaction.CommitAsync(ct);
+            return (Order: prepared, Replay: false);
+        });
 
-        var order = new Order(tenantId, branchId, r.Type!.Value, clock.UtcNow, cashierId: user.UserId, customerId: r.CustomerId, tableId: r.TableId, tableNumber: r.TableNumber,
-            deliveryAddress: r.DeliveryAddress, paymentMethod: r.PaymentMethod, note: r.Note?.Trim());
-        foreach (var item in r.Items!)
-        {
-            var product = sellable[item.ProductId!.Value];
-            var priced = OrderOptions.Resolve(product, item.OptionIds);
-            order.AddItem(product.Id, product.Name, product.Price + priced.Surcharge, item.Quantity!.Value, string.IsNullOrWhiteSpace(item.Note) ? null : item.Note.Trim(), priced.Options);
-        }
-
-        if (!string.IsNullOrWhiteSpace(r.PromotionCode))
-        {
-            var quote = await vouchers.RedeemAsync(r.PromotionCode.Trim(), order.OriginalAmount, order.OrderCode, branchId, r.CustomerId, ct);
-            order.ApplyPromotion(quote.Code, quote.Discount);
-        }
-
-        db.Orders.Add(order);
-        order.SetCounterRequestKey(string.IsNullOrEmpty(requestKey) ? null : requestKey);
-        if (session is not null)
-        {
-            order.AttachToTableSession(session.Id);
-            session.Touch(clock.UtcNow);
-        }
-        await db.SaveChangesAsync(ct);
-        if (transaction is not null) await transaction.CommitAsync(ct);
-        await events.CreatedAsync(order, ct);
-
-        return Results.Created($"/api/v1/orders/{order.Id}", OrderResponse.From(order));
+        if (outcome.Replay) return Results.Ok(OrderResponse.From(outcome.Order));
+        // Publish after the transaction/retry boundary, never while an attempt may still roll back.
+        await events.CreatedAsync(outcome.Order, ct);
+        return Results.Created($"/api/v1/orders/{outcome.Order.Id}", OrderResponse.From(outcome.Order));
     }
 
     /// <summary>The same rules for every way of placing an order: 1 to 50 lines, quantity 1 to 99, a product on each line.</summary>

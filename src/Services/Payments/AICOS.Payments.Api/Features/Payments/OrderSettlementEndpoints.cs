@@ -37,7 +37,8 @@ public static class OrderSettlementEndpoints
         var pending = payments.Any(p => p.Status == PaymentStatus.Pending);
         var voided = order.Status is "Cancelled" or "NoShow" or "Unfulfillable";
         var required = voided ? 0 : order.FinalAmount;
-        var inconsistent = paid.Count > 1 || net < 0 || net > required
+        var inconsistent = payments.Any(p => p.ProviderState == ProviderState.Succeeded && !p.IsPaid)
+            || paid.Count > 1 || net < 0 || net > required
             || payments.Any(p => p.BranchId != order.BranchId)
             || (!voided && paid.Any(p => p.RefundedAmount > 0));
         var state = inconsistent || unresolvedRefunds ? "ReconciliationRequired"

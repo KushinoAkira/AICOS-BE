@@ -17,66 +17,61 @@ public sealed class PaymentProcessor(PaymentsDbContext db, IEventBus bus, TimePr
     /// <summary>The provider says the money arrived. Returns "applied", "applied_late" or "ignored_final" (already paid).</summary>
     public async Task<string> ApplySuccessAsync(Payment payment, string? providerReference, CancellationToken ct)
     {
-        if (payment.IsPaid)
+        var appliedInThisCall = false;
+        var result = await PaymentOrderLock.RunAsync(db, payment.TenantId, payment.OrderId, async () =>
         {
-            return "ignored_final";
-        }
-
-        payment.SetProviderState(ProviderState.Succeeded);
-        payment.MarkSucceeded(providerReference, UtcNow);
-        await db.SaveChangesAsync(ct);
-        await PublishSucceededAsync(payment, ct);
-        return payment.PaidLate ? "applied_late" : "applied";
+            // Other requests may have completed this attempt while this request waited for the lock.
+            if (db.Database.IsRelational()) await db.Entry(payment).ReloadAsync(ct);
+            if (payment.IsPaid)
+                return appliedInThisCall ? (payment.PaidLate ? "applied_late" : "applied") : "ignored_final";
+            payment.SetProviderState(ProviderState.Succeeded);
+            payment.MarkSucceeded(providerReference, UtcNow);
+            await db.SaveChangesAsync(ct);
+            appliedInThisCall = true;
+            return payment.PaidLate ? "applied_late" : "applied";
+        }, ct);
+        if (result is "applied" or "applied_late") await PublishSucceededAsync(payment, ct);
+        return result;
     }
-
     /// <summary>The provider says the payment failed. A payment that is already final is left alone.</summary>
     public async Task<string> ApplyFailureAsync(Payment payment, string reason, CancellationToken ct)
     {
-        if (payment.IsFinal)
+        var result = await PaymentOrderLock.RunAsync(db, payment.TenantId, payment.OrderId, async () =>
         {
-            return "ignored_final";
-        }
-
-        payment.SetProviderState(ProviderState.Failed);
-        payment.MarkFailed(reason);
-        await db.SaveChangesAsync(ct);
-        await PublishFailedAsync(payment, reason, ct);
-        return "applied";
+            if (db.Database.IsRelational()) await db.Entry(payment).ReloadAsync(ct);
+            if (payment.IsFinal) return "ignored_final";
+            payment.SetProviderState(ProviderState.Failed);
+            payment.MarkFailed(reason);
+            await db.SaveChangesAsync(ct);
+            return "applied";
+        }, ct);
+        if (result == "applied") await PublishFailedAsync(payment, reason, ct);
+        return result;
     }
 
-    /// <summary>Marks a pending payment expired when its time is up. Returns true when it changed.</summary>
+    /// <summary>Expiry and success share a lock; a stale timer can never overwrite received money.</summary>
     public async Task<bool> ExpireIfDueAsync(Payment payment, CancellationToken ct)
     {
-        if (!payment.IsDue(UtcNow))
+        var expired = await PaymentOrderLock.RunAsync(db, payment.TenantId, payment.OrderId, async () =>
         {
-            return false;
-        }
-
-        payment.MarkExpired();
-        await db.SaveChangesAsync(ct);
-        await PublishFailedAsync(payment, "Not paid in time.", ct, timedOut: true);
-        return true;
+            if (db.Database.IsRelational()) await db.Entry(payment).ReloadAsync(ct);
+            if (!payment.IsDue(UtcNow)) return false;
+            payment.MarkExpired();
+            await db.SaveChangesAsync(ct);
+            return true;
+        }, ct);
+        if (expired) await PublishFailedAsync(payment, "Not paid in time.", ct, timedOut: true);
+        return expired;
     }
 
-    /// <summary>Background sweep: expires every pending payment whose time is up.</summary>
     public async Task<int> ExpireDueAsync(CancellationToken ct)
     {
         var now = UtcNow;
         var due = await db.Payments.Where(p => p.Status == PaymentStatus.Pending && p.ExpiresAtUtc != null && p.ExpiresAtUtc <= now).ToListAsync(ct);
-        foreach (var payment in due)
-        {
-            payment.MarkExpired();
-        }
-
-        await db.SaveChangesAsync(ct);
-        foreach (var payment in due)
-        {
-            await PublishFailedAsync(payment, "Not paid in time.", ct, timedOut: true);
-        }
-
-        return due.Count;
+        var expired = 0;
+        foreach (var payment in due) if (await ExpireIfDueAsync(payment, ct)) expired++;
+        return expired;
     }
-
     public Task PublishSucceededAsync(Payment p, CancellationToken ct) =>
         bus.PublishAsync(new PaymentSucceededEvent(p.TenantId, p.BranchId, p.Id, p.OrderId, p.Amount, p.Method, p.PaidAtUtc ?? UtcNow), ct);
 

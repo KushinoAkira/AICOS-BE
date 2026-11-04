@@ -26,11 +26,14 @@ public sealed record PaymentResponse(
     DateTime CreatedAtUtc,
     IReadOnlyList<RefundResponse>? Refunds = null,
     Guid? CreatedByUserId = null,
-    Guid? CashierUserId = null)
+    Guid? CashierUserId = null,
+    decimal? AmountTendered = null,
+    decimal? Change = null)
 {
     public static PaymentResponse From(Payment p, IReadOnlyList<RefundResponse>? refunds = null) => new(
         p.Id, p.BranchId, p.OrderId, p.Amount, p.Method, p.Status, p.TransactionRef, p.CheckoutUrl, p.ExpiresAtUtc, p.PaidAtUtc, p.FailureReason, p.PaidLate,
-        p.RefundedAmount, p.IsPaid ? p.Refundable : 0, p.CreatedAtUtc, refunds, p.CreatedBy, p.CashierUserId);
+        p.RefundedAmount, p.IsPaid ? p.Refundable : 0, p.CreatedAtUtc, refunds, p.CreatedBy, p.CashierUserId, CashReceiptMetadata.Tendered(p),
+        CashReceiptMetadata.Tendered(p) is { } tendered ? tendered - p.Amount : null);
 }
 
 public sealed record RefundResponse(

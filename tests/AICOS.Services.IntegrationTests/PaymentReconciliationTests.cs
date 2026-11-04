@@ -46,6 +46,7 @@ public sealed class PaymentReconciliationTests : PaymentTestBase
         await WebhookAsync("Mock", "x1", mismatch.GetProperty("transactionRef").GetString()!, "success", 1_000);
         var order = Guid.NewGuid();
         var replaced = await PayOnlineAsync(order, 40_000);
+        await Customer.Post($"{Tx}/{replaced.Id()}/cancel", new { }).ShouldBe(200); // explicit cancellation, not silent cash replacement
         await Cashier1.PostOk($"{Tx}/cash", new { orderId = order, amount = 40_000 });                          // cash wins, the QR is cancelled
         F.Clock.Now = F.Clock.Now.AddMinutes(1);
         await SimulateAsync(replaced.Id());                                                                     // ...but the customer paid the QR as well

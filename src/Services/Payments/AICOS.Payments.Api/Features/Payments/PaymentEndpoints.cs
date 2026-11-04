@@ -33,6 +33,8 @@ public static class PaymentEndpoints
 
     public static void MapPaymentEndpoints(this RouteGroupBuilder api)
     {
+        api.MapGet("/staff/capabilities", () => new { CashCollectionVersion = 1, CashIdempotency = true, CashBlocksPendingOnline = true })
+            .WithTags("Payments").RequireAuthorization(AicosPolicies.Staff);
         var group = api.MapGroup("/transactions").WithTags("Payments");
 
         group.MapPost("/", CreateAsync).RequireAuthorization();
@@ -68,56 +70,62 @@ public static class PaymentEndpoints
         errors.ThrowIfAny();
 
         var tenantId = TenantScope.Require(user);
-        var branchId = await ResolveBranchAsync(user, directory, r.BranchId, ct);
-        await OrderChecks.EnsurePayableAsync(orders, r.OrderId!.Value, branchId, r.Amount!.Value, ct);
-        var merchant = await MerchantResolver.ResolveAsync(db, tenantId, branchId, code!, ct)
-            ?? throw new BusinessRuleException("payment.method_unavailable", $"{code} is not available at this branch.");
-
-        var orderId = r.OrderId!.Value;
-        var amount = r.Amount!.Value;
-        var existing = await db.Payments.Where(p => p.TenantId == tenantId && p.OrderId == orderId).ToListAsync(ct);
-        foreach (var old in existing.Where(p => p.Status == PaymentStatus.Pending))
+        return await PaymentOrderLock.RunAsync<IResult>(db, tenantId, r.OrderId!.Value, async () =>
         {
-            await processor.ExpireIfDueAsync(old, ct);
-        }
+            db.ChangeTracker.Clear();
+            var branchId = await ResolveBranchAsync(user, directory, r.BranchId, ct);
+            await OrderChecks.EnsurePayableAsync(orders, r.OrderId!.Value, branchId, r.Amount!.Value, ct);
+            var merchant = await MerchantResolver.ResolveAsync(db, tenantId, branchId, code!, ct)
+                ?? throw new BusinessRuleException("payment.method_unavailable", $"{code} is not available at this branch.");
 
-        if (existing.Any(p => p.IsPaid))
-        {
-            throw new ConflictException("This order is already paid.", "payment.already_paid");
-        }
+            var orderId = r.OrderId!.Value;
+            var amount = r.Amount!.Value;
+            var existing = await db.Payments.Where(p => p.TenantId == tenantId && p.OrderId == orderId).ToListAsync(ct);
+            foreach (var old in existing.Where(p => p.Status == PaymentStatus.Pending))
+            {
+                await processor.ExpireIfDueAsync(old, ct);
+            }
 
-        var pending = existing.Where(p => p.Status == PaymentStatus.Pending).ToList();
-        var same = pending.FirstOrDefault(p => p.Method == code && p.Amount == amount && p.BranchId == branchId && p.CreatedBy == user.UserId);
-        if (same is not null)
-        {
-            return Results.Ok(PaymentResponse.From(same));   // the customer pressed pay twice: hand back the same QR
-        }
+            if (existing.Any(p => p.IsPaid))
+            {
+                throw new ConflictException("This order is already paid.", "payment.already_paid");
+            }
 
-        foreach (var old in pending)
-        {
-            old.Cancel("Replaced by a new payment attempt.");
-        }
+            var pending = existing.Where(p => p.Status == PaymentStatus.Pending).ToList();
+            var same = pending.FirstOrDefault(p => p.Method == code && p.Amount == amount && p.BranchId == branchId && p.CreatedBy == user.UserId);
+            if (same is not null)
+            {
+                return Results.Ok(PaymentResponse.From(same));   // the customer pressed pay twice: hand back the same QR
+            }
 
-        var policy = await CancellationPolicyEndpoints.ForTenantAsync(db, tenantId, ct);
-        var payment = new Payment(tenantId, branchId, orderId, amount, code!, string.IsNullOrWhiteSpace(r.Description) ? "AICOS order" : r.Description.Trim());
-        var expiresAt = processor.UtcNow.AddMinutes(policy.UnpaidOrderTimeoutMinutes);
-        var setting = merchant.Setting;
-        var account = setting?.AccountNumberEncrypted is null ? null : protector.Unprotect(setting.AccountNumberEncrypted);
-        var checkout = await gateways.For(code!).CreatePaymentAsync(
-            new GatewayPaymentRequest(payment.TransactionRef, amount, payment.Description, expiresAt, setting?.BankCode, account, setting?.AccountName, setting?.MerchantCode), ct);
-        payment.SetCheckout(checkout.CheckoutUrl, expiresAt);
+            foreach (var old in pending)
+            {
+                old.Cancel("Replaced by a new payment attempt.");
+            }
 
-        db.Payments.Add(payment);
-        await db.SaveChangesAsync(ct);
-        return Results.Created($"/api/v1/payments/transactions/{payment.Id}", PaymentResponse.From(payment));
+            var policy = await CancellationPolicyEndpoints.ForTenantAsync(db, tenantId, ct);
+            var payment = new Payment(tenantId, branchId, orderId, amount, code!, string.IsNullOrWhiteSpace(r.Description) ? "AICOS order" : r.Description.Trim());
+            var expiresAt = processor.UtcNow.AddMinutes(policy.UnpaidOrderTimeoutMinutes);
+            var setting = merchant.Setting;
+            var account = setting?.AccountNumberEncrypted is null ? null : protector.Unprotect(setting.AccountNumberEncrypted);
+            var checkout = await gateways.For(code!).CreatePaymentAsync(
+                new GatewayPaymentRequest(payment.TransactionRef, amount, payment.Description, expiresAt, setting?.BankCode, account, setting?.AccountName, setting?.MerchantCode), ct);
+            payment.SetCheckout(checkout.CheckoutUrl, expiresAt);
+
+            db.Payments.Add(payment);
+            await db.SaveChangesAsync(ct);
+            return Results.Created($"/api/v1/payments/transactions/{payment.Id}", PaymentResponse.From(payment));
+        }, ct);
     }
 
     private static async Task<IResult> RecordCashAsync(
-        CashPaymentRequest r, PaymentsDbContext db, PaymentProcessor processor, IEventBus bus, ICurrentUser user, IBranchDirectory directory, IOrderDirectory orders, CancellationToken ct)
+        CashPaymentRequest r, HttpContext http, PaymentsDbContext db, PaymentProcessor processor, IEventBus bus, ICurrentUser user, IBranchDirectory directory, IOrderDirectory orders, ILoggerFactory loggers, CancellationToken ct)
     {
         var errors = new ValidationErrors();
         CommonRules.RequiredId(errors, "OrderId", r.OrderId, "Order");
         ValidateAmount(errors, r.Amount);
+        if (r.AmountTendered is { } tendered && (tendered <= 0 || tendered > MaxAmount || tendered != decimal.Truncate(tendered)))
+            errors.Add("AmountTendered", "Cash tendered must be whole VND within the supported amount range.");
         if (r.AmountTendered is not null && r.Amount is not null && r.AmountTendered < r.Amount)
         {
             errors.Add("AmountTendered", "The cash handed over is less than the amount due.");
@@ -125,32 +133,7 @@ public static class PaymentEndpoints
 
         errors.ThrowIfAny();
 
-        var tenantId = TenantScope.Require(user);
-        var branchId = await BranchScope.ResolveAsync(user, directory, r.BranchId, requireActive: true, ct);
-        await OrderChecks.EnsurePayableAsync(orders, r.OrderId!.Value, branchId, r.Amount!.Value, ct);
-        var orderId = r.OrderId!.Value;
-        var existing = await db.Payments.Where(p => p.TenantId == tenantId && p.OrderId == orderId).ToListAsync(ct);
-        if (existing.Any(p => p.IsPaid))
-        {
-            throw new ConflictException("This order is already paid.", "payment.already_paid");
-        }
-
-        foreach (var old in existing.Where(p => p.Status == PaymentStatus.Pending))
-        {
-            old.Cancel("The customer paid cash instead.");
-        }
-
-        var cashier = user.UserId ?? throw new UnauthorizedException("Not signed in.");
-        var payment = new Payment(tenantId, branchId, orderId, r.Amount!.Value, Payment.CashMethod, "Cash at counter");
-        payment.RecordCash(cashier, processor.UtcNow);
-        db.Payments.Add(payment);
-        await db.SaveChangesAsync(ct);
-
-        await processor.PublishSucceededAsync(payment, ct);
-        await bus.PublishAsync(new CashPaymentRecordedEvent(tenantId, branchId, cashier, orderId, payment.Amount, payment.PaidAtUtc!.Value), ct);
-
-        var change = r.AmountTendered is null ? 0 : r.AmountTendered.Value - payment.Amount;
-        return Results.Created($"/api/v1/payments/transactions/{payment.Id}", new CashPaymentResponse(PaymentResponse.From(payment), change));
+        return await CashCollection.RecordAsync(r, http, db, processor, bus, user, directory, orders, loggers, ct);
     }
 
     private static async Task<List<PaymentResponse>> ListAsync(
@@ -196,17 +179,20 @@ public static class PaymentEndpoints
     private static async Task<PaymentResponse> CancelAsync(Guid id, PaymentsDbContext db, PaymentProcessor processor, ICurrentUser user, CancellationToken ct)
     {
         var payment = await PaymentAccess.LoadAsync(db, user, id, ct);
-        if (await processor.ExpireIfDueAsync(payment, ct) || payment.Status != PaymentStatus.Pending)
+        if (await processor.ExpireIfDueAsync(payment, ct))
+            throw new BusinessRuleException("payment.not_pending", "Expired payment cannot be cancelled.");
+        var response = await PaymentOrderLock.RunAsync(db, payment.TenantId, payment.OrderId, async () =>
         {
-            throw new BusinessRuleException("payment.not_pending", $"The payment is {payment.Status} and can no longer be cancelled.");
-        }
-
-        payment.Cancel("Cancelled by the customer or staff.");
-        await db.SaveChangesAsync(ct);
+            if (db.Database.IsRelational()) await db.Entry(payment).ReloadAsync(ct);
+            if (payment.Status != PaymentStatus.Pending)
+                throw new BusinessRuleException("payment.not_pending", $"The payment is {payment.Status} and can no longer be cancelled.");
+            payment.Cancel("Cancelled by the customer or staff.");
+            await db.SaveChangesAsync(ct);
+            return PaymentResponse.From(payment);
+        }, ct);
         await processor.PublishFailedAsync(payment, "Cancelled.", ct);
-        return PaymentResponse.From(payment);
+        return response;
     }
-
     /// <summary>
     /// Transaction status query (SCRUM-87): asks the provider what happened, for a payment whose webhook never came. It also rescues money
     /// that arrived after the payment expired or was cancelled.

@@ -111,6 +111,8 @@ internal static class OrderChecks
             throw new BusinessRuleException("payment.order_cancelled", "This order was closed without fulfilment and cannot accept payment.");
         }
 
+        if (order.Status == "Completed" && order.PaymentStatus is not ("Paid" or "Refunded"))
+            throw new BusinessRuleException("payment.order_closed", "A closed order with inconsistent payment status requires reconciliation.");
         if (order.PaymentStatus is "Paid" or "Refunded")
         {
             throw new ConflictException("This order is already paid.", "payment.already_paid");
@@ -135,17 +137,13 @@ public sealed class PaymentOrderCancelledHandler(PaymentsDbContext db) : IIntegr
 {
     public async Task HandleAsync(OrderCancelledIntegrationEvent @event, CancellationToken cancellationToken)
     {
-        var pending = await db.Payments.Where(p => p.TenantId == @event.TenantId && p.OrderId == @event.OrderId && p.Status == PaymentStatus.Pending).ToListAsync(cancellationToken);
-        if (pending.Count == 0)
+        await PaymentOrderLock.RunAsync(db, @event.TenantId, @event.OrderId, async () =>
         {
-            return;
-        }
-
-        foreach (var payment in pending)
-        {
-            payment.Cancel("The order was cancelled.");
-        }
-
-        await db.SaveChangesAsync(cancellationToken);
+            db.ChangeTracker.Clear();
+            var pending = await db.Payments.Where(p => p.TenantId == @event.TenantId && p.OrderId == @event.OrderId && p.Status == PaymentStatus.Pending).ToListAsync(cancellationToken);
+            foreach (var payment in pending) payment.Cancel("The order was cancelled.");
+            await db.SaveChangesAsync(cancellationToken);
+            return pending.Count;
+        }, cancellationToken);
     }
 }

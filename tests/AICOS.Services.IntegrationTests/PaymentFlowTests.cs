@@ -455,14 +455,14 @@ public sealed class PaymentFlowTests : PaymentTestBase
     }
 
     [Fact]
-    public async Task Paying_cash_cancels_an_online_attempt_for_the_same_order()
+    public async Task Cash_cannot_silently_replace_a_pending_online_attempt()
     {
         var order = Guid.NewGuid();
         var online = await PayOnlineAsync(order, 50_000);
 
-        await Cashier1.PostOk($"{Tx}/cash", new { orderId = order, amount = 50_000 });
+        await Cashier1.Post($"{Tx}/cash", new { orderId = order, amount = 50_000 }).ShouldBe(409, "payment.online_pending");
 
-        (await GetAsync(Cashier1, $"{Tx}/{online.Id()}")).GetProperty("status").GetString().Should().Be("Cancelled");
+        (await GetAsync(Cashier1, $"{Tx}/{online.Id()}")).GetProperty("status").GetString().Should().Be("Pending");
     }
 
     [Fact]
