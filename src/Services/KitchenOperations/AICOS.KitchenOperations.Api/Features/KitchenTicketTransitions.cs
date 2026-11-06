@@ -16,6 +16,7 @@ internal static class KitchenTicketTransitions
         return await KitchenTicketWrites.RunAsync(db, hint.TenantId, hint.OrderId, async () =>
         {
             var ticket = await TicketAccess.LoadAsync(db, user, id, ct);
+            ticket.RequireWholeOrderOperation();
             if (!ticket.IsEligibleForBar && request.Status != KitchenTicketStatus.Cancelled)
                 throw new BusinessRuleException("ticket.not_paid", "This order is not eligible for preparation.");
 
@@ -60,6 +61,7 @@ internal static class KitchenTicketTransitions
         return await KitchenTicketWrites.RunAsync(db, hint.TenantId, hint.OrderId, async () =>
         {
             var ticket = await TicketAccess.LoadAsync(db, user, id, ct);
+            ticket.RequireWholeOrderOperation();
             ticket.Remake(reason, now);
             await db.SaveChangesAsync(ct);
             return ticket;

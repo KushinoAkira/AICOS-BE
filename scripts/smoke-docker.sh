@@ -10,7 +10,6 @@ ADMIN_EMAIL="${SEED_ADMIN_EMAIL:-$(env_value SEED_ADMIN_EMAIL)}"
 ADMIN_PASSWORD="${SEED_ADMIN_PASSWORD:-$(env_value SEED_ADMIN_PASSWORD)}"
 STAMP="$(date +%s)"
 BRAND_PASSWORD="Smoke-$(date +%N)aA1!"
-failed=0
 
 json_field() { grep -o "\"$1\":\"[^\"]*\"" | head -1 | sed "s/^\"$1\":\"//; s/\"$//"; }
 call() { # method path token [body] -> prints "<status> <body>"
@@ -21,10 +20,22 @@ call() { # method path token [body] -> prints "<status> <body>"
     curl -s -w ' %{http_code}' -X "$method" "$GATEWAY$path" ${token:+-H "Authorization: Bearer $token"}
   fi
 }
-status_of() { echo "$1" | awk '{print $NF}'; }
+status_of() { printf '%s\n' "$1" | awk 'END {print $NF}'; }
 body_of() { echo "$1" | sed 's/ [0-9]*$//'; }
 check() { # name expected actual
-  if [ "$2" = "$3" ]; then echo "PASS  $1"; else echo "FAIL  $1 (expected $2, got $3)"; failed=$((failed + 1)); fi
+  if [ "$2" = "$3" ]; then
+    echo "PASS  $1"
+  else
+    echo "FAIL  $1 (expected $2, got $3)"
+    echo "ABORT  stopping at the first failed check; inspect the service logs before retrying."
+    exit 1
+  fi
+}
+require_id() { # label, GUID; never print a response body or authentication secret
+  if ! printf '%s\n' "$2" | grep -Eq -- '^[[:xdigit:]]{8}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{12}$'; then
+    echo "ABORT  $1 did not return a valid ID." >&2
+    exit 1
+  fi
 }
 
 # "docker compose --wait" can return before the gateway answers on the host port (a CI run saw status 000 and 502 for the first seconds,
@@ -52,7 +63,7 @@ login_call() { # login password
       *) break ;;
     esac
     [ "$tries" -lt 20 ] || break
-    tries=$((tries + 1)); echo "(login answered $(status_of "$r"), waiting ${wait}s, attempt $tries)"; sleep "$wait"
+    tries=$((tries + 1)); echo "(login answered $(status_of "$r"), waiting ${wait}s, attempt $tries)" >&2; sleep "$wait"
   done
   echo "$r"
 }
@@ -64,7 +75,7 @@ check "super admin signs in" 200 "$(status_of "$r")"
 SUPER=$(body_of "$r" | json_field accessToken)
 if [ -z "$SUPER" ]; then
   # Without the Super Admin token every later check would fail with 401 and hide the real cause: stop here and say what came back.
-  echo "ABORT  the seed Super Admin could not sign in (login '$ADMIN_EMAIL', password length ${#ADMIN_PASSWORD}). Gateway answered: $(status_of "$r") $(body_of "$r" | cut -c1-300)"
+  echo "ABORT  no Super Admin token was returned; inspect Identity service logs (HTTP $(status_of "$r"))."
   exit 1
 fi
 
@@ -150,6 +161,7 @@ check "product published to the branch" 200 "$(status_of "$r")"
 r=$(call POST /api/v1/orders "$CASHIER" "{\"type\":\"Takeaway\",\"items\":[{\"productId\":\"$PRODUCT\",\"quantity\":2,\"unitPrice\":1}]}")
 check "counter order created (the price comes from the menu)" 201 "$(status_of "$r")"
 ORDER=$(body_of "$r" | json_field id)
+require_id "counter order creation" "$ORDER"
 case "$(body_of "$r")" in *'"finalAmount":70000'*) check "order total is 2 x 35000" yes yes ;; *) check "order total is 2 x 35000" yes no ;; esac
 
 r=$(call POST /api/v1/payments/transactions/cash "$CASHIER" "{\"orderId\":\"$ORDER\",\"amount\":1}")
@@ -158,7 +170,7 @@ r=$(call POST /api/v1/payments/transactions/cash "$CASHIER" "{\"orderId\":\"$ORD
 check "cash recorded for the order" 201 "$(status_of "$r")"
 wait_until "the order becomes Paid (payment event)" "call GET /api/v1/orders/$ORDER/payment \"\$CASHIER\" | sed 's/ [0-9]*\$//' | field_of paymentStatus" Paid
 
-wait_until "the bar queue shows the paid takeaway order" "call GET /api/v1/kitchen/queue \"\$BARISTA\" | grep -c $ORDER" 1
+wait_until "the bar queue shows the paid takeaway order" "call GET /api/v1/kitchen/queue \"\$BARISTA\" | grep -Fc -- '$ORDER'" 1
 TICKET=$(call GET /api/v1/kitchen/queue "$BARISTA" | sed 's/ [0-9]*$//' | json_field id)
 r=$(call PUT "/api/v1/kitchen/tickets/$TICKET/status" "$BARISTA" '{"status":"Brewing"}')
 check "barista starts brewing" 200 "$(status_of "$r")"
@@ -173,7 +185,9 @@ r=$(call GET "/api/v1/orders/$ORDER/receipt" "$CASHIER")
 check "bill printed" 200 "$(status_of "$r")"
 
 r=$(call POST /api/v1/orders "$CASHIER" "{\"type\":\"DineIn\",\"tableNumber\":\"T1\",\"items\":[{\"productId\":\"$PRODUCT\",\"quantity\":1}]}")
+check "second counter order created" 201 "$(status_of "$r")"
 ORDER2=$(body_of "$r" | json_field id)
+require_id "second counter order creation" "$ORDER2"
 r=$(call POST /api/v1/payments/transactions "$CASHIER" "{\"orderId\":\"$ORDER2\",\"amount\":35000,\"providerCode\":\"Mock\"}")
 check "online payment started for a second order" 201 "$(status_of "$r")"
 PAY2=$(body_of "$r" | json_field id)
@@ -232,6 +246,7 @@ wait_until "the member profile exists in Customer service" "call GET /api/v1/cus
 r=$(call POST /api/v1/orders "$CASHIER" "{\"type\":\"Takeaway\",\"customerId\":\"$MEMBER_ID\",\"items\":[{\"productId\":\"$PRODUCT\",\"quantity\":2}]}")
 check "order for the member" 201 "$(status_of "$r")"
 ORDER3=$(body_of "$r" | json_field id)
+require_id "member order creation" "$ORDER3"
 r=$(call POST /api/v1/payments/transactions/cash "$CASHIER" "{\"orderId\":\"$ORDER3\",\"amount\":70000}")
 check "member's order paid in cash" 201 "$(status_of "$r")"
 wait_until "points are awarded after payment (70000 / 1000)" "call GET /api/v1/customers/me/loyalty \"\$MEMBER\" | sed 's/ [0-9]*\$//' | grep -o '\"pointsBalance\":[0-9]*'" '"pointsBalance":70'
@@ -244,6 +259,7 @@ case "$(body_of "$r")" in *'"pointsBalance":20'*) check "50 points were spent" y
 r=$(call POST /api/v1/orders "$CASHIER" "{\"type\":\"Takeaway\",\"customerId\":\"$MEMBER_ID\",\"promotionCode\":\"$VOUCHER\",\"items\":[{\"productId\":\"$PRODUCT\",\"quantity\":2}]}")
 check "the voucher discounts the next order" 201 "$(status_of "$r")"
 ORDER4=$(body_of "$r" | json_field id)
+require_id "voucher order creation" "$ORDER4"
 case "$(body_of "$r")" in *'"finalAmount":20000'*) check "70000 - 50000 voucher = 20000" yes yes ;; *) check "70000 - 50000 voucher = 20000" yes no ;; esac
 wait_until "the voucher shows as used" "call GET /api/v1/customers/me/vouchers \"\$MEMBER\" | sed 's/ [0-9]*\$//' | grep -o '\"status\":\"[A-Za-z]*\"' | head -1" '"status":"Redeemed"'
 r=$(call POST "/api/v1/orders/$ORDER4/cancel" "$CASHIER" '{"reason":"Customer left"}')
@@ -270,6 +286,7 @@ pickup() { # idempotency-key -> prints "<status> <body>" for the order of the me
 r=$(pickup "smoke-$STAMP-a")
 check "the member orders takeaway for a slot" 201 "$(status_of "$r")"
 PICKUP_A=$(body_of "$r" | json_field id)
+require_id "pickup order creation" "$PICKUP_A"
 case "$(body_of "$r")" in *'"finalAmount":35000'*) check "the price comes from the menu" yes yes ;; *) check "the price comes from the menu" yes no ;; esac
 r=$(pickup "smoke-$STAMP-a")
 check "the same Idempotency-Key gives back the same order" 200 "$(status_of "$r")"
@@ -284,7 +301,7 @@ if [ "$(status_of "$r")" = "403" ]; then
 else
   check "the provider confirms the payment" 200 "$(status_of "$r")"
   wait_until "the pickup order becomes Confirmed" "call GET /api/v1/orders/$PICKUP_A \"\$MEMBER\" | sed 's/ [0-9]*\$//' | field_of status" Confirmed
-  wait_until "the bar queue shows the pickup order" "call GET /api/v1/kitchen/queue \"\$BARISTA\" | grep -c $PICKUP_A" 1
+  wait_until "the bar queue shows the pickup order" "call GET /api/v1/kitchen/queue \"\$BARISTA\" | grep -Fc -- '$PICKUP_A'" 1
   TICKET_A=$(call GET /api/v1/kitchen/queue "$BARISTA" | sed 's/ [0-9]*$//' | grep -o "\"id\":\"[^\"]*\"[^{}]*\"orderId\":\"$PICKUP_A\"" | head -1 | json_field id)
   [ -z "$TICKET_A" ] && TICKET_A=$(call GET /api/v1/kitchen/queue "$BARISTA" | sed 's/ [0-9]*$//' | json_field id)
   call PUT "/api/v1/kitchen/tickets/$TICKET_A/status" "$BARISTA" '{"status":"Brewing"}' > /dev/null
@@ -314,13 +331,16 @@ fi
 r=$(pickup "smoke-$STAMP-b")
 check "a second pickup order" 201 "$(status_of "$r")"
 PICKUP_B=$(body_of "$r" | json_field id)
+require_id "second pickup order creation" "$PICKUP_B"
 r=$(call POST "/api/v1/orders/$PICKUP_B/cancel" "$MEMBER" '{"reason":"changed my mind"}')
 check "the member cancels an unpaid order" 200 "$(status_of "$r")"
 r=$(call POST "/api/v1/orders/$PICKUP_B/cancel" "$CASHIER" '{"reason":"again"}')
 check "cancelling twice is refused" 409 "$(status_of "$r")"
 
 r=$(pickup "smoke-$STAMP-c")
+check "third pickup order created" 201 "$(status_of "$r")"
 PICKUP_C=$(body_of "$r" | json_field id)
+require_id "third pickup order creation" "$PICKUP_C"
 r=$(call POST /api/v1/payments/transactions "$MEMBER" "{\"orderId\":\"$PICKUP_C\",\"branchId\":\"$BRANCH\",\"amount\":35000,\"providerCode\":\"Mock\"}")
 PAY_C=$(body_of "$r" | json_field id)
 r=$(call POST "/api/v1/payments/transactions/$PAY_C/simulate" "$MEMBER" '{"outcome":"success"}')
@@ -392,15 +412,17 @@ check "the other phone reads the same cart" 200 "$(status_of "$r")"
 r=$(qr POST /api/v1/orders/qr/checkout '{"note":"Table A1"}')
 check "the table orders (round 1)" 201 "$(status_of "$r")"
 QORDER=$(body_of "$r" | json_field id)
+require_id "first QR checkout" "$QORDER"
 case "$(body_of "$r")" in *'"tableNumber":"A1"'*) check "the order carries the table" yes yes ;; *) check "the order carries the table" yes no ;; esac
 r=$(qr POST /api/v1/orders/qr/checkout '{}')
 check "an empty cart is not an order" 422 "$(status_of "$r")"
-wait_until "the bar queue shows the table order at once" "call GET /api/v1/kitchen/queue \"\$BARISTA\" | grep -c $QORDER" 1
+wait_until "the bar queue shows the table order at once" "call GET /api/v1/kitchen/queue \"\$BARISTA\" | grep -Fc -- '$QORDER'" 1
 
 r=$(qr POST /api/v1/orders/qr/cart/items "{\"productId\":\"$PRODUCT\",\"quantity\":1}")
 r=$(qr POST /api/v1/orders/qr/checkout '{}')
 check "the table orders again (round 2)" 201 "$(status_of "$r")"
 QORDER2=$(body_of "$r" | json_field id)
+require_id "second QR checkout" "$QORDER2"
 r=$(qr GET /api/v1/orders/qr/session/bill)
 check "the table bill" 200 "$(status_of "$r")"
 case "$(body_of "$r")" in *'"total":151000'*'"due":151000'*) check "bill = 116000 + 35000, all due" yes yes ;; *) check "bill = 116000 + 35000, all due" yes no ;; esac
@@ -426,14 +448,18 @@ r=$(call POST /api/v1/orders/qr/scan "" "{\"qrToken\":\"$QRTOKEN\"}")
 echo
 echo "== remake, unfulfillable, no-show"
 new_paid_order() { # prints the id of a new counter order paid in cash
-  o=$(call POST /api/v1/orders "$CASHIER" "{\"type\":\"Takeaway\",\"items\":[{\"productId\":\"$PRODUCT\",\"quantity\":1}]}" | sed 's/ [0-9]*$//' | json_field id)
-  call POST /api/v1/payments/transactions/cash "$CASHIER" "{\"orderId\":\"$o\",\"amount\":35000}" > /dev/null
+  paid_order_response=$(call POST /api/v1/orders "$CASHIER" "{\"type\":\"Takeaway\",\"items\":[{\"productId\":\"$PRODUCT\",\"quantity\":1}]}")
+  check "additional counter order created" 201 "$(status_of "$paid_order_response")" >&2
+  o=$(body_of "$paid_order_response" | json_field id)
+  require_id "additional counter order creation" "$o"
+  cash_response=$(call POST /api/v1/payments/transactions/cash "$CASHIER" "{\"orderId\":\"$o\",\"amount\":35000}")
+  check "additional counter order paid" 201 "$(status_of "$cash_response")" >&2
   echo "$o"
 }
 ticket_of() { call GET /api/v1/kitchen/queue "$BARISTA" | sed 's/ [0-9]*$//' | grep -o "\"id\":\"[^\"]*\",\"orderId\":\"$1\"" | head -1 | json_field id; }
 
-RMK=$(new_paid_order)
-wait_until "the order to remake reaches the bar" "call GET /api/v1/kitchen/queue \"\$BARISTA\" | grep -c $RMK" 1
+RMK=$(new_paid_order) || exit 1
+wait_until "the order to remake reaches the bar" "call GET /api/v1/kitchen/queue \"\$BARISTA\" | grep -Fc -- '$RMK'" 1
 RMK_T=$(ticket_of "$RMK")
 call PUT "/api/v1/kitchen/tickets/$RMK_T/status" "$BARISTA" '{"status":"Brewing"}' > /dev/null
 call PUT "/api/v1/kitchen/tickets/$RMK_T/status" "$BARISTA" '{"status":"ReadyForPickup"}' > /dev/null
@@ -450,17 +476,17 @@ wait_until "the remade order is Ready again" "call GET /api/v1/orders/$RMK \"\$C
 r=$(call POST "/api/v1/orders/$RMK/deliver" "$CASHIER" '{}')
 check "the remade order is handed over" 200 "$(status_of "$r")"
 
-UNF=$(new_paid_order)
-wait_until "the order to give up reaches the bar" "call GET /api/v1/kitchen/queue \"\$BARISTA\" | grep -c $UNF" 1
+UNF=$(new_paid_order) || exit 1
+wait_until "the order to give up reaches the bar" "call GET /api/v1/kitchen/queue \"\$BARISTA\" | grep -Fc -- '$UNF'" 1
 r=$(call POST "/api/v1/orders/$UNF/unfulfillable" "$BARISTA" '{"reason":"out of milk"}')
 check "the bar gives up an order it cannot make" 200 "$(status_of "$r")"
 wait_until "the order is Unfulfillable" "call GET /api/v1/orders/$UNF \"\$CASHIER\" | sed 's/ [0-9]*\$//' | field_of status" Unfulfillable
 wait_until "the customer is refunded in full" "call GET /api/v1/orders/$UNF \"\$MANAGER\" | sed 's/ [0-9]*\$//' | field_of refundStatus" Refunded
-wait_until "the ticket leaves the bar queue" "call GET /api/v1/kitchen/queue \"\$BARISTA\" | grep -c $UNF" 0
+wait_until "the ticket leaves the bar queue" "call GET /api/v1/kitchen/queue \"\$BARISTA\" | grep -Fc -- '$UNF'" 0
 r=$(call POST "/api/v1/orders/$UNF/unfulfillable" "$BARISTA" '{"reason":"again"}')
 check "an order is given up only once" 409 "$(status_of "$r")"
 
-NSH=$(new_paid_order)
+NSH=$(new_paid_order) || exit 1
 r=$(call POST "/api/v1/orders/$NSH/no-show" "$CASHIER" '{"reason":"nobody came"}')
 check "a no-show is refused before the waiting time has passed" 422 "$(status_of "$r")"
 r=$(call POST "/api/v1/orders/$NSH/no-show" "$BARISTA" '{"reason":"nobody came"}')
@@ -561,4 +587,4 @@ check "SignalR hub negotiates through the gateway with the token" 200 "$r"
 r=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$GATEWAY/hubs/kitchen/negotiate?negotiateVersion=1")
 check "SignalR hub refuses an anonymous client" 401 "$r"
 echo
-if [ "$failed" -eq 0 ]; then echo "ALL CHECKS PASSED"; else echo "$failed CHECK(S) FAILED"; exit 1; fi
+echo "ALL CHECKS PASSED"

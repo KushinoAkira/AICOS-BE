@@ -78,14 +78,15 @@ public sealed record OrderResponse(
     DateTime? PaymentDueAtUtc = null,
     Guid? TableSessionId = null,
     int RemakeCount = 0,
-    bool HasFeedback = false)
+    bool HasFeedback = false,
+    string FulfillmentMode = AICOS.Contracts.Serving.FulfillmentModes.WholeOrder)
 {
     public static OrderResponse From(Order o) => new(
         o.Id, o.OrderCode, o.BranchId, o.CashierId, o.CustomerId, o.Type, o.Status, o.PaymentStatus, o.PaymentMethod, o.PaymentProvider, o.PaymentId,
         o.TableId, o.TableNumber, o.DeliveryAddress, o.Note, o.OriginalAmount, o.PromotionCode, o.DiscountAmount, o.FinalAmount, o.RefundedAmount, o.EffectiveRefundStatus,
         o.CreatedAtUtc, o.PaidAtUtc, o.ReadyAtUtc, o.DeliveredAtUtc, o.CompletedAtUtc, o.CancelledAtUtc, o.CancelledReason,
         o.Items.Select(OrderItemResponse.From).ToList(),
-        o.PickupSlotStartUtc, o.PaymentDueAtUtc, o.TableSessionId, o.RemakeCount);
+        o.PickupSlotStartUtc, o.PaymentDueAtUtc, o.TableSessionId, o.RemakeCount, FulfillmentMode: o.FulfillmentMode);
 }
 
 public sealed record OrderSummary(
@@ -113,11 +114,12 @@ public sealed record OrderSummary(
     DateTime? CompletedAtUtc = null,
     Guid? CashierId = null,
     Guid? TableId = null,
-    DateTime? DeliveredAtUtc = null)
+    DateTime? DeliveredAtUtc = null,
+    string FulfillmentMode = AICOS.Contracts.Serving.FulfillmentModes.WholeOrder)
 {
     public static OrderSummary From(Order o) => new OrderSummary(
         o.Id, o.OrderCode, o.BranchId, o.Type, o.Status, o.PaymentStatus, o.PaymentProvider, o.TableNumber, o.OriginalAmount, o.DiscountAmount, o.FinalAmount,
-        o.RefundedAmount, o.EffectiveRefundStatus, o.Items.Count, o.PaidAtUtc, o.CancelledAtUtc, o.CreatedAtUtc, o.PickupSlotStartUtc) with { Items = o.Items.Select(OrderItemResponse.From).ToList(), CustomerId = o.CustomerId, CompletedAtUtc = o.CompletedAtUtc, CashierId = o.CashierId, TableId = o.TableId, DeliveredAtUtc = o.DeliveredAtUtc };
+        o.RefundedAmount, o.EffectiveRefundStatus, o.Items.Count, o.PaidAtUtc, o.CancelledAtUtc, o.CreatedAtUtc, o.PickupSlotStartUtc) with { Items = o.Items.Select(OrderItemResponse.From).ToList(), CustomerId = o.CustomerId, CompletedAtUtc = o.CompletedAtUtc, CashierId = o.CashierId, TableId = o.TableId, DeliveredAtUtc = o.DeliveredAtUtc, FulfillmentMode = o.FulfillmentMode };
 }
 
 /// <summary>The result of checking an order's payment (SCRUM-60): what Payment reported, in one small answer.</summary>

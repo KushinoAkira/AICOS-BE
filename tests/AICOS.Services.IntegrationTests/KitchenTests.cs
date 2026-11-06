@@ -130,6 +130,80 @@ public sealed class KitchenTests : IDisposable
 
     public void Dispose() => _f.Dispose();
 
+    [Fact]
+    public async Task Sticker_preview_is_read_only_scoped_and_preserves_ids_options_and_cup_numbers()
+    {
+        var order = Order("PREVIEW");
+        await _f.HandleAsync(order);
+        var id = await TicketOfAsync(order.OrderCode);
+        var path = $"{Kitchen}/tickets/{id}/sticker-preview";
+        var before = await _barista.GetFromJsonAsync<JsonElement>($"{Kitchen}/tickets/{id}");
+        var events = _notifier.Stickers.Count;
+        var preview = await _barista.GetFromJsonAsync<JsonElement>(path);
+        preview.GetProperty("printStatus").GetString().Should().Be("UNKNOWN");
+        preview.GetProperty("canPrint").GetBoolean().Should().BeFalse();
+        var stickers = preview.GetProperty("stickers").EnumerateArray().ToArray();
+        stickers.Select(s => s.GetProperty("cupIndex").GetInt32()).Should().Equal(1, 2, 3);
+        stickers[0].GetProperty("customizations").GetString().Should().Be("ít đá");
+        stickers.Select(s => s.GetProperty("stickerId").GetGuid()).Should().OnlyHaveUniqueItems();
+        (await _barista.GetFromJsonAsync<JsonElement>(path)).ToString().Should().Be(preview.ToString());
+        (await _barista.GetFromJsonAsync<JsonElement>($"{Kitchen}/tickets/{id}")).ToString().Should().Be(before.ToString());
+        _notifier.Stickers.Count.Should().Be(events);
+        await _manager.GetAsync(path).ShouldBe(200);
+        await _cashier.GetAsync(path).ShouldBe(403);
+        await _f.CreateClient().GetAsync(path).ShouldBe(401);
+        await _f.As(AicosRoles.Barista, _b2).GetAsync(path).ShouldBe(403);
+        await _otherAdmin.GetAsync(path).ShouldBe(404);
+    }
+
+    [Fact]
+    public async Task Sticker_preview_uses_current_table_without_rewriting_generation_snapshot()
+    {
+        var order = Order("TRANSFER-PREVIEW");
+        await _f.HandleAsync(order);
+        var id = await TicketOfAsync(order.OrderCode);
+        var transfer = new TableTransferredIntegrationEvent(_tenant, _b1, Guid.NewGuid(), Guid.NewGuid(), "S09", [order.OrderId, order.OrderId]);
+        await _f.HandleAsync(transfer);
+        await _f.HandleAsync(transfer);
+        var preview = await _barista.GetFromJsonAsync<JsonElement>($"{Kitchen}/tickets/{id}/sticker-preview");
+        preview.GetProperty("tableNumber").GetString().Should().Be("S09");
+        preview.GetProperty("stickers")[0].GetProperty("tableNumber").GetString().Should().Be("S09");
+        var legacy = await _barista.GetFromJsonAsync<JsonElement>($"{Kitchen}/tickets/{id}/stickers");
+        legacy.GetProperty("stickers")[0].GetProperty("tableNumber").GetString().Should().Be("T1");
+        legacy.GetProperty("totalStickers").GetInt32().Should().Be(3);
+        await _f.HandleAsync(new OrderDeliveredIntegrationEvent(_tenant, _b1, order.OrderId, null, null, DateTime.UtcNow));
+        await _f.HandleAsync(transfer with { TableCode = "S10" });
+        var completed = await _barista.GetFromJsonAsync<JsonElement>($"{Kitchen}/tickets/{id}");
+        completed.GetProperty("status").GetString().Should().Be("Completed");
+        completed.GetProperty("tableNumber").GetString().Should().Be("S09");
+    }
+
+    [Fact]
+    public async Task Hold_blocks_both_sticker_routes_and_missing_stickers_are_not_generated_by_preview()
+    {
+        Guid id;
+        using (var scope = _f.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<KitchenOperationsDbContext>();
+            var ticket = new AICOS.KitchenOperations.Api.Domain.Entities.KitchenTicket(_tenant, Guid.NewGuid(), "MISSING-STICKERS", _b1, "S01", "DineIn", false);
+            ticket.AddItem(Guid.NewGuid(), "Coffee", 1);
+            db.Tickets.Add(ticket);
+            await db.SaveChangesAsync();
+            id = ticket.Id;
+        }
+        await _barista.GetAsync($"{Kitchen}/tickets/{id}/sticker-preview").ShouldBe(409, "ticket.stickers_incomplete");
+        using (var scope = _f.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<KitchenOperationsDbContext>();
+            var ticket = await db.Tickets.FindAsync(id);
+            ticket!.Stickers.Should().BeEmpty();
+            ticket.HoldRecovery("review");
+            await db.SaveChangesAsync();
+        }
+        await _barista.GetAsync($"{Kitchen}/tickets/{id}/sticker-preview").ShouldBe(409, "ticket.recovery_review_required");
+        await _barista.GetAsync($"{Kitchen}/tickets/{id}/stickers").ShouldBe(409, "ticket.recovery_review_required");
+    }
+
     private OrderCreatedIntegrationEvent Order(string code, string type = "DineIn", bool paid = false, Guid? branch = null, Guid? tenant = null, DateTime? pickup = null, Guid? orderId = null) => new(
         tenant ?? _tenant, orderId ?? Guid.NewGuid(), code, branch ?? _b1, null, null, null, type == "DineIn" ? "T1" : null, type, 100_000, paid, pickup,
         [new OrderItemDto(Guid.NewGuid(), "Latte", 55_000, 2, "ít đá"), new OrderItemDto(Guid.NewGuid(), "Bạc xỉu", 29_000, 1, null)], DateTime.UtcNow);

@@ -56,6 +56,7 @@ public static class TableTransferEndpoints
                 && o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.NoShow && o.Status != OrderStatus.Unfulfillable).ToListAsync(ct);
             if (orders.Any(o => o.PaymentStatus != PaymentStatus.Unpaid || o.Status == OrderStatus.Completed))
                 throw new ConflictException("Paid rounds require a separately authorized adjustment.", "table.transfer_paid");
+            foreach (var order in orders) order.RequireWholeOrderOperation();
             foreach (var order in orders) order.SwitchServiceType(OrderType.DineIn, target.TableId, target.TableCode, null);
             session.TransferTo(target.TableId, target.TableCode, clock.UtcNow);
             await db.SaveChangesAsync(ct);

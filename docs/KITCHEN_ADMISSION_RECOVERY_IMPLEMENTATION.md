@@ -1,5 +1,7 @@
 # P0 Kitchen Order Admission Recovery — implementation và nghiệm thu
 
+Follow-up 2026-11-07: durable HTTP admission vẫn tạo dữ liệu tem nhưng không phát legacy `CupStickersPrinted` (có thể kích auto-printer). Thêm preview chỉ đọc, common lock cho legacy generation/transfer và chạy lại 18 recovery tests thật có assertion không phát print event, cùng 9 operations tests. Chi tiết [STAFF_ORDER_REMAINING_OPERATIONS_RESULT.md](STAFF_ORDER_REMAINING_OPERATIONS_RESULT.md). Không có migration/rollout mới.
+
 Cập nhật 2026-11-07 (Asia/Saigon). **Code đã triển khai và test trong môi trường cô lập; CHƯA deploy hoặc apply migration trên database vận hành.** Các feature flag mặc định false. Các migration có timestamp UTC 20261106.
 
 ## Kết quả chính

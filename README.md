@@ -1,5 +1,7 @@
 # AICOS Backend
 
+CI Compose smoke dùng override riêng để tạo schema Ordering/Kitchen trên database tạm của GitHub runner. Cấu hình vận hành giữ nguyên. Xem [sửa bootstrap CI, fail-fast và kết quả kiểm tra](docs/CI_COMPOSE_SMOKE_FIX.md).
+
 P0 Kitchen admission recovery: [implementation, cấu hình, migration và kết quả test cô lập](docs/KITCHEN_ADMISSION_RECOVERY_IMPLEMENTATION.md). Tính năng mặc định tắt; chưa apply migration hoặc deploy vào môi trường vận hành.
 
 > Cấu hình local của workspace này dùng database main mới, Gateway port 8081 và
@@ -155,5 +157,5 @@ builder.Services.AddAicosServiceClient<IMenuClient, MenuClient>(builder.Configur
 1. **Redis Pub/Sub là at-most-once**: consumer đang tắt thì mất event, và nếu chạy nhiều instance của cùng service thì mỗi instance nhận 1 bản. Đủ cho demo đồ án (đúng sơ đồ); nếu cần đảm bảo cho `PaymentConfirmed`/`OrderCompleted` thì chuyển sang Redis Streams + consumer group (chỉ cần thay `RedisEventBus*`, `IEventBus` giữ nguyên) và thêm Outbox pattern.
 2. **Kitchen real-time (WebSocket)**: YARP proxy WebSocket được; khi làm FE-09 chỉ cần thêm SignalR vào KitchenOperations.
 3. **Secret**: không có trong repo (xem `.env.example`). Mật khẩu role DB dùng chung một giá trị `SERVICE_DB_PASSWORD`; production nên có mật khẩu riêng từng service và quy trình xoay khóa. Lịch sử git cũ vẫn còn các giá trị dev trước đây: coi chúng là đã lộ và không dùng lại.
-4. **CI (GitHub Actions)** chưa được thêm vì chưa rõ repo root là `Backend/` hay thư mục `Project/`. Lệnh cần chạy: `dotnet build -p:TreatWarningsAsErrors=true` và `dotnet test`, và `pytest` trong `src/Services/Ai`.
+4. **CI (GitHub Actions)**: `.github/workflows/ci.yml` chạy .NET build/tests; `docker-images.yml` build/scan images và Compose smoke. Job smoke dùng `docker-compose.ci.yml` opt-in migration cho DB tạm, có offline script regression và validate config. [Phạm vi và giới hạn kiểm thử](docs/CI_COMPOSE_SMOKE_FIX.md).
 5. Khi Identity service được code: đăng ký `JwtTokenService` đã có sẵn trong DI để phát token; các service khác không cần sửa gì.

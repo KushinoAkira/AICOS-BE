@@ -29,6 +29,12 @@ internal static class KitchenTicketWrites
         {
             var ticket = await TicketLookup.ByOrderAsync(db, tenant, orderId, ct);
             if (ticket is null || ticket.BranchId != branch || !eligible(ticket)) return null;
+            if (ticket.FulfillmentMode != AICOS.Contracts.Serving.FulfillmentModes.WholeOrder)
+            {
+                ticket.HoldRecovery("cup.legacy_event_requires_review");
+                await db.SaveChangesAsync(ct);
+                return null;
+            }
             mutate(ticket);
             await db.SaveChangesAsync(ct);
             return ticket;

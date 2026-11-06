@@ -27,13 +27,14 @@ public static class KitchenEndpoints
     {
         var group = api.MapGroup(string.Empty).WithTags("Kitchen Operations");
 
-        group.MapGet("/staff/capabilities", () => new { ConditionalTicketUpdatesVersion = 1 })
+        group.MapGet("/staff/capabilities", () => new { ConditionalTicketUpdatesVersion = 1, CupServingVersion = 0, ClaimVersion = 0 })
             .RequireAuthorization(AicosPolicies.Staff);
         group.MapGet("/queue", QueueAsync).RequireAuthorization(AicosPolicies.Staff);
         group.MapGet("/batches", BatchesAsync).RequireAuthorization(AicosPolicies.Staff);
         group.MapGet("/tickets/{id:guid}", GetAsync).RequireAuthorization(AicosPolicies.Staff);
         group.MapPut("/tickets/{id:guid}/status", UpdateStatusAsync).RequireAuthorization(AicosPolicies.Staff);
         group.MapGet("/tickets/{id:guid}/stickers", StickersAsync).RequireAuthorization(b => b.RequireRole(BarRoles));
+        group.MapKitchenStickerPreview();
         group.MapPost("/tickets/{id:guid}/remake", RemakeAsync).RequireAuthorization(b => b.RequireRole(BarRoles));
     }
 
@@ -46,7 +47,7 @@ public static class KitchenEndpoints
         var active = await db.Tickets.AsNoTracking().Include(t => t.Items).Include(t => t.Stickers).AsSplitQuery()
             .Where(t => t.TenantId == tenantId && t.BranchId == branch
                 && t.Status != KitchenTicketStatus.Completed && t.Status != KitchenTicketStatus.Cancelled
-                && t.RecoveryHoldReason == null
+                && t.RecoveryHoldReason == null && t.FulfillmentMode == AICOS.Contracts.Serving.FulfillmentModes.WholeOrder
                 && (t.IsPaid || t.OrderType == "DineIn"))
             .ToListAsync(ct);
 
@@ -67,7 +68,7 @@ public static class KitchenEndpoints
         var tickets = await db.Tickets.AsNoTracking().Include(t => t.Items).AsSplitQuery()
             .Where(t => t.TenantId == tenantId && t.BranchId == branch
                 && (t.Status == KitchenTicketStatus.Pending || t.Status == KitchenTicketStatus.Brewing)
-                && t.RecoveryHoldReason == null
+                && t.RecoveryHoldReason == null && t.FulfillmentMode == AICOS.Contracts.Serving.FulfillmentModes.WholeOrder
                 && (t.IsPaid || t.OrderType == "DineIn") && t.CreatedAtUtc >= threshold)
             .OrderBy(t => t.CreatedAtUtc).ToListAsync(ct);
 
@@ -164,15 +165,19 @@ public static class KitchenEndpoints
     /// <summary>The stickers of a ticket (FR-36); printing may be simulated, the client prints what it gets.</summary>
     private static async Task<object> StickersAsync(Guid id, KitchenOperationsDbContext db, ICurrentUser user, TimeProvider clock, CancellationToken ct)
     {
-        var ticket = await TicketAccess.LoadAsync(db, user, id, ct);
-        if (!ticket.TryGenerateCupStickers(clock.GetUtcNow().UtcDateTime, out var stickers))
+        var hint = await TicketAccess.LoadAsync(db, user, id, ct, track: false);
+        return await KitchenTicketWrites.RunAsync<object>(db, hint.TenantId, hint.OrderId, async () =>
         {
-            throw new BusinessRuleException("ticket.not_paid", "BR-43: stickers are printed for a paid or dine-in order.");
-        }
+            var ticket = await TicketAccess.LoadAsync(db, user, id, ct);
+            if (!ticket.TryGenerateCupStickers(clock.GetUtcNow().UtcDateTime, out var stickers))
+            {
+                throw new BusinessRuleException("ticket.not_paid", "BR-43: stickers are printed for a paid or dine-in order.");
+            }
 
-        await db.SaveChangesAsync(ct);
-        var dtos = stickers.Select(TicketMapper.ToDto).ToList();
-        return new { TicketId = ticket.Id, ticket.OrderCode, ticket.TableNumber, TotalStickers = dtos.Count, Stickers = dtos };
+            await db.SaveChangesAsync(ct);
+            var dtos = stickers.Select(TicketMapper.ToDto).ToList();
+            return new { TicketId = ticket.Id, ticket.OrderCode, ticket.TableNumber, TotalStickers = dtos.Count, Stickers = dtos };
+        }, ct);
     }
 
     internal static void RequireBar(ICurrentUser user)

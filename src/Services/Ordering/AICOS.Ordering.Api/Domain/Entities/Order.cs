@@ -1,6 +1,7 @@
 using AICOS.BuildingBlocks.Domain;
 using AICOS.BuildingBlocks.Exceptions;
 using AICOS.Ordering.Api.Domain.Enums;
+using AICOS.Contracts.Serving;
 
 namespace AICOS.Ordering.Api.Domain.Entities;
 
@@ -13,6 +14,13 @@ public class Order : AuditableEntity<Guid>, IBranchScoped
     public const int NoteMaxLength = 500;
 
     public Guid TenantId { get; private set; }
+    public string FulfillmentMode { get; private set; } = FulfillmentModes.WholeOrder;
+
+    public void RequireWholeOrderOperation()
+    {
+        if (FulfillmentMode != FulfillmentModes.WholeOrder)
+            throw new ConflictException("Use the item-level serving workflow.", "order.cup_serving_required");
+    }
 
     public string OrderCode { get; private set; } = string.Empty;
 
@@ -196,6 +204,7 @@ public class Order : AuditableEntity<Guid>, IBranchScoped
 
     public void SwitchServiceType(OrderType newType, Guid? tableId = null, string? tableNumber = null, string? deliveryAddress = null)
     {
+        RequireWholeOrderOperation();
         if (Status == OrderStatus.Completed || IsVoided)
         {
             throw new BusinessRuleException("order.closed", "The service type of a completed or cancelled order cannot change.");
@@ -230,6 +239,7 @@ public class Order : AuditableEntity<Guid>, IBranchScoped
     /// <summary>Staff confirm the customer received the order (SCRUM-61). Completes the order when it is paid; an unpaid dine-in order completes when it is paid.</summary>
     public void Deliver(Guid? by, DateTime now)
     {
+        RequireWholeOrderOperation();
         if (IsVoided)
         {
             throw new BusinessRuleException("order.cancelled", "A cancelled order cannot be delivered.");
@@ -263,6 +273,7 @@ public class Order : AuditableEntity<Guid>, IBranchScoped
     /// <summary>BR-04: an order can only be cancelled while it is not paid.</summary>
     public void CancelOrder(string reason, DateTime now)
     {
+        RequireWholeOrderOperation();
         if (IsVoided)
         {
             throw new ConflictException("This order is already cancelled.", "order.already_cancelled");

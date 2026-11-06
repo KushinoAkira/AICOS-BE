@@ -21,6 +21,7 @@ public static class OrderDeliveryEndpoints
                 await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock(hashtextextended({key}, 0))", ct);
             }
             var order = await OrderAccess.LoadAsync(db, user, id, ct);
+            order.RequireWholeOrderOperation();
             var replay = order.DeliveredAtUtc is not null && !order.IsVoided;
             if (!replay)
             {

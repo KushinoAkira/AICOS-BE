@@ -1,5 +1,9 @@
 # Đối chiếu Mobile với Backend main — 2026-11-03
 
+> Cup foundation: Mobile đọc mode trong Order detail/list, chặn nút deliver cả Order cho CupV1/unknown; API cũ thiếu field vẫn WholeOrder. Chưa có real Serving UI/claim adapter vì public API version còn 0. [Conditional approval review](CUP_SERVING_CONDITIONAL_APPROVAL_REVIEW.md).
+
+> 2026-11-07: Quầy Bar Mobile thêm “Xem tem từng ly” → GET `/api/v1/kitchen/tickets/{id}/sticker-preview`, chỉ Barista/Manager; không fallback GET `/stickers` (có side effect) khi Backend cũ trả 404. Không nối máy in hoặc claim đã in. API source đã test cô lập, chưa rollout. Xem [remaining operations result](STAFF_ORDER_REMAINING_OPERATIONS_RESULT.md).
+
 > Bản đồ audit gốc. Tiến độ tích hợp mới, thay đổi Ordering và các giới hạn đã kiểm thử:
 > [STAFF_MOBILE_SYNC.md](STAFF_MOBILE_SYNC.md). Không coi báo cáo snapshot này là trạng thái code mới nhất.
 

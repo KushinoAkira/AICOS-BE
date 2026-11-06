@@ -192,6 +192,50 @@ public sealed class StaffOperationsInfrastructureTests : IAsyncLifetime
     }
 
     [OperationalInfrastructureFact]
+    public async Task Concurrent_legacy_sticker_generation_persists_one_set_and_preview_is_read_only()
+    {
+        var order = await NewOrderAsync(); var ticket = await TicketIdAsync(order);
+        using (var scope = _kitchen.Services.CreateScope())
+        {
+            // Simulate an old ticket without stickers only in the guarded disposable database.
+            var db = scope.ServiceProvider.GetRequiredService<KitchenOperationsDbContext>();
+            await db.CupStickers.Where(s => s.TicketId == ticket).ExecuteDeleteAsync();
+        }
+        var path = $"/api/v1/kitchen/tickets/{ticket}/stickers";
+        using var second = _kitchen.As(AicosRoles.Barista, _branch);
+        var results = await WithLockContentionAsync(_kitchenConnection, $"aicos:kitchen-operation:{_tenant}:{order}",
+            () => Task.WhenAll(_barista.GetAsync(path), second.GetAsync(path)));
+        foreach (var response in results) response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var first = await results[0].Body(); var replay = await results[1].Body();
+        first.GetProperty("stickers")[0].GetProperty("stickerId").GetGuid()
+            .Should().Be(replay.GetProperty("stickers")[0].GetProperty("stickerId").GetGuid());
+        using var verification = _kitchen.Services.CreateScope();
+        var database = verification.ServiceProvider.GetRequiredService<KitchenOperationsDbContext>();
+        var before = await database.CupStickers.AsNoTracking().Where(s => s.TicketId == ticket).SingleAsync();
+        await _barista.GetAsync($"/api/v1/kitchen/tickets/{ticket}/sticker-preview").ShouldBe(200);
+        var after = await database.CupStickers.AsNoTracking().Where(s => s.TicketId == ticket).SingleAsync();
+        after.Id.Should().Be(before.Id); after.PrintedAtUtc.Should().Be(before.PrintedAtUtc);
+    }
+
+    [OperationalInfrastructureFact]
+    public async Task Transfer_event_and_preparation_share_the_same_postgresql_order_lock()
+    {
+        var order = await NewOrderAsync(); var ticket = await TicketIdAsync(order);
+        var transfer = new TableTransferredIntegrationEvent(_tenant, _branch, Guid.NewGuid(), Guid.NewGuid(), "S09", [order]);
+        await WithLockContentionAsync(_kitchenConnection, $"aicos:kitchen-operation:{_tenant}:{order}", async () =>
+        {
+            var transferring = _kitchen.HandleAsync(transfer);
+            var preparing = _barista.Put($"/api/v1/kitchen/tickets/{ticket}/status", new
+                { status = "Brewing", expectedStatus = "Pending", expectedRemakeCount = 0 });
+            await Task.WhenAll(transferring, preparing);
+            (await preparing).StatusCode.Should().Be(HttpStatusCode.OK);
+            return true;
+        });
+        var saved = (await TicketAsync(order))!;
+        saved.Status.ToString().Should().Be("Brewing"); saved.TableNumber.Should().Be("S09");
+    }
+
+    [OperationalInfrastructureFact]
     public async Task Two_staff_deliver_once_and_unpaid_ticket_completes_through_real_redis()
     {
         var order = await NewOrderAsync(); await ReadyAsync(order);

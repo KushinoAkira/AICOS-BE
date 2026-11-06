@@ -5,9 +5,9 @@ on:
   push:
     branches: [main]
     tags: ["v*.*.*"]
-    paths: ["src/**", "docker/**", "docker-compose.yml", "Directory.*.props", "global.json", ".github/workflows/docker-images.yml"]
+    paths: ["src/**", "docker/**", "docker-compose.yml", "docker-compose.ci.yml", "scripts/smoke-docker.sh", "scripts/tests/**", "Directory.*.props", "global.json", ".github/workflows/docker-images.yml"]
   pull_request:
-    paths: ["src/**", "docker/**", "docker-compose.yml", "Directory.*.props", "global.json"]
+    paths: ["src/**", "docker/**", "docker-compose.yml", "docker-compose.ci.yml", "scripts/smoke-docker.sh", "scripts/tests/**", "Directory.*.props", "global.json", ".github/workflows/docker-images.yml"]
 
 concurrency:
   group: docker-${{ github.ref }}
@@ -167,10 +167,20 @@ jobs:
     needs: [images, ai-image]
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      # This job runs on a fresh GitHub-hosted runner with throwaway secrets and project-owned volumes.
+      # COMPOSE_FILE is shared by startup, diagnostics and cleanup; operating/local configuration is unchanged.
+      COMPOSE_FILE: docker-compose.yml:docker-compose.ci.yml
+      COMPOSE_PROJECT_NAME: aicos-ci-${{ github.run_id }}-${{ github.run_attempt }}
+      AICOS_CI_MIGRATE_ON_STARTUP: "true"
     steps:
       - uses: actions/checkout@v4
       - name: Generate throwaway secrets
         run: bash scripts/init-env.sh
+      - name: Smoke script regression (offline)
+        run: bash scripts/tests/smoke-docker-test.sh
+      - name: Validate CI Compose configuration
+        run: docker compose config --quiet
       - name: Build and start
         run: docker compose up -d --build --wait --wait-timeout 600
       - name: Smoke test through the gateway

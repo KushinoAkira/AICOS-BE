@@ -1,5 +1,9 @@
 # Danh mục API Backend main — 2026-11-03
 
+> Cup Serving foundation 2026-11-07: Order detail/list thêm `fulfillmentMode` additive/default WholeOrder. Kitchen capabilities thêm `cupServingVersion=0`, `claimVersion=0`; **chưa có public cup/claim endpoint**. Legacy deliver/status/remake/sticker/transfer có guard cho CupV1. [Review/schema/API boundaries](CUP_SERVING_CONDITIONAL_APPROVAL_REVIEW.md); không deploy/apply migration trong lượt chuẩn bị.
+
+> Additive 2026-11-07: GET `/api/v1/kitchen/tickets/{id}/sticker-preview` — Barista/BranchManager/BrandAdmin, tenant/branch-scoped, chỉ đọc persisted cup stickers; hold/incomplete trả 409, ineligible 422. Response có printStatus=UNKNOWN/canPrint=false và generatedAtUtc, không xác nhận hardware. GET legacy `/stickers` giữ DTO/quyền, bổ sung shared transaction lock. Chưa deploy. Contract/test/giới hạn: [STAFF_ORDER_REMAINING_OPERATIONS_RESULT.md](STAFF_ORDER_REMAINING_OPERATIONS_RESULT.md).
+
 > API mới trong source: GET /api/v1/payments/orders/{orderId}/settlement — Staff,
 > tenant/branch-scoped, trả OrderSettlementResponse, AdvisoryOnly=true. Chỉ đọc,
 > không expire/query provider; không phải permit đóng phiên. JSON/states/errors

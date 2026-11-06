@@ -166,6 +166,17 @@ public sealed class KitchenAdmissionRecoveryTests : IAsyncLifetime
         await StartKitchenAsync(); await DueAsync(id); await DispatchAsync();
         (await RowAsync(id)).State.Should().Be("ACKED");
         var result = await CountsAsync(id); (result.Tickets, result.Items, result.Stickers).Should().Be((1, 1, 1));
+        using var scope = _kitchen!.Services.CreateScope();
+        var notifications = (RecordingNotifier)scope.ServiceProvider.GetRequiredService<IKitchenNotifier>();
+        notifications.Stickers.Should().BeEmpty("recovery must not trigger a legacy auto-printer");
+        using var client = _kitchen.As(AicosRoles.Barista, _branch);
+        var db = scope.ServiceProvider.GetRequiredService<KitchenOperationsDbContext>();
+        var ticket = await db.Tickets.AsNoTracking().SingleAsync(t => t.OrderId == id);
+        var preview = await client.GetAsync($"/api/v1/kitchen/tickets/{ticket.Id}/sticker-preview");
+        preview.StatusCode.Should().Be(HttpStatusCode.OK);
+        await DueAsync(id); await DispatchAsync();
+        (await CountsAsync(id)).Should().Be(result);
+        notifications.Stickers.Should().BeEmpty();
     }
 
     [OperationalInfrastructureFact]

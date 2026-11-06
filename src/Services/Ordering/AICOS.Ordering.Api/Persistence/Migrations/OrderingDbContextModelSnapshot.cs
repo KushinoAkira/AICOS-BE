@@ -84,6 +84,14 @@ namespace AICOS.Ordering.Api.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("exception_by");
 
+                    b.Property<string>("FulfillmentMode")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("WholeOrder")
+                        .HasColumnName("fulfillment_mode");
+
                     b.Property<string>("IdempotencyKey")
                         .HasMaxLength(80)
                         .HasColumnType("character varying(80)")
@@ -242,6 +250,8 @@ namespace AICOS.Ordering.Api.Persistence.Migrations
 
                     b.ToTable("orders", "ordering", t =>
                         {
+                            t.HasCheckConstraint("ck_order_fulfillment_mode", "fulfillment_mode IN ('WholeOrder','CupV1')");
+
                             t.HasCheckConstraint("ck_orders_amounts", "discount_amount >= 0 AND refunded_amount >= 0");
                         });
                 });
@@ -556,6 +566,135 @@ namespace AICOS.Ordering.Api.Persistence.Migrations
                     b.ToTable("table_sessions", "ordering");
                 });
 
+            modelBuilder.Entity("AICOS.Ordering.Api.Features.Fulfillment.FulfillmentReceipt", b =>
+                {
+                    b.Property<Guid>("EventId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("event_id");
+
+                    b.Property<DateTime>("AppliedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("applied_at_utc");
+
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("branch_id");
+
+                    b.Property<Guid>("OrderId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("order_id");
+
+                    b.Property<string>("PayloadHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("payload_hash");
+
+                    b.Property<string>("Result")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("result");
+
+                    b.Property<long>("SourceVersion")
+                        .HasColumnType("bigint")
+                        .HasColumnName("source_version");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.HasKey("EventId")
+                        .HasName("pk_fulfillment_receipts");
+
+                    b.HasIndex("OrderId")
+                        .HasDatabaseName("ix_fulfillment_receipts_order_id");
+
+                    b.HasIndex("TenantId", "OrderId", "SourceVersion")
+                        .HasDatabaseName("ix_fulfillment_receipts_tenant_id_order_id_source_version");
+
+                    b.ToTable("fulfillment_receipts", "ordering", t =>
+                        {
+                            t.HasCheckConstraint("ck_fulfillment_receipt_payload", "source_version > 0 AND length(payload_hash) = 64 AND result IN ('Applied','Duplicate','Superseded')");
+                        });
+                });
+
+            modelBuilder.Entity("AICOS.Ordering.Api.Features.Fulfillment.OrderFulfillmentProjection", b =>
+                {
+                    b.Property<Guid>("OrderId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("order_id");
+
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("branch_id");
+
+                    b.Property<DateTime?>("FulfilledAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("fulfilled_at_utc");
+
+                    b.Property<DateTime>("LastVerifiedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_verified_at_utc");
+
+                    b.Property<string>("ManifestHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("manifest_hash");
+
+                    b.Property<int>("Review")
+                        .HasColumnType("integer")
+                        .HasColumnName("review");
+
+                    b.Property<int>("Served")
+                        .HasColumnType("integer")
+                        .HasColumnName("served");
+
+                    b.Property<string>("SnapshotHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("snapshot_hash");
+
+                    b.Property<string>("SnapshotJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("snapshot_json");
+
+                    b.Property<long>("SourceVersion")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint")
+                        .HasColumnName("source_version");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<Guid>("TicketId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("ticket_id");
+
+                    b.Property<int>("Total")
+                        .HasColumnType("integer")
+                        .HasColumnName("total");
+
+                    b.HasKey("OrderId")
+                        .HasName("pk_order_fulfillment_projection");
+
+                    b.HasIndex("TenantId", "BranchId", "LastVerifiedAtUtc")
+                        .HasDatabaseName("ix_order_fulfillment_projection_tenant_id_branch_id_last_verif");
+
+                    b.ToTable("order_fulfillment_projection", "ordering", t =>
+                        {
+                            t.HasCheckConstraint("ck_order_fulfillment_completed", "(served = total) = (fulfilled_at_utc IS NOT NULL)");
+
+                            t.HasCheckConstraint("ck_order_fulfillment_hash", "length(manifest_hash) = 64 AND length(snapshot_hash) = 64 AND jsonb_typeof(snapshot_json) = 'object'");
+
+                            t.HasCheckConstraint("ck_order_fulfillment_summary", "source_version > 0 AND total BETWEEN 1 AND 4950 AND served BETWEEN 0 AND total AND review BETWEEN 0 AND total - served");
+                        });
+                });
+
             modelBuilder.Entity("AICOS.Ordering.Api.Features.KitchenAdmission.AdmissionOutbox", b =>
                 {
                     b.Property<Guid>("EventId")
@@ -729,6 +868,26 @@ namespace AICOS.Ordering.Api.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_order_item_options_order_items_order_item_id");
+                });
+
+            modelBuilder.Entity("AICOS.Ordering.Api.Features.Fulfillment.FulfillmentReceipt", b =>
+                {
+                    b.HasOne("AICOS.Ordering.Api.Domain.Entities.Order", null)
+                        .WithMany()
+                        .HasForeignKey("OrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_fulfillment_receipts_orders_order_id");
+                });
+
+            modelBuilder.Entity("AICOS.Ordering.Api.Features.Fulfillment.OrderFulfillmentProjection", b =>
+                {
+                    b.HasOne("AICOS.Ordering.Api.Domain.Entities.Order", null)
+                        .WithOne()
+                        .HasForeignKey("AICOS.Ordering.Api.Features.Fulfillment.OrderFulfillmentProjection", "OrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_order_fulfillment_projection_orders_order_id");
                 });
 
             modelBuilder.Entity("AICOS.Ordering.Api.Domain.Entities.Order", b =>

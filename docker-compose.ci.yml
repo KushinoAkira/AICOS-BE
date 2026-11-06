@@ -1,0 +1,9 @@
+# Disposable GitHub Actions stack only. Never include this file for an operating database.
+# The workflow explicitly supplies this variable; ordinary local Compose keeps its existing settings.
+services:
+  order:
+    environment:
+      Database__MigrateOnStartup: ${AICOS_CI_MIGRATE_ON_STARTUP:?CI-only migration opt-in is required}
+  kitchen:
+    environment:
+      Database__MigrateOnStartup: ${AICOS_CI_MIGRATE_ON_STARTUP:?CI-only migration opt-in is required}

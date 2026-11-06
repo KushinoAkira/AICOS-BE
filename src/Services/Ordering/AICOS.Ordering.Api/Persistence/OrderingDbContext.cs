@@ -4,6 +4,7 @@ using AICOS.Ordering.Api.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using AICOS.Ordering.Api.Features.KitchenAdmission;
+using AICOS.Ordering.Api.Features.Fulfillment;
 
 namespace AICOS.Ordering.Api.Persistence;
 
@@ -11,6 +12,8 @@ public sealed class OrderingDbContext(DbContextOptions<OrderingDbContext> option
 {
     public DbSet<AdmissionOutbox> AdmissionOutbox => Set<AdmissionOutbox>();
     public DbSet<AdmissionReconcileState> AdmissionReconcile => Set<AdmissionReconcileState>();
+    public DbSet<OrderFulfillmentProjection> FulfillmentProjection => Set<OrderFulfillmentProjection>();
+    public DbSet<FulfillmentReceipt> FulfillmentReceipts => Set<FulfillmentReceipt>();
 
     private void CaptureAdmissions()
     {
@@ -60,10 +63,12 @@ internal sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
         builder.ToTable("orders", t =>
         {
             t.HasCheckConstraint("ck_orders_amounts", "discount_amount >= 0 AND refunded_amount >= 0");
+            t.HasCheckConstraint("ck_order_fulfillment_mode", "fulfillment_mode IN ('WholeOrder','CupV1')");
         });
         builder.HasKey(o => o.Id);
         builder.Property(o => o.Id).ValueGeneratedNever();
         builder.Property(o => o.OrderCode).HasMaxLength(40).IsRequired();
+        builder.Property(o => o.FulfillmentMode).HasMaxLength(20).HasDefaultValue(AICOS.Contracts.Serving.FulfillmentModes.WholeOrder);
         builder.Property(o => o.TableNumber).HasMaxLength(20);
         builder.Property(o => o.DeliveryAddress).HasMaxLength(300);
         builder.Property(o => o.Type).HasConversion<string>().HasMaxLength(20).IsRequired();

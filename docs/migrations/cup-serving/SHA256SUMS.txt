@@ -1,0 +1,7 @@
+51461f2f25bf25b3ad69affdec49d2c6656adf2fb75fee372682d5fdc4b4fa79  00_preflight.sql
+5b5db5a2bf5eb704ad0402f746c77de13e88dcedaa27930ed4bf7b047a44bdf6  01_kitchen_expand.sql
+e115478165bf94f695b976564cdbf19cde72abf9f224fc1ab72d07324b7c0b7f  02_ordering_expand.sql
+c1b6112fe20654414a63c88c53627183a31e51a11c959818ac967cfcbe7553e6  ../../../src/Services/KitchenOperations/AICOS.KitchenOperations.Api/Persistence/Migrations/20261106183333_KitchenCupServingFoundation.cs
+dd653227032686cdcdd8cbf94d146e86a846f0e70ad5179667f0b1d2a47d25eb  ../../../src/Services/KitchenOperations/AICOS.KitchenOperations.Api/Persistence/Migrations/20261106183333_KitchenCupServingFoundation.Designer.cs
+8025e4fd993c4eba80a4481b81b83189f2e32cf54cc8dfb4171e82bf1f207e03  ../../../src/Services/Ordering/AICOS.Ordering.Api/Persistence/Migrations/20261106183340_OrderingCupFulfillmentFoundation.cs
+1b405ff81c27ef487b176ff52125713b93ead3fb852f605956fa6a90e30ae7be  ../../../src/Services/Ordering/AICOS.Ordering.Api/Persistence/Migrations/20261106183340_OrderingCupFulfillmentFoundation.Designer.cs

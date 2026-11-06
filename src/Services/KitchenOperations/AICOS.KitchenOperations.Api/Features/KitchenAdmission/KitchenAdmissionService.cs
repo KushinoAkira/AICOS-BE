@@ -35,6 +35,7 @@ public sealed class KitchenAdmissionService(KitchenOperationsDbContext db, IKitc
                     throw new ConflictException("Admission identity or immutable content differs.", "admission.conflict");
             }
             var ticket = await TicketLookup.ByOrderAsync(db, request.TenantId, request.OrderId, ct);
+            ticket?.RequireWholeOrderOperation(); // V1 cannot reset or upgrade CupV1.
             if (receipt is not null && (ticket is null || ticket.Id != receipt.TicketId))
                 throw new ConflictException("Receipt/ticket integrity requires review.", "admission.integrity");
             var created = ticket is null;
@@ -76,7 +77,8 @@ public sealed class KitchenAdmissionService(KitchenOperationsDbContext db, IKitc
         {
             await KitchenEndpoints.SafeAsync(logger, () => notifier.NotifyNewTicketAsync(outcome.Ticket.TenantId,
                 outcome.Ticket.BranchId, TicketMapper.ToDto(outcome.Ticket), ct));
-            if (outcome.Ticket.Stickers.Count > 0)
+            // Durable admission can be recovery/reconciliation. Never trigger a legacy auto-printer.
+            if (!durable && outcome.Ticket.Stickers.Count > 0)
                 await KitchenEndpoints.SafeAsync(logger, () => notifier.NotifyStickersPrintedAsync(outcome.Ticket.TenantId,
                     outcome.Ticket.BranchId, outcome.Ticket.Stickers.Select(TicketMapper.ToDto).ToList(), ct));
         }

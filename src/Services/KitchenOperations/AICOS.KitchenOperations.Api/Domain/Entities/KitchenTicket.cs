@@ -1,6 +1,8 @@
 using AICOS.BuildingBlocks.Domain;
 using AICOS.BuildingBlocks.Exceptions;
 using AICOS.KitchenOperations.Api.Domain.Enums;
+using AICOS.Contracts.Serving;
+using AICOS.KitchenOperations.Api.Features.CupServing;
 
 namespace AICOS.KitchenOperations.Api.Domain.Entities;
 
@@ -11,6 +13,37 @@ namespace AICOS.KitchenOperations.Api.Domain.Entities;
 public class KitchenTicket : AuditableEntity<Guid>, IBranchScoped
 {
     public Guid TenantId { get; private set; }
+    public string FulfillmentMode { get; private set; } = FulfillmentModes.WholeOrder;
+    public long FulfillmentVersion { get; private set; }
+    public Guid? SourceTableId { get; private set; }
+    public Guid? SourceSessionId { get; private set; }
+
+    public void RequireWholeOrderOperation()
+    {
+        if (FulfillmentMode != FulfillmentModes.WholeOrder)
+            throw new ConflictException("Use the cup workflow.", "order.cup_serving_required");
+    }
+
+    internal long AdvanceFulfillmentVersion() => ++FulfillmentVersion;
+
+    internal void RecordCupProgress(IReadOnlyCollection<CupTask> cups, DateTime now)
+    {
+        if (FulfillmentMode != FulfillmentModes.CupV1 || cups.Count == 0 || cups.Count != TotalCups
+            || cups.Any(c => c.TicketId != Id || c.TenantId != TenantId || c.BranchId != BranchId || c.OrderId != OrderId))
+            throw new ConflictException("Cup set does not match its ticket.", "serving.identity_conflict");
+        if (cups.All(c => c.Service == CupService.Served))
+        {
+            Status = KitchenTicketStatus.Completed; CompletedAtUtc = cups.Max(c => c.ServedAtUtc);
+        }
+        else if (cups.All(c => c.Preparation == CupPreparation.Ready))
+        {
+            Status = KitchenTicketStatus.ReadyForPickup; ReadyAtUtc = cups.Max(c => c.ReadyAtUtc);
+        }
+        else if (cups.Any(c => c.Preparation != CupPreparation.Pending))
+        {
+            Status = KitchenTicketStatus.Brewing; BrewingStartedAtUtc ??= now;
+        }
+    }
 
     public Guid OrderId { get; private set; }
 
@@ -101,6 +134,7 @@ public class KitchenTicket : AuditableEntity<Guid>, IBranchScoped
 
     public void StartBrewing(DateTime now)
     {
+        RequireWholeOrderOperation();
         RequireRecoveryClear();
         if (Status != KitchenTicketStatus.Pending)
         {
@@ -113,6 +147,7 @@ public class KitchenTicket : AuditableEntity<Guid>, IBranchScoped
 
     public void MarkReadyForPickup(DateTime now)
     {
+        RequireWholeOrderOperation();
         RequireRecoveryClear();
         if (Status is not (KitchenTicketStatus.Brewing or KitchenTicketStatus.Pending))
         {
@@ -126,6 +161,7 @@ public class KitchenTicket : AuditableEntity<Guid>, IBranchScoped
     /// <summary>The bar makes a ready order again: it goes back to brewing and must be marked ready once more. Not possible after the hand-over.</summary>
     public void Remake(string reason, DateTime now)
     {
+        RequireWholeOrderOperation();
         RequireRecoveryClear();
         if (Status != KitchenTicketStatus.ReadyForPickup)
         {
@@ -142,6 +178,7 @@ public class KitchenTicket : AuditableEntity<Guid>, IBranchScoped
 
     public void ConfirmDelivered(DateTime deliveredAt)
     {
+        RequireWholeOrderOperation();
         if (Status is KitchenTicketStatus.Completed or KitchenTicketStatus.Cancelled) return;
         Status = KitchenTicketStatus.Completed;
         CompletedAtUtc = deliveredAt;
@@ -149,6 +186,7 @@ public class KitchenTicket : AuditableEntity<Guid>, IBranchScoped
 
     public void Complete(DateTime now)
     {
+        RequireWholeOrderOperation();
         if (Status != KitchenTicketStatus.ReadyForPickup)
         {
             throw new BusinessRuleException("ticket.not_ready", "Only a ready ticket can be completed.");
@@ -160,6 +198,7 @@ public class KitchenTicket : AuditableEntity<Guid>, IBranchScoped
 
     public void Cancel(DateTime now)
     {
+        RequireWholeOrderOperation();
         if (Status == KitchenTicketStatus.Completed)
         {
             throw new BusinessRuleException("ticket.completed", "A completed ticket cannot be cancelled.");
@@ -185,6 +224,7 @@ public class KitchenTicket : AuditableEntity<Guid>, IBranchScoped
     /// <summary>Creates one sticker per cup once the ticket is eligible. Idempotent: the same stickers are returned afterwards.</summary>
     public bool TryGenerateCupStickers(DateTime now, out IReadOnlyList<CupSticker> stickers)
     {
+        RequireWholeOrderOperation();
         RequireRecoveryClear();
         if (!IsEligibleForBar)
         {
@@ -212,6 +252,7 @@ public class KitchenTicket : AuditableEntity<Guid>, IBranchScoped
 
 public class KitchenTicketItem : Entity<Guid>
 {
+    public Guid? OrderItemId { get; private set; }
     public Guid TicketId { get; private set; }
 
     public Guid ProductId { get; private set; }
@@ -244,6 +285,7 @@ public class KitchenTicketItem : Entity<Guid>
 
 public class CupSticker : Entity<Guid>
 {
+    public Guid? CupTaskId { get; private set; }
     public Guid TicketId { get; private set; }
 
     public Guid OrderId { get; private set; }
