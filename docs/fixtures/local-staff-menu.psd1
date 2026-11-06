@@ -30,5 +30,27 @@
         @{ Category='Combo'; Name='Combo Cà phê sữa + Bánh mì trứng'; Price=49000; Description='Gồm 1 cà phê sữa đá cỡ M và 1 bánh mì trứng. Giá bán trọn bộ.'; Kind='combo'; Preset='combo' }
         @{ Category='Combo'; Name='Combo Trà đào + Croissant bơ'; Price=59000; Description='Gồm 1 trà đào cam sả cỡ M và 1 croissant bơ. Giá bán trọn bộ.'; Kind='combo'; Preset='combo' }
         @{ Category='Combo'; Name='Combo Latte + Tiramisu'; Price=69000; Description='Gồm 1 latte đá cỡ M và 1 tiramisu. Giá bán trọn bộ.'; Kind='combo'; Preset='combo' }
+        @{ Category='Cà phê'; Name='Americano đá'; Price=32000; Description='Espresso pha cùng nước lọc, dùng đá.'; Kind='drink'; Preset='coffee' }
+        @{ Category='Cà phê'; Name='Cold brew nguyên bản'; Price=35000; Description='Cà phê ủ lạnh chậm, vị thanh và ít chua.'; Kind='drink'; Preset='coffee' }
+        @{ Category='Cà phê'; Name='Cà phê dừa'; Price=42000; Description='Cà phê đậm vị kết hợp sữa dừa béo thơm.'; Kind='drink'; Preset='coffee' }
+        @{ Category='Cà phê'; Name='Cà phê muối'; Price=39000; Description='Cà phê sữa phủ lớp kem muối mịn.'; Kind='drink'; Preset='coffee' }
+        @{ Category='Trà & Trà sữa'; Name='Trà dâu tằm'; Price=39000; Description='Trà trái cây cùng dâu tằm chua ngọt.'; Kind='drink'; Preset='tea' }
+        @{ Category='Trà & Trà sữa'; Name='Trà xoài'; Price=39000; Description='Trà thơm kết hợp xoài chín và đá.'; Kind='drink'; Preset='tea' }
+        @{ Category='Trà & Trà sữa'; Name='Trà ổi hồng'; Price=39000; Description='Trà thanh mát cùng vị ổi hồng.'; Kind='drink'; Preset='tea' }
+        @{ Category='Trà & Trà sữa'; Name='Trà chanh dây'; Price=35000; Description='Trà chanh dây chua dịu, dùng đá.'; Kind='drink'; Preset='tea' }
+        @{ Category='Trà & Trà sữa'; Name='Trà sữa matcha'; Price=39000; Description='Trà sữa matcha thơm nhẹ, tùy chọn topping.'; Kind='drink'; Preset='tea' }
+        @{ Category='Trà & Trà sữa'; Name='Trà sữa đường đen'; Price=42000; Description='Trà sữa cùng sốt đường đen thơm caramel.'; Kind='drink'; Preset='tea' }
+        @{ Category='Đồ uống khác'; Name='Nước ép dưa hấu'; Price=35000; Description='Nước ép dưa hấu tươi, thanh mát.'; Kind='drink'; Preset='fruit' }
+        @{ Category='Đồ uống khác'; Name='Nước ép dứa'; Price=35000; Description='Nước ép dứa chua ngọt tự nhiên.'; Kind='drink'; Preset='fruit' }
+        @{ Category='Đồ uống khác'; Name='Sinh tố xoài'; Price=45000; Description='Xoài chín xay cùng sữa, dùng lạnh.'; Kind='drink'; Preset='fruit' }
+        @{ Category='Đồ uống khác'; Name='Soda chanh'; Price=32000; Description='Soda kết hợp chanh tươi, dùng đá.'; Kind='drink'; Preset='fruit' }
+        @{ Category='Đồ ăn'; Name='Bánh mì bò phô mai'; Price=45000; Description='Bánh mì kẹp thịt bò và phô mai.'; Kind='food'; Preset='food' }
+        @{ Category='Đồ ăn'; Name='Sandwich gà nướng'; Price=42000; Description='Sandwich kẹp gà nướng, rau và sốt.'; Kind='food'; Preset='food' }
+        @{ Category='Đồ ăn'; Name='Bagel trứng phô mai'; Price=39000; Description='Bánh bagel kẹp trứng và phô mai.'; Kind='food'; Preset='food' }
+        @{ Category='Đồ ăn'; Name='Khoai tây chiên'; Price=29000; Description='Khoai tây chiên giòn, kèm sốt cà chua.'; Kind='food'; Preset='food' }
+        @{ Category='Bánh ngọt'; Name='Muffin việt quất'; Price=29000; Description='Bánh muffin mềm với việt quất.'; Kind='food'; Preset='none' }
+        @{ Category='Bánh ngọt'; Name='Bánh chuối hạnh nhân'; Price=32000; Description='Một phần bánh chuối cùng hạnh nhân lát.'; Kind='food'; Preset='none' }
+        @{ Category='Bánh ngọt'; Name='Bánh su kem'; Price=25000; Description='Một phần bánh su với nhân kem sữa.'; Kind='food'; Preset='none' }
+        @{ Category='Combo'; Name='Combo Trà sữa ô long + Brownie'; Price=59000; Description='Gồm 1 trà sữa ô long cỡ M và 1 brownie chocolate. Giá bán trọn bộ.'; Kind='combo'; Preset='combo' }
     )
 }

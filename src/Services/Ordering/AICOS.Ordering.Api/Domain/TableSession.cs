@@ -79,6 +79,14 @@ public sealed class TableSession : AuditableEntity<Guid>
         Touch(now);
     }
 
+    public void TransferTo(Guid tableId, string tableCode, DateTime now)
+    {
+        if (!IsOpen) throw new InvalidOperationException("Cannot move a closed session.");
+        TableId = tableId;
+        TableCode = tableCode;
+        Touch(now);
+    }
+
     public void Close(TableSessionCloseReason reason, DateTime now)
     {
         if (!IsOpen)

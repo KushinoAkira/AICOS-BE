@@ -4,6 +4,8 @@ using AICOS.KitchenOperations.Api.Domain.Entities;
 using AICOS.KitchenOperations.Api.Persistence;
 using AICOS.KitchenOperations.Api.Services;
 using Microsoft.EntityFrameworkCore;
+using AICOS.Contracts.KitchenAdmission;
+using AICOS.KitchenOperations.Api.Features.KitchenAdmission;
 
 namespace AICOS.KitchenOperations.Api.Features;
 
@@ -15,7 +17,7 @@ internal static class TicketLookup
     /// <summary>Shows a ticket to the bar: the new ticket and, once eligible, its cup stickers.</summary>
     public static async Task AnnounceAsync(KitchenTicket ticket, IKitchenNotifier notifier, TimeProvider clock, KitchenOperationsDbContext db, ILogger logger, CancellationToken ct)
     {
-        if (!ticket.IsEligibleForBar)
+        if (!ticket.IsEligibleForBar || ticket.RecoveryHoldReason is not null)
         {
             return;
         }
@@ -35,34 +37,24 @@ internal static class TicketLookup
 }
 
 /// <summary>A new order becomes a ticket. A takeaway order waits unseen until it is paid; a dine-in order is shown at once. Idempotent per order.</summary>
-public sealed class OrderCreatedHandler(KitchenOperationsDbContext db, IKitchenNotifier notifier, TimeProvider clock, ILogger<OrderCreatedHandler> logger)
+public sealed class OrderCreatedHandler(KitchenAdmissionService admission, ILogger<OrderCreatedHandler> logger)
     : IIntegrationEventHandler<OrderCreatedIntegrationEvent>
 {
-    public async Task HandleAsync(OrderCreatedIntegrationEvent @event, CancellationToken cancellationToken)
+    public async Task HandleAsync(OrderCreatedIntegrationEvent message, CancellationToken ct)
     {
-        if (@event.TenantId == Guid.Empty)
+        if (message.TenantId == Guid.Empty)
         {
-            logger.LogWarning("An order without a brand (the Guest QR flow) was ignored by the bar queue.");
+            logger.LogWarning("An order without a brand was ignored by the bar queue.");
             return;
         }
-
-        if (await db.Tickets.AnyAsync(t => t.TenantId == @event.TenantId && t.OrderId == @event.OrderId, cancellationToken))
-        {
-            return;
-        }
-
-        var ticket = new KitchenTicket(@event.TenantId, @event.OrderId, @event.OrderCode, @event.BranchId, @event.TableNumber, @event.OrderType, @event.IsPaid, @event.ScheduledPickupTimeUtc);
-        foreach (var item in @event.Items)
-        {
-            ticket.AddItem(item.ProductId, item.ProductName, item.Quantity, item.Note);
-        }
-
-        db.Tickets.Add(ticket);
-        await db.SaveChangesAsync(cancellationToken);
-        await TicketLookup.AnnounceAsync(ticket, notifier, clock, db, logger, cancellationToken);
+        var creation = new AdmissionCreation(message.OrderCode, message.Items.Select(i => new AdmissionItem(i.ProductId, i.ProductName, i.Quantity, i.Note)).ToArray());
+        await admission.EnsureAsync(new AdmissionRequest(message.EventId, 1, AdmissionProtocol.Consumer,
+            message.TenantId, message.BranchId, message.OrderId, creation,
+            Convert.ToHexString(AdmissionProtocol.Hash(message.TenantId, message.BranchId, message.OrderId, creation)),
+            new AdmissionFacts(message.OrderType, "Pending", message.IsPaid, message.TableNumber, message.CreatedAtUtc,
+                message.ScheduledPickupTimeUtc, null, null)), false, ct);
     }
 }
-
 /// <summary>The order was paid: a takeaway ticket reaches the bar now, with its stickers (BR-43).</summary>
 public sealed class KitchenPaymentSucceededHandler(KitchenOperationsDbContext db, IKitchenNotifier notifier, TimeProvider clock, ILogger<KitchenPaymentSucceededHandler> logger)
     : IIntegrationEventHandler<PaymentSucceededEvent>
@@ -97,14 +89,10 @@ public sealed class KitchenOrderCancelledHandler(KitchenOperationsDbContext db, 
 {
     public async Task HandleAsync(OrderCancelledIntegrationEvent @event, CancellationToken cancellationToken)
     {
-        var ticket = await TicketLookup.ByOrderAsync(db, @event.TenantId, @event.OrderId, cancellationToken);
-        if (ticket is null || ticket.Status is Domain.Enums.KitchenTicketStatus.Cancelled or Domain.Enums.KitchenTicketStatus.Completed)
-        {
-            return;
-        }
-
-        ticket.Cancel(clock.GetUtcNow().UtcDateTime);
-        await db.SaveChangesAsync(cancellationToken);
+        var ticket = await KitchenTicketWrites.ApplyAsync(db, @event.TenantId, @event.BranchId, @event.OrderId,
+            t => t.Status is not (Domain.Enums.KitchenTicketStatus.Cancelled or Domain.Enums.KitchenTicketStatus.Completed),
+            t => t.Cancel(clock.GetUtcNow().UtcDateTime), cancellationToken);
+        if (ticket is null) return;
         await KitchenEndpoints.SafeAsync(logger, () => notifier.NotifyStatusChangedAsync(ticket.TenantId, ticket.BranchId, ticket.Id, ticket.Status.ToString(), cancellationToken));
     }
 }
@@ -115,14 +103,10 @@ public sealed class KitchenOrderCompletedHandler(KitchenOperationsDbContext db, 
 {
     public async Task HandleAsync(OrderCompletedIntegrationEvent @event, CancellationToken cancellationToken)
     {
-        var ticket = await TicketLookup.ByOrderAsync(db, @event.TenantId, @event.OrderId, cancellationToken);
-        if (ticket is null || ticket.Status != Domain.Enums.KitchenTicketStatus.ReadyForPickup)
-        {
-            return;
-        }
-
-        ticket.Complete(clock.GetUtcNow().UtcDateTime);
-        await db.SaveChangesAsync(cancellationToken);
+        var ticket = await KitchenTicketWrites.ApplyAsync(db, @event.TenantId, @event.BranchId, @event.OrderId,
+            t => t.Status == Domain.Enums.KitchenTicketStatus.ReadyForPickup,
+            t => t.Complete(clock.GetUtcNow().UtcDateTime), cancellationToken);
+        if (ticket is null) return;
         await KitchenEndpoints.SafeAsync(logger, () => notifier.NotifyStatusChangedAsync(ticket.TenantId, ticket.BranchId, ticket.Id, ticket.Status.ToString(), cancellationToken));
     }
 }

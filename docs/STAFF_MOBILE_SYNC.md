@@ -177,3 +177,65 @@ PostgreSQL. Nếu rollout sau này có lỗi, dừng Mobile mutation, giữ dữ
 Ordering về image đã review qua bước deploy được duyệt; không drop/reset hoặc xóa cột/key/order.
 Không tự chạy git restore/reset toàn repo vì có thể mất thay đổi của người khác.
 
+
+## 2026-11-05 — Staff Order operational scope; Payment paused
+
+See [STAFF_ORDER_OPERATIONS_PROGRESS.md](STAFF_ORDER_OPERATIONS_PROGRESS.md).
+Only operational delivery/session-intent work continued: additive Delivered event,
+Kitchen consumer independent of payment, replay-safe whole-order deliver, optional
+expectedSessionId and capability on Orders. POS relational transactions also run
+without a request key. Mobile keeps session-scoped drafts and read-only foreground
+refresh; main mutations never fall through to Demo controllers.
+
+POST deliver retains URL/body/response and Counter authorization; a repeated
+confirmation now returns 200 with the original delivery timestamp/actor instead of
+409. Legacy Completed/payment/bill/close behavior stays unchanged. Review Web
+callers before rollout; no Web repository/runtime E2E was available here.
+
+Validation: 214 operational HTTP/InMemory tests PASS/0 SKIP; Identity staff display
+1 PASS/0 SKIP. Flutter 146 PASS, API-mode login/branch 5 PASS, analyzer 0 issues.
+These are mock/fake-bus/test-JWT component tests, not PostgreSQL race/Redis E2E.
+Three new C# files whitespace-formatted; diff checks PASS.
+
+No Payment service, settlement/refund/cash/QR-payment code or main database changed.
+No migration/seed, Docker/runtime/deploy, credentials, commit or push. Per-item
+preparation/serving/claim, durable audit/recovery and merge need reviewed persistence
+or business contracts; they remain BLOCKED/MISSING, not completed with fake state.
+
+## 2026-11-05 — Kitchen conditional transitions
+
+Kitchen exposes `GET /api/v1/kitchen/staff/capabilities` and optional `expectedStatus` / `expectedRemakeCount` on the existing status PUT. Legacy Web requests remain accepted. Status/remake/delivered/cancelled/completed ticket writers share a PostgreSQL advisory transaction lock and reload ticket before mutation. Conditional replay of the same state is a no-op; stale views return 409. Mobile sends observed status/cycle, prevents duplicate ticket taps, refreshes on 409, and fails closed against an old server. No Payment/Bill or schema change.
+
+Backend operational regression: 216 PASS, 0 FAIL, 0 SKIP; Flutter 149 PASS and analyzer 0 issues. Tests use HTTP/EF InMemory or Flutter mocks, not PostgreSQL/Redis E2E. Per-item serving, staff claims, submitted-order change approval, table merge, and durable Redis recovery remain BLOCKED pending reviewed persistence/business contracts. See `SERVING_MULTI_STAFF_AND_RECOVERY_DESIGN.md` and `STAFF_ORDER_OPERATIONS_PROGRESS.md`.
+Mobile Kitchen 409 targeted tests: 10 PASS (after the 149-test full suite).
+
+## 2026-11-05 — Real PostgreSQL/Redis staff-operations tests
+
+Added `scripts/Test-StaffOperationsInfrastructure.ps1`, `OperationalTestTarget.cs`, `StaffOperationsInfrastructureTests.cs`; TestKit can opt into guarded real Npgsql + production Redis bus/subscriber. Existing mock tests retain their defaults. User explicitly approved EnsureCreated on disposable test-only schemas; no migration executed. Temporary container IDs/cluster/network/ports are guarded, data is tmpfs, no main/Windows/Gate D credentials or volumes, old container snapshots unchanged and scratch resources cleaned up.
+
+Final infrastructure: 7 PASS, 0 FAIL, 0 SKIP with real pg_locks contention for concurrent Barista/delivery/create; stale/remake 409, expectedSessionId, unpaid Kitchen completion, lost-response retry and Redis restart characterization. Live reconnect PASS; automatic replay of OrderCreated while Kitchen offline FAILS (missing ticket). A characterization test passing is not a durable recovery success. Initial unconfigured discovery skipped 7; first actual run had 5 PASS/2 harness failures, corrected and rerun. Operational regression 216 PASS/0 SKIP; Flutter related tests 18 PASS, analyzer 0 issues. Identity/Menu/Table/JWT/notifier remain explicit doubles; real network timeout/multi-process/Web/production ACL tests NOT RUN.
+
+Expanded MVP designs for per-line serving, claims, submitted-order change, occupied merge and durable recovery. No feature implementation, production schema, Payment/Bill, credentials, deployment or commit/push. See `STAFF_OPERATIONS_INTEGRATION_TEST_RESULTS.md`, `SERVING_MULTI_STAFF_AND_RECOVERY_DESIGN.md`, `STAFF_ORDER_OPERATIONS_PROGRESS.md`, and generated sanitized `STAFF_OPERATIONS_INFRASTRUCTURE_RUN.md`.
+## 2026-11-05 — P0 Kitchen admission recovery design only
+
+Traced commit/publish gap in POS/QR/pickup, non-durable Redis Pub/Sub and logged-only handler failures. Proposed MVP: Ordering transactional admission outbox + scoped internal HTTP ACK after Kitchen local commit + receipt/shared idempotent writer + full bounded reconciliation. Keeps legacy Redis and public FE APIs unchanged. Includes service-auth prerequisite, atomic capture/retry/lease/fencing, legacy/terminal recovery hold policy, schema, workers, acceptance tests, Web impact and rollback.
+
+New design `KITCHEN_ORDER_ADMISSION_RECOVERY_P0_DESIGN.md`; review-only SQL under `docs/proposals/kitchen-recovery/` (3 new tables, 1 nullable hold column). No business code, EF migration, SQL execution, Docker/runtime, main DB, Payment/Bill, secrets, deploy or commit/push. Recovery remains FAIL from prior evidence; proposed implementation/SQL/acceptance NOT RUN. Await design/schema approval before coding.
+- Validation design-only: static SQL/diff review PASS; SQL execution/migration/rollback/recovery acceptance NOT RUN. Flutter formatter 195 files unchanged, analyze 0 issues, 10 related repository mock tests PASS. These do not certify the proposed recovery implementation.
+
+## 2026-11-06 — Local menu expanded to 50 real products
+
+Added 22 products to the guarded aicos-cashier-local tenant via existing Menu APIs: total 30 drinks, 15 foods/cakes and 5 fixed-price combos across 6 categories. Published to all 3 branches (50 products each, changed=66); repeat initializer changed=0. Branch GET checks verify 50 unique available products, positive prices, 32 topping groups without a two-choice cap and valid required defaults. Options preview requires 0 changes.
+
+Updated docs/fixtures/local-staff-menu.psd1 and scripts/Initialize-LocalStaffMenu.ps1; Expand-LocalStaffMenuOptions.ps1 uses fixture-derived product/topping counts. UTF-8 BOM retained for PowerShell 5.1; syntax/count/uniqueness validation PASS. No business API/schema/migration changes, no existing product/option overwrite. Existing PostgreSQL/Redis/Identity/Menu/Gateway containers were started with migrations=false. DPAPI credential never printed, inspection sessions logged out. Flutter analyzer 0 issues, formatter 195 files unchanged, food/combo tests 2 PASS. Actual API checks are separate from the mocked Flutter tests.
+
+See docs/MENU_50_PRODUCTS.md for the catalog/prices and results. No Payment/Bill changes, deploy, commit or push.
+## 2026-11-07 — P0 Kitchen admission recovery implemented, isolated tests PASS
+
+Added service-owned transactional outbox/checkpoint, dedicated machine authentication + HTTP admission/lookup, receipt/idempotent shared legacy writer, dispatcher with lease/fencing/backoff, durable full-sweep reconciliation, and recovery hold guards. Legacy Redis/public API remain supported. Subscription startup now retries Redis outages without terminating HTTP; no change to Payment/Bill handlers. New features disabled by default, startup migrations false (including Ordering/Kitchen launch and Compose overrides).
+
+New additive EF migrations 20261106164220_KitchenAdmissionOutbox and 20261106164227_KitchenAdmissionReceipts, snapshots and generated SQL/checksums are prepared. Applied only via guarded migrations on disposable PostgreSQL test databases. No operational DB, grants, credentials, deploy, commit/push, or Mobile edits.
+
+Final infrastructure suite 18 PASS/0 FAIL/0 SKIP; actual process probes killed around persistence commit, real PostgreSQL/Redis + authenticated HTTP and automatic worker tests. 458 HTTP/InMemory regressions and 15 BuildingBlocks regressions PASS/0 SKIP. Source-specific doubles and remaining NOT RUN/BLOCKED gates are documented. Existing Docker container snapshots unchanged and only new temporary resources cleaned up.
+
+Full report/config/API/file inventory and rollback: docs/KITCHEN_ADMISSION_RECOVERY_IMPLEMENTATION.md. Evidence: docs/KITCHEN_ADMISSION_RECOVERY_RUN.md. SQL for separate future approval: docs/migrations/kitchen-recovery/. Do not run the new Kitchen binary on an unexpanded operational schema even with recovery disabled: EF ticket queries map the hold column.

@@ -43,6 +43,15 @@ public class KitchenTicket : AuditableEntity<Guid>, IBranchScoped
     public int RemakeCount { get; private set; }
 
     public string? LastRemakeReason { get; private set; }
+    public string? RecoveryHoldReason { get; private set; }
+
+    public void HoldRecovery(string reason) => RecoveryHoldReason = reason;
+    public void ClearRecoveryHold() => RecoveryHoldReason = null;
+    public void RequireRecoveryClear()
+    {
+        if (RecoveryHoldReason is not null)
+            throw new ConflictException("Recovery review is required before preparation.", "ticket.recovery_review_required");
+    }
 
     public DateTime? LastRemakeAtUtc { get; private set; }
 
@@ -88,8 +97,11 @@ public class KitchenTicket : AuditableEntity<Guid>, IBranchScoped
         _items.Add(new KitchenTicketItem(Id, productId, productName, quantity, note));
     }
 
+    public void TransferTable(string code) => TableNumber = code;
+
     public void StartBrewing(DateTime now)
     {
+        RequireRecoveryClear();
         if (Status != KitchenTicketStatus.Pending)
         {
             throw new BusinessRuleException("ticket.not_pending", "Only a pending ticket can start brewing.");
@@ -101,6 +113,7 @@ public class KitchenTicket : AuditableEntity<Guid>, IBranchScoped
 
     public void MarkReadyForPickup(DateTime now)
     {
+        RequireRecoveryClear();
         if (Status is not (KitchenTicketStatus.Brewing or KitchenTicketStatus.Pending))
         {
             throw new BusinessRuleException("ticket.not_brewing", "Only a ticket being brewed can be marked ready.");
@@ -113,6 +126,7 @@ public class KitchenTicket : AuditableEntity<Guid>, IBranchScoped
     /// <summary>The bar makes a ready order again: it goes back to brewing and must be marked ready once more. Not possible after the hand-over.</summary>
     public void Remake(string reason, DateTime now)
     {
+        RequireRecoveryClear();
         if (Status != KitchenTicketStatus.ReadyForPickup)
         {
             throw new BusinessRuleException("ticket.not_ready", "Only a ready order can be made again; after the hand-over use the complaint path of the order.");
@@ -124,6 +138,13 @@ public class KitchenTicket : AuditableEntity<Guid>, IBranchScoped
         RemakeCount++;
         LastRemakeReason = reason.Trim();
         LastRemakeAtUtc = now;
+    }
+
+    public void ConfirmDelivered(DateTime deliveredAt)
+    {
+        if (Status is KitchenTicketStatus.Completed or KitchenTicketStatus.Cancelled) return;
+        Status = KitchenTicketStatus.Completed;
+        CompletedAtUtc = deliveredAt;
     }
 
     public void Complete(DateTime now)
@@ -164,6 +185,7 @@ public class KitchenTicket : AuditableEntity<Guid>, IBranchScoped
     /// <summary>Creates one sticker per cup once the ticket is eligible. Idempotent: the same stickers are returned afterwards.</summary>
     public bool TryGenerateCupStickers(DateTime now, out IReadOnlyList<CupSticker> stickers)
     {
+        RequireRecoveryClear();
         if (!IsEligibleForBar)
         {
             stickers = [];

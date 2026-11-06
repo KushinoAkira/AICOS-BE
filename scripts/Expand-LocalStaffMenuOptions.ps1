@@ -20,7 +20,7 @@ try {
     $me=Invoke-LocalApi GET '/api/v1/identity/auth/me' $null $auth.accessToken
     if($me.role-ne'BrandAdmin'-or$me.email-ne'admin@aicos-cashier-local.test'){throw 'Unexpected fixture admin'}
     $page=Invoke-LocalApi GET '/api/v1/menu/products/?pageSize=100' $null $auth.accessToken
-    if($page.totalCount-ne28){throw 'Expected exactly 28 fixture products'}
+    if($page.totalCount-ne$fixture.Products.Count){throw 'Expected the current fixture product count'}
     $plans=@()
     foreach($item in $fixture.Products){
         $p=@($page.items|Where-Object name -eq $item.Name)
@@ -56,9 +56,10 @@ try {
     foreach($branch in $branches.items){
         $menu=Invoke-LocalApi GET ('/api/v1/menu/branches/'+$branch.id+'/menu') $null $auth.accessToken
         $products=@($menu.categories|ForEach-Object products)
-        if($products.Count-ne28){throw 'Published menu count drift'}
+        if($products.Count-ne$fixture.Products.Count){throw 'Published menu count drift'}
         $tops=@($products|ForEach-Object optionGroups|Where-Object kind -eq 'Topping')
-        if($tops.Count-ne17-or@($tops|Where-Object {$null-ne$_.maxSelections}).Count){throw 'Expanded topping configuration not visible'}
-        Write-Output ('PASS '+$branch.name+': 28 products, '+$tops.Count+' topping groups, no two-choice cap')
+        $expectedToppings=@($fixture.Products|Where-Object {$_.Preset-notin@('none','food')}).Count
+        if($tops.Count-ne$expectedToppings-or@($tops|Where-Object {$null-ne$_.maxSelections}).Count){throw 'Expanded topping configuration not visible'}
+        Write-Output ('PASS '+$branch.name+': '+$products.Count+' products, '+$tops.Count+' topping groups, no two-choice cap')
     }
 } finally { Invoke-LocalApi POST '/api/v1/identity/auth/logout' @{refreshToken=$auth.refreshToken}|Out-Null }

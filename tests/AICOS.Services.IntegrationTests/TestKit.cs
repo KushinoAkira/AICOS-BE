@@ -10,18 +10,20 @@ using AICOS.BuildingBlocks.Persistence;
 using AICOS.BuildingBlocks.Security;
 using AICOS.Contracts;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Configuration;
 
 namespace AICOS.Services.IntegrationTests;
 
 /// <summary>
 /// Boots one microservice in memory: EF in-memory database (fresh per factory), recording event bus instead of Redis,
-/// and a controllable clock for time-based rules.
+/// and a controllable clock for time-based rules. The guarded operational runner can opt into real PostgreSQL/Redis.
 /// </summary>
-public sealed class ServiceFactory<TService, TDbContext>(Action<IServiceCollection>? configure = null, string? postgresConnection = null, Action<DbContextOptionsBuilder>? configureDatabase = null) : WebApplicationFactory<TService>
+public sealed class ServiceFactory<TService, TDbContext>(Action<IServiceCollection>? configure = null, string? postgresConnection = null, Action<DbContextOptionsBuilder>? configureDatabase = null, string? operationalRedis = null) : WebApplicationFactory<TService>
     where TService : class
     where TDbContext : DbContext
 {
@@ -46,6 +48,16 @@ public sealed class ServiceFactory<TService, TDbContext>(Action<IServiceCollecti
 
     protected override void ConfigureWebHost(Microsoft.AspNetCore.Hosting.IWebHostBuilder builder)
     {
+        if (operationalRedis is not null)
+        {
+            OperationalTestTarget.ValidateRedis(operationalRedis);
+            builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(
+                new Dictionary<string, string?>
+                {
+                    ["ConnectionStrings:Redis"] = operationalRedis,
+                    ["Database:MigrateOnStartup"] = "false",
+                }));
+        }
         builder.ConfigureServices(services =>
         {
             services.RemoveAll<DbContextOptions<TDbContext>>();
@@ -55,22 +67,29 @@ public sealed class ServiceFactory<TService, TDbContext>(Action<IServiceCollecti
                 else
                 {
                     var target = new Npgsql.NpgsqlConnectionStringBuilder(postgresConnection);
-                    if (target.Database != "aicos_cashflow_test" || target.Host != "127.0.0.1" || target.Port == 5432)
+                    var operational = OperationalTestTarget.IsApprovedConnection(postgresConnection);
+                    if (!operational && (target.Database != "aicos_cashflow_test" || target.Host != "127.0.0.1" || target.Port == 5432))
                         throw new InvalidOperationException("PostgreSQL tests require the isolated random-port cashflow cluster.");
-                    options.UseNpgsql(postgresConnection, provider => provider.EnableRetryOnFailure(3))
+                    options.UseNpgsql(postgresConnection, provider =>
+                    {
+                        provider.EnableRetryOnFailure(3);
+                        if (operational) provider.MigrationsHistoryTable("__ef_migrations_history", typeof(TDbContext).Name == "OrderingDbContext" ? "ordering" : "kitchen");
+                    })
                         .UseSnakeCaseNamingConvention();
                 }
                 options.AddInterceptors(sp.GetRequiredService<AuditableEntityInterceptor>());
                 configureDatabase?.Invoke(options);
             });
-            // No Redis in tests: events are recorded by RecordingEventBus and handlers are invoked directly.
-            // Left running, the subscriber retries the connection for seconds and then stops the whole test host.
-            foreach (var subscriber in services.Where(s => s.ImplementationType?.Name == "RedisEventBusSubscriber").ToList())
+            // Ordinary tests record events; the isolated operational suite retains the production Redis subscriber/bus.
+            foreach (var subscriber in services.Where(s => operationalRedis is null && s.ImplementationType?.Name == "RedisEventBusSubscriber").ToList())
             {
                 services.Remove(subscriber);
             }
-            services.RemoveAll<IEventBus>();
-            services.AddSingleton<IEventBus>(Events);
+            if (operationalRedis is null)
+            {
+                services.RemoveAll<IEventBus>();
+                services.AddSingleton<IEventBus>(Events);
+            }
             services.RemoveAll<TimeProvider>();
             services.AddSingleton<TimeProvider>(Clock);
 

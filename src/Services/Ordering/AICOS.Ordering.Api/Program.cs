@@ -12,6 +12,7 @@ using AICOS.Ordering.Api.Features.PickupSlots;
 using AICOS.Ordering.Api.Features.Qr;
 using AICOS.Ordering.Api.Persistence;
 using AICOS.Ordering.Api.Services;
+using AICOS.Ordering.Api.Features.KitchenAdmission;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -26,6 +27,7 @@ builder.Services.AddAicosServiceClient<IVoucherClient, HttpVoucherClient>(builde
 builder.Services.AddAicosServiceClient<IPaymentClient, HttpPaymentClient>(builder.Configuration, "Payment");
 
 builder.Services.AddSingleton<ShopTime>();
+builder.AddKitchenAdmission();
 builder.Services.AddScoped<OrderEventPublisher>();
 
 // Real-time channel for customers (a guest at a table and signed-in members) in place of polling. Several instances would need a Redis backplane.
@@ -59,6 +61,7 @@ var api = app.MapAicosApiGroup();
 api.MapPickupSlotEndpoints();
 api.MapPickupOrderEndpoints();
 api.MapOrderingEndpoints();
+api.MapTableTransferEndpoints();
 api.MapQrOrderEndpoints();
 
 app.MapHub<OrderTrackingHub>("/hubs/orders");

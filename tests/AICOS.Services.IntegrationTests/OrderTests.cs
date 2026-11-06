@@ -134,6 +134,24 @@ public sealed class OrderTests : IDisposable
         _customer = _f.As(AicosRoles.Customer, userId: _customerId);
     }
 
+    [Fact]
+    public async Task Delivery_of_an_unpaid_order_is_replayable_without_changing_payment_or_actor()
+    {
+        var order = await NewOrderAsync(type: "DineIn");
+        await _f.HandleAsync(new KitchenOrderReadyIntegrationEvent(_tenant, Guid.NewGuid(), order.Id(),
+            order.GetProperty("orderCode").GetString()!, _b1, "T1", DateTime.UtcNow));
+        var first = await _cashier.PostOk($"{Orders}/{order.Id()}/deliver", new { });
+        var replay = await _manager.PostOk($"{Orders}/{order.Id()}/deliver", new { });
+        replay.GetProperty("deliveredAtUtc").GetString().Should().Be(first.GetProperty("deliveredAtUtc").GetString());
+        replay.GetProperty("paymentStatus").GetString().Should().Be("Unpaid");
+        replay.GetProperty("status").GetString().Should().Be("Ready");
+        var confirmations = _f.Events.Published.OfType<OrderDeliveredIntegrationEvent>().ToList();
+        confirmations.Should().HaveCount(2); // Re-send the same business effect to repair a missed notification.
+        confirmations.Select(e => e.DeliveredBy).Distinct().Should().Equal(_cashierId);
+        confirmations.Select(e => e.DeliveredAtUtc).Distinct().Should().ContainSingle();
+        _f.Events.Published.OfType<OrderCompletedIntegrationEvent>().Should().BeEmpty();
+    }
+
     public void Dispose() => _f.Dispose();
 
     private object Body(Guid? branchId = null, string type = "Takeaway", object[]? items = null, string? promo = null, Guid? customerId = null, string? address = null) => new
@@ -525,7 +543,9 @@ public sealed class OrderTests : IDisposable
         delivered.GetProperty("status").GetString().Should().Be("Completed");
         delivered.GetProperty("deliveredAtUtc").ValueKind.Should().Be(JsonValueKind.String);
         _f.Events.Published.OfType<OrderCompletedIntegrationEvent>().Should().ContainSingle().Which.TotalAmount.Should().Be(139_000);
-        await _cashier.Post($"{Orders}/{order.Id()}/deliver", new { }).ShouldBe(409, "order.already_delivered");
+        var replay = await _cashier.PostOk($"{Orders}/{order.Id()}/deliver", new { });
+        replay.GetProperty("deliveredAtUtc").GetString().Should().Be(delivered.GetProperty("deliveredAtUtc").GetString());
+        _f.Events.Published.OfType<OrderCompletedIntegrationEvent>().Should().ContainSingle();
     }
 
     [Fact]

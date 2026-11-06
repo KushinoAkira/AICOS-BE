@@ -51,6 +51,7 @@ app.UseAicosServiceDefaults();
 var api = app.MapAicosApiGroup();
 api.MapAuthEndpoints();
 api.MapUserEndpoints();
+api.MapStaffDisplayEndpoints();
 api.MapBranchEndpoints();
 api.MapTenantEndpoints();
 api.MapBrandSelfServiceEndpoints();

@@ -143,6 +143,11 @@ namespace AICOS.KitchenOperations.Api.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("ready_at_utc");
 
+                    b.Property<string>("RecoveryHoldReason")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("recovery_hold_reason");
+
                     b.Property<int>("RemakeCount")
                         .HasColumnType("integer")
                         .HasColumnName("remake_count");
@@ -228,6 +233,86 @@ namespace AICOS.KitchenOperations.Api.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("AICOS.KitchenOperations.Api.Features.KitchenAdmission.AdmissionReceipt", b =>
+                {
+                    b.Property<string>("ProducerKey")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("producer_key");
+
+                    b.Property<string>("ConsumerKey")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("consumer_key");
+
+                    b.Property<Guid>("EventId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("event_id");
+
+                    b.Property<DateTime?>("AppliedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("applied_at_utc");
+
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("branch_id");
+
+                    b.Property<byte[]>("CreationSha256")
+                        .IsRequired()
+                        .HasColumnType("bytea")
+                        .HasColumnName("creation_sha256");
+
+                    b.Property<string>("LastErrorCode")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("last_error_code");
+
+                    b.Property<DateTime>("LastVerifiedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_verified_at_utc");
+
+                    b.Property<Guid>("OrderId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("order_id");
+
+                    b.Property<string>("ReceiptStatus")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("receipt_status");
+
+                    b.Property<DateTime>("RecordedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("recorded_at_utc");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<Guid>("TicketId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("ticket_id");
+
+                    b.HasKey("ProducerKey", "ConsumerKey", "EventId")
+                        .HasName("pk_order_admission_receipts");
+
+                    b.HasIndex("TicketId")
+                        .HasDatabaseName("ix_order_admission_receipts_ticket_id");
+
+                    b.HasIndex("TenantId", "BranchId", "ReceiptStatus")
+                        .HasDatabaseName("ix_kitchen_admission_receipt_scope");
+
+                    b.HasIndex("TenantId", "OrderId", "ConsumerKey")
+                        .HasDatabaseName("ix_kitchen_admission_receipt_order");
+
+                    b.ToTable("order_admission_receipts", "kitchen", t =>
+                        {
+                            t.HasCheckConstraint("ck_kitchen_admission_receipt_applied", "(receipt_status = 'APPLIED' AND applied_at_utc IS NOT NULL) OR (receipt_status = 'NEEDS_REVIEW' AND applied_at_utc IS NULL)");
+
+                            t.HasCheckConstraint("ck_kitchen_admission_receipt_hash", "octet_length(creation_sha256) = 32");
+                        });
+                });
+
             modelBuilder.Entity("AICOS.KitchenOperations.Api.Domain.Entities.CupSticker", b =>
                 {
                     b.HasOne("AICOS.KitchenOperations.Api.Domain.Entities.KitchenTicket", null)
@@ -246,6 +331,16 @@ namespace AICOS.KitchenOperations.Api.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_kitchen_ticket_items_kitchen_tickets_ticket_id");
+                });
+
+            modelBuilder.Entity("AICOS.KitchenOperations.Api.Features.KitchenAdmission.AdmissionReceipt", b =>
+                {
+                    b.HasOne("AICOS.KitchenOperations.Api.Domain.Entities.KitchenTicket", null)
+                        .WithMany()
+                        .HasForeignKey("TicketId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_order_admission_receipts_tickets_ticket_id");
                 });
 
             modelBuilder.Entity("AICOS.KitchenOperations.Api.Domain.Entities.KitchenTicket", b =>

@@ -2,6 +2,7 @@ using AICOS.BuildingBlocks.Persistence;
 using AICOS.KitchenOperations.Api.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using AICOS.KitchenOperations.Api.Features.KitchenAdmission;
 
 namespace AICOS.KitchenOperations.Api.Persistence;
 
@@ -14,6 +15,7 @@ public sealed class KitchenOperationsDbContext(DbContextOptions<KitchenOperation
     public DbSet<KitchenTicketItem> TicketItems => Set<KitchenTicketItem>();
 
     public DbSet<CupSticker> CupStickers => Set<CupSticker>();
+    public DbSet<AdmissionReceipt> AdmissionReceipts => Set<AdmissionReceipt>();
 }
 
 internal sealed class KitchenTicketConfiguration : IEntityTypeConfiguration<KitchenTicket>
@@ -27,6 +29,7 @@ internal sealed class KitchenTicketConfiguration : IEntityTypeConfiguration<Kitc
         builder.Property(t => t.TableNumber).HasMaxLength(20);
         builder.Property(t => t.OrderType).HasMaxLength(20).IsRequired();
         builder.Property(t => t.LastRemakeReason).HasMaxLength(200);
+        builder.Property(t => t.RecoveryHoldReason).HasMaxLength(200);
         builder.Property(t => t.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
         builder.Ignore(t => t.IsPriority);
         builder.Ignore(t => t.TotalCups);

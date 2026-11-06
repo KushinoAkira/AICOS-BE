@@ -10,7 +10,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AICOS.KitchenOperations.Api.Features;
 
-public sealed record UpdateKitchenTicketStatusRequest(KitchenTicketStatus? Status);
+public sealed record UpdateKitchenTicketStatusRequest(KitchenTicketStatus? Status, KitchenTicketStatus? ExpectedStatus = null, int? ExpectedRemakeCount = null);
 
 /// <summary>POST /tickets/{id}/remake: why the order is made again (spilled, wrong drink, quality).</summary>
 public sealed record RemakeTicketRequest(string? Reason);
@@ -27,6 +27,8 @@ public static class KitchenEndpoints
     {
         var group = api.MapGroup(string.Empty).WithTags("Kitchen Operations");
 
+        group.MapGet("/staff/capabilities", () => new { ConditionalTicketUpdatesVersion = 1 })
+            .RequireAuthorization(AicosPolicies.Staff);
         group.MapGet("/queue", QueueAsync).RequireAuthorization(AicosPolicies.Staff);
         group.MapGet("/batches", BatchesAsync).RequireAuthorization(AicosPolicies.Staff);
         group.MapGet("/tickets/{id:guid}", GetAsync).RequireAuthorization(AicosPolicies.Staff);
@@ -44,6 +46,7 @@ public static class KitchenEndpoints
         var active = await db.Tickets.AsNoTracking().Include(t => t.Items).Include(t => t.Stickers).AsSplitQuery()
             .Where(t => t.TenantId == tenantId && t.BranchId == branch
                 && t.Status != KitchenTicketStatus.Completed && t.Status != KitchenTicketStatus.Cancelled
+                && t.RecoveryHoldReason == null
                 && (t.IsPaid || t.OrderType == "DineIn"))
             .ToListAsync(ct);
 
@@ -64,6 +67,7 @@ public static class KitchenEndpoints
         var tickets = await db.Tickets.AsNoTracking().Include(t => t.Items).AsSplitQuery()
             .Where(t => t.TenantId == tenantId && t.BranchId == branch
                 && (t.Status == KitchenTicketStatus.Pending || t.Status == KitchenTicketStatus.Brewing)
+                && t.RecoveryHoldReason == null
                 && (t.IsPaid || t.OrderType == "DineIn") && t.CreatedAtUtc >= threshold)
             .OrderBy(t => t.CreatedAtUtc).ToListAsync(ct);
 
@@ -102,40 +106,10 @@ public static class KitchenEndpoints
         ILoggerFactory loggers,
         CancellationToken ct)
     {
-        var ticket = await TicketAccess.LoadAsync(db, user, id, ct);
         var now = clock.GetUtcNow().UtcDateTime;
-        if (!ticket.IsEligibleForBar && r.Status != KitchenTicketStatus.Cancelled)
-        {
-            throw new BusinessRuleException("ticket.not_paid", "This order is not paid yet, so the bar does not make it.");
-        }
-
-        switch (r.Status)
-        {
-            case KitchenTicketStatus.Brewing:
-                RequireBar(user);
-                ticket.StartBrewing(now);
-                break;
-            case KitchenTicketStatus.ReadyForPickup:
-                RequireBar(user);
-                ticket.MarkReadyForPickup(now);
-                break;
-            case KitchenTicketStatus.Completed:
-                RequireBar(user);
-                ticket.Complete(now);
-                break;
-            case KitchenTicketStatus.Cancelled:
-                if (!user.IsInRole(AicosRoles.BranchManager) && !user.IsInRole(AicosRoles.BrandAdmin))
-                {
-                    throw new ForbiddenException("Only a manager cancels a ticket.");
-                }
-
-                ticket.Cancel(now);
-                break;
-            default:
-                throw new ValidationFailedException("status", "Status must be Brewing, ReadyForPickup, Completed or Cancelled.");
-        }
-
-        await db.SaveChangesAsync(ct);
+        var outcome = await KitchenTicketTransitions.UpdateAsync(id, r, db, user, now, ct);
+        var ticket = outcome.Ticket;
+        if (!outcome.Changed) return Results.Ok(TicketMapper.ToDto(ticket));
         var log = loggers.CreateLogger("AICOS.Kitchen.Tickets");
         await SafeAsync(log, () => notifier.NotifyStatusChangedAsync(ticket.TenantId, ticket.BranchId, ticket.Id, ticket.Status.ToString(), ct));
 
@@ -177,10 +151,8 @@ public static class KitchenEndpoints
         AICOS.BuildingBlocks.Validation.CommonRules.Required(errors, "Reason", r.Reason, "Reason", 200);
         errors.ThrowIfAny();
 
-        var ticket = await TicketAccess.LoadAsync(db, user, id, ct);
         var now = clock.GetUtcNow().UtcDateTime;
-        ticket.Remake(r.Reason!, now);
-        await db.SaveChangesAsync(ct);
+        var ticket = await KitchenTicketTransitions.RemakeAsync(id, r.Reason!, db, user, now, ct);
 
         var log = loggers.CreateLogger("AICOS.Kitchen.Tickets");
         await SafeAsync(log, () => notifier.NotifyStatusChangedAsync(ticket.TenantId, ticket.BranchId, ticket.Id, ticket.Status.ToString(), ct));
@@ -203,7 +175,7 @@ public static class KitchenEndpoints
         return new { TicketId = ticket.Id, ticket.OrderCode, ticket.TableNumber, TotalStickers = dtos.Count, Stickers = dtos };
     }
 
-    private static void RequireBar(ICurrentUser user)
+    internal static void RequireBar(ICurrentUser user)
     {
         if (!BarRoles.Any(user.IsInRole))
         {

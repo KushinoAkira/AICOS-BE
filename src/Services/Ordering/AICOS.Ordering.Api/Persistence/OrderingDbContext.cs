@@ -3,11 +3,29 @@ using AICOS.Ordering.Api.Domain;
 using AICOS.Ordering.Api.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using AICOS.Ordering.Api.Features.KitchenAdmission;
 
 namespace AICOS.Ordering.Api.Persistence;
 
-public sealed class OrderingDbContext(DbContextOptions<OrderingDbContext> options) : AicosDbContext(options)
+public sealed class OrderingDbContext(DbContextOptions<OrderingDbContext> options, IConfiguration? configuration = null, TimeProvider? clock = null) : AicosDbContext(options)
 {
+    public DbSet<AdmissionOutbox> AdmissionOutbox => Set<AdmissionOutbox>();
+    public DbSet<AdmissionReconcileState> AdmissionReconcile => Set<AdmissionReconcileState>();
+
+    private void CaptureAdmissions()
+    {
+        if (configuration?.GetValue<bool>("KitchenAdmission:CaptureEnabled") != true) return;
+        foreach (var entry in ChangeTracker.Entries<Order>().Where(x => x.State == EntityState.Added).ToArray())
+        {
+            if (AdmissionOutbox.Local.Any(x => x.OrderId == entry.Entity.Id && x.TenantId == entry.Entity.TenantId)) continue;
+            AdmissionOutbox.Add(AdmissionProjection.Capture(entry.Entity, (clock ?? TimeProvider.System).GetUtcNow().UtcDateTime));
+        }
+    }
+
+    public override int SaveChanges(bool acceptAllChangesOnSuccess) { CaptureAdmissions(); return base.SaveChanges(acceptAllChangesOnSuccess); }
+    public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken ct = default)
+    { CaptureAdmissions(); return base.SaveChangesAsync(acceptAllChangesOnSuccess, ct); }
+
     protected override string Schema => OrderingService.Info.Schema;
 
     public DbSet<PickupSlotSetting> PickupSlotSettings => Set<PickupSlotSetting>();

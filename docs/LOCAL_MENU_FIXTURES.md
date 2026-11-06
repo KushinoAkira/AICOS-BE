@@ -1,5 +1,7 @@
 # Local staff menu: drinks, food and fixed-price combos
 
+Latest update 2026-11-06: the catalog now contains **50 products** (22 added). See [MENU_50_PRODUCTS.md](MENU_50_PRODUCTS.md) for prices, categories and actual API validation. The 28-product figures below describe the initial setup.
+
 Date: 2026-11-04 (Asia/Saigon).
 
 ## Applied data

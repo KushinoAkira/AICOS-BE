@@ -89,6 +89,45 @@ public sealed class KitchenTests : IDisposable
         _otherAdmin = _f.As(AicosRoles.BrandAdmin, tenantId: _otherTenant);
     }
 
+    [Theory]
+    [InlineData("Pending")]
+    [InlineData("Brewing")]
+    [InlineData("ReadyForPickup")]
+    public async Task Delivery_completes_unpaid_ticket_even_if_ready_projection_is_delayed(string status)
+    {
+        var order = Order("DELIVERY-" + status);
+        await _f.HandleAsync(order);
+        var id = await TicketOfAsync(order.OrderCode);
+        if (status != "Pending")
+            await _barista.Put($"{Kitchen}/tickets/{id}/status", new { status }).ShouldBe(200);
+        var at = DateTime.UtcNow;
+        var message = new OrderDeliveredIntegrationEvent(_tenant, _b1, order.OrderId, null, Guid.NewGuid(), at);
+        await _f.HandleAsync(message);
+        await _f.HandleAsync(message);
+        var read = await _barista.GetFromJsonAsync<JsonElement>($"{Kitchen}/tickets/{id}");
+        read.GetProperty("status").GetString().Should().Be("Completed");
+        read.GetProperty("isPaid").GetBoolean().Should().BeFalse();
+        (await QueueAsync()).GetArrayLength().Should().Be(0);
+        _notifier.Statuses.Count(s => s.Status == "Completed").Should().Be(1);
+        await _barista.Post($"{Kitchen}/tickets/{id}/remake", new { reason = "Too late" }).ShouldBe(422, "ticket.not_ready");
+    }
+
+    [Fact]
+    public async Task Delivery_event_respects_tenant_branch_and_cancelled_history()
+    {
+        var order = Order("DELIVERY-SCOPE");
+        await _f.HandleAsync(order);
+        var id = await TicketOfAsync(order.OrderCode);
+        var message = new OrderDeliveredIntegrationEvent(_tenant, _b1, order.OrderId, null, null, DateTime.UtcNow);
+        await _f.HandleAsync(message with { TenantId = _otherTenant });
+        await _f.HandleAsync(message with { BranchId = _b2 });
+        (await QueueAsync()).GetArrayLength().Should().Be(1);
+        await _f.HandleAsync(new OrderCancelledIntegrationEvent(_tenant, order.OrderId, _b1, null, "Cancelled", false, [], DateTime.UtcNow));
+        await _f.HandleAsync(message);
+        var read = await _barista.GetFromJsonAsync<JsonElement>($"{Kitchen}/tickets/{id}");
+        read.GetProperty("status").GetString().Should().Be("Cancelled");
+    }
+
     public void Dispose() => _f.Dispose();
 
     private OrderCreatedIntegrationEvent Order(string code, string type = "DineIn", bool paid = false, Guid? branch = null, Guid? tenant = null, DateTime? pickup = null, Guid? orderId = null) => new(
@@ -100,6 +139,43 @@ public sealed class KitchenTests : IDisposable
 
     private async Task<Guid> TicketOfAsync(string code) =>
         (await QueueAsync()).EnumerateArray().First(t => t.GetProperty("orderCode").GetString() == code).Id();
+
+    [Fact]
+    public async Task Conditional_updates_replay_safely_and_reject_stale_staff_views()
+    {
+        var order = Order("CONDITIONAL-1");
+        await _f.HandleAsync(order);
+        var id = await TicketOfAsync(order.OrderCode);
+        var path = $"{Kitchen}/tickets/{id}/status";
+        var capability = await _barista.GetFromJsonAsync<JsonElement>($"{Kitchen}/staff/capabilities");
+        capability.GetProperty("conditionalTicketUpdatesVersion").GetInt32().Should().Be(1);
+        await _f.CreateClient().GetAsync($"{Kitchen}/staff/capabilities").ShouldBe(401);
+
+        await _barista.Put(path, new { status = "Brewing", expectedStatus = "Pending", expectedRemakeCount = 0 }).ShouldBe(200);
+        var secondBarista = _f.As(AicosRoles.Barista, _b1);
+        await secondBarista.Put(path, new { status = "Brewing", expectedStatus = "Pending", expectedRemakeCount = 0 }).ShouldBe(200);
+        _notifier.Statuses.Count(s => s.Status == "Brewing").Should().Be(1);
+        await _barista.Put(path, new { status = "ReadyForPickup", expectedStatus = "Pending", expectedRemakeCount = 0 }).ShouldBe(409, "ticket.stale");
+        await _cashier.Put(path, new { status = "Brewing", expectedStatus = "Pending", expectedRemakeCount = 0 }).ShouldBe(403);
+        await _barista.Put(path, new { status = "ReadyForPickup", expectedStatus = "Brewing", expectedRemakeCount = 0 }).ShouldBe(200);
+    }
+
+    [Fact]
+    public async Task Remake_cycle_invalidates_old_preparation_view_and_delivery_is_terminal()
+    {
+        var order = Order("CONDITIONAL-REMAKE");
+        await _f.HandleAsync(order);
+        var id = await TicketOfAsync(order.OrderCode);
+        var path = $"{Kitchen}/tickets/{id}/status";
+        await _barista.Put(path, new { status = "Brewing", expectedStatus = "Pending", expectedRemakeCount = 0 }).ShouldBe(200);
+        await _barista.Put(path, new { status = "ReadyForPickup", expectedStatus = "Brewing", expectedRemakeCount = 0 }).ShouldBe(200);
+        await _barista.Post($"{Kitchen}/tickets/{id}/remake", new { reason = "Wrong drink" }).ShouldBe(200);
+        await _barista.Put(path, new { status = "ReadyForPickup", expectedStatus = "Brewing", expectedRemakeCount = 0 }).ShouldBe(409, "ticket.stale");
+        await _barista.Put(path, new { status = "ReadyForPickup", expectedStatus = "Brewing", expectedRemakeCount = 1 }).ShouldBe(200);
+        await _f.HandleAsync(new OrderDeliveredIntegrationEvent(_tenant, _b1, order.OrderId, null, Guid.NewGuid(), DateTime.UtcNow));
+        await _barista.Put(path, new { status = "Brewing", expectedStatus = "ReadyForPickup", expectedRemakeCount = 1 }).ShouldBe(409, "ticket.stale");
+        (await _barista.GetFromJsonAsync<JsonElement>($"{Kitchen}/tickets/{id}")).GetProperty("status").GetString().Should().Be("Completed");
+    }
 
     // ------------------------------------------------------------------ tickets come from order events
     [Fact]

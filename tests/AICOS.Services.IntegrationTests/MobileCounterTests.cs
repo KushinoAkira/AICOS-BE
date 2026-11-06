@@ -34,6 +34,35 @@ public sealed class MobileCounterTests : IDisposable
         _product = _menu.Add(_branch, "Coffee", 50_000);
     }
 
+    [Fact]
+    public async Task Expected_session_cannot_silently_open_a_new_sitting_and_legacy_requests_still_work()
+    {
+        var qr = _tables.Add(_tenant, _branch, "SESSION-GUARD");
+        var table = (await _tables.LookupAsync(qr, default))!;
+        object Request(Guid? expected = null) => new { branchId = _branch, type = "DineIn",
+            tableId = table.TableId, tableNumber = table.TableCode, tableQrToken = qr, expectedSessionId = expected,
+            items = new[] { new { productId = _product, quantity = 1 } } };
+        using var firstClient = await CashierAsync("expected-first");
+        var original = await firstClient.PostOk("/api/v1/orders", Request());
+        var sessionId = original.GetProperty("tableSessionId").GetGuid();
+        using var more = await CashierAsync("expected-more");
+        var second = await more.PostOk("/api/v1/orders", Request(sessionId));
+        second.GetProperty("tableSessionId").GetGuid().Should().Be(sessionId);
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<OrderingDbContext>();
+            (await db.TableSessions.FindAsync(sessionId))!.Close(AICOS.Ordering.Api.Domain.TableSessionCloseReason.Staff, DateTime.UtcNow);
+            await db.SaveChangesAsync();
+        }
+        using var stale = await CashierAsync("expected-stale");
+        await stale.Post("/api/v1/orders", Request(sessionId)).ShouldBe(409, "qr.session_changed");
+        // Replay reads the previously committed order, not a new order on a closed session.
+        var replay = await more.PostOk("/api/v1/orders", Request(sessionId));
+        replay.GetProperty("id").GetGuid().Should().Be(second.GetProperty("id").GetGuid());
+        using var scopeAfter = _factory.Services.CreateScope();
+        scopeAfter.ServiceProvider.GetRequiredService<OrderingDbContext>().TableSessions.Count().Should().Be(1);
+    }
+
     public void Dispose() => _factory.Dispose();
 
     private object Body(int quantity = 1) => new { branchId = _branch, type = "Takeaway", items = new[] { new { productId = _product, quantity } } };
@@ -217,6 +246,72 @@ public sealed class MobileCounterTests : IDisposable
         final.GetProperty("paymentStatus").GetString().Should().Be("Unpaid");
     }
 
+    [Fact]
+    public async Task Transfer_moves_all_unpaid_rounds_without_new_orders_or_price_changes()
+    {
+        var sourceQr = _tables.Add(_tenant, _branch, "S01");
+        var targetQr = _tables.Add(_tenant, _branch, "S02");
+        var source = (await _tables.LookupAsync(sourceQr, default))!;
+        var target = (await _tables.LookupAsync(targetQr, default))!;
+        var body = new { branchId = _branch, type = "DineIn", tableId = source.TableId,
+            tableNumber = source.TableCode, tableQrToken = sourceQr, items = new[] { new { productId = _product, quantity = 1 } } };
+        using var first = await CashierAsync("transfer-round-1");
+        using var second = await CashierAsync("transfer-round-2");
+        var one = await (await first.PostAsJsonAsync("/api/v1/orders", body)).Content.ReadFromJsonAsync<JsonElement>();
+        var two = await (await second.PostAsJsonAsync("/api/v1/orders", body)).Content.ReadFromJsonAsync<JsonElement>();
+        var session = one.GetProperty("tableSessionId").GetGuid();
+        var move = new { expectedTableId = source.TableId, targetQrToken = targetQr };
+        var url = $"/api/v1/orders/qr/sessions/{session}/transfer";
+        (await first.PostAsJsonAsync(url, move)).EnsureSuccessStatusCode();
+        (await first.PostAsJsonAsync(url, move)).EnsureSuccessStatusCode(); // lost-response replay does not create another session/order
+        foreach (var created in new[] { one, two })
+        {
+            var order = await first.GetFromJsonAsync<JsonElement>($"/api/v1/orders/{created.GetProperty("id").GetGuid()}");
+            order.GetProperty("tableId").GetGuid().Should().Be(target.TableId);
+            order.GetProperty("tableSessionId").GetGuid().Should().Be(session);
+            order.GetProperty("finalAmount").GetDecimal().Should().Be(50000);
+        }
+        var sessions = await first.GetFromJsonAsync<JsonElement>($"/api/v1/orders/qr/sessions?branchId={_branch}");
+        sessions.GetArrayLength().Should().Be(1);
+        sessions[0].GetProperty("tableCode").GetString().Should().Be("S02");
+        var creators = await first.GetFromJsonAsync<JsonElement>($"/api/v1/orders/staff/creators?branchId={_branch}&ids={one.GetProperty("id").GetGuid()},{two.GetProperty("id").GetGuid()}");
+        creators.GetArrayLength().Should().Be(2);
+        creators[0].GetProperty("cashierId").GetGuid().Should().Be(_cashier);
+        _factory.Events.Published.OfType<AICOS.Contracts.Events.TableTransferredIntegrationEvent>().Last().OrderIds.Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task Transfer_rejects_occupied_paid_stale_cross_branch_and_barista_requests()
+    {
+        var sourceQr = _tables.Add(_tenant, _branch, "S01");
+        var targetQr = _tables.Add(_tenant, _branch, "S02");
+        var emptyQr = _tables.Add(_tenant, _branch, "S03");
+        var source = (await _tables.LookupAsync(sourceQr, default))!;
+        var target = (await _tables.LookupAsync(targetQr, default))!;
+        using var client = await CashierAsync("guard-source");
+        var original = await (await client.PostAsJsonAsync("/api/v1/orders", new { branchId = _branch, type = "DineIn", tableId = source.TableId,
+            tableNumber = source.TableCode, tableQrToken = sourceQr, items = new[] { new { productId = _product, quantity = 1 } } })).Content.ReadFromJsonAsync<JsonElement>();
+        var session = original.GetProperty("tableSessionId").GetGuid();
+        using var other = await CashierAsync("guard-target");
+        (await other.PostAsJsonAsync("/api/v1/orders", new { branchId = _branch, type = "DineIn", tableId = target.TableId,
+            tableNumber = target.TableCode, tableQrToken = targetQr, items = new[] { new { productId = _product, quantity = 1 } } })).EnsureSuccessStatusCode();
+        var url = $"/api/v1/orders/qr/sessions/{session}/transfer";
+        (await client.PostAsJsonAsync(url, new { expectedTableId = source.TableId, targetQrToken = targetQr })).StatusCode.Should().Be(System.Net.HttpStatusCode.Conflict);
+        (await client.PostAsJsonAsync(url, new { expectedTableId = Guid.NewGuid(), targetQrToken = emptyQr })).StatusCode.Should().Be(System.Net.HttpStatusCode.Conflict);
+        using var barista = _factory.As(AicosRoles.Barista, _branch);
+        (await barista.PostAsJsonAsync(url, new { expectedTableId = source.TableId, targetQrToken = emptyQr })).StatusCode.Should().Be(System.Net.HttpStatusCode.Forbidden);
+        var foreignBranch = _factory.Branches.Add(_tenant);
+        var foreignQr = _tables.Add(_tenant, foreignBranch, "F01");
+        (await client.PostAsJsonAsync(url, new { expectedTableId = source.TableId, targetQrToken = foreignQr })).StatusCode.Should().Be(System.Net.HttpStatusCode.Forbidden);
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<OrderingDbContext>();
+            (await db.Orders.FindAsync(original.GetProperty("id").GetGuid()))!.MarkAsPaid(AICOS.Ordering.Api.Domain.Enums.PaymentMethod.Cash,
+                "Cash", Guid.NewGuid(), DateTime.UtcNow);
+            await db.SaveChangesAsync();
+        }
+        (await client.PostAsJsonAsync(url, new { expectedTableId = source.TableId, targetQrToken = emptyQr })).StatusCode.Should().Be(System.Net.HttpStatusCode.Conflict);
+    }
     [Fact]
     public async Task Barista_may_read_capabilities_but_cannot_create_counter_orders()
     {

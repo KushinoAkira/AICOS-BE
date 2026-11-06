@@ -26,10 +26,11 @@ public static class OrderEndpoints
         var group = api.MapGroup(string.Empty).WithTags("Orders");
 
         group.MapRecommendationEndpoints();
+        group.MapOrderCreatorEndpoints();
 
         group.MapPost("/", CreateAsync).RequireAuthorization(b => b.RequireRole(OrderAccess.CounterRoles));
         group.MapGet("/", ListAsync).RequireAuthorization(AicosPolicies.Staff);
-        group.MapGet("/staff/capabilities", () => new { CounterIdempotency = true, CounterTableSessions = true, TableOrderFilter = true })
+        group.MapGet("/staff/capabilities", () => new { CounterIdempotency = true, CounterTableSessions = true, TableOrderFilter = true, CounterTableTransfer = true, ExpectedTableSession = true })
             .RequireAuthorization(AicosPolicies.Staff);
         group.MapGet("/mine", MineAsync).RequireAuthorization(b => b.RequireRole(AicosRoles.Customer));
         group.MapGet("/exceptions", ExceptionsAsync).RequireAuthorization(AicosPolicies.Management);
@@ -39,7 +40,7 @@ public static class OrderEndpoints
         group.MapGet("/{id:guid}/receipt", ReceiptAsync).RequireAuthorization(b => b.RequireRole(OrderAccess.CounterRoles));
         group.MapPut("/{id:guid}/service-type", SwitchServiceTypeAsync).RequireAuthorization(b => b.RequireRole(OrderAccess.CounterRoles));
         group.MapPost("/{id:guid}/cancel", CancelAsync).RequireAuthorization(b => b.RequireRole([.. OrderAccess.CounterRoles, AicosRoles.Customer]));
-        group.MapPost("/{id:guid}/deliver", DeliverAsync).RequireAuthorization(b => b.RequireRole(OrderAccess.CounterRoles));
+        group.MapPost("/{id:guid}/deliver", OrderDeliveryEndpoints.DeliverAsync).RequireAuthorization(b => b.RequireRole(OrderAccess.CounterRoles));
         group.MapPost("/{id:guid}/no-show", NoShowAsync).RequireAuthorization(b => b.RequireRole(OrderAccess.CounterRoles));
         group.MapPost("/{id:guid}/unfulfillable", UnfulfillableAsync).RequireAuthorization(b => b.RequireRole([.. OrderAccess.CounterRoles, AicosRoles.Barista]));
         group.MapPost("/{id:guid}/exception", ExceptionAsync).RequireAuthorization(AicosPolicies.Management);
@@ -414,25 +415,6 @@ public static class OrderEndpoints
         CommonRules.Required(errors, "Reason", r.Reason, "Reason", 250);
         errors.ThrowIfAny();
         return r.Reason!.Trim();
-    }
-
-    /// <summary>Staff confirm the customer received the order (SCRUM-61).</summary>
-    private static async Task<OrderResponse> DeliverAsync(
-        Guid id, OrderingDbContext db, ICurrentUser user, OrderEventPublisher events, ShopTime clock, CancellationToken ct)
-    {
-        var order = await OrderAccess.LoadAsync(db, user, id, ct);
-        order.Deliver(user.UserId, clock.UtcNow);
-        await db.SaveChangesAsync(ct);
-        if (order.Status == OrderStatus.Completed)
-        {
-            await events.CompletedAsync(order, ct);
-        }
-        else
-        {
-            await events.ChangedAsync(order, "Delivered", ct);   // handed over but not paid yet (dine-in): the table screen shows it as served
-        }
-
-        return OrderResponse.From(order);
     }
 
     // ------------------------------------------------------------------ exceptions (FR-30)

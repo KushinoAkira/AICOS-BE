@@ -1,5 +1,7 @@
 # AICOS Backend
 
+P0 Kitchen admission recovery: [implementation, cấu hình, migration và kết quả test cô lập](docs/KITCHEN_ADMISSION_RECOVERY_IMPLEMENTATION.md). Tính năng mặc định tắt; chưa apply migration hoặc deploy vào môi trường vận hành.
+
 > Cấu hình local của workspace này dùng database main mới, Gateway port 8081 và
 > PostgreSQL port 5433. Xem [hướng dẫn runtime local](docs/MAIN_RUNTIME_SETUP.md)
 > trước khi chạy; dùng Compose overlay được ghi trong tài liệu để giữ hạ tầng cũ.

@@ -55,7 +55,7 @@ $connection = $menu.Config.Env | Where-Object { $_.StartsWith('ConnectionStrings
 if ($connection -notmatch 'Host=postgres;' -or $connection -notmatch 'Database=aicos_menu;' -or $connection -notmatch 'Username=menu_svc;') {
     throw 'Menu database target is not the expected main Docker database.'
 }
-if ($fixture.TenantCode -ne 'aicos-cashier-local' -or $fixture.Categories.Count -ne 6 -or $fixture.Products.Count -ne 28 -or @($fixture.Products.Name | Select-Object -Unique).Count -ne 28) {
+if ($fixture.TenantCode -ne 'aicos-cashier-local' -or $fixture.Categories.Count -ne 6 -or $fixture.Products.Count -ne 50 -or @($fixture.Products.Name | Select-Object -Unique).Count -ne $fixture.Products.Count) {
     throw 'Fixture target/count/uniqueness guard failed.'
 }
 foreach ($item in $fixture.Products) {
@@ -63,7 +63,7 @@ foreach ($item in $fixture.Products) {
         throw 'Invalid local menu fixture.'
     }
 }
-Write-Output 'Preflight PASS: aicos-main / aicos_menu, 6 categories, 28 products. No migration or direct SQL.'
+Write-Output ('Preflight PASS: aicos-main / aicos_menu, 6 categories, ' + $fixture.Products.Count + ' products. No migration or direct SQL.')
 if (-not $Apply) { Write-Output 'Preview only. Add -Apply to create missing fixtures and publish to the three local branches.'; return }
 
 $credential = Import-Clixml -LiteralPath (Join-Path ([IO.Path]::GetTempPath()) 'aicos-local-cashier-admin.clixml')
@@ -103,7 +103,7 @@ try {
         $view = Invoke-LocalApi GET ('/api/v1/menu/branches/' + $branch.id + '/menu') $null $auth.accessToken
         $visibleIds = @($view.categories | ForEach-Object { $_.products } | ForEach-Object { $_.id })
         if ($view.branchId -ne $branch.id -or @($ids | Where-Object { $visibleIds -notcontains $_ }).Count) { throw 'Published branch menu is incomplete.' }
-        Write-Output ('PASS ' + $branch.name + ': all 28 fixture products readable from the branch menu.')
+        Write-Output ('PASS ' + $branch.name + ': all ' + $fixture.Products.Count + ' fixture products readable from the branch menu.')
     }
 } finally {
     Invoke-LocalApi POST '/api/v1/identity/auth/logout' @{ refreshToken = $auth.refreshToken } | Out-Null

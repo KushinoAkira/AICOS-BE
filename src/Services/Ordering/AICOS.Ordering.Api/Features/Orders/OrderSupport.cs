@@ -80,6 +80,10 @@ public sealed class OrderEventPublisher(IEventBus bus, IOrderNotifier notifier, 
         }
     }
 
+    public Task DeliveredAsync(Order order, CancellationToken ct) =>
+        SafeAsync(new OrderDeliveredIntegrationEvent(order.TenantId, order.BranchId, order.Id,
+            order.TableSessionId, order.DeliveredBy, order.DeliveredAtUtc!.Value), ct);
+
     public Task SessionClosedAsync(TableSession session, CancellationToken ct) => notifier.SessionClosedAsync(session, ct);
 
     /// <summary>The guests of a table asked for the bill: the counter hears about it through the Kitchen hub.</summary>

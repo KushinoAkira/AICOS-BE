@@ -18,7 +18,7 @@ public sealed record CreateOrderRequest(
     string? PromotionCode,
     string? Note,
     List<OrderItemRequest>? Items,
-    string? TableQrToken = null);
+    string? TableQrToken = null, Guid? ExpectedSessionId = null);
 
 /// <summary><c>OptionIds</c>: the options chosen for the line (size, sugar, ice, toppings) from the product option groups of the menu.</summary>
 public sealed record OrderItemRequest(Guid? ProductId, int? Quantity, string? Note, List<Guid>? OptionIds = null);

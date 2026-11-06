@@ -556,6 +556,161 @@ namespace AICOS.Ordering.Api.Persistence.Migrations
                     b.ToTable("table_sessions", "ordering");
                 });
 
+            modelBuilder.Entity("AICOS.Ordering.Api.Features.KitchenAdmission.AdmissionOutbox", b =>
+                {
+                    b.Property<Guid>("EventId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("event_id");
+
+                    b.Property<DateTime?>("AcknowledgedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("acknowledged_at_utc");
+
+                    b.Property<Guid?>("AcknowledgedTicketId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("acknowledged_ticket_id");
+
+                    b.Property<int>("AttemptCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("attempt_count");
+
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("branch_id");
+
+                    b.Property<string>("ConsumerKey")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("consumer_key");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<string>("CreationPayload")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("creation_payload");
+
+                    b.Property<byte[]>("CreationSha256")
+                        .IsRequired()
+                        .HasColumnType("bytea")
+                        .HasColumnName("creation_sha256");
+
+                    b.Property<string>("LastErrorCode")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("last_error_code");
+
+                    b.Property<Guid?>("LeaseToken")
+                        .HasColumnType("uuid")
+                        .HasColumnName("lease_token");
+
+                    b.Property<DateTime?>("LeaseUntilUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("lease_until_utc");
+
+                    b.Property<DateTime>("NextAttemptAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("next_attempt_at_utc");
+
+                    b.Property<Guid>("OrderId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("order_id");
+
+                    b.Property<string>("Origin")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("origin");
+
+                    b.Property<int>("SchemaVersion")
+                        .HasColumnType("integer")
+                        .HasColumnName("schema_version");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("state");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.HasKey("EventId")
+                        .HasName("pk_kitchen_admission_outbox");
+
+                    b.HasIndex("NextAttemptAtUtc", "LeaseUntilUtc", "EventId")
+                        .HasDatabaseName("ix_kitchen_admission_due")
+                        .HasFilter("state IN ('PENDING','IN_FLIGHT')");
+
+                    b.HasIndex("TenantId", "OrderId", "ConsumerKey")
+                        .IsUnique()
+                        .HasDatabaseName("uq_kitchen_admission_order");
+
+                    b.HasIndex("TenantId", "BranchId", "State", "CreatedAtUtc")
+                        .HasDatabaseName("ix_kitchen_admission_scope_status");
+
+                    b.ToTable("kitchen_admission_outbox", "ordering", t =>
+                        {
+                            t.HasCheckConstraint("ck_kitchen_admission_ack", "(state = 'ACKED' AND acknowledged_at_utc IS NOT NULL AND acknowledged_ticket_id IS NOT NULL) OR (state <> 'ACKED' AND acknowledged_at_utc IS NULL AND acknowledged_ticket_id IS NULL)");
+
+                            t.HasCheckConstraint("ck_kitchen_admission_lease", "(state = 'IN_FLIGHT' AND lease_token IS NOT NULL AND lease_until_utc IS NOT NULL) OR (state <> 'IN_FLIGHT' AND lease_token IS NULL AND lease_until_utc IS NULL)");
+
+                            t.HasCheckConstraint("ck_kitchen_admission_payload", "jsonb_typeof(creation_payload) = 'object' AND octet_length(creation_sha256) = 32 AND schema_version > 0 AND attempt_count >= 0 AND origin IN ('CAPTURE','RECONCILE')");
+
+                            t.HasCheckConstraint("ck_kitchen_admission_state", "state IN ('PENDING','IN_FLIGHT','ACKED','NEEDS_REVIEW')");
+                        });
+                });
+
+            modelBuilder.Entity("AICOS.Ordering.Api.Features.KitchenAdmission.AdmissionReconcileState", b =>
+                {
+                    b.Property<string>("ConsumerKey")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("consumer_key");
+
+                    b.Property<Guid>("CycleId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("cycle_id");
+
+                    b.Property<DateTime>("CycleStartedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("cycle_started_at_utc");
+
+                    b.Property<DateTime?>("LastCompletedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_completed_at_utc");
+
+                    b.Property<Guid?>("LastOrderId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("last_order_id");
+
+                    b.Property<Guid?>("LeaseToken")
+                        .HasColumnType("uuid")
+                        .HasColumnName("lease_token");
+
+                    b.Property<DateTime?>("LeaseUntilUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("lease_until_utc");
+
+                    b.Property<Guid?>("UpperOrderId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("upper_order_id");
+
+                    b.HasKey("ConsumerKey")
+                        .HasName("pk_kitchen_admission_reconcile_state");
+
+                    b.ToTable("kitchen_admission_reconcile_state", "ordering", t =>
+                        {
+                            t.HasCheckConstraint("ck_kitchen_reconcile_cursor", "last_order_id IS NULL OR (upper_order_id IS NOT NULL AND last_order_id <= upper_order_id)");
+
+                            t.HasCheckConstraint("ck_kitchen_reconcile_lease", "(lease_token IS NULL AND lease_until_utc IS NULL) OR (lease_token IS NOT NULL AND lease_until_utc IS NOT NULL)");
+                        });
+                });
+
             modelBuilder.Entity("AICOS.Ordering.Api.Domain.Entities.OrderItem", b =>
                 {
                     b.HasOne("AICOS.Ordering.Api.Domain.Entities.Order", null)

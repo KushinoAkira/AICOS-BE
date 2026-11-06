@@ -8,6 +8,7 @@ using AICOS.KitchenOperations.Api.Features;
 using AICOS.KitchenOperations.Api.Hubs;
 using AICOS.KitchenOperations.Api.Persistence;
 using AICOS.KitchenOperations.Api.Services;
+using AICOS.KitchenOperations.Api.Features.KitchenAdmission;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -18,19 +19,28 @@ builder.Services.AddAicosBranchDirectory(builder.Configuration);   // asks Ident
 
 // Real-time screens for the bar and the cashiers (NFR-22). Several instances would need a Redis backplane for SignalR.
 builder.Services.AddSignalR();
+builder.Services.AddScoped<KitchenAdmissionService>();
+if (builder.Configuration.GetValue<bool>("KitchenAdmission:ReceiverEnabled"))
+{
+    AdmissionMachineAuthentication.RequireKey(builder.Configuration);
+    builder.Services.AddAdmissionMachineAuthentication(builder.Configuration);
+}
 builder.Services.AddScoped<IKitchenNotifier, KitchenSignalRNotifier>();
 
 // The bar queue is fed by events from the order and payment services.
 builder.Services.AddIntegrationEventHandler<OrderCreatedIntegrationEvent, OrderCreatedHandler>();
+builder.Services.AddIntegrationEventHandler<TableTransferredIntegrationEvent, KitchenTableTransferHandler>();
 builder.Services.AddIntegrationEventHandler<PaymentSucceededEvent, KitchenPaymentSucceededHandler>();
 builder.Services.AddIntegrationEventHandler<TableBillRequestedIntegrationEvent, KitchenBillRequestedHandler>();
 builder.Services.AddIntegrationEventHandler<OrderCancelledIntegrationEvent, KitchenOrderCancelledHandler>();
 builder.Services.AddIntegrationEventHandler<OrderCompletedIntegrationEvent, KitchenOrderCompletedHandler>();
+builder.Services.AddIntegrationEventHandler<OrderDeliveredIntegrationEvent, KitchenOrderDeliveredHandler>();
 
 var app = builder.Build();
 
 await app.MigrateDatabaseAsync<KitchenOperationsDbContext>();
 app.UseAicosServiceDefaults();
+app.MapKitchenAdmission();
 
 app.MapHub<KitchenHub>("/hubs/kitchen");
 
