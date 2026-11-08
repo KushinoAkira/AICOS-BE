@@ -231,9 +231,30 @@ public sealed class WorkforceReplacementTests : WorkforceTestBase
         await Manager.Post($"{Replacements}/{replacement.Id()}/cancel", new { }).ShouldBe(422, "replacement.not_open");
     }
 
+    [Fact]
+    public async Task A_staff_member_asks_for_a_replacement_of_their_own_coming_shift_and_the_manager_still_picks_the_volunteer()
+    {
+        var shift = await NewShiftAsync("Chiều", "13:00", "18:00");
+        var (ownerUser, owner) = await NewEmployeeAsync("Chi Bận");
+        var assignment = await AssignAsync(owner, shift, Monday.AddDays(1));
+
+        var opened = await Staff(ownerUser).PostOk(Replacements, new { assignmentId = assignment, reason = "Em có lịch thi" });
+        opened.GetProperty("status").GetString().Should().Be("Open");
+        opened.GetProperty("originalAssignmentId").GetGuid().Should().Be(assignment);
+        await Staff(ownerUser).Post(Replacements, new { assignmentId = assignment, reason = "lại" }).ShouldBe(409, "replacement.duplicate");
+        await Staff(ownerUser).Post($"{Replacements}/{opened.Id()}/register", new { }).ShouldBe(422, "replacement.own_shift");
+
+        var (helperUser, _) = await NewEmployeeAsync("Dũng Rảnh");
+        await Staff(helperUser).PostOk($"{Replacements}/{opened.Id()}/register", new { note = "Em làm được" });
+        await Staff(helperUser).Post($"{Replacements}/{opened.Id()}/approve", new { }).ShouldBe(403);   // only the manager approves (BR-51)
+        var application = (await Manager.GetFromJsonAsync<JsonElement>($"{Replacements}/{opened.Id()}/applications"))[0];
+        (await Manager.PostOk($"{Replacements}/{opened.Id()}/approve", new { applicationId = application.Id() }))
+            .GetProperty("status").GetString().Should().Be("Filled");
+    }
+
     // ------------------------------------------------------------------ who may do what
     [Fact]
-    public async Task Only_managers_open_approve_and_cancel_and_other_branches_and_brands_are_kept_out()
+    public async Task Only_managers_approve_and_cancel_staff_open_only_their_own_shift_and_other_branches_and_brands_are_kept_out()
     {
         var (_, _, _, assignment) = await AbsentColleagueAsync();
         var replacement = await OpenAsync(assignment);
@@ -242,7 +263,8 @@ public sealed class WorkforceReplacementTests : WorkforceTestBase
         var application = (await Manager.GetFromJsonAsync<JsonElement>($"{Replacements}/{replacement.Id()}/applications"))[0];
         var staff = Staff(userId);
 
-        await staff.Post(Replacements, new { assignmentId = assignment, reason = "x" }).ShouldBe(403);
+        await staff.Post(Replacements, new { assignmentId = assignment, reason = "x" }).ShouldBe(404);                               // not their shift
+        await staff.Post(Replacements, new { workShiftId = Guid.NewGuid(), workDate = D(Monday.AddDays(1)), reason = "x" }).ShouldBe(403, "replacement.own_shift_only");
         await staff.Post($"{Replacements}/{replacement.Id()}/approve", new { applicationId = application.Id() }).ShouldBe(403);
         await staff.Post($"{Replacements}/{replacement.Id()}/cancel", new { }).ShouldBe(403);
         await staff.GetAsync($"{Replacements}/{replacement.Id()}/applications").ShouldBe(403);
