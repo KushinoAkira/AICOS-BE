@@ -82,7 +82,13 @@ class LlmChain:
             if ollama and self.breakers["ollama"].allow():
                 t0 = time.perf_counter()
                 try:
-                    res = await client.post(f"{ollama.rstrip('/')}/api/chat", json={"model": os.environ.get("OLLAMA_MODEL", "qwen2.5:3b"), "messages": messages, "stream": False})
+                    # A local model on CPU answers far slower than the cloud APIs: it gets its own, longer timeout and a capped answer length.
+                    res = await client.post(
+                        f"{ollama.rstrip('/')}/api/chat",
+                        json={"model": os.environ.get("OLLAMA_MODEL", "qwen2.5:3b"), "messages": messages, "stream": False,
+                              "keep_alive": os.environ.get("OLLAMA_KEEP_ALIVE", "30m"), "options": {"num_predict": max_tokens, "temperature": 0.2}},
+                        timeout=float(os.environ.get("OLLAMA_TIMEOUT", "60")),
+                    )
                     res.raise_for_status()
                     self.breakers["ollama"].ok()
                     return LlmResult(res.json()["message"]["content"].strip(), "ollama", int((time.perf_counter() - t0) * 1000))
