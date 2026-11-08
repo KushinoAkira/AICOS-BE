@@ -663,6 +663,26 @@ namespace AICOS.KitchenOperations.Api.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("AICOS.KitchenOperations.Api.Features.EarlyPayment", b =>
+                {
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<Guid>("OrderId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("order_id");
+
+                    b.Property<DateTime>("PaidAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("paid_at_utc");
+
+                    b.HasKey("TenantId", "OrderId")
+                        .HasName("pk_early_payments");
+
+                    b.ToTable("early_payments", "kitchen");
+                });
+
             modelBuilder.Entity("AICOS.KitchenOperations.Api.Features.KitchenAdmission.AdmissionReceipt", b =>
                 {
                     b.Property<string>("ProducerKey")

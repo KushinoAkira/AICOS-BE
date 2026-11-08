@@ -62,15 +62,31 @@ public sealed class KitchenPaymentSucceededHandler(KitchenOperationsDbContext db
     public async Task HandleAsync(PaymentSucceededEvent @event, CancellationToken cancellationToken)
     {
         await notifier.NotifyCounterAsync(@event.TenantId, @event.BranchId, "PaymentSucceeded", new { @event.OrderId, @event.Amount, @event.Method }, cancellationToken);
-        var ticket = await TicketLookup.ByOrderAsync(db, @event.TenantId, @event.OrderId, cancellationToken);
-        if (ticket is null || ticket.IsPaid)
+        // Under the per-order lock the ticket creation also takes, so a payment that overtakes its order is kept instead of lost.
+        var (ticket, newlyVisible) = await KitchenTicketWrites.RunAsync(db, @event.TenantId, @event.OrderId, async () =>
         {
-            return;
-        }
+            var found = await TicketLookup.ByOrderAsync(db, @event.TenantId, @event.OrderId, cancellationToken);
+            if (found is null)
+            {
+                if (!await db.EarlyPayments.AnyAsync(p => p.TenantId == @event.TenantId && p.OrderId == @event.OrderId, cancellationToken))
+                {
+                    db.EarlyPayments.Add(new EarlyPayment { TenantId = @event.TenantId, OrderId = @event.OrderId, PaidAtUtc = clock.GetUtcNow().UtcDateTime });
+                    await db.SaveChangesAsync(cancellationToken);
+                }
 
-        var newlyVisible = ticket.MarkAsPaid();
-        await db.SaveChangesAsync(cancellationToken);
-        if (newlyVisible)
+                return (found, false);
+            }
+
+            if (found.IsPaid)
+            {
+                return (found, false);
+            }
+
+            var visible = found.MarkAsPaid();
+            await db.SaveChangesAsync(cancellationToken);
+            return (found, visible);
+        }, cancellationToken);
+        if (ticket is not null && newlyVisible)
         {
             await TicketLookup.AnnounceAsync(ticket, notifier, clock, db, logger, cancellationToken);
         }
