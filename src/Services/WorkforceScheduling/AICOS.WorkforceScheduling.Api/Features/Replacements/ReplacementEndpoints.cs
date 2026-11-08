@@ -69,6 +69,7 @@ public static class ReplacementEndpoints
         group.MapPost("/{id:guid}/cancel", CancelAsync).RequireAuthorization(AicosPolicies.Management);
         group.MapPost("/{id:guid}/register", RegisterAsync).RequireAuthorization(AicosPolicies.Staff);
         group.MapPost("/{id:guid}/withdraw", WithdrawAsync).RequireAuthorization(AicosPolicies.Staff);
+        group.MapPost("/{id:guid}/retract", RetractAsync).RequireAuthorization(AicosPolicies.Staff);
     }
 
     // ------------------------------------------------------------------ list / get
@@ -340,6 +341,36 @@ public static class ReplacementEndpoints
             ?? throw new NotFoundException("Your registration for the replacement shift", id);
 
         application.Withdraw();
+        await db.SaveChangesAsync(ct);
+        return (await MapAsync(db, user, [replacement], ct))[0];
+    }
+
+    /// <summary>
+    /// The employee who asked for somebody to take their shift takes the request back (no longer busy). Only while nobody was approved:
+    /// the request is cancelled, the colleagues' sign-ups are rejected and the shift simply stays theirs.
+    /// </summary>
+    private static async Task<ReplacementShiftResponse> RetractAsync(Guid id, WorkforceSchedulingDbContext db, ICurrentUser user, ShopClock shop, CancellationToken ct)
+    {
+        var replacement = await FindAsync(db, user, id, ct);
+        var me = await EmployeeLookup.CurrentAsync(db, user, ct);
+        var isMine = replacement.OriginalAssignmentId is not null
+            && await db.ShiftAssignments.AnyAsync(a => a.Id == replacement.OriginalAssignmentId && a.EmployeeId == me.Id, ct);
+        if (!isMine)
+        {
+            throw new ForbiddenException("Only the employee who asked for the replacement can take it back.", "replacement.not_requester");
+        }
+
+        if (replacement.Status != ReplacementStatus.Open)
+        {
+            throw new BusinessRuleException("replacement.not_open", "This replacement shift is no longer open.");
+        }
+
+        replacement.Cancel("Taken back by the employee.", user.UserId, shop.UtcNow);
+        foreach (var pending in await db.ReplacementApplications.Where(a => a.ReplacementShiftId == id && a.Status == ApplicationStatus.Pending).ToListAsync(ct))
+        {
+            pending.Reject();
+        }
+
         await db.SaveChangesAsync(ct);
         return (await MapAsync(db, user, [replacement], ct))[0];
     }

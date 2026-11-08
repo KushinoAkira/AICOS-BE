@@ -253,6 +253,26 @@ public sealed class WorkforceReplacementTests : WorkforceTestBase
     }
 
     [Fact]
+    public async Task The_requester_takes_back_their_own_request_while_nobody_is_approved_and_nobody_else_can()
+    {
+        var shift = await NewShiftAsync("Trưa", "10:00", "14:00");
+        var (ownerUser, owner) = await NewEmployeeAsync("Hà Hết Bận");
+        var assignment = await AssignAsync(owner, shift, Monday.AddDays(1));
+        var request = await Staff(ownerUser).PostOk(Replacements, new { assignmentId = assignment, reason = "Bận" });
+        var (helperUser, _) = await NewEmployeeAsync("Khánh");
+        await Staff(helperUser).PostOk($"{Replacements}/{request.Id()}/register", new { });
+
+        await Staff(helperUser).Post($"{Replacements}/{request.Id()}/retract", new { }).ShouldBe(403, "replacement.not_requester");
+        var taken = await Staff(ownerUser).PostOk($"{Replacements}/{request.Id()}/retract", new { });
+        taken.GetProperty("status").GetString().Should().Be("Cancelled");
+        (await Manager.GetFromJsonAsync<JsonElement>($"{Replacements}/{request.Id()}/applications"))[0].GetProperty("status").GetString().Should().Be("Rejected");
+        await Staff(ownerUser).Post($"{Replacements}/{request.Id()}/retract", new { }).ShouldBe(422, "replacement.not_open");
+
+        // The shift is still theirs, and a new request can be made later.
+        (await Staff(ownerUser).PostOk(Replacements, new { assignmentId = assignment, reason = "Lại bận" })).GetProperty("status").GetString().Should().Be("Open");
+    }
+
+    [Fact]
     public async Task Removing_a_shift_cancels_its_open_replacement_but_an_approved_one_keeps_it()
     {
         var shift = await NewShiftAsync("Tối", "18:00", "22:00");
