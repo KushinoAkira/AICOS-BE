@@ -35,6 +35,7 @@ public sealed class QrOrderTests : IDisposable
 
     private readonly FakeMenu _menu = new();
     private readonly FakeTableQr _tables = new();
+    private readonly FakeVouchers _vouchers = new();
     private readonly ServiceFactory<OrderingService, OrderingDbContext> _f;
     private readonly Guid _tenant = ServiceFactory<OrderingService, OrderingDbContext>.DefaultTenantId;
     private readonly Guid _otherTenant = Guid.NewGuid();
@@ -56,6 +57,8 @@ public sealed class QrOrderTests : IDisposable
             services.AddSingleton<IMenuCatalogClient>(_menu);
             services.RemoveAll<ITableQrClient>();
             services.AddSingleton<ITableQrClient>(_tables);
+            services.RemoveAll<IVoucherClient>();
+            services.AddSingleton<IVoucherClient>(_vouchers);
         });
         _f.Clock.Now = Now;
         _b1 = _f.Branches.Add(_tenant, name: "Quận 1");
@@ -384,6 +387,25 @@ public sealed class QrOrderTests : IDisposable
 
         mine.GetProperty("customerId").GetGuid().Should().Be(memberId);
         other.GetProperty("customerId").ValueKind.Should().Be(JsonValueKind.Null);              // a member of another brand earns nothing here
+    }
+
+    [Fact]
+    public async Task A_member_uses_a_voucher_at_the_table_and_a_guest_is_asked_to_sign_in()
+    {
+        _vouchers.Percent["TABLE10"] = 10;
+        var phone = Phone((await ScanAsync()).Token);
+        await AddAsync(phone, _cake, 1);
+
+        await phone.Post($"{Qr}/checkout", new { promotionCode = "TABLE10" }).ShouldBe(422, "voucher.sign_in_required");
+        _vouchers.Redeemed.Should().BeEmpty();                                                       // the cart is kept for the next try
+
+        var memberId = Guid.NewGuid();
+        var member = _f.As(AicosRoles.Customer, userId: memberId);
+        member.DefaultRequestHeaders.Add(Header, phone.DefaultRequestHeaders.GetValues(Header).Single());
+        var order = await (await member.Post($"{Qr}/checkout", new { promotionCode = "TABLE10" })).Body();
+
+        (order.GetProperty("discountAmount").GetDecimal(), order.GetProperty("finalAmount").GetDecimal()).Should().Be((3_000m, 27_000m));
+        _vouchers.Redeemed.Single().Customer.Should().Be(memberId);
     }
 
     // ------------------------------------------------------------------ the sitting ends

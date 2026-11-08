@@ -212,7 +212,7 @@ services:
         ASSEMBLY: AICOS.Ordering.Api
     environment:
       <<: *dotnet-env
-      Database__MigrateOnStartup: "false"
+      Database__MigrateOnStartup: "true"
       KitchenAdmission__CaptureEnabled: ${KITCHEN_ADMISSION_CAPTURE_ENABLED:-false}
       KitchenAdmission__DispatcherEnabled: ${KITCHEN_ADMISSION_DISPATCHER_ENABLED:-false}
       KitchenAdmission__ReconciliationEnabled: ${KITCHEN_ADMISSION_RECONCILIATION_ENABLED:-false}
@@ -249,7 +249,7 @@ services:
         ASSEMBLY: AICOS.KitchenOperations.Api
     environment:
       <<: *dotnet-env
-      Database__MigrateOnStartup: "false"
+      Database__MigrateOnStartup: "true"
       KitchenAdmission__ReceiverEnabled: ${KITCHEN_ADMISSION_RECEIVER_ENABLED:-false}
       KitchenAdmission__MachineKey: ${KITCHEN_ADMISSION_MACHINE_KEY:-}
       ConnectionStrings__Default: Host=postgres;Port=5432;Database=${POSTGRES_DB:-aicos}_kitchen;Username=kitchen_svc;Password=${SERVICE_DB_PASSWORD:?Set SERVICE_DB_PASSWORD in .env - run scripts/init-env first}
