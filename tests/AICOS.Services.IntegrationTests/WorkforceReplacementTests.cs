@@ -252,6 +252,29 @@ public sealed class WorkforceReplacementTests : WorkforceTestBase
             .GetProperty("status").GetString().Should().Be("Filled");
     }
 
+    [Fact]
+    public async Task Removing_a_shift_cancels_its_open_replacement_but_an_approved_one_keeps_it()
+    {
+        var shift = await NewShiftAsync("Tối", "18:00", "22:00");
+        var (ownerUser, owner) = await NewEmployeeAsync("Em Nhờ");
+        var asked = await AssignAsync(owner, shift, Monday.AddDays(1));
+        var request = await Staff(ownerUser).PostOk(Replacements, new { assignmentId = asked, reason = "Bận" });
+        var (helperUser, _) = await NewEmployeeAsync("Em Giúp");
+        await Staff(helperUser).PostOk($"{Replacements}/{request.Id()}/register", new { });
+
+        await Manager.DeleteAsync($"{Api}/shift-assignments/{asked}").ShouldBe(204);
+        (await Manager.GetFromJsonAsync<JsonElement>($"{Replacements}/{request.Id()}")).GetProperty("status").GetString().Should().Be("Cancelled");
+        (await Manager.GetFromJsonAsync<JsonElement>($"{Replacements}/{request.Id()}/applications"))[0].GetProperty("status").GetString().Should().Be("Rejected");
+
+        var filled = await AssignAsync(owner, shift, Monday.AddDays(2));
+        var second = await Staff(ownerUser).PostOk(Replacements, new { assignmentId = filled, reason = "Bận" });
+        await Staff(helperUser).PostOk($"{Replacements}/{second.Id()}/register", new { });
+        var application = (await Manager.GetFromJsonAsync<JsonElement>($"{Replacements}/{second.Id()}/applications"))[0];
+        await Manager.PostOk($"{Replacements}/{second.Id()}/approve", new { applicationId = application.Id() });
+
+        await Manager.DeleteAsync($"{Api}/shift-assignments/{filled}").ShouldBe(409, "shift.has_replacement");
+    }
+
     // ------------------------------------------------------------------ who may do what
     [Fact]
     public async Task Only_managers_approve_and_cancel_staff_open_only_their_own_shift_and_other_branches_and_brands_are_kept_out()

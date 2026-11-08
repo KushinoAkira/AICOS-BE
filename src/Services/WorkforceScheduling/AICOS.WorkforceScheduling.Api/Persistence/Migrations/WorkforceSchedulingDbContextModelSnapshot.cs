@@ -667,6 +667,10 @@ namespace AICOS.WorkforceScheduling.Api.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("created_by");
 
+                    b.Property<DateTime?>("DeletedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at_utc");
+
                     b.Property<TimeOnly>("EndTime")
                         .HasColumnType("time without time zone")
                         .HasColumnName("end_time");
@@ -705,7 +709,8 @@ namespace AICOS.WorkforceScheduling.Api.Persistence.Migrations
 
                     b.HasIndex("BranchId", "Name")
                         .IsUnique()
-                        .HasDatabaseName("ix_work_shifts_branch_id_name");
+                        .HasDatabaseName("ix_work_shifts_branch_id_name")
+                        .HasFilter("deleted_at_utc IS NULL");
 
                     b.ToTable("work_shifts", "workforce");
                 });

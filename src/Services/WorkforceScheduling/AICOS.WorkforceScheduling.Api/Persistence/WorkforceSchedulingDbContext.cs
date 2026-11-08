@@ -52,7 +52,8 @@ internal sealed class WorkShiftConfiguration : IEntityTypeConfiguration<WorkShif
         builder.Property(s => s.Id).ValueGeneratedNever();
         builder.Property(s => s.Name).HasMaxLength(50).IsRequired();
         builder.Ignore(s => s.Hours);
-        builder.HasIndex(s => new { s.BranchId, s.Name }).IsUnique();
+        // A deleted template frees its name for a new one.
+        builder.HasIndex(s => new { s.BranchId, s.Name }).IsUnique().HasFilter("deleted_at_utc IS NULL");
         builder.HasIndex(s => s.TenantId);
     }
 }
