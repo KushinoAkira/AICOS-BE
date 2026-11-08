@@ -39,6 +39,9 @@ public sealed record ForgotPasswordRequest(string? Email);
 
 public sealed record ResetPasswordRequest(string? Email, string? Code, string? NewPassword, string? ConfirmNewPassword);
 
+/// <summary>Step 1 of the reset page: is the emailed code right? The new password is asked for only after this.</summary>
+public sealed record VerifyResetCodeRequest(string? Email, string? Code);
+
 public sealed record AuthResponse(
     string AccessToken,
     DateTime AccessTokenExpiresAtUtc,
@@ -169,14 +172,27 @@ internal static class AuthRequestValidator
         errors.ThrowIfAny();
     }
 
+    public static void EnsureValid(VerifyResetCodeRequest r)
+    {
+        var errors = new ValidationErrors();
+        CommonRules.Email(errors, nameof(r.Email), r.Email);
+        ResetCode(errors, nameof(r.Code), r.Code);
+        errors.ThrowIfAny();
+    }
+
+    private static void ResetCode(ValidationErrors errors, string field, string? code)
+    {
+        if (string.IsNullOrWhiteSpace(code) || code.Trim().Length != 6 || !code.Trim().All(char.IsAsciiDigit))
+        {
+            errors.Add(field, "Code must be the 6-digit code from the email.");
+        }
+    }
+
     public static void EnsureValid(ResetPasswordRequest r)
     {
         var errors = new ValidationErrors();
         CommonRules.Email(errors, nameof(r.Email), r.Email);
-        if (string.IsNullOrWhiteSpace(r.Code) || r.Code.Trim().Length != 6 || !r.Code.Trim().All(char.IsAsciiDigit))
-        {
-            errors.Add(nameof(r.Code), "Code must be the 6-digit code from the email.");
-        }
+        ResetCode(errors, nameof(r.Code), r.Code);
 
         InputRules.NewPassword(errors, nameof(r.NewPassword), r.NewPassword, nameof(r.ConfirmNewPassword), r.ConfirmNewPassword);
         errors.ThrowIfAny();

@@ -541,6 +541,41 @@ public sealed class AuthEndpointsTests : IDisposable
     }
 
     [Fact]
+    public async Task The_reset_code_is_checked_first_without_being_used_up_and_wrong_tries_count()
+    {
+        await RegisterAsync("quang@example.com");
+        await _anonymous.PostAsJsonAsync($"{Auth}/forgot-password", new ForgotPasswordRequest("quang@example.com"));
+        var code = _factory.Emails.LastCodeFor("quang@example.com");
+        var wrongCode = code == "000000" ? "111111" : "000000";
+
+        var wrong = await _anonymous.PostAsJsonAsync($"{Auth}/reset-password/verify", new VerifyResetCodeRequest("quang@example.com", wrongCode));
+        wrong.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        (await ErrorCodeAsync(wrong)).Should().Be("auth.reset_code_invalid");
+        (await _anonymous.PostAsJsonAsync($"{Auth}/reset-password/verify", new VerifyResetCodeRequest("quang@example.com", "12")))
+            .StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        (await _anonymous.PostAsJsonAsync($"{Auth}/reset-password/verify", new VerifyResetCodeRequest("quang@example.com", code)))
+            .StatusCode.Should().Be(HttpStatusCode.NoContent);
+        (await _anonymous.PostAsJsonAsync($"{Auth}/reset-password",
+            new ResetPasswordRequest("quang@example.com", code, "Brand1234", "Brand1234"))).StatusCode.Should().Be(HttpStatusCode.NoContent);
+        (await _anonymous.PostAsJsonAsync($"{Auth}/reset-password/verify", new VerifyResetCodeRequest("quang@example.com", code)))
+            .StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity); // used by the reset
+
+        // Wrong tries on the check share the reset's limit of five.
+        _factory.Clock.Advance(TimeSpan.FromMinutes(2));
+        await _anonymous.PostAsJsonAsync($"{Auth}/forgot-password", new ForgotPasswordRequest("quang@example.com"));
+        var second = _factory.Emails.LastCodeFor("quang@example.com");
+        var miss = second == "000000" ? "111111" : "000000";
+        for (var i = 0; i < 5; i++)
+        {
+            await _anonymous.PostAsJsonAsync($"{Auth}/reset-password/verify", new VerifyResetCodeRequest("quang@example.com", miss));
+        }
+
+        (await _anonymous.PostAsJsonAsync($"{Auth}/reset-password/verify", new VerifyResetCodeRequest("quang@example.com", second)))
+            .StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+    }
+
+    [Fact]
     public async Task Reset_password_unlocks_a_temporarily_locked_account()
     {
         await RegisterAsync("nga@example.com");
