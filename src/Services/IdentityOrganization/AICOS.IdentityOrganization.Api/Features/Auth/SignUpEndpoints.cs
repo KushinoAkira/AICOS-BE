@@ -14,9 +14,9 @@ namespace AICOS.IdentityOrganization.Api.Features.Auth;
 
 /// <summary>
 /// UC-04 Sign up of a customer, by email or with Google. One account works at every brand: the customer picks a brand after signing in
-/// (select-brand), which also creates their profile and loyalty wallet at that brand. By email: register (account created as pending,
-/// 6-digit code mailed) then verify (account activated and signed in); resend sends a new code. With Google: one call that signs in or
-/// creates the account. Routes: /api/v1/identity/auth/register, /register/verify, /register/resend, /google (anonymous), /select-brand.
+/// (select-brand), which also creates their profile and loyalty wallet at that brand. By email: register creates the account active and
+/// signs the customer in at once, no code is mailed (the one-time code is kept for the password reset). Verify and resend remain only for
+/// accounts created as pending before that change. With Google: one call that signs in or creates the account. Routes: /api/v1/identity/auth/register, /register/verify, /register/resend, /google (anonymous), /select-brand.
 /// </summary>
 public static class SignUpEndpoints
 {
@@ -32,20 +32,20 @@ public static class SignUpEndpoints
         auth.MapPost("/me/delete", DeleteMyDataAsync).RequireAuthorization();
     }
 
-    // ---------------------------------------------------------------- Step 1: create the pending account and mail the code
+    // ---------------------------------------------------------------- Register: the account is active at once and the customer is signed in
     private static async Task<IResult> RegisterAsync(
         RegisterRequest request,
+        HttpContext http,
         IdentityOrganizationDbContext db,
         PasswordService passwords,
-        IEmailSender email,
-        IOptions<AuthOptions> options,
+        AuthTokenIssuer tokens,
         TimeProvider clock,
         CancellationToken ct)
     {
         AuthRequestValidator.EnsureValid(request);
         var address = User.NormalizeLogin(request.Email!);
 
-        // A pending account is overwritten, so a mistyped address or a lost code never traps the email.
+        // A pending account (left from the time sign-up needed a code) is overwritten, so it never traps the email.
         var existing = await db.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.Email == address, ct);
         if (existing is not null && (existing.Status != UserStatus.PendingVerification || existing.DeletedAtUtc is not null))
         {
@@ -57,11 +57,15 @@ public static class SignUpEndpoints
         user.SetPassword(passwords.Hash(user, request.Password!), mustChangePassword: false);
         if (existing is null)
         {
-            user.ChangeStatus(UserStatus.PendingVerification);
             db.Users.Add(user);
         }
 
-        return await IssueCodeAsync(db, email, options.Value, clock.GetUtcNow().UtcDateTime, user, ct);
+        user.ChangeStatus(UserStatus.Active);
+        user.RecordSuccessfulLogin(clock.GetUtcNow().UtcDateTime);
+        var issued = tokens.StartSession(user, http);
+        await db.SaveChangesAsync(ct);
+
+        return Results.Created("/api/v1/identity/auth/me", AuthResponse.From(issued, UserResponse.From(user)));
     }
 
     // ---------------------------------------------------------------- Step 2: the code activates the account and signs the customer in
