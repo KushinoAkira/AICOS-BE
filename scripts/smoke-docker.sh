@@ -416,7 +416,7 @@ require_id "first QR checkout" "$QORDER"
 case "$(body_of "$r")" in *'"tableNumber":"A1"'*) check "the order carries the table" yes yes ;; *) check "the order carries the table" yes no ;; esac
 r=$(qr POST /api/v1/orders/qr/checkout '{}')
 check "an empty cart is not an order" 422 "$(status_of "$r")"
-wait_until "the bar queue shows the table order at once" "call GET /api/v1/kitchen/queue \"\$BARISTA\" | grep -Fc -- '$QORDER'" 1
+case "$(call GET /api/v1/kitchen/queue "$BARISTA")" in *"$QORDER"*) check "a guest's own table order waits for payment before the bar" yes no ;; *) check "a guest's own table order waits for payment before the bar" yes yes ;; esac
 
 r=$(qr POST /api/v1/orders/qr/cart/items "{\"productId\":\"$PRODUCT\",\"quantity\":1}")
 r=$(qr POST /api/v1/orders/qr/checkout '{}')
@@ -432,6 +432,7 @@ case "$(body_of "$r")" in *'"tableCode":"A1"'*) check "table A1 is listed" yes y
 
 r=$(call POST /api/v1/payments/transactions/cash "$CASHIER" "{\"orderId\":\"$QORDER\",\"amount\":116000}")
 check "round 1 is paid at the counter" 201 "$(status_of "$r")"
+wait_until "the bar queue shows the table order once it is paid" "call GET /api/v1/kitchen/queue \"\$BARISTA\" | grep -Fc -- '$QORDER'" 1
 wait_until "the session stays open while a round is unpaid" "call GET /api/v1/orders/qr/sessions \"\$CASHIER\" | sed 's/ [0-9]*\$//' | grep -c A1" 1
 r=$(call POST /api/v1/payments/transactions/cash "$CASHIER" "{\"orderId\":\"$QORDER2\",\"amount\":35000}")
 check "round 2 is paid at the counter" 201 "$(status_of "$r")"

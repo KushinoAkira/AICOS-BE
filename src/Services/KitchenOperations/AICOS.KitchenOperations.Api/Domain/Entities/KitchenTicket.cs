@@ -60,6 +60,9 @@ public class KitchenTicket : AuditableEntity<Guid>, IBranchScoped
 
     public bool IsPaid { get; private set; }
 
+    /// <summary>A guest ordered from the table QR code by themselves: this dine-in ticket waits for payment like a takeaway one.</summary>
+    public bool PayFirst { get; private set; }
+
     public DateTime? ScheduledPickupTimeUtc { get; private set; }
 
     public bool IsPriority => ScheduledPickupTimeUtc.HasValue;
@@ -98,15 +101,16 @@ public class KitchenTicket : AuditableEntity<Guid>, IBranchScoped
 
     public int TotalCups => _items.Sum(i => i.Quantity);
 
-    /// <summary>BR-43: the bar sees and prints stickers for a paid order or a dine-in order.</summary>
-    public bool IsEligibleForBar => IsPaid || OrderType.Equals("DineIn", StringComparison.OrdinalIgnoreCase);
+    /// <summary>BR-43: the bar sees and prints stickers for a paid order, or a dine-in order a staff member keyed in. A guest's own QR order is paid first.</summary>
+    public bool IsEligibleForBar => IsPaid || (OrderType.Equals("DineIn", StringComparison.OrdinalIgnoreCase) && !PayFirst);
 
     protected KitchenTicket()
     {
     }
 
     public KitchenTicket(
-        Guid tenantId, Guid orderId, string orderCode, Guid branchId, string? tableNumber, string orderType, bool isPaid, DateTime? scheduledPickupTimeUtc = null)
+        Guid tenantId, Guid orderId, string orderCode, Guid branchId, string? tableNumber, string orderType, bool isPaid, DateTime? scheduledPickupTimeUtc = null,
+        bool payFirst = false)
     {
         Id = Guid.NewGuid();
         TenantId = tenantId;
@@ -116,6 +120,7 @@ public class KitchenTicket : AuditableEntity<Guid>, IBranchScoped
         TableNumber = tableNumber;
         OrderType = orderType;
         IsPaid = isPaid;
+        PayFirst = payFirst;
         ScheduledPickupTimeUtc = scheduledPickupTimeUtc;
         Status = KitchenTicketStatus.Pending;
     }

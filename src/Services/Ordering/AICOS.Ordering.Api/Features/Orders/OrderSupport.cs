@@ -103,7 +103,7 @@ public sealed class OrderEventPublisher(IEventBus bus, IOrderNotifier notifier, 
     public async Task CreatedAsync(Order o, CancellationToken ct)
     {
         await SafeAsync(new OrderCreatedIntegrationEvent(
-            o.TenantId, o.Id, o.OrderCode, o.BranchId, o.CashierId, o.CustomerId, o.TableId, o.TableNumber, o.Type.ToString(), o.FinalAmount, o.IsPaid, o.PickupSlotStartUtc, Items(o), o.CreatedAtUtc), ct);
+            o.TenantId, o.Id, o.OrderCode, o.BranchId, o.CashierId, o.CustomerId, o.TableId, o.TableNumber, o.Type.ToString(), o.FinalAmount, o.IsPaid, o.PickupSlotStartUtc, Items(o), o.CreatedAtUtc, o.PayFirst), ct);
         await ChangedAsync(o, "Created", ct);
     }
 

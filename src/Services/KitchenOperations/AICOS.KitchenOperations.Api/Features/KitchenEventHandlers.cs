@@ -52,7 +52,7 @@ public sealed class OrderCreatedHandler(KitchenAdmissionService admission, ILogg
             message.TenantId, message.BranchId, message.OrderId, creation,
             Convert.ToHexString(AdmissionProtocol.Hash(message.TenantId, message.BranchId, message.OrderId, creation)),
             new AdmissionFacts(message.OrderType, "Pending", message.IsPaid, message.TableNumber, message.CreatedAtUtc,
-                message.ScheduledPickupTimeUtc, null, null)), false, ct);
+                message.ScheduledPickupTimeUtc, null, null, message.PayFirst)), false, ct);
     }
 }
 /// <summary>The order was paid: a takeaway ticket reaches the bar now, with its stickers (BR-43).</summary>

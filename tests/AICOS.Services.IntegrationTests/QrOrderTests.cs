@@ -390,6 +390,17 @@ public sealed class QrOrderTests : IDisposable
     }
 
     [Fact]
+    public async Task An_order_a_guest_places_from_the_table_is_paid_before_the_bar_makes_it()
+    {
+        var phone = Phone((await ScanAsync()).Token);
+        await AddAsync(phone, _cake, 1);
+
+        await phone.Post($"{Qr}/checkout", new { }).ShouldBe(201);
+
+        _f.Events.Published.OfType<OrderCreatedIntegrationEvent>().Single().PayFirst.Should().BeTrue();
+    }
+
+    [Fact]
     public async Task A_member_uses_a_voucher_at_the_table_and_a_guest_is_asked_to_sign_in()
     {
         _vouchers.Percent["TABLE10"] = 10;

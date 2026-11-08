@@ -42,7 +42,8 @@ public sealed class KitchenAdmissionService(KitchenOperationsDbContext db, IKitc
             if (ticket is null)
             {
                 ticket = new KitchenTicket(request.TenantId, request.OrderId, request.Creation.OrderCode,
-                    request.BranchId, request.Source.TableNumber, request.Source.OrderType, request.Source.IsPaid, request.Source.PickupSlotStartUtc);
+                    request.BranchId, request.Source.TableNumber, request.Source.OrderType, request.Source.IsPaid, request.Source.PickupSlotStartUtc,
+                    request.Source.PayFirst);
                 foreach (var item in request.Creation.Items) ticket.AddItem(item.ProductId, item.ProductName, item.Quantity, item.Note);
                 db.Tickets.Add(ticket);
             }

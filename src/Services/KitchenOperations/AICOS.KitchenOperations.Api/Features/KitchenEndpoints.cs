@@ -48,7 +48,7 @@ public static class KitchenEndpoints
             .Where(t => t.TenantId == tenantId && t.BranchId == branch
                 && t.Status != KitchenTicketStatus.Completed && t.Status != KitchenTicketStatus.Cancelled
                 && t.RecoveryHoldReason == null && t.FulfillmentMode == AICOS.Contracts.Serving.FulfillmentModes.WholeOrder
-                && (t.IsPaid || t.OrderType == "DineIn"))
+                && (t.IsPaid || (t.OrderType == "DineIn" && !t.PayFirst)))
             .ToListAsync(ct);
 
         return active.Where(t => t.IsPriority).OrderBy(t => t.ScheduledPickupTimeUtc)
@@ -69,7 +69,7 @@ public static class KitchenEndpoints
             .Where(t => t.TenantId == tenantId && t.BranchId == branch
                 && (t.Status == KitchenTicketStatus.Pending || t.Status == KitchenTicketStatus.Brewing)
                 && t.RecoveryHoldReason == null && t.FulfillmentMode == AICOS.Contracts.Serving.FulfillmentModes.WholeOrder
-                && (t.IsPaid || t.OrderType == "DineIn") && t.CreatedAtUtc >= threshold)
+                && (t.IsPaid || (t.OrderType == "DineIn" && !t.PayFirst)) && t.CreatedAtUtc >= threshold)
             .OrderBy(t => t.CreatedAtUtc).ToListAsync(ct);
 
         var cups = tickets.SelectMany(t => t.Items.SelectMany(item => Enumerable.Range(0, item.Quantity)

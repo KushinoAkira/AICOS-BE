@@ -160,6 +160,10 @@ namespace AICOS.KitchenOperations.Api.Persistence.Migrations
                         .HasColumnType("character varying(20)")
                         .HasColumnName("order_type");
 
+                    b.Property<bool>("PayFirst")
+                        .HasColumnType("boolean")
+                        .HasColumnName("pay_first");
+
                     b.Property<DateTime?>("ReadyAtUtc")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("ready_at_utc");
