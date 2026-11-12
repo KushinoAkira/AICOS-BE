@@ -22,6 +22,18 @@ namespace AICOS.Services.IntegrationTests;
 public sealed class CupServingGuardTests
 {
     [Fact]
+    public async Task Cup_routes_and_capabilities_remain_disabled_by_default()
+    {
+        using var f = new ServiceFactory<KitchenOperationsService, KitchenOperationsDbContext>();
+        var branch = f.Branches.Add(ServiceFactory<KitchenOperationsService, KitchenOperationsDbContext>.DefaultTenantId);
+        using var staff = f.As(AicosRoles.Cashier, branch);
+        var capabilities = await staff.GetFromJsonAsync<JsonElement>("/api/v1/kitchen/staff/capabilities");
+        capabilities.GetProperty("cupServingVersion").GetInt32().Should().Be(0);
+        capabilities.GetProperty("claimVersion").GetInt32().Should().Be(0);
+        (await staff.GetAsync("/api/v1/kitchen/cups?orderId=" + Guid.NewGuid())).StatusCode.Should().Be(System.Net.HttpStatusCode.NotFound);
+    }
+
+    [Fact]
     public async Task Legacy_delivery_and_cancel_cannot_bypass_cup_mode_and_do_not_publish_effects()
     {
         using var f = new ServiceFactory<OrderingService, OrderingDbContext>();

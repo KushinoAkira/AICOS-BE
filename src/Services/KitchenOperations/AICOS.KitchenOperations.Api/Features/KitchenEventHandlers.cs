@@ -42,6 +42,8 @@ public sealed class OrderCreatedHandler(KitchenAdmissionService admission, ILogg
 {
     public async Task HandleAsync(OrderCreatedIntegrationEvent message, CancellationToken ct)
     {
+        // V2 owns canonical identity; the additive marker prevents legacy Redis admission racing HTTP.
+        if (message.FulfillmentMode != AICOS.Contracts.Serving.FulfillmentModes.WholeOrder) return;
         if (message.TenantId == Guid.Empty)
         {
             logger.LogWarning("An order without a brand was ignored by the bar queue.");
@@ -62,17 +64,32 @@ public sealed class KitchenPaymentSucceededHandler(KitchenOperationsDbContext db
     public async Task HandleAsync(PaymentSucceededEvent @event, CancellationToken cancellationToken)
     {
         await notifier.NotifyCounterAsync(@event.TenantId, @event.BranchId, "PaymentSucceeded", new { @event.OrderId, @event.Amount, @event.Method }, cancellationToken);
-        var ticket = await TicketLookup.ByOrderAsync(db, @event.TenantId, @event.OrderId, cancellationToken);
-        if (ticket is null || ticket.IsPaid)
+        // Admission may have inserted the ticket without committing yet. Share its order lock
+        // before looking up the row; an unlocked read would silently lose the payment event.
+        var outcome = await KitchenTicketWrites.RunAsync(db, @event.TenantId, @event.OrderId, async () =>
         {
-            return;
-        }
+            var ticket = await TicketLookup.ByOrderAsync(db, @event.TenantId, @event.OrderId, cancellationToken);
+            if (ticket is null || ticket.BranchId != @event.BranchId)
+            {
+                logger.LogWarning("Kitchen payment event for order {OrderId} found no matching committed ticket; legacy Pub/Sub does not retry this event", @event.OrderId);
+                return (Ticket: (KitchenTicket?)null, NewlyVisible: false);
+            }
+            if (ticket.IsPaid)
+            {
+                logger.LogInformation("Kitchen payment event for order {OrderId}: ticket {TicketId} already paid", @event.OrderId, ticket.Id);
+                return (Ticket: (KitchenTicket?)ticket, NewlyVisible: false);
+            }
 
-        var newlyVisible = ticket.MarkAsPaid();
-        await db.SaveChangesAsync(cancellationToken);
-        if (newlyVisible)
+            var newlyVisible = ticket.MarkAsPaid();
+            await db.SaveChangesAsync(cancellationToken);
+            return (Ticket: (KitchenTicket?)ticket, NewlyVisible: newlyVisible);
+        }, cancellationToken);
+        if (outcome.Ticket is not { } committedTicket) return;
+        logger.LogInformation("Kitchen payment committed for order {OrderId}: ticket {TicketId}, newly visible {NewlyVisible}, held {Held}, mode {FulfillmentMode}",
+            @event.OrderId, committedTicket.Id, outcome.NewlyVisible, committedTicket.RecoveryHoldReason is not null, committedTicket.FulfillmentMode);
+        if (outcome.NewlyVisible && committedTicket.FulfillmentMode == AICOS.Contracts.Serving.FulfillmentModes.WholeOrder)
         {
-            await TicketLookup.AnnounceAsync(ticket, notifier, clock, db, logger, cancellationToken);
+            await TicketLookup.AnnounceAsync(committedTicket, notifier, clock, db, logger, cancellationToken);
         }
     }
 }

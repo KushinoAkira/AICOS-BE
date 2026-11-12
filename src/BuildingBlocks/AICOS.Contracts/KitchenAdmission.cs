@@ -13,7 +13,7 @@ public sealed record AdmissionAck(Guid EventId, string ConsumerKey, Guid TenantI
     Guid OrderId, Guid TicketId, string Result, string ReceiptStatus);
 public sealed record AdmissionLookup(Guid TenantId, Guid BranchId, IReadOnlyList<Guid> OrderIds);
 public sealed record AdmissionPresence(Guid OrderId, Guid? TicketId, string? Status, string? Hold,
-    string? TableNumber, DateTime? DeliveredAtUtc);
+    string? TableNumber, DateTime? DeliveredAtUtc, bool? IsPaid = null);
 
 public static class AdmissionProtocol
 {

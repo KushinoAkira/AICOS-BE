@@ -17,9 +17,10 @@ public sealed class OrderingDbContext(DbContextOptions<OrderingDbContext> option
 
     private void CaptureAdmissions()
     {
-        if (configuration?.GetValue<bool>("KitchenAdmission:CaptureEnabled") != true) return;
         foreach (var entry in ChangeTracker.Entries<Order>().Where(x => x.State == EntityState.Added).ToArray())
         {
+            var cup = entry.Entity.FulfillmentMode == AICOS.Contracts.Serving.FulfillmentModes.CupV1;
+            if (configuration?.GetValue<bool>(cup ? "CupServing:CaptureEnabled" : "KitchenAdmission:CaptureEnabled") != true) continue;
             if (AdmissionOutbox.Local.Any(x => x.OrderId == entry.Entity.Id && x.TenantId == entry.Entity.TenantId)) continue;
             AdmissionOutbox.Add(AdmissionProjection.Capture(entry.Entity, (clock ?? TimeProvider.System).GetUtcNow().UtcDateTime));
         }

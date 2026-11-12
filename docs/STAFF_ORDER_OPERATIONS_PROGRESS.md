@@ -1,5 +1,18 @@
 # Staff Order phi thanh toán — tiến độ Phase A–F
 
+## CupV1 blocker review — 2026-11-07
+
+- Thêm kiểm thử PostgreSQL bằng `kitchen_svc`/`ordering_svc` non-owner, credentials ngẫu nhiên chỉ trong test. Role workflow + replay + SQL ledger denials PASS; ma trận quyền thật ở `CUP_SERVING_ACL_PERMISSION_MATRIX.md`.
+- Source không thay đổi nghiệp vụ đã DONE. Proposal TTL/Manager, transfer version/outbox/inbox và Dine-in close, P0 legacy financial guard findings cùng checklist chờ duyệt: [CUP_SERVING_BLOCKER_RESOLUTION_REVIEW.md](CUP_SERVING_BLOCKER_RESOLUTION_REVIEW.md).
+- Fresh: Backend regression 484 PASS, ACL 1 composite PASS, Cup recovery/concurrency 1 composite PASS, Flutter Cup 7 mock/widget PASS/analyzer 0 issues. Full Mobile E2E BLOCKED do chưa có policy chọn Cup mode qua public API; Web FE NOT RUN vì chưa clone. Không dùng fixture hoặc test từ chối transfer để tuyên bố hai chức năng này đã hoàn thành.
+- Không chạy schema mới ngoài foundation, không sửa Payment/Bill hoặc database vận hành; flags production OFF, không deploy/commit/push.
+
+## Cập nhật CupV1 2026-11-07
+
+- Đã tiếp tục foundation bằng Admission V2, API từng ly sau flags OFF, snapshot outbox/inbox + retry/replay reconciliation và Flutter real-API panel. Xem [CUP_SERVING_V2_IMPLEMENTATION.md](CUP_SERVING_V2_IMPLEMENTATION.md) để biết đầy đủ API/files/test evidence.
+- Chỉ chạy migration trên PostgreSQL test mới sau guard/checksum/preflight; không đổi database vận hành, không deploy hoặc commit/push. Giữ 4+2 bảng và hai migration cũ.
+- TTL/Manager, chuyển bàn CupV1, production mode-selection/legacy financial guards và Dine-in close vẫn BLOCKED. Không thay Payment/Bill, không mở feature vận hành.
+
 Ngày: 2026-11-05. Tiếp tục mapping/GAP đã có, không audit lại Phase 1.
 **Payment, Cash, QR payment, Refund, Bill Settlement và financial reconciliation
 đang tạm dừng theo yêu cầu mới.** Giữ code hiện tại, không xóa hoặc thay hành vi

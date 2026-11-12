@@ -2,6 +2,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using AICOS.BuildingBlocks.Security;
 using AICOS.Contracts.KitchenAdmission;
+using AICOS.Contracts.Serving;
 
 namespace AICOS.Ordering.Api.Features.KitchenAdmission;
 
@@ -9,11 +10,21 @@ public sealed record AdmissionTransportResult(int Status, AdmissionAck? Ack);
 public interface IKitchenAdmissionTransport
 {
     Task<AdmissionTransportResult> SendAsync(AdmissionRequest request, CancellationToken ct);
+    Task<AdmissionTransportResult> SendCupAsync(CupAdmissionRequest request, CancellationToken ct) =>
+        throw new NotSupportedException("Cup admission transport not configured.");
     Task<IReadOnlyList<AdmissionPresence>> LookupAsync(Guid tenant, Guid branch, IReadOnlyList<Guid> orders, CancellationToken ct);
 }
 
 public sealed class HttpKitchenAdmissionTransport(HttpClient client, IConfiguration configuration) : IKitchenAdmissionTransport
 {
+    public async Task<AdmissionTransportResult> SendCupAsync(CupAdmissionRequest request, CancellationToken ct)
+    {
+        using var message = Request("/internal/v2/kitchen/order-admissions", request.TenantId, request.BranchId,
+            "kitchen.admission.v2.write", request);
+        using var response = await client.SendAsync(message, ct);
+        var ack = response.IsSuccessStatusCode ? await response.Content.ReadFromJsonAsync<AdmissionAck>(AdmissionProtocol.Json, ct) : null;
+        return new((int)response.StatusCode, ack);
+    }
     private HttpRequestMessage Request(string path, Guid tenant, Guid branch, string scope, object body)
     {
         var request = new HttpRequestMessage(HttpMethod.Post, path) { Content = JsonContent.Create(body, options: AdmissionProtocol.Json) };

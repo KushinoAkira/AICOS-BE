@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using AICOS.Contracts.KitchenAdmission;
+using AICOS.Contracts.Serving;
 using AICOS.Ordering.Api.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -54,13 +55,36 @@ public static class AdmissionProjection
 
     public static AdmissionOutbox New(Order order, DateTime now, string origin = "CAPTURE")
     {
+        if (order.FulfillmentMode == FulfillmentModes.CupV1)
+        {
+            var notes = Creation(order).Items.ToArray();
+            var manifest = new CupManifest(order.OrderCode, order.FulfillmentMode, order.TableId, order.TableSessionId,
+                order.Items.Select((i, index) => new CupAdmissionItem(i.Id, i.ProductId, i.ProductName, i.Quantity, notes[index].Note)).ToArray());
+            return new AdmissionOutbox
+            {
+                TenantId = order.TenantId,
+                BranchId = order.BranchId,
+                OrderId = order.Id,
+                ConsumerKey = CupAdmissionProtocol.Consumer,
+                SchemaVersion = 2,
+                CreationPayload = JsonSerializer.Serialize(manifest, AdmissionProtocol.Json),
+                CreationSha256 = Convert.FromHexString(CupAdmissionProtocol.Hash(order.TenantId, order.BranchId, order.Id, manifest)),
+                CreatedAtUtc = now,
+                NextAttemptAtUtc = now,
+                Origin = origin
+            };
+        }
         var creation = Creation(order);
         return new AdmissionOutbox
         {
-            TenantId = order.TenantId, BranchId = order.BranchId, OrderId = order.Id,
+            TenantId = order.TenantId,
+            BranchId = order.BranchId,
+            OrderId = order.Id,
             CreationPayload = JsonSerializer.Serialize(creation, AdmissionProtocol.Json),
             CreationSha256 = AdmissionProtocol.Hash(order.TenantId, order.BranchId, order.Id, creation),
-            CreatedAtUtc = now, NextAttemptAtUtc = now, Origin = origin,
+            CreatedAtUtc = now,
+            NextAttemptAtUtc = now,
+            Origin = origin,
         };
     }
 
@@ -69,6 +93,11 @@ public static class AdmissionProjection
         JsonSerializer.Deserialize<AdmissionCreation>(row.CreationPayload, AdmissionProtocol.Json)!, Convert.ToHexString(row.CreationSha256),
         new AdmissionFacts(order.Type.ToString(), order.Status.ToString(), order.IsPaid, order.TableNumber,
             order.CreatedAtUtc, order.PickupSlotStartUtc, order.DeliveredAtUtc, order.CancelledAtUtc));
+
+    public static CupAdmissionRequest CupRequest(AdmissionOutbox row, Order order) => new(row.EventId,
+        row.TenantId, row.BranchId, row.OrderId, JsonSerializer.Deserialize<CupManifest>(row.CreationPayload, AdmissionProtocol.Json)!,
+        Convert.ToHexString(row.CreationSha256), new AdmissionFacts(order.Type.ToString(), order.Status.ToString(), order.IsPaid,
+            order.TableNumber, order.CreatedAtUtc, order.PickupSlotStartUtc, order.DeliveredAtUtc, order.CancelledAtUtc));
 }
 
 internal sealed class AdmissionOutboxConfiguration : IEntityTypeConfiguration<AdmissionOutbox>

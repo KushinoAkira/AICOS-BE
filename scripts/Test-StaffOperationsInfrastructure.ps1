@@ -1,8 +1,11 @@
 [CmdletBinding()]
-param([switch]$Run, [switch]$Recovery)
+param([switch]$Run, [switch]$Recovery, [switch]$Cups, [switch]$CupAcl)
 $ErrorActionPreference = 'Stop'
 $repository = Split-Path $PSScriptRoot -Parent
+if (@(@($Recovery, $Cups, $CupAcl) | Where-Object { $_ }).Count -gt 1) { throw 'Choose only one infrastructure test mode.' }
 if (-not $Run) {
+    if ($CupAcl) { Write-Output 'ACL plan: guarded disposable PostgreSQL/Redis; reviewed Cup schema, two non-owner test service logins, reviewed GRANT proposals, real HTTP/SQL workflow, deny audit mutation; never operating roles.'; return }
+    if ($Cups) { Write-Output 'Cup plan: guarded disposable PostgreSQL/Redis; checksum/preflight, reviewed test schema, HTTP/crash/retry/fencing tests; no operating database.'; return }
     if ($Recovery) { Write-Output 'Recovery plan: new guarded PostgreSQL/Redis only; apply EF migrations on two empty disposable test databases, execute HTTP/worker/process-crash tests, then remove only this run resources. Never use a deployment database.'; return }
     Write-Output 'Plan: disposable PostgreSQL 16 + Redis 7, dedicated bridge network, tmpfs only, random loopback ports. Guard container/cluster/database before approved test-only EnsureCreated and fixtures. Real Redis transport; fake Identity/Menu/Table and test-signed JWT. No migrations or Payment/Bill API.'
     return
@@ -73,7 +76,9 @@ try {
     $redisPort = Assert-TestContainer $redisId $network 6379
     $ready = $false
     for ($i = 0; $i -lt 30; $i++) {
-        & docker exec $pgId pg_isready -U aicos_operations_test -d aicos_operations_ordering_test 2>$null | Out-Null
+        # The image's temporary init server accepts Unix sockets before POSTGRES_DB exists.
+        # TCP is enabled only by the final server, after bootstrap completes.
+        & docker exec $pgId pg_isready -h 127.0.0.1 -U aicos_operations_test -d aicos_operations_ordering_test 2>$null | Out-Null
         if ($LASTEXITCODE -eq 0) { $ready = $true; break }
         Start-Sleep -Seconds 1
     }
@@ -97,11 +102,13 @@ try {
     Push-Location $repository
     try {
         $testFilter = 'FullyQualifiedName~StaffOperationsInfrastructureTests'
-        if ($Recovery) {
+        if ($Cups) { $testFilter = 'FullyQualifiedName~CupServingInfrastructureTests' }
+        if ($CupAcl) { $testFilter = 'FullyQualifiedName~CupServingAclInfrastructureTests' }
+        if ($Recovery -or $Cups) {
             dotnet build tests/AICOS.AdmissionCrashProbe/AICOS.AdmissionCrashProbe.csproj --no-restore --verbosity quiet
             if ($LASTEXITCODE -ne 0) { throw 'Crash probe build failed.' }
             $env:AICOS_OPERATIONS_CRASH_PROBE = Join-Path $repository 'tests/AICOS.AdmissionCrashProbe/bin/Debug/net8.0/AICOS.AdmissionCrashProbe.dll'
-            $testFilter = 'FullyQualifiedName~KitchenAdmissionRecoveryTests'
+            if ($Recovery) { $testFilter = 'FullyQualifiedName~KitchenAdmissionRecoveryTests' }
         }
         dotnet test tests/AICOS.Services.IntegrationTests/AICOS.Services.IntegrationTests.csproj --no-restore --filter $testFilter --logger 'console;verbosity=minimal' --logger 'trx;LogFileName=staff-operations.trx' --results-directory $results
         $exit = $LASTEXITCODE
@@ -111,7 +118,8 @@ try {
     Write-Output 'Existing container snapshots unchanged.'
     $evidence = @("# Disposable staff operations infrastructure run", "", ('UTC: ' + [DateTime]::UtcNow.ToString('o')), ('PostgreSQL container: ' + $pgId), ('Redis container: ' + $redisId), ('Cluster: ' + $cluster), ('Network: ' + $network), ('Loopback ports: ' + $pgPort + '/' + $redisPort), 'Databases: aicos_operations_ordering_test, aicos_operations_kitchen_test', 'Storage: tmpfs; no production credentials, mounts or volumes', 'Existing containers: ID/image/start/status/restart snapshot unchanged', ('Test exit code: ' + $exit), ('TRX evidence (local temp): ' + (Join-Path $results 'staff-operations.trx')))
     if ($Recovery) { $evidence += 'Recovery mode: EF migrations applied only to the guarded disposable databases; machine credentials random per test, no deployment migrations.' }
-    $reportName = if ($Recovery) { 'docs/KITCHEN_ADMISSION_RECOVERY_RUN.md' } else { 'docs/STAFF_OPERATIONS_INFRASTRUCTURE_RUN.md' }
+    if ($CupAcl) { $evidence += 'ACL mode: two fresh non-owner runtime roles and random in-memory credentials in this disposable cluster only; no operating credentials.' }
+    $reportName = if ($CupAcl) { 'docs/CUP_SERVING_ACL_RUN.md' } elseif ($Cups) { 'docs/CUP_SERVING_INFRASTRUCTURE_RUN.md' } elseif ($Recovery) { 'docs/KITCHEN_ADMISSION_RECOVERY_RUN.md' } else { 'docs/STAFF_OPERATIONS_INFRASTRUCTURE_RUN.md' }
     [IO.File]::WriteAllLines((Join-Path $repository $reportName), $evidence, (New-Object Text.UTF8Encoding($false)))
     if ($exit -ne 0) { throw 'Operational infrastructure tests failed; inspect test output. No main database was used.' }
 } finally {

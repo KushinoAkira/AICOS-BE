@@ -28,6 +28,7 @@ builder.Services.AddAicosServiceClient<IPaymentClient, HttpPaymentClient>(builde
 
 builder.Services.AddSingleton<ShopTime>();
 builder.AddKitchenAdmission();
+AICOS.Ordering.Api.Features.Fulfillment.FulfillmentEndpoints.AddFulfillment(builder);
 builder.Services.AddScoped<OrderEventPublisher>();
 
 // Real-time channel for customers (a guest at a table and signed-in members) in place of polling. Several instances would need a Redis backplane.
@@ -56,6 +57,7 @@ var app = builder.Build();
 
 await app.MigrateDatabaseAsync<OrderingDbContext>();
 app.UseAicosServiceDefaults();
+AICOS.Ordering.Api.Features.Fulfillment.FulfillmentEndpoints.MapFulfillment(app);
 
 var api = app.MapAicosApiGroup();
 api.MapPickupSlotEndpoints();

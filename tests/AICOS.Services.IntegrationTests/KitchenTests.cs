@@ -287,6 +287,19 @@ public sealed class KitchenTests : IDisposable
     }
 
     [Fact]
+    public async Task A_payment_for_another_branch_does_not_reveal_the_ticket()
+    {
+        var order = Order("T-branch", "Takeaway");
+        await _f.HandleAsync(order);
+        await _f.HandleAsync(new PaymentSucceededEvent(_tenant, Guid.NewGuid(), Guid.NewGuid(), order.OrderId,
+            100_000, "Cash", DateTime.UtcNow));
+        (await QueueAsync()).GetArrayLength().Should().Be(0);
+        await _f.HandleAsync(new PaymentSucceededEvent(_tenant, _b1, Guid.NewGuid(), order.OrderId,
+            100_000, "Cash", DateTime.UtcNow));
+        (await QueueAsync()).GetArrayLength().Should().Be(1);
+    }
+
+    [Fact]
     public async Task A_paid_takeaway_order_is_shown_when_it_is_created_and_events_can_arrive_twice()
     {
         var order = Order("T-2", "Takeaway", paid: true);

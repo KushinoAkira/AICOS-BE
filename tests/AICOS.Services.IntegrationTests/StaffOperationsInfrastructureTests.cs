@@ -12,6 +12,7 @@ using Order = AICOS.Ordering.Api.Domain.Entities.Order;
 using AICOS.Ordering.Api.Persistence;
 using AICOS.Ordering.Api.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Npgsql;
@@ -37,6 +38,26 @@ public sealed class StaffOperationsInfrastructureTests : IAsyncLifetime
     private Guid _product;
     private HttpClient _cashier = null!, _barista = null!;
     private string _orderingConnection = "", _kitchenConnection = "", _redisConnection = "";
+    private readonly AdmissionCommitGate _admissionGate = new();
+
+    private sealed class AdmissionCommitGate : SaveChangesInterceptor
+    {
+        public bool Enabled { get; set; }
+        public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public override async ValueTask<int> SavedChangesAsync(SaveChangesCompletedEventData eventData,
+            int result, CancellationToken cancellationToken = default)
+        {
+            if (Enabled)
+            {
+                Enabled = false;
+                Entered.TrySetResult();
+                await Release.Task.WaitAsync(TimeSpan.FromSeconds(30), cancellationToken);
+            }
+            return result;
+        }
+    }
 
     public async Task InitializeAsync()
     {
@@ -69,7 +90,7 @@ public sealed class StaffOperationsInfrastructureTests : IAsyncLifetime
         _kitchen = new(services =>
         {
             services.RemoveAll<IKitchenNotifier>(); services.AddSingleton<IKitchenNotifier>(_notifications);
-        }, _kitchenConnection, operationalRedis: _redisConnection);
+        }, _kitchenConnection, configureDatabase: options => options.AddInterceptors(_admissionGate), operationalRedis: _redisConnection);
         _kitchen.Branches.Add(_tenant, id: _branch);
         using (var scope = _kitchen.Services.CreateScope())
             await scope.ServiceProvider.GetRequiredService<KitchenOperationsDbContext>().Database.EnsureCreatedAsync();
@@ -178,6 +199,70 @@ public sealed class StaffOperationsInfrastructureTests : IAsyncLifetime
     }
 
     [OperationalInfrastructureFact]
+    public async Task Payment_during_admission_commit_waits_and_makes_takeaway_visible()
+    {
+        _admissionGate.Enabled = true;
+        var response = await CreateAsync(Guid.NewGuid().ToString("N"), new
+        {
+            branchId = _branch,
+            type = "Takeaway",
+            items = new[] { new { productId = _product, quantity = 2 } },
+        });
+        response.StatusCode.Should().Be(HttpStatusCode.Created, await response.Content.ReadAsStringAsync());
+        var order = (await response.Body()).Id();
+        Task payment = Task.CompletedTask;
+        try
+        {
+            await _admissionGate.Entered.Task.WaitAsync(TimeSpan.FromSeconds(20));
+            // Admission has saved its row but has not committed. Invoke the real handler directly
+            // so the test can distinguish early return from a PostgreSQL lock wait without sleeps.
+            payment = _kitchen.HandleAsync(new PaymentSucceededEvent(_tenant, _branch, Guid.NewGuid(), order,
+                100000, "Cash", DateTime.UtcNow));
+            await EventuallyAsync(async () =>
+            {
+                if (payment.IsCompleted) return true;
+                await using var connection = new NpgsqlConnection(_kitchenConnection);
+                await connection.OpenAsync();
+                await using var command = new NpgsqlCommand("SELECT count(*) FROM pg_locks WHERE locktype = 'advisory' AND NOT granted AND database = (SELECT oid FROM pg_database WHERE datname = current_database())", connection);
+                return (long)(await command.ExecuteScalarAsync())! > 0;
+            }, "Payment neither completed nor waited on the admission lock.");
+        }
+        finally { _admissionGate.Release.TrySetResult(); }
+        await payment;
+        await TicketIdAsync(order);
+        (await TicketAsync(order))!.IsPaid.Should().BeTrue("payment must not be discarded while admission is committing");
+        var queue = await _barista.GetFromJsonAsync<JsonElement>("/api/v1/kitchen/queue");
+        queue.EnumerateArray().Should().Contain(t => t.GetProperty("orderId").GetGuid() == order);
+    }
+
+    [OperationalInfrastructureFact]
+    public async Task Paid_takeaway_reaches_the_queue_through_real_Redis()
+    {
+        var response = await CreateAsync(Guid.NewGuid().ToString("N"), new
+        {
+            branchId = _branch,
+            type = "Takeaway",
+            items = new[] { new { productId = _product, quantity = 2 } },
+        });
+        response.StatusCode.Should().Be(HttpStatusCode.Created, await response.Content.ReadAsStringAsync());
+        var order = (await response.Body()).Id();
+        await TicketIdAsync(order);
+        var payment = new PaymentSucceededEvent(_tenant, _branch, Guid.NewGuid(), order,
+            100000, "Cash", DateTime.UtcNow);
+        await _orders.Services.GetRequiredService<AICOS.BuildingBlocks.Messaging.IEventBus>().PublishAsync(payment);
+        await EventuallyAsync(async () => (await TicketAsync(order))!.IsPaid, "Kitchen did not persist payment.");
+        await Task.WhenAll(Enumerable.Range(0, 4).Select(_ => _kitchen.HandleAsync(payment)));
+        var queue = await _barista.GetFromJsonAsync<JsonElement>("/api/v1/kitchen/queue");
+        queue.EnumerateArray().Should().Contain(t => t.GetProperty("orderId").GetGuid() == order);
+        using var scope = _kitchen.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<KitchenOperationsDbContext>();
+        (await db.Tickets.CountAsync(t => t.OrderId == order)).Should().Be(1);
+        var ticket = (await TicketAsync(order))!;
+        await EventuallyAsync(async () => await db.CupStickers.CountAsync(s => s.TicketId == ticket.Id) == 2,
+            "Payment must generate exactly one sticker set after its commit.");
+    }
+
+    [OperationalInfrastructureFact]
     public async Task Two_baristas_and_parallel_duplicate_updates_persist_one_transition()
     {
         var order = await NewOrderAsync(); var ticket = await TicketIdAsync(order);
@@ -226,7 +311,7 @@ public sealed class StaffOperationsInfrastructureTests : IAsyncLifetime
         {
             var transferring = _kitchen.HandleAsync(transfer);
             var preparing = _barista.Put($"/api/v1/kitchen/tickets/{ticket}/status", new
-                { status = "Brewing", expectedStatus = "Pending", expectedRemakeCount = 0 });
+            { status = "Brewing", expectedStatus = "Pending", expectedRemakeCount = 0 });
             await Task.WhenAll(transferring, preparing);
             (await preparing).StatusCode.Should().Be(HttpStatusCode.OK);
             return true;
