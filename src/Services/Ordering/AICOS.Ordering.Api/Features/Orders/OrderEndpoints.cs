@@ -27,6 +27,7 @@ public static class OrderEndpoints
 
         group.MapRecommendationEndpoints();
         group.MapOrderCreatorEndpoints();
+        group.MapTakeawaySummary();
 
         group.MapPost("/", CreateAsync).RequireAuthorization(b => b.RequireRole(OrderAccess.CounterRoles));
         group.MapGet("/", ListAsync).RequireAuthorization(AicosPolicies.Staff);
