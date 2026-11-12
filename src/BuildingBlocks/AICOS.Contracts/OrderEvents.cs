@@ -5,6 +5,7 @@ public record OrderItemDto(Guid ProductId, string ProductName, decimal UnitPrice
 /// <summary>
 /// Published by Order Service when an order is placed. Kitchen turns it into a preparation ticket; Reporting records it.
 /// <see cref="IsPaid"/> is true when the order was paid at creation. Drinks of a dine-in order are prepared before payment (BR-43), others wait for it.
+/// <see cref="PayFirst"/>: a guest ordered from the table QR code by themselves, so even this dine-in order waits for payment.
 /// </summary>
 public record OrderCreatedIntegrationEvent(
     Guid TenantId,
@@ -21,6 +22,7 @@ public record OrderCreatedIntegrationEvent(
     DateTime? ScheduledPickupTimeUtc,
     IReadOnlyList<OrderItemDto> Items,
     DateTime CreatedAtUtc,
+    bool PayFirst = false,
     string FulfillmentMode = "WholeOrder") : IntegrationEvent;
 
 /// <summary>

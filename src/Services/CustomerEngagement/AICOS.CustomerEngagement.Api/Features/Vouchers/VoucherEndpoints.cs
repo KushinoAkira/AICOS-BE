@@ -53,9 +53,13 @@ public static partial class VoucherEndpoints
         group.MapGet("/{id:guid}", GetAsync).RequireAuthorization(AicosPolicies.Management).WithName("GetVoucher");
         group.MapPost("/", CreateAsync).RequireAuthorization(AicosPolicies.AdminOnly);
         group.MapPost("/{id:guid}/revoke", RevokeAsync).RequireAuthorization(AicosPolicies.AdminOnly);
-        group.MapPost("/validate", ValidateAsync).RequireAuthorization(AicosPolicies.Staff);
-        group.MapPost("/redeem", RedeemAsync).RequireAuthorization(AicosPolicies.Staff);
+        // Staff apply a code at the counter; a member applies one to their own order (takeaway, table QR), which Ordering forwards with their token.
+        group.MapPost("/validate", ValidateAsync).RequireAuthorization(b => b.RequireRole(VoucherUsers));
+        group.MapPost("/redeem", RedeemAsync).RequireAuthorization(b => b.RequireRole(VoucherUsers));
     }
+
+    private static readonly string[] VoucherUsers =
+        [AicosRoles.BrandAdmin, AicosRoles.BranchManager, AicosRoles.Cashier, AicosRoles.Barista, AicosRoles.Customer];
 
     /// <summary>The vouchers the caller may see: the brand, narrowed for a BranchManager to the ones valid at their branch.</summary>
     private static IQueryable<Voucher> Scope(CustomerEngagementDbContext db, ICurrentUser user)
@@ -166,7 +170,7 @@ public static partial class VoucherEndpoints
     {
         ValidateUse(r.Code, r.OrderAmount, orderReference: "-");
         var voucher = await FindByCodeAsync(db, user, r.Code!, ct);
-        await EnsureUsableByAsync(db, voucher, r.BranchId, r.CustomerId, ct);
+        await EnsureUsableByAsync(db, voucher, r.BranchId, CustomerOf(user, r.CustomerId), user, ct);
         var discount = voucher.CalculateDiscount(r.OrderAmount!.Value, clock.GetUtcNow().UtcDateTime);
         return new VoucherQuoteResponse(voucher.Code, r.OrderAmount!.Value, discount, r.OrderAmount!.Value - discount);
     }
@@ -176,7 +180,7 @@ public static partial class VoucherEndpoints
     {
         ValidateUse(r.Code, r.OrderAmount, r.OrderReference);
         var voucher = await FindByCodeAsync(db, user, r.Code!, ct);
-        await EnsureUsableByAsync(db, voucher, r.BranchId, r.CustomerId, ct);
+        await EnsureUsableByAsync(db, voucher, r.BranchId, CustomerOf(user, r.CustomerId), user, ct);
         var before = Snapshot(voucher);
         var discount = voucher.Redeem(r.OrderAmount!.Value, r.OrderReference!, clock.GetUtcNow().UtcDateTime);
         await db.SaveChangesAsync(ct); // Version token: a parallel redeem of the same code fails with 409
@@ -258,7 +262,8 @@ public static partial class VoucherEndpoints
         var tenantId = TenantScope.Require(user);
         var normalized = code.Trim().ToUpperInvariant();
         var voucher = await db.Vouchers.FirstOrDefaultAsync(v => v.TenantId == tenantId && v.Code == normalized, ct);
-        if (voucher is null || (voucher.BranchId is not null && !user.IsInRole(AicosRoles.BrandAdmin) && user.BranchId != voucher.BranchId))
+        // A member has no branch of their own: the branch of the order is checked in EnsureUsableByAsync instead.
+        if (voucher is null || (voucher.BranchId is not null && !user.IsInRole(AicosRoles.BrandAdmin) && !user.IsInRole(AicosRoles.Customer) && user.BranchId != voucher.BranchId))
         {
             throw new NotFoundException("Voucher", normalized);
         }
@@ -270,9 +275,10 @@ public static partial class VoucherEndpoints
     /// A voucher valid at one branch is refused at another, and a voucher issued to a member (for example one bought with points) can only be
     /// used on that member's order (SCRUM-133, SCRUM-134). The member may be named by profile id or by account id.
     /// </summary>
-    private static async Task EnsureUsableByAsync(CustomerEngagementDbContext db, Voucher voucher, Guid? branchId, Guid? customerId, CancellationToken ct)
+    private static async Task EnsureUsableByAsync(
+        CustomerEngagementDbContext db, Voucher voucher, Guid? branchId, Guid? customerId, ICurrentUser user, CancellationToken ct)
     {
-        if (voucher.BranchId is not null && branchId is not null && voucher.BranchId != branchId)
+        if (voucher.BranchId is not null && (branchId is null ? user.IsInRole(AicosRoles.Customer) : voucher.BranchId != branchId))
         {
             throw new BusinessRuleException("voucher.wrong_branch", "This code is not valid at this branch.");
         }
@@ -290,6 +296,9 @@ public static partial class VoucherEndpoints
             throw new BusinessRuleException("voucher.not_yours", "This code was issued to another member.");
         }
     }
+
+    /// <summary>A member always uses a code as themselves: the customer named in the request only counts for staff.</summary>
+    private static Guid? CustomerOf(ICurrentUser user, Guid? requested) => user.IsInRole(AicosRoles.Customer) ? user.UserId : requested;
 
     private static async Task<string> NewCodeAsync(CustomerEngagementDbContext db, Guid tenantId, VoucherType type, CancellationToken ct)
     {

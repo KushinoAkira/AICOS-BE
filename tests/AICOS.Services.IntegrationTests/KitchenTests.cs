@@ -300,6 +300,39 @@ public sealed class KitchenTests : IDisposable
     }
 
     [Fact]
+    public async Task A_payment_that_arrives_before_its_order_is_kept_and_the_ticket_reaches_the_bar_paid()
+    {
+        var order = Order("EARLY-1", "Takeaway");
+        await _f.HandleAsync(new PaymentSucceededEvent(_tenant, _b1, Guid.NewGuid(), order.OrderId, 100_000, "Cash", DateTime.UtcNow));   // events travel on separate channels
+        (await QueueAsync()).GetArrayLength().Should().Be(0);
+
+        await _f.HandleAsync(order);
+
+        var queue = await QueueAsync();
+        queue.GetArrayLength().Should().Be(1);
+        queue[0].GetProperty("isPaid").GetBoolean().Should().BeTrue();
+        queue[0].GetProperty("stickers").GetArrayLength().Should().Be(3);
+        _notifier.NewTickets.Should().ContainSingle();
+
+        await _f.HandleAsync(new PaymentSucceededEvent(_tenant, _b1, Guid.NewGuid(), order.OrderId, 100_000, "Cash", DateTime.UtcNow));   // a repeat changes nothing
+        (await QueueAsync()).GetArrayLength().Should().Be(1);
+    }
+
+    [Fact]
+    public async Task A_guest_order_from_the_table_QR_waits_for_payment_and_a_dine_in_order_keyed_by_staff_does_not()
+    {
+        var qr = Order("QR-1") with { PayFirst = true };
+        await _f.HandleAsync(qr);
+        await _f.HandleAsync(Order("POS-1"));
+
+        (await QueueAsync()).EnumerateArray().Select(t => t.GetProperty("orderCode").GetString()).Should().Equal("POS-1");
+
+        await _f.HandleAsync(new PaymentSucceededEvent(_tenant, _b1, Guid.NewGuid(), qr.OrderId, 100_000, "Mock", DateTime.UtcNow));
+
+        (await QueueAsync()).EnumerateArray().Select(t => t.GetProperty("orderCode").GetString()).Should().BeEquivalentTo(["POS-1", "QR-1"]);
+    }
+
+    [Fact]
     public async Task A_paid_takeaway_order_is_shown_when_it_is_created_and_events_can_arrive_twice()
     {
         var order = Order("T-2", "Takeaway", paid: true);

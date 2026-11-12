@@ -106,6 +106,15 @@ public sealed class WorkShift : AuditableEntity<Guid>, IBranchScoped
     }
 
     public void SetActive(bool isActive) => IsActive = isActive;
+
+    /// <summary>Set when the manager deleted a template that past shifts still point to: it is hidden but kept for attendance and payroll.</summary>
+    public DateTime? DeletedAtUtc { get; private set; }
+
+    public void MarkDeleted(DateTime now)
+    {
+        IsActive = false;
+        DeletedAtUtc = now;
+    }
 }
 
 public enum AssignmentStatus

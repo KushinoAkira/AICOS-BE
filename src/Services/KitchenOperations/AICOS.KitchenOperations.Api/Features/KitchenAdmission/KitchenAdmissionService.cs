@@ -42,7 +42,8 @@ public sealed class KitchenAdmissionService(KitchenOperationsDbContext db, IKitc
             if (ticket is null)
             {
                 ticket = new KitchenTicket(request.TenantId, request.OrderId, request.Creation.OrderCode,
-                    request.BranchId, request.Source.TableNumber, request.Source.OrderType, request.Source.IsPaid, request.Source.PickupSlotStartUtc);
+                    request.BranchId, request.Source.TableNumber, request.Source.OrderType, request.Source.IsPaid, request.Source.PickupSlotStartUtc,
+                    request.Source.PayFirst);
                 foreach (var item in request.Creation.Items) ticket.AddItem(item.ProductId, item.ProductName, item.Quantity, item.Note);
                 db.Tickets.Add(ticket);
             }
@@ -54,6 +55,16 @@ public sealed class KitchenAdmissionService(KitchenOperationsDbContext db, IKitc
                     throw new ConflictException("Ticket does not match the immutable order.", "admission.conflict");
             }
             if (durable) ApplySource(ticket, request.Source, created, now);
+            // The payment may have overtaken the order: it was kept and is applied now, under the same per-order lock.
+            if (created && !ticket.IsPaid)
+            {
+                var early = await db.EarlyPayments.SingleOrDefaultAsync(p => p.TenantId == request.TenantId && p.OrderId == request.OrderId, ct);
+                if (early is not null)
+                {
+                    ticket.MarkAsPaid();
+                    db.EarlyPayments.Remove(early);
+                }
+            }
             var notify = created && ticket.RecoveryHoldReason is null && ticket.IsEligibleForBar
                 && ticket.Status is not (KitchenTicketStatus.Completed or KitchenTicketStatus.Cancelled);
             if (notify) ticket.TryGenerateCupStickers(now, out _);

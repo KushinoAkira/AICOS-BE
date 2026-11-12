@@ -90,6 +90,9 @@ public class Order : AuditableEntity<Guid>, IBranchScoped
     /// <summary>The QR table session this order was placed in (several rounds share one bill). Null for counter and pickup orders.</summary>
     public Guid? TableSessionId { get; private set; }
 
+    /// <summary>A guest ordered from the table QR code without staff: the drinks are made once it is paid. An order a cashier keys in for a table is made at once (BR-43).</summary>
+    public bool PayFirst => TableSessionId is not null && CashierId is null;
+
     public bool IsPrinted { get; private set; }
 
     public int PrintedCount { get; private set; }

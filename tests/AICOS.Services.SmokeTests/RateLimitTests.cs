@@ -29,6 +29,7 @@ public class RateLimitTests(WebApplicationFactory<Program> factory) : IClassFixt
     [InlineData("/api/v1/identity/auth/login")]
     [InlineData("/api/v1/identity/auth/forgot-password")]
     [InlineData("/api/v1/identity/auth/reset-password")]
+    [InlineData("/api/v1/identity/auth/reset-password/verify")]
     [InlineData("/api/v1/identity/auth/register")]
     [InlineData("/api/v1/identity/auth/register/verify")]
     [InlineData("/api/v1/identity/auth/register/resend")]

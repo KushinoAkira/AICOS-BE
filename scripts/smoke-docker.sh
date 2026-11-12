@@ -224,15 +224,9 @@ check "renewing a paid period too early is refused" 422 "$(status_of "$r")"
 
 r=$(call PUT /api/v1/customers/loyalty/rules "$BRAND" '{"isActive":true,"amountPerPoint":1000,"redeemValuePerPoint":1000,"minPointsToRedeem":10,"silverThreshold":100,"goldThreshold":500}')
 check "loyalty rules saved" 200 "$(status_of "$r")"
-# A customer account belongs to no brand: sign up with an emailed code, then pick the brand. No mail goes out here, so the code is set in the database.
+# A customer account belongs to no brand: registering signs the member in at once (no email code), then they pick the brand.
 r=$(call POST /api/v1/identity/auth/register "" "{\"fullName\":\"Khach Hang\",\"email\":\"member-$STAMP@example.com\",\"password\":\"$BRAND_PASSWORD\",\"confirmPassword\":\"$BRAND_PASSWORD\"}")
-check "member registers" 202 "$(status_of "$r")"
-r=$(call POST /api/v1/identity/auth/login "" "{\"login\":\"member-$STAMP@example.com\",\"password\":\"$BRAND_PASSWORD\"}")
-check "an unverified member cannot sign in" 403 "$(status_of "$r")"
-docker exec aicos-postgres psql -q -U "$(env_value POSTGRES_USER | grep . || echo aicos_admin)" -d "$(env_value POSTGRES_DB | grep . || echo aicos)_identity" \
-  -c "UPDATE identity.otp_codes SET code_hash = encode(sha256('123456'), 'hex') WHERE target = 'member-$STAMP@example.com'"
-r=$(call POST /api/v1/identity/auth/register/verify "" "{\"email\":\"member-$STAMP@example.com\",\"code\":\"123456\"}")
-check "the emailed code verifies the member" 200 "$(status_of "$r")"
+check "member registers and is signed in" 201 "$(status_of "$r")"
 MEMBER_ID=$(body_of "$r" | sed 's/.*"user":{//' | json_field id)
 GLOBAL_TOKEN=$(body_of "$r" | json_field accessToken)
 GLOBAL_REFRESH=$(body_of "$r" | json_field refreshToken)
@@ -416,7 +410,7 @@ require_id "first QR checkout" "$QORDER"
 case "$(body_of "$r")" in *'"tableNumber":"A1"'*) check "the order carries the table" yes yes ;; *) check "the order carries the table" yes no ;; esac
 r=$(qr POST /api/v1/orders/qr/checkout '{}')
 check "an empty cart is not an order" 422 "$(status_of "$r")"
-wait_until "the bar queue shows the table order at once" "call GET /api/v1/kitchen/queue \"\$BARISTA\" | grep -Fc -- '$QORDER'" 1
+case "$(call GET /api/v1/kitchen/queue "$BARISTA")" in *"$QORDER"*) check "a guest's own table order waits for payment before the bar" yes no ;; *) check "a guest's own table order waits for payment before the bar" yes yes ;; esac
 
 r=$(qr POST /api/v1/orders/qr/cart/items "{\"productId\":\"$PRODUCT\",\"quantity\":1}")
 r=$(qr POST /api/v1/orders/qr/checkout '{}')
@@ -432,6 +426,7 @@ case "$(body_of "$r")" in *'"tableCode":"A1"'*) check "table A1 is listed" yes y
 
 r=$(call POST /api/v1/payments/transactions/cash "$CASHIER" "{\"orderId\":\"$QORDER\",\"amount\":116000}")
 check "round 1 is paid at the counter" 201 "$(status_of "$r")"
+wait_until "the bar queue shows the table order once it is paid" "call GET /api/v1/kitchen/queue \"\$BARISTA\" | grep -Fc -- '$QORDER'" 1
 wait_until "the session stays open while a round is unpaid" "call GET /api/v1/orders/qr/sessions \"\$CASHIER\" | sed 's/ [0-9]*\$//' | grep -c A1" 1
 r=$(call POST /api/v1/payments/transactions/cash "$CASHIER" "{\"orderId\":\"$QORDER2\",\"amount\":35000}")
 check "round 2 is paid at the counter" 201 "$(status_of "$r")"

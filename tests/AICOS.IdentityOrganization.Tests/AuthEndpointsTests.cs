@@ -11,6 +11,8 @@ using AICOS.IdentityOrganization.Api.Features.Auth;
 using AICOS.IdentityOrganization.Api.Features.Branches;
 using AICOS.IdentityOrganization.Api.Features.Users;
 using AICOS.IdentityOrganization.Api.Infrastructure;
+using AICOS.IdentityOrganization.Api.Persistence;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace AICOS.IdentityOrganization.Tests;
 
@@ -31,49 +33,77 @@ public sealed class AuthEndpointsTests : IDisposable
 
     public void Dispose() => _factory.Dispose();
 
-    // ------------------------------------------------------------------ register (email + code)
+    // ------------------------------------------------------------------ register (email, active at once)
     [Fact]
-    public async Task Register_creates_a_pending_customer_and_mails_a_code()
+    public async Task Register_creates_an_active_platform_wide_customer_and_signs_in_without_a_code()
     {
+        _factory.Emails.Fail = new IOException("the mail server is down"); // no mail is sent, so a mail outage does not matter
+
         var response = await StartSignUpAsync("an@example.com");
 
-        response.StatusCode.Should().Be(HttpStatusCode.Accepted);
-        var pending = (await response.Content.ReadFromJsonAsync<SignUpPendingResponse>(Json))!;
-        (pending.Email, pending.ExpiresInSeconds, pending.ResendAfterSeconds).Should().Be(("an@example.com", 600, 60));
-        _factory.Emails.Messages.Should().ContainSingle(m => m.To == "an@example.com" && m.Subject.Contains("xác thực"));
-        _factory.Events.Published.OfType<CustomerRegisteredEvent>().Should().BeEmpty(); // not a customer until the code is verified
-
-        var login = await LoginAsync("an@example.com", Password);
-        login.StatusCode.Should().Be(HttpStatusCode.Forbidden);
-        (await ErrorCodeAsync(login)).Should().Be("auth.email_not_verified");
-    }
-
-    [Fact]
-    public async Task Verifying_the_code_activates_a_platform_wide_account_and_signs_in()
-    {
-        await StartSignUpAsync("binh@example.com");
-
-        var verify = await _anonymous.PostAsJsonAsync($"{Auth}/register/verify",
-            new VerifyRegistrationRequest("binh@example.com", _factory.Emails.LastCodeFor("binh@example.com")), Json);
-
-        verify.StatusCode.Should().Be(HttpStatusCode.OK);
-        var auth = (await verify.Content.ReadFromJsonAsync<AuthResponse>(Json))!;
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+        var auth = (await response.Content.ReadFromJsonAsync<AuthResponse>(Json))!;
+        auth.AccessToken.Should().NotBeNullOrEmpty();
         auth.User.Role.Should().Be(AicosRoles.Customer);
-        auth.User.Email.Should().Be("binh@example.com");
+        auth.User.Email.Should().Be("an@example.com");
         auth.User.FullName.Should().Be("Test User");
         auth.User.TenantId.Should().BeNull();
         auth.ActiveBrandCode.Should().BeNull();
+        _factory.Emails.Messages.Should().BeEmpty();
         _factory.Events.Published.OfType<CustomerRegisteredEvent>().Should().BeEmpty(); // the profile is created at the first brand chosen
 
-        (await LoginAsync("binh@example.com", Password)).StatusCode.Should().Be(HttpStatusCode.OK);
-        (await VerifyAsync("binh@example.com", _factory.Emails.LastCodeFor("binh@example.com")))
+        (await LoginAsync("an@example.com", Password)).StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task Registering_over_a_pending_account_left_from_the_code_sign_up_replaces_it()
+    {
+        await SeedPendingAsync("giang2@example.com");
+
+        var again = await _anonymous.PostAsJsonAsync($"{Auth}/register",
+            new RegisterRequest("Giang Mới", "giang2@example.com", "NewPass123", "NewPass123"), Json);
+
+        again.StatusCode.Should().Be(HttpStatusCode.Created);
+        (await again.Content.ReadFromJsonAsync<AuthResponse>(Json))!.User.FullName.Should().Be("Giang Mới");
+        (await LoginAsync("giang2@example.com", Password)).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        (await LoginAsync("giang2@example.com", "NewPass123")).StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task Register_normalizes_email_and_rejects_a_duplicate_case_insensitively()
+    {
+        await SignUpAsync(_anonymous, _factory, "  Binh@Example.com ");
+
+        var duplicate = await StartSignUpAsync("binh@example.com");
+
+        duplicate.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        (await ErrorCodeAsync(duplicate)).Should().Be("user.duplicate_email");
+    }
+
+    // ------------------------------------------------------------------ pending accounts from the code sign-up: verify and resend still work
+    [Fact]
+    public async Task A_pending_account_is_still_activated_by_its_code()
+    {
+        await SeedPendingAsync("binh2@example.com");
+        await ResendAsync("binh2@example.com");
+
+        var login = await LoginAsync("binh2@example.com", Password);
+        login.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        (await ErrorCodeAsync(login)).Should().Be("auth.email_not_verified");
+
+        var verify = await VerifyAsync("binh2@example.com", _factory.Emails.LastCodeFor("binh2@example.com"));
+        verify.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await verify.Content.ReadFromJsonAsync<AuthResponse>(Json))!.User.Role.Should().Be(AicosRoles.Customer);
+        (await LoginAsync("binh2@example.com", Password)).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await VerifyAsync("binh2@example.com", _factory.Emails.LastCodeFor("binh2@example.com")))
             .StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity); // the code is single use
     }
 
     [Fact]
     public async Task A_wrong_code_is_refused_and_the_code_dies_after_five_attempts()
     {
-        await StartSignUpAsync("chi2@example.com");
+        await SeedPendingAsync("chi2@example.com");
+        await ResendAsync("chi2@example.com");
         var code = _factory.Emails.LastCodeFor("chi2@example.com");
         var wrong = code == "000000" ? "111111" : "000000";
 
@@ -90,7 +120,8 @@ public sealed class AuthEndpointsTests : IDisposable
     [Fact]
     public async Task An_expired_code_is_refused()
     {
-        await StartSignUpAsync("dao@example.com");
+        await SeedPendingAsync("dao@example.com");
+        await ResendAsync("dao@example.com");
         var code = _factory.Emails.LastCodeFor("dao@example.com");
 
         _factory.Clock.Advance(TimeSpan.FromMinutes(11));
@@ -101,17 +132,17 @@ public sealed class AuthEndpointsTests : IDisposable
     [Fact]
     public async Task Resend_waits_a_minute_and_then_the_new_code_replaces_the_old_one()
     {
-        await StartSignUpAsync("em2@example.com");
+        await SeedPendingAsync("em2@example.com");
+        await ResendAsync("em2@example.com");
         var first = _factory.Emails.LastCodeFor("em2@example.com");
 
-        var tooSoon = await _anonymous.PostAsJsonAsync($"{Auth}/register/resend", new ResendRegistrationRequest("em2@example.com"), Json);
+        var tooSoon = await ResendAsync("em2@example.com");
         tooSoon.StatusCode.Should().Be(HttpStatusCode.Accepted);
         (await tooSoon.Content.ReadFromJsonAsync<SignUpPendingResponse>(Json))!.ResendAfterSeconds.Should().BeInRange(1, 60);
         _factory.Emails.Messages.Should().HaveCount(1);
 
         _factory.Clock.Advance(TimeSpan.FromSeconds(61));
-        (await _anonymous.PostAsJsonAsync($"{Auth}/register/resend", new ResendRegistrationRequest("em2@example.com"), Json))
-            .StatusCode.Should().Be(HttpStatusCode.Accepted);
+        (await ResendAsync("em2@example.com")).StatusCode.Should().Be(HttpStatusCode.Accepted);
         _factory.Emails.Messages.Should().HaveCount(2);
 
         var second = _factory.Emails.LastCodeFor("em2@example.com");
@@ -121,47 +152,6 @@ public sealed class AuthEndpointsTests : IDisposable
         }
 
         (await VerifyAsync("em2@example.com", second)).StatusCode.Should().Be(HttpStatusCode.OK);
-    }
-
-    [Fact]
-    public async Task Registering_again_before_verifying_overwrites_the_pending_account()
-    {
-        await StartSignUpAsync("giang2@example.com");
-        _factory.Clock.Advance(TimeSpan.FromSeconds(61));
-
-        var again = await _anonymous.PostAsJsonAsync($"{Auth}/register",
-            new RegisterRequest("Giang Mới", "giang2@example.com", "NewPass123", "NewPass123"), Json);
-        again.StatusCode.Should().Be(HttpStatusCode.Accepted);
-
-        var verify = await VerifyAsync("giang2@example.com", _factory.Emails.LastCodeFor("giang2@example.com"));
-        verify.StatusCode.Should().Be(HttpStatusCode.OK);
-        (await verify.Content.ReadFromJsonAsync<AuthResponse>(Json))!.User.FullName.Should().Be("Giang Mới");
-        (await LoginAsync("giang2@example.com", Password)).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-        (await LoginAsync("giang2@example.com", "NewPass123")).StatusCode.Should().Be(HttpStatusCode.OK);
-    }
-
-    [Fact]
-    public async Task Register_normalizes_email_and_rejects_a_verified_duplicate_case_insensitively()
-    {
-        await SignUpAsync(_anonymous, _factory, "  Binh@Example.com ");
-
-        var duplicate = await StartSignUpAsync("binh@example.com");
-
-        duplicate.StatusCode.Should().Be(HttpStatusCode.Conflict);
-        (await ErrorCodeAsync(duplicate)).Should().Be("user.duplicate_email");
-    }
-
-    [Fact]
-    public async Task If_the_mail_server_is_down_register_fails_and_the_next_try_is_not_held_back()
-    {
-        _factory.Emails.Fail = new IOException("the mail server is down");
-        var failed = await StartSignUpAsync("ha2@example.com");
-        failed.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
-        (await ErrorCodeAsync(failed)).Should().Be("auth.email_send_failed");
-
-        _factory.Emails.Fail = null;
-        (await StartSignUpAsync("ha2@example.com")).StatusCode.Should().Be(HttpStatusCode.Accepted);
-        _factory.Emails.Messages.Should().ContainSingle();
     }
 
     [Fact]
@@ -185,10 +175,8 @@ public sealed class AuthEndpointsTests : IDisposable
         {
             fullName = "Hacker", email = "h@example.com", password = Password, confirmPassword = Password, role = "BrandAdmin",
         });
-        response.StatusCode.Should().Be(HttpStatusCode.Accepted);
-
-        var verify = await VerifyAsync("h@example.com", _factory.Emails.LastCodeFor("h@example.com"));
-        (await verify.Content.ReadFromJsonAsync<AuthResponse>(Json))!.User.Role.Should().Be(AicosRoles.Customer);
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+        (await response.Content.ReadFromJsonAsync<AuthResponse>(Json))!.User.Role.Should().Be(AicosRoles.Customer);
     }
 
     // ------------------------------------------------------------------ Google
@@ -211,7 +199,7 @@ public sealed class AuthEndpointsTests : IDisposable
     [Fact]
     public async Task Google_with_the_email_of_a_pending_sign_up_completes_it()
     {
-        await StartSignUpAsync("mai@example.com");
+        await SeedPendingAsync("mai@example.com");
         _factory.Google.Accept("mai-token", new GoogleIdentity("g-mai", "mai@example.com", true, "Mai"));
 
         (await GoogleAsync("mai-token")).StatusCode.Should().Be(HttpStatusCode.OK);
@@ -328,7 +316,7 @@ public sealed class AuthEndpointsTests : IDisposable
         _factory.Events.Published.OfType<CustomerDataErasedEvent>().Should().ContainSingle(e => e.UserId == signedIn.User.Id);
         (await LoginAsync("xoa@example.com", Password)).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
         (await _anonymous.PostAsJsonAsync($"{Auth}/refresh", new RefreshTokenRequest(signedIn.RefreshToken))).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-        (await StartSignUpAsync("xoa@example.com")).StatusCode.Should().Be(HttpStatusCode.Accepted); // the address is free again
+        (await StartSignUpAsync("xoa@example.com")).StatusCode.Should().Be(HttpStatusCode.Created); // the address is free again
     }
 
     [Fact]
@@ -553,6 +541,41 @@ public sealed class AuthEndpointsTests : IDisposable
     }
 
     [Fact]
+    public async Task The_reset_code_is_checked_first_without_being_used_up_and_wrong_tries_count()
+    {
+        await RegisterAsync("quang@example.com");
+        await _anonymous.PostAsJsonAsync($"{Auth}/forgot-password", new ForgotPasswordRequest("quang@example.com"));
+        var code = _factory.Emails.LastCodeFor("quang@example.com");
+        var wrongCode = code == "000000" ? "111111" : "000000";
+
+        var wrong = await _anonymous.PostAsJsonAsync($"{Auth}/reset-password/verify", new VerifyResetCodeRequest("quang@example.com", wrongCode));
+        wrong.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        (await ErrorCodeAsync(wrong)).Should().Be("auth.reset_code_invalid");
+        (await _anonymous.PostAsJsonAsync($"{Auth}/reset-password/verify", new VerifyResetCodeRequest("quang@example.com", "12")))
+            .StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        (await _anonymous.PostAsJsonAsync($"{Auth}/reset-password/verify", new VerifyResetCodeRequest("quang@example.com", code)))
+            .StatusCode.Should().Be(HttpStatusCode.NoContent);
+        (await _anonymous.PostAsJsonAsync($"{Auth}/reset-password",
+            new ResetPasswordRequest("quang@example.com", code, "Brand1234", "Brand1234"))).StatusCode.Should().Be(HttpStatusCode.NoContent);
+        (await _anonymous.PostAsJsonAsync($"{Auth}/reset-password/verify", new VerifyResetCodeRequest("quang@example.com", code)))
+            .StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity); // used by the reset
+
+        // Wrong tries on the check share the reset's limit of five.
+        _factory.Clock.Advance(TimeSpan.FromMinutes(2));
+        await _anonymous.PostAsJsonAsync($"{Auth}/forgot-password", new ForgotPasswordRequest("quang@example.com"));
+        var second = _factory.Emails.LastCodeFor("quang@example.com");
+        var miss = second == "000000" ? "111111" : "000000";
+        for (var i = 0; i < 5; i++)
+        {
+            await _anonymous.PostAsJsonAsync($"{Auth}/reset-password/verify", new VerifyResetCodeRequest("quang@example.com", miss));
+        }
+
+        (await _anonymous.PostAsJsonAsync($"{Auth}/reset-password/verify", new VerifyResetCodeRequest("quang@example.com", second)))
+            .StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+    }
+
+    [Fact]
     public async Task Reset_password_unlocks_a_temporarily_locked_account()
     {
         await RegisterAsync("nga@example.com");
@@ -578,6 +601,22 @@ public sealed class AuthEndpointsTests : IDisposable
     private Task<HttpResponseMessage> VerifyAsync(string email, string code) =>
         _anonymous.PostAsJsonAsync($"{Auth}/register/verify", new VerifyRegistrationRequest(email, code), Json);
 
+    private Task<HttpResponseMessage> ResendAsync(string email) =>
+        _anonymous.PostAsJsonAsync($"{Auth}/register/resend", new ResendRegistrationRequest(email), Json);
+
+    /// <summary>A customer account still waiting for its email code, as the sign-up created them before registering became one step.</summary>
+    private async Task SeedPendingAsync(string email)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<IdentityOrganizationDbContext>();
+        var passwords = scope.ServiceProvider.GetRequiredService<PasswordService>();
+        var user = new User("Test User", email, username: null, phone: null, AicosRoles.Customer, branchId: null);
+        user.SetPassword(passwords.Hash(user, Password), mustChangePassword: false);
+        user.ChangeStatus(UserStatus.PendingVerification);
+        db.Users.Add(user);
+        await db.SaveChangesAsync();
+    }
+
     private Task<HttpResponseMessage> GoogleAsync(string idToken) =>
         _anonymous.PostAsJsonAsync($"{Auth}/google", new GoogleLoginRequest(idToken), Json);
 
@@ -591,22 +630,22 @@ public sealed class AuthEndpointsTests : IDisposable
     private static string? TenantClaim(string accessToken) =>
         new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler().ReadJwtToken(accessToken).Claims.FirstOrDefault(c => c.Type == AicosClaimTypes.TenantId)?.Value;
 
-    /// <summary>A customer who signed up the whole way: registered and verified the emailed code.</summary>
+    /// <summary>A customer who signed up: registering creates the account active and signs in.</summary>
     private async Task<HttpResponseMessage> RegisterAsync(string email)
     {
-        (await StartSignUpAsync(email)).EnsureSuccessStatusCode();
-        return await VerifyAsync(email.Trim().ToLowerInvariant(), _factory.Emails.LastCodeFor(email.Trim().ToLowerInvariant()));
+        var response = await StartSignUpAsync(email);
+        response.EnsureSuccessStatusCode();
+        return response;
     }
 
-    /// <summary>Sign-up through both steps for tests of other features; returns the signed-in session.</summary>
+    /// <summary>Sign-up for tests of other features; returns the signed-in session.</summary>
     internal static async Task<AuthResponse> SignUpAsync(
         HttpClient client, IdentityApiFactory factory, string email, string password = Password, string fullName = "Test User")
     {
         var address = email.Trim().ToLowerInvariant();
-        (await client.PostAsJsonAsync($"{Auth}/register", new RegisterRequest(fullName, address, password, password), Json)).EnsureSuccessStatusCode();
-        var verify = await client.PostAsJsonAsync($"{Auth}/register/verify", new VerifyRegistrationRequest(address, factory.Emails.LastCodeFor(address)), Json);
-        verify.EnsureSuccessStatusCode();
-        return (await verify.Content.ReadFromJsonAsync<AuthResponse>(Json))!;
+        var registered = await client.PostAsJsonAsync($"{Auth}/register", new RegisterRequest(fullName, address, password, password), Json);
+        registered.EnsureSuccessStatusCode();
+        return (await registered.Content.ReadFromJsonAsync<AuthResponse>(Json))!;
     }
 
     private Task<HttpResponseMessage> LoginAsync(string login, string password) =>

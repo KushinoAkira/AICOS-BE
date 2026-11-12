@@ -32,6 +32,7 @@ public static class AuthEndpoints
         auth.MapPost("/change-password", ChangePasswordAsync).RequireAuthorization();
         auth.MapPost("/forgot-password", ForgotPasswordAsync).AllowAnonymous();
         auth.MapPost("/reset-password", ResetPasswordAsync).AllowAnonymous();
+        auth.MapPost("/reset-password/verify", VerifyResetCodeAsync).AllowAnonymous();
     }
 
     // ---------------------------------------------------------------- UC-01 Login
@@ -264,6 +265,49 @@ public static class AuthEndpoints
         return accepted;
     }
 
+    /// <summary>
+    /// Checks the emailed code before the new password is asked for, so the page only shows the password form once the code is right.
+    /// The code is not used up here (the reset itself checks it again); a wrong code counts toward the same attempt limit.
+    /// </summary>
+    private static async Task<IResult> VerifyResetCodeAsync(
+        VerifyResetCodeRequest request,
+        IdentityOrganizationDbContext db,
+        IOptions<AuthOptions> options,
+        TimeProvider clock,
+        CancellationToken ct)
+    {
+        AuthRequestValidator.EnsureValid(request);
+        await CheckResetCodeAsync(db, options.Value, clock.GetUtcNow().UtcDateTime, User.NormalizeLogin(request.Email!), request.Code!, ct);
+        return Results.NoContent();
+    }
+
+    /// <summary>The usable reset code of the address when <paramref name="code"/> matches it; a wrong code is counted and refused.</summary>
+    private static async Task<OtpCode> CheckResetCodeAsync(
+        IdentityOrganizationDbContext db, AuthOptions settings, DateTime now, string target, string code, CancellationToken ct)
+    {
+        var otp = await db.OtpCodes
+            .Where(o => o.Target == target && o.Purpose == OtpPurposes.PasswordReset && o.ConsumedAtUtc == null)
+            .OrderByDescending(o => o.CreatedAtUtc)
+            .FirstOrDefaultAsync(ct);
+
+        if (otp is null || !otp.IsUsable(now, settings.PasswordResetMaxAttempts))
+        {
+            throw InvalidResetCode();
+        }
+
+        if (!Secrets.HashEquals(otp.CodeHash, Secrets.Sha256(code.Trim())))
+        {
+            otp.RecordFailedAttempt();
+            await db.SaveChangesAsync(ct);
+            throw InvalidResetCode();
+        }
+
+        return otp;
+    }
+
+    private static BusinessRuleException InvalidResetCode() =>
+        new("auth.reset_code_invalid", "The reset code is invalid or has expired. Request a new code.");
+
     private static async Task<IResult> ResetPasswordAsync(
         ResetPasswordRequest request,
         IdentityOrganizationDbContext db,
@@ -279,25 +323,8 @@ public static class AuthEndpoints
         var now = clock.GetUtcNow().UtcDateTime;
         var target = User.NormalizeLogin(request.Email!);
 
-        var otp = await db.OtpCodes
-            .Where(o => o.Target == target && o.Purpose == OtpPurposes.PasswordReset && o.ConsumedAtUtc == null)
-            .OrderByDescending(o => o.CreatedAtUtc)
-            .FirstOrDefaultAsync(ct);
-
-        if (otp is null || !otp.IsUsable(now, settings.PasswordResetMaxAttempts))
-        {
-            throw new BusinessRuleException("auth.reset_code_invalid", "The reset code is invalid or has expired. Request a new code.");
-        }
-
-        if (!Secrets.HashEquals(otp.CodeHash, Secrets.Sha256(request.Code!.Trim())))
-        {
-            otp.RecordFailedAttempt();
-            await db.SaveChangesAsync(ct);
-            throw new BusinessRuleException("auth.reset_code_invalid", "The reset code is invalid or has expired. Request a new code.");
-        }
-
-        var user = await db.Users.FirstOrDefaultAsync(u => u.Email == target, ct)
-            ?? throw new BusinessRuleException("auth.reset_code_invalid", "The reset code is invalid or has expired. Request a new code.");
+        var otp = await CheckResetCodeAsync(db, settings, now, target, request.Code!, ct);
+        var user = await db.Users.FirstOrDefaultAsync(u => u.Email == target, ct) ?? throw InvalidResetCode();
 
         otp.Consume(now);
         user.SetPassword(passwords.Hash(user, request.NewPassword!), mustChangePassword: false);

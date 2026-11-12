@@ -92,12 +92,12 @@ public static class AdmissionProjection
         row.ConsumerKey, row.TenantId, row.BranchId, row.OrderId,
         JsonSerializer.Deserialize<AdmissionCreation>(row.CreationPayload, AdmissionProtocol.Json)!, Convert.ToHexString(row.CreationSha256),
         new AdmissionFacts(order.Type.ToString(), order.Status.ToString(), order.IsPaid, order.TableNumber,
-            order.CreatedAtUtc, order.PickupSlotStartUtc, order.DeliveredAtUtc, order.CancelledAtUtc));
+            order.CreatedAtUtc, order.PickupSlotStartUtc, order.DeliveredAtUtc, order.CancelledAtUtc, order.PayFirst));
 
     public static CupAdmissionRequest CupRequest(AdmissionOutbox row, Order order) => new(row.EventId,
         row.TenantId, row.BranchId, row.OrderId, JsonSerializer.Deserialize<CupManifest>(row.CreationPayload, AdmissionProtocol.Json)!,
         Convert.ToHexString(row.CreationSha256), new AdmissionFacts(order.Type.ToString(), order.Status.ToString(), order.IsPaid,
-            order.TableNumber, order.CreatedAtUtc, order.PickupSlotStartUtc, order.DeliveredAtUtc, order.CancelledAtUtc));
+            order.TableNumber, order.CreatedAtUtc, order.PickupSlotStartUtc, order.DeliveredAtUtc, order.CancelledAtUtc, order.PayFirst));
 }
 
 internal sealed class AdmissionOutboxConfiguration : IEntityTypeConfiguration<AdmissionOutbox>

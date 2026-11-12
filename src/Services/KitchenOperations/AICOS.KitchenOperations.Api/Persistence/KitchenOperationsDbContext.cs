@@ -17,6 +17,7 @@ public sealed class KitchenOperationsDbContext(DbContextOptions<KitchenOperation
 
     public DbSet<CupSticker> CupStickers => Set<CupSticker>();
     public DbSet<AdmissionReceipt> AdmissionReceipts => Set<AdmissionReceipt>();
+    public DbSet<AICOS.KitchenOperations.Api.Features.EarlyPayment> EarlyPayments => Set<AICOS.KitchenOperations.Api.Features.EarlyPayment>();
     public DbSet<CupTask> CupTasks => Set<CupTask>();
     public DbSet<CupClaim> CupClaims => Set<CupClaim>();
     public DbSet<CupOperation> CupOperations => Set<CupOperation>();

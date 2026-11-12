@@ -160,6 +160,10 @@ namespace AICOS.KitchenOperations.Api.Persistence.Migrations
                         .HasColumnType("character varying(20)")
                         .HasColumnName("order_type");
 
+                    b.Property<bool>("PayFirst")
+                        .HasColumnType("boolean")
+                        .HasColumnName("pay_first");
+
                     b.Property<DateTime?>("ReadyAtUtc")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("ready_at_utc");
@@ -657,6 +661,26 @@ namespace AICOS.KitchenOperations.Api.Persistence.Migrations
 
                             t.HasCheckConstraint("ck_fulfillment_outbox_state", "state IN ('PENDING','IN_FLIGHT','ACKED','NEEDS_REVIEW') AND source_version > 0 AND attempt_count >= 0");
                         });
+                });
+
+            modelBuilder.Entity("AICOS.KitchenOperations.Api.Features.EarlyPayment", b =>
+                {
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<Guid>("OrderId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("order_id");
+
+                    b.Property<DateTime>("PaidAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("paid_at_utc");
+
+                    b.HasKey("TenantId", "OrderId")
+                        .HasName("pk_early_payments");
+
+                    b.ToTable("early_payments", "kitchen");
                 });
 
             modelBuilder.Entity("AICOS.KitchenOperations.Api.Features.KitchenAdmission.AdmissionReceipt", b =>

@@ -60,6 +60,7 @@ public static class EmployeeEndpoints
         shifts.MapPost("/", CreateShiftAsync).RequireAuthorization(AicosPolicies.Management);
         shifts.MapPut("/{id:guid}", UpdateShiftAsync).RequireAuthorization(AicosPolicies.Management);
         shifts.MapPatch("/{id:guid}/status", ChangeShiftStatusAsync).RequireAuthorization(AicosPolicies.Management);
+        shifts.MapDelete("/{id:guid}", DeleteShiftAsync).RequireAuthorization(AicosPolicies.Management);
     }
 
     // ------------------------------------------------------------------ employees
@@ -193,7 +194,7 @@ public static class EmployeeEndpoints
     {
         var tenantId = TenantScope.Require(user);
         var branch = await WorkforceScope.FilterAsync(user, directory, branchId, ct);
-        var query = db.WorkShifts.AsNoTracking().Where(s => s.TenantId == tenantId);
+        var query = db.WorkShifts.AsNoTracking().Where(s => s.TenantId == tenantId && s.DeletedAtUtc == null);
         if (branch is not null)
         {
             query = query.Where(s => s.BranchId == branch);
@@ -251,6 +252,39 @@ public static class EmployeeEndpoints
         return WorkShiftResponse.From(shift);
     }
 
+    /// <summary>
+    /// Deletes a template the branch no longer uses. It must be paused first, and no coming shift or open replacement may use it. A
+    /// template that was never used is removed; one that past shifts point to is hidden and kept, so attendance and payroll stay intact.
+    /// </summary>
+    private static async Task<IResult> DeleteShiftAsync(Guid id, WorkforceSchedulingDbContext db, ICurrentUser user, ShopClock shop, CancellationToken ct)
+    {
+        var shift = await FindShiftAsync(db, user, id, ct);
+        if (shift.IsActive)
+        {
+            throw new BusinessRuleException("work_shift.active", "Pause the shift template before deleting it.");
+        }
+
+        var today = shop.Today;
+        if (await db.ShiftAssignments.AnyAsync(a => a.WorkShiftId == id && a.WorkDate >= today, ct)
+            || await db.ReplacementShifts.AnyAsync(r => r.WorkShiftId == id && r.Status == ReplacementStatus.Open, ct))
+        {
+            throw new ConflictException("Coming shifts still use this template; remove them first.", "work_shift.in_use");
+        }
+
+        var used = await db.ShiftAssignments.AnyAsync(a => a.WorkShiftId == id, ct) || await db.ReplacementShifts.AnyAsync(r => r.WorkShiftId == id, ct);
+        if (used)
+        {
+            shift.MarkDeleted(shop.UtcNow);
+        }
+        else
+        {
+            db.WorkShifts.Remove(shift);
+        }
+
+        await db.SaveChangesAsync(ct);
+        return Results.NoContent();
+    }
+
     private static void ValidateShift(WorkShiftRequest r)
     {
         var errors = new ValidationErrors();
@@ -283,7 +317,7 @@ public static class EmployeeEndpoints
     private static async Task EnsureShiftNameUniqueAsync(WorkforceSchedulingDbContext db, Guid branchId, string name, Guid? excludeId, CancellationToken ct)
     {
         var normalized = name.Trim().ToLower();
-        if (await db.WorkShifts.AnyAsync(s => s.BranchId == branchId && s.Name.ToLower() == normalized && s.Id != excludeId, ct))
+        if (await db.WorkShifts.AnyAsync(s => s.BranchId == branchId && s.DeletedAtUtc == null && s.Name.ToLower() == normalized && s.Id != excludeId, ct))
         {
             throw new ConflictException($"Shift '{name.Trim()}' already exists in this branch.", "shift.duplicate_name");
         }
@@ -292,7 +326,7 @@ public static class EmployeeEndpoints
     internal static async Task<WorkShift> FindShiftAsync(WorkforceSchedulingDbContext db, ICurrentUser user, Guid id, CancellationToken ct)
     {
         var tenantId = TenantScope.Require(user);
-        var shift = await db.WorkShifts.FirstOrDefaultAsync(s => s.Id == id && s.TenantId == tenantId, ct) ?? throw new NotFoundException("Work shift", id);
+        var shift = await db.WorkShifts.FirstOrDefaultAsync(s => s.Id == id && s.TenantId == tenantId && s.DeletedAtUtc == null, ct) ?? throw new NotFoundException("Work shift", id);
         BranchAccess.EnsureCanAccess(user, shift.BranchId);
         return shift;
     }

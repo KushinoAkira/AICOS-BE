@@ -50,7 +50,8 @@ public sealed record ReplacementShiftResponse(
 
 /// <summary>
 /// UC-30 Open and Approve Replacement Shift, UC-31 Register for Replacement Shift. Routes: /api/v1/workforce/replacement-shifts.
-/// The Branch Manager opens a shift that needs somebody else; Baristas and Cashiers of the same branch register; the replacement
+/// The Branch Manager opens a shift that needs somebody else, or a Barista or Cashier asks for a replacement of their own coming shift;
+/// Baristas and Cashiers of the same branch register; the replacement
 /// only takes effect when the Branch Manager approves one of them (BR-51). The replacement works it as a normal assignment (check-in,
 /// check-out, review), is paid at the brand replacement rate, and keeps their contract type (BR-52). Approval is audited.
 /// </summary>
@@ -62,12 +63,13 @@ public static class ReplacementEndpoints
 
         group.MapGet("/", ListAsync).RequireAuthorization(AicosPolicies.Staff);
         group.MapGet("/{id:guid}", GetAsync).RequireAuthorization(AicosPolicies.Staff).WithName("GetReplacementShift");
-        group.MapPost("/", OpenAsync).RequireAuthorization(AicosPolicies.Management);
+        group.MapPost("/", OpenAsync).RequireAuthorization(AicosPolicies.Staff);
         group.MapGet("/{id:guid}/applications", ListApplicationsAsync).RequireAuthorization(AicosPolicies.Management);
         group.MapPost("/{id:guid}/approve", ApproveAsync).RequireAuthorization(AicosPolicies.Management);
         group.MapPost("/{id:guid}/cancel", CancelAsync).RequireAuthorization(AicosPolicies.Management);
         group.MapPost("/{id:guid}/register", RegisterAsync).RequireAuthorization(AicosPolicies.Staff);
         group.MapPost("/{id:guid}/withdraw", WithdrawAsync).RequireAuthorization(AicosPolicies.Staff);
+        group.MapPost("/{id:guid}/retract", RetractAsync).RequireAuthorization(AicosPolicies.Staff);
     }
 
     // ------------------------------------------------------------------ list / get
@@ -131,10 +133,19 @@ public static class ReplacementEndpoints
         errors.ThrowIfAny();
 
         var tenantId = TenantScope.Require(user);
+        var isManager = user.IsInRole(AicosRoles.BrandAdmin) || user.IsInRole(AicosRoles.BranchManager);
+        if (!isManager && r.AssignmentId is null)
+        {
+            throw new ForbiddenException("Staff can only ask for a replacement of their own shift.", "replacement.own_shift_only");
+        }
+
         ReplacementShift replacement;
         if (r.AssignmentId is not null)
         {
-            var original = await ScheduleEndpoints.FindAsync(db, user, r.AssignmentId.Value, ct);
+            // Staff ask for their own shift only (BR-49); the manager still picks the volunteer (BR-51).
+            var original = isManager
+                ? await ScheduleEndpoints.FindAsync(db, user, r.AssignmentId.Value, ct)
+                : await ScheduleEndpoints.FindOwnAsync(db, user, r.AssignmentId.Value, ct);
             if (original.Status == AssignmentStatus.Replaced)
             {
                 throw new BusinessRuleException("replacement.already_replaced", "This shift already has a replacement.");
@@ -330,6 +341,36 @@ public static class ReplacementEndpoints
             ?? throw new NotFoundException("Your registration for the replacement shift", id);
 
         application.Withdraw();
+        await db.SaveChangesAsync(ct);
+        return (await MapAsync(db, user, [replacement], ct))[0];
+    }
+
+    /// <summary>
+    /// The employee who asked for somebody to take their shift takes the request back (no longer busy). Only while nobody was approved:
+    /// the request is cancelled, the colleagues' sign-ups are rejected and the shift simply stays theirs.
+    /// </summary>
+    private static async Task<ReplacementShiftResponse> RetractAsync(Guid id, WorkforceSchedulingDbContext db, ICurrentUser user, ShopClock shop, CancellationToken ct)
+    {
+        var replacement = await FindAsync(db, user, id, ct);
+        var me = await EmployeeLookup.CurrentAsync(db, user, ct);
+        var isMine = replacement.OriginalAssignmentId is not null
+            && await db.ShiftAssignments.AnyAsync(a => a.Id == replacement.OriginalAssignmentId && a.EmployeeId == me.Id, ct);
+        if (!isMine)
+        {
+            throw new ForbiddenException("Only the employee who asked for the replacement can take it back.", "replacement.not_requester");
+        }
+
+        if (replacement.Status != ReplacementStatus.Open)
+        {
+            throw new BusinessRuleException("replacement.not_open", "This replacement shift is no longer open.");
+        }
+
+        replacement.Cancel("Taken back by the employee.", user.UserId, shop.UtcNow);
+        foreach (var pending in await db.ReplacementApplications.Where(a => a.ReplacementShiftId == id && a.Status == ApplicationStatus.Pending).ToListAsync(ct))
+        {
+            pending.Reject();
+        }
+
         await db.SaveChangesAsync(ct);
         return (await MapAsync(db, user, [replacement], ct))[0];
     }

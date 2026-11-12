@@ -46,7 +46,7 @@ public sealed class CupAdmissionWriter(KitchenOperationsDbContext db, TimeProvid
             {
                 if (receipt is not null) throw new ConflictException("Receipt lost its ticket.", "admission.integrity");
                 ticket = new KitchenTicket(r.TenantId, r.OrderId, m.OrderCode, r.BranchId, r.Source.TableNumber,
-                    r.Source.OrderType, r.Source.IsPaid, r.Source.PickupSlotStartUtc);
+                    r.Source.OrderType, r.Source.IsPaid, r.Source.PickupSlotStartUtc, r.Source.PayFirst);
                 ticket.InitializeCups(m.TableId, m.SessionId);
                 db.Tickets.Add(ticket);
                 var index = 0; var total = m.Items.Sum(i => i.Quantity);
@@ -88,10 +88,21 @@ public sealed class CupAdmissionWriter(KitchenOperationsDbContext db, TimeProvid
             }
             if (r.Source.Status is "Cancelled" or "NoShow" or "Unfulfillable" || r.Source.CancelledAtUtc is not null
                 || r.Source.DeliveredAtUtc is not null && ticket.Status != Domain.Enums.KitchenTicketStatus.Completed
-                || ticket.OrderType != r.Source.OrderType || ticket.TableNumber != r.Source.TableNumber)
+                || ticket.OrderType != r.Source.OrderType || ticket.TableNumber != r.Source.TableNumber
+                || ticket.PayFirst != r.Source.PayFirst)
                 ticket.HoldRecovery("cup.source_state_requires_review");
             // Authoritative payment fact is monotonic eligibility only, never a settlement command.
             if (r.Source.IsPaid && !ticket.IsPaid) ticket.MarkAsPaid();
+            // A payment can overtake V2 admission, just as it can overtake legacy V1.
+            if (created)
+            {
+                var early = await db.EarlyPayments.SingleOrDefaultAsync(p => p.TenantId == r.TenantId && p.OrderId == r.OrderId, ct);
+                if (early is not null)
+                {
+                    if (!ticket.IsPaid) ticket.MarkAsPaid();
+                    db.EarlyPayments.Remove(early);
+                }
+            }
             if (receipt is null)
             {
                 receipt = new AdmissionReceipt

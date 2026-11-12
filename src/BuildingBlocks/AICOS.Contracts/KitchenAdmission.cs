@@ -6,7 +6,7 @@ namespace AICOS.Contracts.KitchenAdmission;
 public sealed record AdmissionItem(Guid ProductId, string ProductName, int Quantity, string? Note);
 public sealed record AdmissionCreation(string OrderCode, IReadOnlyList<AdmissionItem> Items);
 public sealed record AdmissionFacts(string OrderType, string Status, bool IsPaid, string? TableNumber,
-    DateTime CreatedAtUtc, DateTime? PickupSlotStartUtc, DateTime? DeliveredAtUtc, DateTime? CancelledAtUtc);
+    DateTime CreatedAtUtc, DateTime? PickupSlotStartUtc, DateTime? DeliveredAtUtc, DateTime? CancelledAtUtc, bool PayFirst = false);
 public sealed record AdmissionRequest(Guid EventId, int SchemaVersion, string ConsumerKey, Guid TenantId,
     Guid BranchId, Guid OrderId, AdmissionCreation Creation, string CreationHash, AdmissionFacts Source);
 public sealed record AdmissionAck(Guid EventId, string ConsumerKey, Guid TenantId, Guid BranchId,

@@ -20,7 +20,7 @@ public sealed record AddQrCartItemRequest(Guid? ProductId, int? Quantity, string
 
 public sealed record SetQrCartQuantityRequest(int? Quantity);
 
-public sealed record QrCheckoutRequest(string? Note);
+public sealed record QrCheckoutRequest(string? Note, string? PromotionCode = null);
 
 /// <summary>The guests ask staff to come for the bill. <c>Method</c> is Cash or Transfer.</summary>
 public sealed record QrBillRequest(string? Method);
@@ -236,11 +236,13 @@ public static class QrOrderEndpoints
         ShopTime clock,
         QrCartStore cart,
         IMenuCatalogClient menu,
+        IVoucherClient vouchers,
         OrderEventPublisher events,
         CancellationToken ct)
     {
         var errors = new ValidationErrors();
         CommonRules.MaxLength(errors, "Note", r.Note, "Note", Order.NoteMaxLength);
+        CommonRules.MaxLength(errors, "PromotionCode", r.PromotionCode, "Promotion code", 40);
         errors.ThrowIfAny();
 
         var session = await SessionAsync(http, db, tokens, clock, mustBeOpen: true, ct);
@@ -250,7 +252,8 @@ public static class QrOrderEndpoints
             throw new BusinessRuleException("qr.cart_empty", "The cart is empty, or this order was already sent.");
         }
 
-        Order order;
+        Order? order = null;
+        var redeemed = false;
         try
         {
             var sellable = await menu.GetSellableProductsAsync(session.BranchId, ct);
@@ -272,6 +275,19 @@ public static class QrOrderEndpoints
                 order.AddItem(product.Id, product.Name, product.Price + priced.Surcharge, line.Quantity, line.Note, priced.Options);
             }
 
+            // A code needs somebody to redeem it as: a guest without an account is asked to sign in first.
+            if (!string.IsNullOrWhiteSpace(r.PromotionCode))
+            {
+                if (memberId is null)
+                {
+                    throw new BusinessRuleException("voucher.sign_in_required", "Sign in to use a voucher at the table.");
+                }
+
+                var quote = await vouchers.RedeemAsync(r.PromotionCode.Trim(), order.OriginalAmount, order.OrderCode, session.BranchId, memberId, ct);
+                order.ApplyPromotion(quote.Code, quote.Discount);
+                redeemed = true;
+            }
+
             db.Orders.Add(order);
             session.Touch(clock.UtcNow);
             await db.SaveChangesAsync(ct);
@@ -279,6 +295,11 @@ public static class QrOrderEndpoints
         catch
         {
             await cart.RestoreAsync(session.TenantId, session.Id, lines, ct);
+            if (redeemed)
+            {
+                await events.CancelledAsync(order!.AbandonBeforeSave("The table order could not be saved.", clock.UtcNow), wasPaid: false, ct);   // gives the voucher back
+            }
+
             throw;
         }
 

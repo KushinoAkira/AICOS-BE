@@ -54,7 +54,7 @@ public sealed class OrderCreatedHandler(KitchenAdmissionService admission, ILogg
             message.TenantId, message.BranchId, message.OrderId, creation,
             Convert.ToHexString(AdmissionProtocol.Hash(message.TenantId, message.BranchId, message.OrderId, creation)),
             new AdmissionFacts(message.OrderType, "Pending", message.IsPaid, message.TableNumber, message.CreatedAtUtc,
-                message.ScheduledPickupTimeUtc, null, null)), false, ct);
+                message.ScheduledPickupTimeUtc, null, null, message.PayFirst)), false, ct);
     }
 }
 /// <summary>The order was paid: a takeaway ticket reaches the bar now, with its stickers (BR-43).</summary>
@@ -69,11 +69,18 @@ public sealed class KitchenPaymentSucceededHandler(KitchenOperationsDbContext db
         var outcome = await KitchenTicketWrites.RunAsync(db, @event.TenantId, @event.OrderId, async () =>
         {
             var ticket = await TicketLookup.ByOrderAsync(db, @event.TenantId, @event.OrderId, cancellationToken);
-            if (ticket is null || ticket.BranchId != @event.BranchId)
+            if (ticket is null)
             {
-                logger.LogWarning("Kitchen payment event for order {OrderId} found no matching committed ticket; legacy Pub/Sub does not retry this event", @event.OrderId);
+                if (!await db.EarlyPayments.AnyAsync(p => p.TenantId == @event.TenantId && p.OrderId == @event.OrderId, cancellationToken))
+                {
+                    db.EarlyPayments.Add(new EarlyPayment { TenantId = @event.TenantId, OrderId = @event.OrderId,
+                        PaidAtUtc = clock.GetUtcNow().UtcDateTime });
+                    await db.SaveChangesAsync(cancellationToken);
+                }
                 return (Ticket: (KitchenTicket?)null, NewlyVisible: false);
             }
+            if (ticket.BranchId != @event.BranchId)
+                return (Ticket: (KitchenTicket?)null, NewlyVisible: false);
             if (ticket.IsPaid)
             {
                 logger.LogInformation("Kitchen payment event for order {OrderId}: ticket {TicketId} already paid", @event.OrderId, ticket.Id);

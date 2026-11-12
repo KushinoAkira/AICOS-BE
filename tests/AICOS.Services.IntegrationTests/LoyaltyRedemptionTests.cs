@@ -166,6 +166,26 @@ public sealed class LoyaltyRedemptionTests : IDisposable
         (await _admin.PostOk($"{Vouchers}/redeem", new { code = "ONLYB2", orderAmount = 100_000, orderReference = "ORD-2", branchId = _b2 })).GetProperty("discount").GetDecimal().Should().Be(20_000);
     }
 
+    [Fact]
+    public async Task A_member_applies_a_voucher_as_themselves_and_a_branch_voucher_only_at_its_branch()
+    {
+        var (_, mineId, me) = await MemberAsync("Bình");
+        var (_, _, other) = await MemberAsync("Lan");
+        await NewVoucherAsync("FORALL");
+        await NewVoucherAsync("ONLYB2", branch: _b2);
+        await NewVoucherAsync("MINE", issuedTo: mineId);
+
+        (await me.PostOk($"{Vouchers}/validate", new { code = "FORALL", orderAmount = 100_000, branchId = _b1 })).GetProperty("discount").GetDecimal().Should().Be(20_000);
+        await other.Post($"{Vouchers}/redeem", new { code = "MINE", orderAmount = 100_000, orderReference = "ORD-1", branchId = _b1, customerId = mineId })
+            .ShouldBe(422, "voucher.not_yours");                                                     // naming somebody else does not help a member
+        await me.PostOk($"{Vouchers}/redeem", new { code = "MINE", orderAmount = 100_000, orderReference = "ORD-2", branchId = _b1 });
+        await me.Post($"{Vouchers}/redeem", new { code = "ONLYB2", orderAmount = 100_000, orderReference = "ORD-3", branchId = _b1 }).ShouldBe(422, "voucher.wrong_branch");
+        await me.Post($"{Vouchers}/redeem", new { code = "ONLYB2", orderAmount = 100_000, orderReference = "ORD-3" }).ShouldBe(422, "voucher.wrong_branch");
+        await me.PostOk($"{Vouchers}/redeem", new { code = "ONLYB2", orderAmount = 100_000, orderReference = "ORD-4", branchId = _b2 });
+        await _f.As(AicosRoles.Customer, userId: Guid.NewGuid(), tenantId: Guid.NewGuid())
+            .Post($"{Vouchers}/redeem", new { code = "FORALL", orderAmount = 100_000, orderReference = "ORD-5", branchId = _b1 }).ShouldBe(404);
+    }
+
     // ------------------------------------------------------------------ points to voucher (SCRUM-134)
     [Fact]
     public async Task A_member_turns_points_into_a_voucher_worth_the_brand_rate_and_only_that_member_can_use_it()

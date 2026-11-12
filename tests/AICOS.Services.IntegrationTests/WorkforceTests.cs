@@ -24,6 +24,29 @@ public sealed class WorkforceTests : WorkforceTestBase
     }
 
     [Fact]
+    public async Task A_paused_template_is_deleted_when_no_coming_shift_uses_it_and_one_with_history_is_hidden_but_kept()
+    {
+        var unused = await NewShiftAsync("Thử", "08:00", "10:00");
+        await Manager.DeleteAsync($"{Api}/work-shifts/{unused}").ShouldBe(422, "work_shift.active");       // pause it first
+        await Manager.Patch($"{Api}/work-shifts/{unused}/status", new { isActive = false }).ShouldBe(200);
+        await Manager.DeleteAsync($"{Api}/work-shifts/{unused}").ShouldBe(204);
+        await Manager.GetAsync($"{Api}/work-shifts/{unused}").ShouldBe(404);
+
+        var used = await NewShiftAsync("Đêm", "13:00", "17:00");
+        var (_, employee) = await NewEmployeeAsync("Lan Cũ");
+        var assignment = await AssignAsync(employee, used, Monday.AddDays(1));
+        await Manager.Patch($"{Api}/work-shifts/{used}/status", new { isActive = false }).ShouldBe(200);
+        await Manager.DeleteAsync($"{Api}/work-shifts/{used}").ShouldBe(409, "work_shift.in_use");       // a coming shift uses it
+
+        SetLocal(Monday.AddDays(3), 9);                                                                    // that shift is now in the past
+        await Manager.DeleteAsync($"{Api}/work-shifts/{used}").ShouldBe(204);
+        var listed = await Manager.GetFromJsonAsync<JsonElement>($"{Api}/work-shifts");
+        listed.EnumerateArray().Select(s => s.GetProperty("id").GetGuid()).Should().NotContain(used);
+        (await Manager.GetFromJsonAsync<JsonElement>($"{Api}/shift-assignments/{assignment}")).GetProperty("shiftName").GetString().Should().Be("Đêm"); // history keeps its name
+        (await Manager.PostOk($"{Api}/work-shifts", new { name = "Đêm", startTime = "13:00", endTime = "17:00" })).Id().Should().NotBe(used); // the name is free again
+    }
+
+    [Fact]
     public async Task Employee_input_and_the_linked_account_are_validated()
     {
         var barista = NewAccount(AicosRoles.Barista, B1, "An");

@@ -141,7 +141,7 @@ public static class ScheduleEndpoints
         return Results.CreatedAtRoute("GetShiftAssignment", new { id = assignment.Id }, (await MapAsync(db, [assignment], ct))[0]);
     }
 
-    private static async Task<IResult> RemoveAsync(Guid id, WorkforceSchedulingDbContext db, ICurrentUser user, CancellationToken ct)
+    private static async Task<IResult> RemoveAsync(Guid id, WorkforceSchedulingDbContext db, ICurrentUser user, ShopClock shop, CancellationToken ct)
     {
         var assignment = await FindAsync(db, user, id, ct);
         if (assignment.CheckInAtUtc is not null || assignment.ReviewStatus == AttendanceReviewStatus.Approved)
@@ -149,9 +149,21 @@ public static class ScheduleEndpoints
             throw new ConflictException("The employee already worked or was reviewed for this shift; it cannot be removed.", "shift.already_started");
         }
 
-        if (await db.ReplacementShifts.AnyAsync(r => r.OriginalAssignmentId == id || r.ApprovedAssignmentId == id, ct))
+        var replacements = await db.ReplacementShifts
+            .Where(r => (r.OriginalAssignmentId == id || r.ApprovedAssignmentId == id) && r.Status != ReplacementStatus.Cancelled).ToListAsync(ct);
+        if (replacements.Any(r => r.Status != ReplacementStatus.Open))
         {
-            throw new ConflictException("A replacement shift refers to this shift; cancel it first.", "shift.has_replacement");
+            throw new ConflictException("A replacement was already approved for this shift; it cannot be removed.", "shift.has_replacement");
+        }
+
+        // Taking the person off the shift ends the search for somebody to take it: the open request is cancelled with its sign-ups.
+        foreach (var open in replacements)
+        {
+            open.Cancel("The shift was removed from the schedule.", user.UserId, shop.UtcNow);
+            foreach (var pending in await db.ReplacementApplications.Where(a => a.ReplacementShiftId == open.Id && a.Status == ApplicationStatus.Pending).ToListAsync(ct))
+            {
+                pending.Reject();
+            }
         }
 
         db.ShiftAssignments.Remove(assignment);
