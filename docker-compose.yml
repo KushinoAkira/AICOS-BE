@@ -234,6 +234,12 @@ services:
       <<: *dotnet-env
       ConnectionStrings__Default: Host=postgres;Port=5432;Database=${POSTGRES_DB:-aicos}_payment;Username=payment_svc;Password=${SERVICE_DB_PASSWORD:?Set SERVICE_DB_PASSWORD in .env - run scripts/init-env first}
       Payments__SecretKey: ${PAYMENTS_SECRET_KEY:?Set PAYMENTS_SECRET_KEY in .env - run scripts/init-env first}
+      # payOS (empty: payOS stays off until the platform admin adds it). Keys: my.payos.vn > payment channel > integration.
+      Payments__PayOs__ClientId: ${PAYOS_CLIENT_ID:-}
+      Payments__PayOs__ApiKey: ${PAYOS_API_KEY:-}
+      Payments__PayOs__ChecksumKey: ${PAYOS_CHECKSUM_KEY:-}
+      Payments__PayOs__ReturnUrl: ${PAYOS_RETURN_URL:-http://localhost:8080/api/v1/payments/payos/return}
+      Payments__PayOs__ResultPageUrl: ${APP_URL:-http://localhost:8443}/thanh-toan/ket-qua
     ports: ["5105:8080"]
 
   # ------------------------------------------------------------------ OPERATIONS
