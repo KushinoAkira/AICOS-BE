@@ -236,7 +236,7 @@ public static class PayrollEndpoints
         return Results.File(bytes, "text/csv; charset=utf-8", $"payroll-{summary.From:yyyyMMdd}-{summary.To:yyyyMMdd}.csv");
     }
 
-    private static async Task<PayrollSummaryResponse> BuildAsync(
+    internal static async Task<PayrollSummaryResponse> BuildAsync(
         WorkforceSchedulingDbContext db, ICurrentUser user, IBranchDirectory directory, ShopClock shop, Guid? branchId, DateOnly? from, DateOnly? to, CancellationToken ct)
     {
         var errors = new ValidationErrors();
@@ -385,6 +385,7 @@ public static class PayrollEndpoints
         var employee = await db.Employees.AsNoTracking().FirstOrDefaultAsync(e => e.Id == r.EmployeeId && e.TenantId == tenantId, ct)
             ?? throw new NotFoundException("Employee", r.EmployeeId!);
         BranchAccess.EnsureCanAccess(user, employee.BranchId);
+        await PayrollLock.EnsureOpenAsync(db, tenantId, employee.BranchId, r.WorkDate!.Value, ct);
 
         var adjustment = new PayrollAdjustment(tenantId, employee.BranchId, employee.Id, r.WorkDate!.Value, r.Amount!.Value, r.Reason!.Trim());
         db.PayrollAdjustments.Add(adjustment);
@@ -401,6 +402,7 @@ public static class PayrollEndpoints
         var tenantId = TenantScope.Require(user);
         var adjustment = await db.PayrollAdjustments.FirstOrDefaultAsync(a => a.Id == id && a.TenantId == tenantId, ct) ?? throw new NotFoundException("Payroll adjustment", id);
         BranchAccess.EnsureCanAccess(user, adjustment.BranchId);
+        await PayrollLock.EnsureOpenAsync(db, tenantId, adjustment.BranchId, adjustment.WorkDate, ct);
 
         var before = AdjustmentSnapshot(adjustment);
         db.PayrollAdjustments.Remove(adjustment);
@@ -431,7 +433,7 @@ public static class PayrollEndpoints
     private static string Number(double value) => value.ToString("0.##", CultureInfo.InvariantCulture);
 
     /// <summary>Quotes a text field and neutralises spreadsheet formulas, so an employee name cannot run code when the file is opened.</summary>
-    private static string Escape(string value)
+    internal static string Escape(string value)
     {
         var safe = value.Length > 0 && "=+-@\t\r".Contains(value[0]) ? "'" + value : value;
         return $"\"{safe.Replace("\"", "\"\"")}\"";

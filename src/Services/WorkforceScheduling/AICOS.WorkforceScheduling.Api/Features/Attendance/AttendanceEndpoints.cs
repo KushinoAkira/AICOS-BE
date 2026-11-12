@@ -372,6 +372,9 @@ public static class AttendanceEndpoints
             throw new BusinessRuleException("attendance.not_reviewable", $"A shift that is {assignment.Status} has no attendance to review.");
         }
 
+        // Approving, correcting or marking an absence changes pay: not inside a finalized payroll period.
+        await PayrollLock.EnsureOpenAsync(db, assignment.TenantId, assignment.BranchId, assignment.WorkDate, ct);
+
         // Approving needs something to approve: the employee has checked in, or the shift is over (and the record says what happened).
         var startsAt = shop.ToUtc(assignment.WorkDate, assignment.StartTime);
         var endsAt = shop.ToUtc(assignment.WorkDate, assignment.EndTime);

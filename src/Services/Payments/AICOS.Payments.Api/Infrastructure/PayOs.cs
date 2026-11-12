@@ -241,7 +241,8 @@ public sealed class PayOsGateway(
     }
 
     public Task<GatewayRefundResult> RefundAsync(Payment payment, decimal amount, string reason, CancellationToken ct) =>
-        Task.FromResult(new GatewayRefundResult(false, null, "payOS has no refund API: transfer the money back to the customer by hand."));
+        Task.FromResult(new GatewayRefundResult(
+            false, null, "payOS has no refund API: transfer the money back to the customer's account by hand, then record the transfer.", RequiresManualTransfer: true));
 
     private async Task<PayOsCredentials?> CredentialsAsync(CancellationToken ct)
     {

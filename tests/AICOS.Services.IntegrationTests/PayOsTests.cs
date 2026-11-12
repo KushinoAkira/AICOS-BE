@@ -237,15 +237,29 @@ public sealed class PayOsTests : PaymentTestBase
     }
 
     [Fact]
-    public async Task A_refund_through_payOS_fails_with_a_clear_reason()
+    public async Task A_payOS_refund_waits_for_a_manual_transfer_and_completes_when_staff_record_it()
     {
-        var payment = await StartAsync(amount: 74_000);
+        var order = Guid.NewGuid();
+        var payment = await StartAsync(order, 74_000);
         await HookAsync(Signed(OrderCodeOf(payment), 74_000));
 
         var refund = await Cashier1.PostOk($"{Tx}/{payment.Id()}/refunds", new { kind = "Cancellation", reason = "Wrong order" });
 
-        refund.GetProperty("status").GetString().Should().Be("Failed");
-        (await ReadAsync(payment)).GetProperty("status").GetString().Should().Be("Succeeded");
+        refund.GetProperty("status").GetString().Should().Be("AwaitingTransfer");
+        (await ReadAsync(payment)).GetProperty("status").GetString().Should().Be("Succeeded");   // nothing left the shop yet
+        F.Events.Published.OfType<PaymentRefundedEvent>().Should().BeEmpty();
+        await Cashier1.Post($"{Tx}/{payment.Id()}/refunds", new { kind = "Exception", amount = 1_000, reason = "More" }).ShouldBe(422, "refund.nothing_to_refund");
+
+        await Cashier1.Post($"{Refunds}/{refund.Id()}/transferred", new { reference = "FT1" }).ShouldBe(403);                    // staff at the counter cannot close it
+        await Manager1.Post($"{Refunds}/{refund.Id()}/transferred", new { }).ShouldBe(400);
+        var done = await Manager1.PostOk($"{Refunds}/{refund.Id()}/transferred", new { reference = "FT26316000001", note = "Chuyển lại cho khách" });
+
+        done.GetProperty("status").GetString().Should().Be("Succeeded");
+        var read = await ReadAsync(payment);
+        (read.GetProperty("status").GetString(), read.GetProperty("refundedAmount").GetDecimal()).Should().Be(("Refunded", 74_000m));
+        var ev = F.Events.Published.OfType<PaymentRefundedEvent>().Single();
+        (ev.OrderId, ev.Amount, ev.Method).Should().Be((order, 74_000m, "PayOS"));
+        await Manager1.Post($"{Refunds}/{refund.Id()}/transferred", new { reference = "FT26316000001" }).ShouldBe(422, "refund.not_awaiting_transfer");
     }
 
     [Fact]
