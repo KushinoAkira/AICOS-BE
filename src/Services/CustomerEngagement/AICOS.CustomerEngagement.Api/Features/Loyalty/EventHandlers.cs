@@ -58,11 +58,6 @@ public sealed class OrderPaidHandler(CustomerEngagementDbContext db, LoyaltyRule
             return;
         }
 
-        if (await db.LoyaltyTransactions.AnyAsync(t => t.OrderId == @event.OrderId && t.Type == LoyaltyTransactionType.Earn, cancellationToken))
-        {
-            return;
-        }
-
         var customer = await LoyaltyLookup.CustomerAsync(db, @event.TenantId, @event.CustomerId.Value, cancellationToken);
         if (customer is null)
         {
@@ -70,15 +65,23 @@ public sealed class OrderPaidHandler(CustomerEngagementDbContext db, LoyaltyRule
             return;
         }
 
-        var rule = await rules.ForTenantAsync(customer.TenantId, cancellationToken); // the brand rules (BR-44, BR-47)
-        var points = rule.IsActive ? (int)Math.Floor(@event.Amount / rule.AmountPerPoint) : 0;
-        if (points <= 0)
+        // Counted by hunt vouchers ("N orders of at least X"), whether or not the order earns points.
+        if (!await db.MemberOrders.AnyAsync(o => o.OrderId == @event.OrderId, cancellationToken))
         {
-            return;
+            db.MemberOrders.Add(new MemberOrder(customer.TenantId, customer.Id, @event.OrderId, @event.Amount, @event.PaidAtUtc));
         }
 
-        customer.Earn(points, rule.Thresholds);
-        db.LoyaltyTransactions.Add(new LoyaltyTransaction(customer.Id, @event.OrderId, points, LoyaltyTransactionType.Earn, $"Order {@event.OrderCode}: paid {@event.Amount:0.##}"));
+        if (!await db.LoyaltyTransactions.AnyAsync(t => t.OrderId == @event.OrderId && t.Type == LoyaltyTransactionType.Earn, cancellationToken))
+        {
+            var rule = await rules.ForTenantAsync(customer.TenantId, cancellationToken); // the brand rules (BR-44, BR-47)
+            var points = rule.IsActive ? (int)Math.Floor(@event.Amount / rule.AmountPerPoint) : 0;
+            if (points > 0)
+            {
+                customer.Earn(points, rule.Thresholds);
+                db.LoyaltyTransactions.Add(new LoyaltyTransaction(customer.Id, @event.OrderId, points, LoyaltyTransactionType.Earn, $"Order {@event.OrderCode}: paid {@event.Amount:0.##}"));
+            }
+        }
+
         await db.SaveChangesAsync(cancellationToken);
     }
 }
@@ -101,6 +104,13 @@ public sealed class OrderCancelledLoyaltyHandler(CustomerEngagementDbContext db,
         if (@event.CustomerId is null || @event.ClosedAs == "NoShow")   // a no-show: the shop kept the money (fully or in part), so the member keeps the points
         {
             return;
+        }
+
+        var counted = await db.MemberOrders.FirstOrDefaultAsync(o => o.OrderId == @event.OrderId, cancellationToken);
+        if (counted is { IsCancelled: false })
+        {
+            counted.Cancel();   // no longer counts towards hunt vouchers
+            await db.SaveChangesAsync(cancellationToken);
         }
 
         var earned = await db.LoyaltyTransactions.FirstOrDefaultAsync(t => t.OrderId == @event.OrderId && t.Type == LoyaltyTransactionType.Earn, cancellationToken);

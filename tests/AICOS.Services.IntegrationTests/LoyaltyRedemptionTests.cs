@@ -289,4 +289,74 @@ public sealed class LoyaltyRedemptionTests : IDisposable
         (await BalanceAsync(me)).Should().Be(40);
         (await me.GetFromJsonAsync<JsonElement>($"{Customers}/me/vouchers")).GetProperty("totalCount").GetInt32().Should().Be(1);
     }
+
+    // ------------------------------------------------------------------ hunting a voucher with orders
+    [Fact]
+    public async Task A_member_with_enough_orders_claims_a_hunt_voucher_once_and_gets_a_personal_code()
+    {
+        var created = await _admin.PostOk(Vouchers, new
+        {
+            code = "SAN3", type = "Voucher", discountType = "FixedAmount", value = 20_000, minOrderAmount = 50_000, expiresAt = DateTimeOffset.UtcNow.AddDays(30),
+            requiredOrders = 3, requiredOrderAmount = 30_000, countOrdersFrom = DateTimeOffset.UtcNow.AddDays(-1),
+        });
+        var huntId = created.Id();
+        created.GetProperty("requiredOrders").GetInt32().Should().Be(3);
+        var (userId, customerId, me) = await MemberAsync("Bình");
+
+        await _f.HandleAsync(Paid(userId, 30_000));
+        await _f.HandleAsync(Paid(userId, 10_000));                                                  // too small: not counted
+        var cancelled = Guid.NewGuid();
+        await _f.HandleAsync(Paid(userId, 45_000, cancelled));
+        await _f.HandleAsync(new OrderCancelledIntegrationEvent(_tenant, cancelled, _b1, null, "Out of milk", true, [], DateTime.UtcNow, "ORD-1", userId));
+
+        var hunt = (await me.GetFromJsonAsync<JsonElement>($"{Vouchers}/hunt")).EnumerateArray().Single();
+        (hunt.GetProperty("countedOrders").GetInt32(), hunt.GetProperty("canClaim").GetBoolean()).Should().Be((1, false));
+        await me.Post($"{Vouchers}/hunt/{huntId}/claim", new { }).ShouldBe(422, "voucher.hunt_not_eligible");
+        (await me.GetFromJsonAsync<JsonElement>($"{Customers}/me/vouchers")).GetProperty("totalCount").GetInt32().Should().Be(0);   // not hunted: not in "my vouchers"
+
+        await _f.HandleAsync(Paid(userId, 30_000));
+        await _f.HandleAsync(Paid(customerId, 99_000));
+        hunt = (await me.GetFromJsonAsync<JsonElement>($"{Vouchers}/hunt")).EnumerateArray().Single();
+        (hunt.GetProperty("countedOrders").GetInt32(), hunt.GetProperty("canClaim").GetBoolean()).Should().Be((3, true));
+
+        var claimed = await me.Post($"{Vouchers}/hunt/{huntId}/claim", new { });
+        claimed.StatusCode.Should().Be(System.Net.HttpStatusCode.Created);
+        var code = (await claimed.Body()).GetProperty("code").GetString()!;
+        code.Should().StartWith("SAN3-");
+        await me.Post($"{Vouchers}/hunt/{huntId}/claim", new { }).ShouldBe(409, "voucher.hunt_claimed");
+        (await me.GetFromJsonAsync<JsonElement>($"{Customers}/me/vouchers")).GetProperty("items").EnumerateArray().Single().GetProperty("code").GetString().Should().Be(code);
+        hunt = (await me.GetFromJsonAsync<JsonElement>($"{Vouchers}/hunt")).EnumerateArray().Single();
+        (hunt.GetProperty("claimed").GetBoolean(), hunt.GetProperty("claimedCode").GetString(), hunt.GetProperty("canClaim").GetBoolean()).Should().Be((true, code, false));
+
+        // the personal code works once, for this member; the hunt voucher itself is not a code to type in
+        var quote = await me.PostOk($"{Vouchers}/validate", new { code, orderAmount = 60_000, branchId = _b1 });
+        quote.GetProperty("discount").GetDecimal().Should().Be(20_000m);
+        await me.Post($"{Vouchers}/validate", new { code = "SAN3", orderAmount = 60_000, branchId = _b1 }).ShouldBe(422, "voucher.hunt_only");
+        var (_, _, stranger) = await MemberAsync("Lan");
+        await stranger.Post($"{Vouchers}/validate", new { code, orderAmount = 60_000, branchId = _b1 }).ShouldBe(422, "voucher.not_yours");
+
+        var list = await _admin.GetFromJsonAsync<JsonElement>(Vouchers);
+        list.GetProperty("items").EnumerateArray().Single(v => v.Id() == huntId).GetProperty("claimedCount").GetInt32().Should().Be(1);
+    }
+
+    [Fact]
+    public async Task A_hunt_voucher_follows_its_rules()
+    {
+        var expires = DateTimeOffset.UtcNow.AddDays(10);
+        await _admin.Post(Vouchers, new { type = "Voucher", discountType = "FixedAmount", value = 10_000, expiresAt = expires, requiredOrders = 0 }).ShouldBe(400);
+        await _admin.Post(Vouchers, new { type = "GiftCard", value = 10_000, expiresAt = expires, requiredOrders = 2 }).ShouldBe(400);
+        await _admin.Post(Vouchers, new { type = "Voucher", discountType = "FixedAmount", value = 10_000, expiresAt = expires, requiredOrderAmount = 30_000 }).ShouldBe(400);
+        await _admin.Post(Vouchers, new { type = "Voucher", discountType = "FixedAmount", value = 10_000, expiresAt = expires, requiredOrders = 2, issuedToName = "Bình" }).ShouldBe(400);
+        await _admin.Post(Vouchers, new { code = new string('A', 26), type = "Voucher", discountType = "FixedAmount", value = 10_000, expiresAt = expires, requiredOrders = 2 }).ShouldBe(400);
+
+        var later = await _admin.PostOk(Vouchers, new { code = "LATER", type = "Voucher", discountType = "FixedAmount", value = 10_000, expiresAt = expires, requiredOrders = 1 });
+        var (userId, _, me) = await MemberAsync("Bình");
+        await _f.HandleAsync(new OrderPaidIntegrationEvent(_tenant, Guid.NewGuid(), "ORD-OLD", _b1, userId, 90_000, DateTime.UtcNow.AddDays(-3)));   // before counting starts
+        (await me.GetFromJsonAsync<JsonElement>($"{Vouchers}/hunt")).EnumerateArray().Single().GetProperty("countedOrders").GetInt32().Should().Be(0);
+
+        await _admin.Post($"{Vouchers}/{later.Id()}/revoke", new { reason = "Ended" }).ShouldBe(200);
+        (await me.GetFromJsonAsync<JsonElement>($"{Vouchers}/hunt")).GetArrayLength().Should().Be(0);
+        await me.Post($"{Vouchers}/hunt/{later.Id()}/claim", new { }).ShouldBe(422, "voucher.hunt_closed");
+        (await _cashier.GetAsync($"{Vouchers}/hunt")).StatusCode.Should().Be(System.Net.HttpStatusCode.Forbidden);
+    }
 }

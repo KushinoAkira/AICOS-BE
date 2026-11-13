@@ -86,11 +86,49 @@ public sealed class Voucher : AuditableEntity<Guid>
 
     public int Version { get; private set; }
 
+    /// <summary>Set on a voucher customers hunt for: how many paid orders a member needs before claiming it. Null for an ordinary code.</summary>
+    public int? RequiredOrders { get; private set; }
+
+    /// <summary>A hunt voucher counts only orders of at least this amount (null: any amount).</summary>
+    public decimal? RequiredOrderAmount { get; private set; }
+
+    /// <summary>A hunt voucher counts orders paid from this moment.</summary>
+    public DateTime? CountOrdersFromUtc { get; private set; }
+
+    /// <summary>The hunt voucher this personal code was claimed from.</summary>
+    public Guid? CampaignId { get; private set; }
+
+    /// <summary>A hunt voucher is a template: members claim it in the app and each gets a personal single-use code.</summary>
+    public bool IsHunt => RequiredOrders is not null;
+
     public bool IsExpired(DateTime nowUtc) => ExpiresAtUtc <= nowUtc;
+
+    public void MakeHunt(int requiredOrders, decimal? requiredOrderAmount, DateTime countOrdersFromUtc)
+    {
+        RequiredOrders = requiredOrders;
+        RequiredOrderAmount = requiredOrderAmount is > 0 ? requiredOrderAmount : null;
+        CountOrdersFromUtc = countOrdersFromUtc;
+    }
+
+    /// <summary>The personal code a member gets when claiming this hunt voucher: same discount, conditions and expiry, usable once, only by them.</summary>
+    public Voucher IssueClaim(string code, Guid customerId, string? customerName)
+    {
+        if (!IsHunt)
+        {
+            throw new BusinessRuleException("voucher.not_hunt", "Only a hunt voucher can be claimed.");
+        }
+
+        return new Voucher(TenantId, BranchId, code, Type, DiscountType, Value, MinOrderAmount, ExpiresAtUtc, customerName, customerId) { CampaignId = Id };
+    }
 
     /// <summary>Discount for an order of <paramref name="orderAmount"/>, after checking BR-35 and the minimum order amount.</summary>
     public decimal CalculateDiscount(decimal orderAmount, DateTime nowUtc)
     {
+        if (IsHunt)
+        {
+            throw new BusinessRuleException("voucher.hunt_only", "This voucher is claimed in the app first; each member then uses their own code.");
+        }
+
         if (Status == VoucherStatus.Redeemed)
         {
             throw new BusinessRuleException("voucher.already_redeemed", "BR-35: this code has already been used.");

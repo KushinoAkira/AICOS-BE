@@ -14,10 +14,13 @@ namespace AICOS.CustomerEngagement.Api.Features.Vouchers;
 /// <summary>
 /// <see cref="Code"/> is optional (generated when empty). <see cref="BranchId"/> is optional: empty means valid at every branch of
 /// the brand. Gift cards are always a fixed amount.
+/// <see cref="RequiredOrders"/> makes a voucher customers hunt for: a member with that many paid orders (each at least
+/// <see cref="RequiredOrderAmount"/>, paid from <see cref="CountOrdersFrom"/>, default now) claims it and gets a personal code.
 /// </summary>
 public sealed record CreateVoucherRequest(
     Guid? BranchId, string? Code, VoucherType? Type, VoucherDiscountType? DiscountType, decimal? Value, decimal? MinOrderAmount,
-    DateTimeOffset? ExpiresAt, string? IssuedToName, Guid? IssuedToCustomerId);
+    DateTimeOffset? ExpiresAt, string? IssuedToName, Guid? IssuedToCustomerId,
+    int? RequiredOrders = null, decimal? RequiredOrderAmount = null, DateTimeOffset? CountOrdersFrom = null);
 
 public sealed record RevokeVoucherRequest(string? Reason);
 
@@ -26,15 +29,23 @@ public sealed record ValidateVoucherRequest(string? Code, decimal? OrderAmount, 
 
 public sealed record RedeemVoucherRequest(string? Code, decimal? OrderAmount, string? OrderReference, Guid? BranchId = null, Guid? CustomerId = null);
 
+/// <summary><c>ClaimedCount</c>: for a hunt voucher, how many members claimed it.</summary>
 public sealed record VoucherResponse(
     Guid Id, Guid? BranchId, string Code, VoucherType Type, VoucherDiscountType DiscountType, decimal Value, decimal? MinOrderAmount,
     DateTime ExpiresAtUtc, bool IsExpired, VoucherStatus Status, string? IssuedToName, Guid? IssuedToCustomerId,
-    DateTime? RedeemedAtUtc, string? RedeemedOrderReference, decimal? RedeemedDiscount, string? RevokeReason, DateTime CreatedAtUtc)
+    DateTime? RedeemedAtUtc, string? RedeemedOrderReference, decimal? RedeemedDiscount, string? RevokeReason, DateTime CreatedAtUtc,
+    int? RequiredOrders = null, decimal? RequiredOrderAmount = null, DateTime? CountOrdersFromUtc = null, Guid? CampaignId = null, int ClaimedCount = 0)
 {
-    public static VoucherResponse From(Voucher v, DateTime nowUtc) => new(
+    public static VoucherResponse From(Voucher v, DateTime nowUtc, int claimed = 0) => new(
         v.Id, v.BranchId, v.Code, v.Type, v.DiscountType, v.Value, v.MinOrderAmount, v.ExpiresAtUtc, v.IsExpired(nowUtc), v.Status,
-        v.IssuedToName, v.IssuedToCustomerId, v.RedeemedAtUtc, v.RedeemedOrderReference, v.RedeemedDiscount, v.RevokeReason, v.CreatedAtUtc);
+        v.IssuedToName, v.IssuedToCustomerId, v.RedeemedAtUtc, v.RedeemedOrderReference, v.RedeemedDiscount, v.RevokeReason, v.CreatedAtUtc,
+        v.RequiredOrders, v.RequiredOrderAmount, v.CountOrdersFromUtc, v.CampaignId, claimed);
 }
+
+/// <summary>A voucher a member can hunt for, with their progress: <c>CountedOrders</c> of <c>RequiredOrders</c>, and their code once claimed.</summary>
+public sealed record HuntVoucherResponse(
+    Guid Id, string Code, VoucherDiscountType DiscountType, decimal Value, decimal? MinOrderAmount, DateTime ExpiresAtUtc, Guid? BranchId,
+    int RequiredOrders, decimal? RequiredOrderAmount, DateTime CountOrdersFromUtc, int CountedOrders, bool Claimed, string? ClaimedCode, bool CanClaim);
 
 public sealed record VoucherQuoteResponse(string Code, decimal OrderAmount, decimal Discount, decimal AmountToPay);
 
@@ -56,6 +67,9 @@ public static partial class VoucherEndpoints
         // Staff apply a code at the counter; a member applies one to their own order (takeaway, table QR), which Ordering forwards with their token.
         group.MapPost("/validate", ValidateAsync).RequireAuthorization(b => b.RequireRole(VoucherUsers));
         group.MapPost("/redeem", RedeemAsync).RequireAuthorization(b => b.RequireRole(VoucherUsers));
+        // Hunting: a member sees the vouchers they can earn with orders and claims one once they qualify.
+        group.MapGet("/hunt", HuntListAsync).RequireAuthorization(b => b.RequireRole(AicosRoles.Customer));
+        group.MapPost("/hunt/{id:guid}/claim", ClaimAsync).RequireAuthorization(b => b.RequireRole(AicosRoles.Customer));
     }
 
     private static readonly string[] VoucherUsers =
@@ -75,7 +89,7 @@ public static partial class VoucherEndpoints
         return query;
     }
 
-    private static Task<PagedResponse<VoucherResponse>> ListAsync(
+    private static async Task<PagedResponse<VoucherResponse>> ListAsync(
         CustomerEngagementDbContext db, ICurrentUser user, TimeProvider clock, Guid? branchId, VoucherStatus? status, VoucherType? type,
         string? search, int page = 1, int pageSize = 20, CancellationToken ct = default)
     {
@@ -102,7 +116,14 @@ public static partial class VoucherEndpoints
             query = query.Where(v => v.Code.Contains(term) || (v.IssuedToName != null && v.IssuedToName.ToUpper().Contains(term)));
         }
 
-        return query.OrderByDescending(v => v.CreatedAtUtc).ToPagedAsync(page, pageSize, v => VoucherResponse.From(v, now), ct);
+        var paged = await query.OrderByDescending(v => v.CreatedAtUtc).ToPagedAsync(page, pageSize, v => v, ct);
+        var hunts = paged.Items.Where(v => v.IsHunt).Select(v => (Guid?)v.Id).ToList();
+        var claims = hunts.Count == 0
+            ? new Dictionary<Guid, int>()
+            : (await db.Vouchers.AsNoTracking().Where(v => v.CampaignId != null && hunts.Contains(v.CampaignId)).Select(v => v.CampaignId!.Value).ToListAsync(ct))
+                .GroupBy(c => c).ToDictionary(g => g.Key, g => g.Count());
+        return new PagedResponse<VoucherResponse>(
+            paged.Items.Select(v => VoucherResponse.From(v, now, claims.GetValueOrDefault(v.Id))).ToList(), paged.Page, paged.PageSize, paged.TotalCount);
     }
 
     private static async Task<VoucherResponse> GetAsync(Guid id, CustomerEngagementDbContext db, ICurrentUser user, TimeProvider clock, CancellationToken ct) =>
@@ -140,6 +161,11 @@ public static partial class VoucherEndpoints
         var discountType = r.Type == VoucherType.GiftCard ? VoucherDiscountType.FixedAmount : r.DiscountType!.Value;
         var voucher = new Voucher(
             tenantId, r.BranchId, code, r.Type!.Value, discountType, r.Value!.Value, r.MinOrderAmount, r.ExpiresAt!.Value.UtcDateTime, r.IssuedToName, r.IssuedToCustomerId);
+        if (r.RequiredOrders is not null)
+        {
+            voucher.MakeHunt(r.RequiredOrders.Value, r.RequiredOrderAmount, r.CountOrdersFrom?.UtcDateTime ?? now);
+        }
+
         db.Vouchers.Add(voucher);
         await db.SaveChangesAsync(ct);
 
@@ -241,7 +267,117 @@ public static partial class VoucherEndpoints
         }
 
         CommonRules.MaxLength(errors, "IssuedToName", r.IssuedToName, "Issued to", 255);
+        if (r.RequiredOrders is not null)
+        {
+            if (r.RequiredOrders is < 1 or > 1000)
+            {
+                errors.Add("RequiredOrders", "Required orders must be between 1 and 1000.");
+            }
+
+            if (r.Type != VoucherType.Voucher)
+            {
+                errors.Add("Type", "Only a discount voucher can be hunted.");
+            }
+
+            if (r.IssuedToCustomerId is not null || !string.IsNullOrWhiteSpace(r.IssuedToName))
+            {
+                errors.Add("IssuedToCustomerId", "A hunt voucher is for every member; do not issue it to one person.");
+            }
+
+            if (!string.IsNullOrWhiteSpace(r.Code) && r.Code.Trim().Length > MaxHuntCodeLength)
+            {
+                errors.Add("Code", $"A hunt voucher code has at most {MaxHuntCodeLength} characters (each member's code adds 5).");
+            }
+
+            if (r.RequiredOrderAmount is not null)
+            {
+                CommonRules.NonNegative(errors, "RequiredOrderAmount", r.RequiredOrderAmount, "Required order amount", 100_000_000m);
+            }
+
+            if (r.CountOrdersFrom is not null && r.ExpiresAt is not null && r.CountOrdersFrom.Value >= r.ExpiresAt.Value)
+            {
+                errors.Add("CountOrdersFrom", "Orders must be counted from a date before the expiry.");
+            }
+        }
+        else if (r.RequiredOrderAmount is not null || r.CountOrdersFrom is not null)
+        {
+            errors.Add("RequiredOrders", "Give the number of orders needed to hunt this voucher.");
+        }
+
         errors.ThrowIfAny();
+    }
+
+    private const int MaxHuntCodeLength = 25;
+
+    /// <summary>The hunt vouchers of the brand still open (active, not expired), each with the caller's progress.</summary>
+    private static async Task<IReadOnlyList<HuntVoucherResponse>> HuntListAsync(CustomerEngagementDbContext db, ICurrentUser user, TimeProvider clock, CancellationToken ct)
+    {
+        var tenantId = TenantScope.Require(user);
+        var now = clock.GetUtcNow().UtcDateTime;
+        var hunts = await db.Vouchers.AsNoTracking()
+            .Where(v => v.TenantId == tenantId && v.RequiredOrders != null && v.Status == VoucherStatus.Active && v.ExpiresAtUtc > now)
+            .OrderBy(v => v.RequiredOrders).ThenBy(v => v.ExpiresAtUtc).ToListAsync(ct);
+        var customer = await db.Customers.AsNoTracking().FirstOrDefaultAsync(c => c.TenantId == tenantId && c.UserId == user.UserId, ct);
+        var orders = customer is null ? [] : await db.MemberOrders.AsNoTracking().Where(o => o.CustomerId == customer.Id && !o.IsCancelled).ToListAsync(ct);
+        var ids = hunts.Select(h => (Guid?)h.Id).ToList();
+        var mine = customer is null
+            ? new Dictionary<Guid, string>()
+            : await db.Vouchers.AsNoTracking().Where(v => v.IssuedToCustomerId == customer.Id && ids.Contains(v.CampaignId))
+                .ToDictionaryAsync(v => v.CampaignId!.Value, v => v.Code, ct);
+
+        return hunts.Select(h =>
+        {
+            var counted = Counted(h, orders);
+            var claimed = mine.TryGetValue(h.Id, out var code);
+            return new HuntVoucherResponse(
+                h.Id, h.Code, h.DiscountType, h.Value, h.MinOrderAmount, h.ExpiresAtUtc, h.BranchId, h.RequiredOrders!.Value, h.RequiredOrderAmount,
+                h.CountOrdersFromUtc ?? h.CreatedAtUtc, counted, claimed, claimed ? code : null, customer is not null && !claimed && counted >= h.RequiredOrders);
+        }).ToList();
+    }
+
+    private static int Counted(Voucher hunt, IEnumerable<MemberOrder> orders) =>
+        orders.Count(o => o.PaidAtUtc >= (hunt.CountOrdersFromUtc ?? hunt.CreatedAtUtc) && o.Amount >= (hunt.RequiredOrderAmount ?? 0));
+
+    /// <summary>A member who has the orders claims the hunt voucher: they get a personal single-use code, once per voucher. Audited.</summary>
+    private static async Task<IResult> ClaimAsync(
+        Guid id, CustomerEngagementDbContext db, ICurrentUser user, TimeProvider clock, IEventBus bus, ILoggerFactory loggers, CancellationToken ct)
+    {
+        var tenantId = TenantScope.Require(user);
+        var now = clock.GetUtcNow().UtcDateTime;
+        var customer = await db.Customers.AsNoTracking().FirstOrDefaultAsync(c => c.TenantId == tenantId && c.UserId == user.UserId, ct)
+            ?? throw new NotFoundException("Customer profile", user.UserId ?? Guid.Empty);
+        var hunt = await db.Vouchers.FirstOrDefaultAsync(v => v.Id == id && v.TenantId == tenantId && v.RequiredOrders != null, ct)
+            ?? throw new NotFoundException("Voucher", id);
+        if (hunt.Status != VoucherStatus.Active || hunt.IsExpired(now))
+        {
+            throw new BusinessRuleException("voucher.hunt_closed", "This voucher can no longer be claimed.");
+        }
+
+        if (await db.Vouchers.AnyAsync(v => v.CampaignId == hunt.Id && v.IssuedToCustomerId == customer.Id, ct))
+        {
+            throw new ConflictException("You already claimed this voucher.", "voucher.hunt_claimed");
+        }
+
+        var orders = await db.MemberOrders.AsNoTracking().Where(o => o.CustomerId == customer.Id && !o.IsCancelled).ToListAsync(ct);
+        var counted = Counted(hunt, orders);
+        if (counted < hunt.RequiredOrders)
+        {
+            throw new BusinessRuleException("voucher.hunt_not_eligible", $"You have {counted} of the {hunt.RequiredOrders} orders this voucher needs.");
+        }
+
+        string code;
+        do
+        {
+            code = $"{hunt.Code}-{Convert.ToHexString(RandomNumberGenerator.GetBytes(2))}";
+        }
+        while (await db.Vouchers.AnyAsync(v => v.TenantId == tenantId && v.Code == code, ct));
+
+        var claim = hunt.IssueClaim(code, customer.Id, customer.FullName);
+        db.Vouchers.Add(claim);
+        await db.SaveChangesAsync(ct);   // the unique (campaign, member) index stops a double claim made at the same moment
+
+        await AuditTrail.PublishAsync(bus, user, loggers.CreateLogger("AICOS.Customer.Vouchers"), tenantId, "voucher.claimed", "Voucher", claim.Id, after: Snapshot(claim));
+        return Results.Created("/api/v1/customers/me/vouchers", VoucherResponse.From(claim, now));
     }
 
     private static void ValidateUse(string? code, decimal? orderAmount, string? orderReference)

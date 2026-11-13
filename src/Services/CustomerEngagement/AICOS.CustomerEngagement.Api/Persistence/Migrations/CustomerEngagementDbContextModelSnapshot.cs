@@ -348,6 +348,66 @@ namespace AICOS.CustomerEngagement.Api.Persistence.Migrations
                     b.ToTable("loyalty_transactions", "customer");
                 });
 
+            modelBuilder.Entity("AICOS.CustomerEngagement.Api.Domain.MemberOrder", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("numeric(14,2)")
+                        .HasColumnName("amount");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by");
+
+                    b.Property<Guid>("CustomerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("customer_id");
+
+                    b.Property<bool>("IsCancelled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_cancelled");
+
+                    b.Property<Guid>("OrderId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("order_id");
+
+                    b.Property<DateTime>("PaidAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("paid_at_utc");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at_utc");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id")
+                        .HasName("pk_member_orders");
+
+                    b.HasIndex("OrderId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_member_orders_order_id");
+
+                    b.HasIndex("CustomerId", "PaidAtUtc")
+                        .HasDatabaseName("ix_member_orders_customer_id_paid_at_utc");
+
+                    b.ToTable("member_orders", "customer");
+                });
+
             modelBuilder.Entity("AICOS.CustomerEngagement.Api.Domain.StaffNotification", b =>
                 {
                     b.Property<Guid>("Id")
@@ -441,11 +501,19 @@ namespace AICOS.CustomerEngagement.Api.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("branch_id");
 
+                    b.Property<Guid?>("CampaignId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("campaign_id");
+
                     b.Property<string>("Code")
                         .IsRequired()
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)")
                         .HasColumnName("code");
+
+                    b.Property<DateTime?>("CountOrdersFromUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("count_orders_from_utc");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone")
@@ -493,6 +561,15 @@ namespace AICOS.CustomerEngagement.Api.Persistence.Migrations
                         .HasColumnType("character varying(50)")
                         .HasColumnName("redeemed_order_reference");
 
+                    b.Property<decimal?>("RequiredOrderAmount")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("numeric(14,2)")
+                        .HasColumnName("required_order_amount");
+
+                    b.Property<int?>("RequiredOrders")
+                        .HasColumnType("integer")
+                        .HasColumnName("required_orders");
+
                     b.Property<string>("RevokeReason")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)")
@@ -538,6 +615,11 @@ namespace AICOS.CustomerEngagement.Api.Persistence.Migrations
                     b.HasIndex("IssuedToCustomerId")
                         .HasDatabaseName("ix_vouchers_issued_to_customer_id");
 
+                    b.HasIndex("CampaignId", "IssuedToCustomerId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_vouchers_campaign_id_issued_to_customer_id")
+                        .HasFilter("campaign_id IS NOT NULL");
+
                     b.HasIndex("TenantId", "Code")
                         .IsUnique()
                         .HasDatabaseName("ix_vouchers_tenant_id_code");
@@ -561,6 +643,16 @@ namespace AICOS.CustomerEngagement.Api.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_loyalty_transactions_customers_customer_id");
+                });
+
+            modelBuilder.Entity("AICOS.CustomerEngagement.Api.Domain.MemberOrder", b =>
+                {
+                    b.HasOne("AICOS.CustomerEngagement.Api.Domain.Customer", null)
+                        .WithMany()
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_member_orders_customers_customer_id");
                 });
 
             modelBuilder.Entity("AICOS.CustomerEngagement.Api.Domain.StaffNotificationRead", b =>
