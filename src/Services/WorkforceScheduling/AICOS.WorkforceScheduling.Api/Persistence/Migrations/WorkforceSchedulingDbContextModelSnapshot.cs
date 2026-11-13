@@ -578,6 +578,16 @@ namespace AICOS.WorkforceScheduling.Api.Persistence.Migrations
                         .HasColumnType("boolean")
                         .HasColumnName("is_replacement");
 
+                    b.Property<string>("ManagerNote")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("manager_note");
+
+                    b.Property<string>("ManagerStatus")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("manager_status");
+
                     b.Property<Guid?>("ReplacementShiftId")
                         .HasColumnType("uuid")
                         .HasColumnName("replacement_shift_id");

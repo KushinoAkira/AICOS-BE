@@ -68,6 +68,8 @@ internal sealed class ShiftAssignmentConfiguration : IEntityTypeConfiguration<Sh
         builder.Property(a => a.ReviewStatus).HasConversion<string>().HasMaxLength(20);
         builder.Property(a => a.DeclineReason).HasMaxLength(500);
         builder.Property(a => a.ReviewNote).HasMaxLength(500);
+        builder.Property(a => a.ManagerStatus).HasMaxLength(30);
+        builder.Property(a => a.ManagerNote).HasMaxLength(500);
         builder.Ignore(a => a.Hours);
         builder.Ignore(a => a.EffectiveCheckInUtc);
         builder.Ignore(a => a.EffectiveCheckOutUtc);
