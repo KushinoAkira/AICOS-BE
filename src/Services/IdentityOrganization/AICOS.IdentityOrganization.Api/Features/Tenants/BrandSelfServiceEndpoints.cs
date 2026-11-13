@@ -24,7 +24,8 @@ public sealed record RegisterBrandResponse(Guid TenantId, string Code, TenantSta
 public sealed record RejectTenantRequest(string? Reason);
 
 /// <summary>PUT /brand/profile: what the public page of the brand shows. <c>LogoUrl</c> is the link of an image the front end already stored.</summary>
-public sealed record BrandProfileRequest(string? Description, string? LogoUrl, string? PrimaryColor, string? SecondaryColor);
+/// <summary><c>Name</c>: the brand's display name; left out (null) it stays as it is. The code (subdomain) never changes.</summary>
+public sealed record BrandProfileRequest(string? Description, string? LogoUrl, string? PrimaryColor, string? SecondaryColor, string? Name = null);
 
 public sealed record BrandProfileResponse(Guid Id, string Name, string Code, TenantStatus Status, string? Description, string? LogoUrl, string? PrimaryColor, string? SecondaryColor)
 {
@@ -184,11 +185,20 @@ public static partial class BrandSelfServiceEndpoints
 
         ValidateColor(errors, nameof(r.PrimaryColor), r.PrimaryColor);
         ValidateColor(errors, nameof(r.SecondaryColor), r.SecondaryColor);
+        if (r.Name is not null && (r.Name.Trim().Length < 2 || r.Name.Trim().Length > Tenant.NameMaxLength))
+        {
+            errors.Add(nameof(r.Name), $"The brand name has 2 to {Tenant.NameMaxLength} characters.");
+        }
+
         errors.ThrowIfAny();
 
         var tenant = await FindAsync(db, Tenancy.Require(user), ct);
         var before = BrandProfileResponse.From(tenant);
         tenant.UpdateProfile(r.Description, r.LogoUrl, r.PrimaryColor, r.SecondaryColor);
+        if (r.Name is not null)
+        {
+            tenant.Rename(r.Name);
+        }
         audit.Record(AuditScope.Tenant, tenant.Id, "tenant.profile_updated", "Tenant", tenant.Id, before, BrandProfileResponse.From(tenant));
         await db.SaveChangesAsync(ct);
         return BrandProfileResponse.From(tenant);
