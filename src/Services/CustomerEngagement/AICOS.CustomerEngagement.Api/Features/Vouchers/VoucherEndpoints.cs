@@ -64,6 +64,7 @@ public static partial class VoucherEndpoints
         group.MapGet("/{id:guid}", GetAsync).RequireAuthorization(AicosPolicies.Management).WithName("GetVoucher");
         group.MapPost("/", CreateAsync).RequireAuthorization(AicosPolicies.AdminOnly);
         group.MapPost("/{id:guid}/revoke", RevokeAsync).RequireAuthorization(AicosPolicies.AdminOnly);
+        group.MapDelete("/{id:guid}", DeleteAsync).RequireAuthorization(AicosPolicies.AdminOnly);
         // Staff apply a code at the counter; a member applies one to their own order (takeaway, table QR), which Ordering forwards with their token.
         group.MapPost("/validate", ValidateAsync).RequireAuthorization(b => b.RequireRole(VoucherUsers));
         group.MapPost("/redeem", RedeemAsync).RequireAuthorization(b => b.RequireRole(VoucherUsers));
@@ -188,6 +189,27 @@ public static partial class VoucherEndpoints
         await AuditTrail.PublishAsync(
             bus, user, loggers.CreateLogger("AICOS.Customer.Vouchers"), voucher.TenantId, "voucher.revoked", "Voucher", voucher.Id, before, Snapshot(voucher));
         return VoucherResponse.From(voucher, clock.GetUtcNow().UtcDateTime);
+    }
+
+    /// <summary>
+    /// Removes a voucher for good. A code already used on an order stays (the order and the reconciliation refer to it): turn it off instead.
+    /// Deleting a hunt voucher stops new claims; the codes members already claimed keep working. Audited.
+    /// </summary>
+    private static async Task<IResult> DeleteAsync(
+        Guid id, CustomerEngagementDbContext db, ICurrentUser user, IEventBus bus, ILoggerFactory loggers, CancellationToken ct)
+    {
+        var voucher = await FindAsync(db, user, id, ct);
+        if (voucher.Status == VoucherStatus.Redeemed || voucher.RedeemedOrderReference is not null)
+        {
+            throw new ConflictException("This code was used on an order and is kept for the records; turn it off instead.", "voucher.used");
+        }
+
+        var before = Snapshot(voucher);
+        db.Vouchers.Remove(voucher);
+        await db.SaveChangesAsync(ct);
+
+        await AuditTrail.PublishAsync(bus, user, loggers.CreateLogger("AICOS.Customer.Vouchers"), voucher.TenantId, "voucher.deleted", "Voucher", voucher.Id, before);
+        return Results.NoContent();
     }
 
     /// <summary>Preview only (nothing changes): how much this code takes off an order.</summary>
