@@ -21,7 +21,13 @@ builder.AddAicosEventBus();
 
 builder.Services.Configure<PaymentOptions>(builder.Configuration.GetSection(PaymentOptions.SectionName));
 builder.Services.AddSingleton<SecretProtector>();
-builder.Services.AddSingleton(new GatewayRegistry(PaymentProvider.SupportedCodes.Select(c => (IPaymentGateway)new SimulatedGateway(c))));
+builder.Services.Configure<PayOsOptions>(builder.Configuration.GetSection(PayOsOptions.SectionName));
+builder.Services.AddHttpClient(PayOsGateway.HttpClientName, c => c.Timeout = TimeSpan.FromSeconds(15));
+builder.Services.AddSingleton<PayOsGateway>();
+// payOS talks to the real payOS API; the other providers are still simulated inside AICOS.
+builder.Services.AddSingleton(sp => new GatewayRegistry(
+    PaymentProvider.SupportedCodes.Where(c => c != PaymentProvider.PayOsCode).Select(c => (IPaymentGateway)new SimulatedGateway(c))
+        .Append(sp.GetRequiredService<PayOsGateway>())));
 builder.Services.AddScoped<PaymentProcessor>();
 builder.Services.AddScoped<RefundProcessor>();
 builder.Services.AddHostedService<PaymentExpiryJob>();
@@ -45,6 +51,7 @@ api.MapMerchantSettingEndpoints();
 api.MapPaymentEndpoints();
 api.MapOrderSettlementEndpoints();
 api.MapWebhookEndpoints();
+api.MapPayOsEndpoints();
 api.MapRefundEndpoints();
 api.MapReconciliationEndpoints();
 

@@ -66,6 +66,27 @@ public sealed class Employee : AuditableEntity<Guid>, IBranchScoped
     }
 
     public void ChangeStatus(EmployeeStatus status) => Status = status;
+
+    public const int BankNameMaxLength = 50;
+    public const int BankAccountNumberMaxLength = 30;
+    public const int BankAccountNameMaxLength = 100;
+
+    /// <summary>Where the salary is transferred: the bank (short name or code, e.g. "VCB"), the account number and the name on the account.</summary>
+    public string? BankName { get; private set; }
+
+    public string? BankAccountNumber { get; private set; }
+
+    public string? BankAccountName { get; private set; }
+
+    public bool HasBankAccount => BankName is not null && BankAccountNumber is not null && BankAccountName is not null;
+
+    /// <summary>Sets the salary account, or clears it when every part is null.</summary>
+    public void SetBankAccount(string? bankName, string? accountNumber, string? accountName)
+    {
+        BankName = string.IsNullOrWhiteSpace(bankName) ? null : bankName.Trim();
+        BankAccountNumber = string.IsNullOrWhiteSpace(accountNumber) ? null : accountNumber.Trim();
+        BankAccountName = string.IsNullOrWhiteSpace(accountName) ? null : accountName.Trim().ToUpperInvariant();
+    }
 }
 
 /// <summary>Shift template of a branch, e.g. "Ca sáng" 06:00-12:00. No overnight shifts: end is after start.</summary>

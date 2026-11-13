@@ -171,6 +171,21 @@ namespace AICOS.WorkforceScheduling.Api.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<string>("BankAccountName")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("bank_account_name");
+
+                    b.Property<string>("BankAccountNumber")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("bank_account_number");
+
+                    b.Property<string>("BankName")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("bank_name");
+
                     b.Property<Guid>("BranchId")
                         .HasColumnType("uuid")
                         .HasColumnName("branch_id");
@@ -372,6 +387,204 @@ namespace AICOS.WorkforceScheduling.Api.Persistence.Migrations
                     b.ToTable("payroll_adjustments", "workforce", t =>
                         {
                             t.HasCheckConstraint("ck_payroll_adjustments_amount_not_zero", "amount <> 0");
+                        });
+                });
+
+            modelBuilder.Entity("AICOS.WorkforceScheduling.Api.Domain.PayrollPeriod", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("branch_id");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime>("FinalizedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("finalized_at_utc");
+
+                    b.Property<Guid?>("FinalizedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("finalized_by");
+
+                    b.Property<DateOnly>("From")
+                        .HasColumnType("date")
+                        .HasColumnName("from");
+
+                    b.Property<string>("ReopenReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("reopen_reason");
+
+                    b.Property<DateTime?>("ReopenedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("reopened_at_utc");
+
+                    b.Property<Guid?>("ReopenedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reopened_by");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<DateOnly>("To")
+                        .HasColumnType("date")
+                        .HasColumnName("to");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at_utc");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id")
+                        .HasName("pk_payroll_periods");
+
+                    b.HasIndex("TenantId", "BranchId", "From", "To")
+                        .HasDatabaseName("ix_payroll_periods_tenant_id_branch_id_from_to");
+
+                    b.ToTable("payroll_periods", "workforce", t =>
+                        {
+                            t.HasCheckConstraint("ck_payroll_periods_range", "\"from\" <= \"to\"");
+                        });
+                });
+
+            modelBuilder.Entity("AICOS.WorkforceScheduling.Api.Domain.PayrollPeriodLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("Adjustments")
+                        .HasPrecision(14)
+                        .HasColumnType("numeric(14,0)")
+                        .HasColumnName("adjustments");
+
+                    b.Property<string>("BankAccountName")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("bank_account_name");
+
+                    b.Property<string>("BankAccountNumber")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("bank_account_number");
+
+                    b.Property<string>("BankName")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("bank_name");
+
+                    b.Property<decimal>("BasePay")
+                        .HasPrecision(14)
+                        .HasColumnType("numeric(14,0)")
+                        .HasColumnName("base_pay");
+
+                    b.Property<string>("ContractType")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("contract_type");
+
+                    b.Property<Guid>("EmployeeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("employee_id");
+
+                    b.Property<string>("EmployeeName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("employee_name");
+
+                    b.Property<decimal>("GrossPay")
+                        .HasPrecision(14)
+                        .HasColumnType("numeric(14,0)")
+                        .HasColumnName("gross_pay");
+
+                    b.Property<decimal>("NetPay")
+                        .HasPrecision(14)
+                        .HasColumnType("numeric(14,0)")
+                        .HasColumnName("net_pay");
+
+                    b.Property<double>("OvertimeHours")
+                        .HasColumnType("double precision")
+                        .HasColumnName("overtime_hours");
+
+                    b.Property<decimal>("OvertimePay")
+                        .HasPrecision(14)
+                        .HasColumnType("numeric(14,0)")
+                        .HasColumnName("overtime_pay");
+
+                    b.Property<DateTime?>("PaidAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("paid_at_utc");
+
+                    b.Property<Guid?>("PaidBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("paid_by");
+
+                    b.Property<string>("PayoutMethod")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("payout_method");
+
+                    b.Property<string>("PayoutReference")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("payout_reference");
+
+                    b.Property<Guid>("PeriodId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("period_id");
+
+                    b.Property<double>("RegularHours")
+                        .HasColumnType("double precision")
+                        .HasColumnName("regular_hours");
+
+                    b.Property<double>("ReplacementHours")
+                        .HasColumnType("double precision")
+                        .HasColumnName("replacement_hours");
+
+                    b.Property<decimal>("ReplacementPay")
+                        .HasPrecision(14)
+                        .HasColumnType("numeric(14,0)")
+                        .HasColumnName("replacement_pay");
+
+                    b.Property<int>("WorkedDays")
+                        .HasColumnType("integer")
+                        .HasColumnName("worked_days");
+
+                    b.HasKey("Id")
+                        .HasName("pk_payroll_period_lines");
+
+                    b.HasIndex("EmployeeId")
+                        .HasDatabaseName("ix_payroll_period_lines_employee_id");
+
+                    b.HasIndex("PeriodId", "EmployeeId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_payroll_period_lines_period_id_employee_id");
+
+                    b.ToTable("payroll_period_lines", "workforce", t =>
+                        {
+                            t.HasCheckConstraint("ck_payroll_period_lines_net", "net_pay >= 0");
                         });
                 });
 
@@ -725,6 +938,16 @@ namespace AICOS.WorkforceScheduling.Api.Persistence.Migrations
                         .HasConstraintName("fk_cash_closings_shift_assignments_assignment_id");
                 });
 
+            modelBuilder.Entity("AICOS.WorkforceScheduling.Api.Domain.PayrollPeriodLine", b =>
+                {
+                    b.HasOne("AICOS.WorkforceScheduling.Api.Domain.PayrollPeriod", null)
+                        .WithMany("Lines")
+                        .HasForeignKey("PeriodId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_payroll_period_lines_payroll_periods_period_id");
+                });
+
             modelBuilder.Entity("AICOS.WorkforceScheduling.Api.Domain.ReplacementApplication", b =>
                 {
                     b.HasOne("AICOS.WorkforceScheduling.Api.Domain.Employee", null)
@@ -756,6 +979,11 @@ namespace AICOS.WorkforceScheduling.Api.Persistence.Migrations
                         .HasForeignKey("WorkShiftId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .HasConstraintName("fk_employee_shifts_work_shifts_work_shift_id");
+                });
+
+            modelBuilder.Entity("AICOS.WorkforceScheduling.Api.Domain.PayrollPeriod", b =>
+                {
+                    b.Navigation("Lines");
                 });
 #pragma warning restore 612, 618
         }

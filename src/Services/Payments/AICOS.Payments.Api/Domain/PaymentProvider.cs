@@ -15,10 +15,13 @@ public enum ProviderMode
 /// </summary>
 public sealed class PaymentProvider : AuditableEntity<Guid>
 {
-    /// <summary>The providers the platform can integrate with (task: VietQR, Momo, ZaloPay, plus the mock used for demos).</summary>
-    public static readonly IReadOnlyList<string> SupportedCodes = ["Mock", "VietQR", "Momo", "ZaloPay"];
+    /// <summary>The providers the platform can integrate with (task: VietQR, Momo, ZaloPay, payOS, plus the mock used for demos).</summary>
+    public static readonly IReadOnlyList<string> SupportedCodes = ["Mock", "VietQR", "Momo", "ZaloPay", "PayOS"];
 
     public const string MockCode = "Mock";
+
+    /// <summary>payOS: merchant id is the client id, API key the API key, secret key the checksum key.</summary>
+    public const string PayOsCode = "PayOS";
     public const int DisplayNameMaxLength = 100;
     public const int MerchantIdMaxLength = 100;
     public const int CallbackUrlMaxLength = 500;
@@ -55,6 +58,12 @@ public sealed class PaymentProvider : AuditableEntity<Guid>
     public string? CallbackUrl { get; private set; }
 
     public bool IsMock => Code == MockCode;
+
+    /// <summary>
+    /// Whether a brand must give its own receiving account or merchant code to use this provider. payOS collects into the bank account
+    /// linked to the platform's payOS channel and the platform settles with the brand, so a brand only switches it on.
+    /// </summary>
+    public bool NeedsBrandAccount => !IsMock && Code != PayOsCode;
 
     public bool HasCredentials => !string.IsNullOrEmpty(MerchantId) && ApiKeyEncrypted is not null && SecretKeyEncrypted is not null;
 

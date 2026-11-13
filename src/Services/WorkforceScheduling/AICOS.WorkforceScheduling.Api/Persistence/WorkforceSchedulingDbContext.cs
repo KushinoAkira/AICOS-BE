@@ -26,6 +26,10 @@ public sealed class WorkforceSchedulingDbContext(DbContextOptions<WorkforceSched
     public DbSet<CashTransaction> CashTransactions => Set<CashTransaction>();
 
     public DbSet<PayrollAdjustment> PayrollAdjustments => Set<PayrollAdjustment>();
+
+    public DbSet<PayrollPeriod> PayrollPeriods => Set<PayrollPeriod>();
+
+    public DbSet<PayrollPeriodLine> PayrollPeriodLines => Set<PayrollPeriodLine>();
 }
 
 internal sealed class EmployeeConfiguration : IEntityTypeConfiguration<Employee>
@@ -39,6 +43,10 @@ internal sealed class EmployeeConfiguration : IEntityTypeConfiguration<Employee>
         builder.Property(e => e.Position).HasMaxLength(50);
         builder.Property(e => e.ContractType).HasConversion<string>().HasMaxLength(10);
         builder.Property(e => e.Status).HasConversion<string>().HasMaxLength(20);
+        builder.Property(e => e.BankName).HasMaxLength(Employee.BankNameMaxLength);
+        builder.Property(e => e.BankAccountNumber).HasMaxLength(Employee.BankAccountNumberMaxLength);
+        builder.Property(e => e.BankAccountName).HasMaxLength(Employee.BankAccountNameMaxLength);
+        builder.Ignore(e => e.HasBankAccount);
         builder.HasIndex(e => e.UserId).IsUnique();
         builder.HasIndex(e => new { e.TenantId, e.BranchId });
     }
@@ -173,5 +181,56 @@ internal sealed class PayrollAdjustmentConfiguration : IEntityTypeConfiguration<
         builder.Property(a => a.Reason).HasMaxLength(PayrollAdjustment.ReasonMaxLength).IsRequired();
         builder.HasIndex(a => new { a.TenantId, a.BranchId, a.WorkDate });
         builder.HasIndex(a => new { a.EmployeeId, a.WorkDate });
+    }
+}
+
+internal sealed class PayrollPeriodConfiguration : IEntityTypeConfiguration<PayrollPeriod>
+{
+    public void Configure(EntityTypeBuilder<PayrollPeriod> builder)
+    {
+        builder.ToTable("payroll_periods", t =>
+        {
+            t.HasCheckConstraint("ck_payroll_periods_range", "\"from\" <= \"to\"");
+        });
+        builder.HasKey(p => p.Id);
+        builder.Property(p => p.Id).ValueGeneratedNever();
+        builder.Property(p => p.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
+        builder.Property(p => p.ReopenReason).HasMaxLength(PayrollPeriod.ReasonMaxLength);
+        builder.Ignore(p => p.Locks);
+        builder.Ignore(p => p.TotalNet);
+        builder.HasMany(p => p.Lines).WithOne().HasForeignKey(l => l.PeriodId).OnDelete(DeleteBehavior.Cascade);
+        builder.Navigation(p => p.Lines).UsePropertyAccessMode(PropertyAccessMode.Field);
+        builder.HasIndex(p => new { p.TenantId, p.BranchId, p.From, p.To });
+    }
+}
+
+internal sealed class PayrollPeriodLineConfiguration : IEntityTypeConfiguration<PayrollPeriodLine>
+{
+    public void Configure(EntityTypeBuilder<PayrollPeriodLine> builder)
+    {
+        builder.ToTable("payroll_period_lines", t =>
+        {
+            t.HasCheckConstraint("ck_payroll_period_lines_net", "net_pay >= 0");
+        });
+        builder.HasKey(l => l.Id);
+        builder.Property(l => l.Id).ValueGeneratedNever();
+        builder.Property(l => l.EmployeeName).HasMaxLength(255).IsRequired();
+        builder.Property(l => l.ContractType).HasConversion<string>().HasMaxLength(10);
+        builder.Property(l => l.BasePay).HasPrecision(14, 0);
+        builder.Property(l => l.OvertimePay).HasPrecision(14, 0);
+        builder.Property(l => l.ReplacementPay).HasPrecision(14, 0);
+        builder.Property(l => l.Adjustments).HasPrecision(14, 0);
+        builder.Property(l => l.GrossPay).HasPrecision(14, 0);
+        builder.Property(l => l.NetPay).HasPrecision(14, 0);
+        builder.Property(l => l.BankName).HasMaxLength(Employee.BankNameMaxLength);
+        builder.Property(l => l.BankAccountNumber).HasMaxLength(Employee.BankAccountNumberMaxLength);
+        builder.Property(l => l.BankAccountName).HasMaxLength(Employee.BankAccountNameMaxLength);
+        builder.Property(l => l.PayoutMethod).HasConversion<string>().HasMaxLength(20);
+        builder.Property(l => l.PayoutReference).HasMaxLength(PayrollPeriodLine.ReferenceMaxLength);
+        builder.Ignore(l => l.HasBankAccount);
+        builder.Ignore(l => l.IsPaid);
+        builder.Ignore(l => l.IsSettled);
+        builder.HasIndex(l => new { l.PeriodId, l.EmployeeId }).IsUnique();
+        builder.HasIndex(l => l.EmployeeId);
     }
 }

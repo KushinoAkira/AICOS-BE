@@ -140,7 +140,7 @@ public static class MerchantSettingEndpoints
             setting.SetAccountNumber(protector.Protect(number), number.Length >= 4 ? number[^4..] : number);
         }
 
-        if (!provider.IsMock && setting.IsEnabled && !setting.HasPaymentDetails)
+        if (provider.NeedsBrandAccount && setting.IsEnabled && !setting.HasPaymentDetails)
         {
             throw new BusinessRuleException("merchant.details_missing", $"Give the receiving account or the merchant code before enabling {code}.");
         }

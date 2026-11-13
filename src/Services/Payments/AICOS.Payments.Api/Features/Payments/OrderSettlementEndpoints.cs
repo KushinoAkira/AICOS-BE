@@ -31,7 +31,7 @@ public static class OrderSettlementEndpoints
         var ids = payments.Select(p => p.Id).ToList();
         var unresolvedRefunds = await db.PaymentRefunds.AsNoTracking()
             .AnyAsync(r => r.TenantId == tenant && ids.Contains(r.PaymentId)
-                && (r.Status == RefundStatus.PendingApproval || r.Status == RefundStatus.Failed), ct);
+                && (r.Status == RefundStatus.PendingApproval || r.Status == RefundStatus.Failed || r.Status == RefundStatus.AwaitingTransfer), ct);
         var paid = payments.Where(p => p.IsPaid).ToList();
         var net = paid.Sum(p => p.Amount - p.RefundedAmount);
         var pending = payments.Any(p => p.Status == PaymentStatus.Pending);

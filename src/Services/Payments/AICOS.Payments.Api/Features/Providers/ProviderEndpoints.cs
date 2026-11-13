@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AICOS.Payments.Api.Features.Providers;
 
-/// <summary>POST /providers. <see cref="Code"/> is one of Mock, VietQR, Momo, ZaloPay and cannot be changed later.</summary>
+/// <summary>POST /providers. <see cref="Code"/> is one of Mock, VietQR, Momo, ZaloPay, PayOS and cannot be changed later.</summary>
 public sealed record CreateProviderRequest(
     string? Code, string? DisplayName, ProviderMode? Mode, string? MerchantId, string? ApiKey, string? SecretKey, string? CallbackUrl);
 
