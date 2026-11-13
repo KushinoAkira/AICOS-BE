@@ -40,7 +40,7 @@ public sealed record PayrollPeriodResponse(
     Guid Id, Guid BranchId, DateOnly From, DateOnly To, PayrollPeriodStatus Status, DateTime FinalizedAtUtc, Guid? FinalizedBy, DateTime? ReopenedAtUtc,
     string? ReopenReason, decimal TotalNet, decimal TotalPaid, int Employees, int Paid, IReadOnlyList<PayrollPeriodLineResponse>? Lines, IReadOnlyList<PayrollWarning> Warnings)
 {
-    public static PayrollPeriodResponse From(PayrollPeriod p, bool withLines = true) => new(
+    public static PayrollPeriodResponse Of(PayrollPeriod p, bool withLines = true) => new(
         p.Id, p.BranchId, p.From, p.To, p.Status, p.FinalizedAtUtc, p.FinalizedBy, p.ReopenedAtUtc, p.ReopenReason, p.TotalNet,
         p.Lines.Where(l => l.IsPaid).Sum(l => l.NetPay), p.Lines.Count, p.Lines.Count(l => l.IsPaid),
         withLines ? p.Lines.OrderBy(l => l.EmployeeName).Select(PayrollPeriodLineResponse.From).ToList() : null,
@@ -144,7 +144,7 @@ public static class PayrollPeriodEndpoints
         db.PayrollPeriods.Add(period);
         await db.SaveChangesAsync(ct);
         await Audit(bus, user, loggers, tenantId, "payroll_period.finalized", period, null);
-        return Results.Created($"/api/v1/workforce/payroll/periods/{period.Id}", PayrollPeriodResponse.From(period));
+        return Results.Created($"/api/v1/workforce/payroll/periods/{period.Id}", PayrollPeriodResponse.Of(period));
     }
 
     // ------------------------------------------------------------------ read
@@ -160,11 +160,11 @@ public static class PayrollPeriodEndpoints
         }
 
         var rows = await query.OrderByDescending(p => p.From).ThenByDescending(p => p.FinalizedAtUtc).Take(100).ToListAsync(ct);
-        return rows.Select(p => PayrollPeriodResponse.From(p, withLines: false)).ToList();
+        return rows.Select(p => PayrollPeriodResponse.Of(p, withLines: false)).ToList();
     }
 
     private static async Task<PayrollPeriodResponse> GetAsync(Guid id, WorkforceSchedulingDbContext db, ICurrentUser user, CancellationToken ct) =>
-        PayrollPeriodResponse.From(await FindAsync(db, user, id, ct));
+        PayrollPeriodResponse.Of(await FindAsync(db, user, id, ct));
 
     // ------------------------------------------------------------------ pay and reopen
     private static async Task<PayrollPeriodResponse> RecordPayoutAsync(
@@ -190,7 +190,7 @@ public static class PayrollPeriodEndpoints
         period.MarkPaid(r.EmployeeIds!, r.Method!.Value, string.IsNullOrWhiteSpace(r.Reference) ? null : r.Reference.Trim(), user.UserId, shop.UtcNow);
         await db.SaveChangesAsync(ct);
         await Audit(bus, user, loggers, period.TenantId, "payroll_period.paid", period, before);
-        return PayrollPeriodResponse.From(period);
+        return PayrollPeriodResponse.Of(period);
     }
 
     private static async Task<PayrollPeriodResponse> ReopenAsync(
@@ -205,7 +205,7 @@ public static class PayrollPeriodEndpoints
         period.Reopen(r.Reason!.Trim(), user.UserId, shop.UtcNow);
         await db.SaveChangesAsync(ct);
         await Audit(bus, user, loggers, period.TenantId, "payroll_period.reopened", period, before);
-        return PayrollPeriodResponse.From(period);
+        return PayrollPeriodResponse.Of(period);
     }
 
     // ------------------------------------------------------------------ bank transfer list
