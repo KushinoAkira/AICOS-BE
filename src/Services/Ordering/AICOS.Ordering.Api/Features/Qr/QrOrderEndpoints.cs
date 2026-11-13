@@ -1,3 +1,4 @@
+using AICOS.Ordering.Api.Features.SessionBilling;
 using AICOS.BuildingBlocks.Exceptions;
 using AICOS.BuildingBlocks.Security;
 using AICOS.BuildingBlocks.Validation;
@@ -36,7 +37,7 @@ public sealed record QrBillOrder(
 
 /// <summary>The bill of the table: every round of the session. Cancelled orders are listed but not counted; <c>Due</c> is what is still unpaid.</summary>
 public sealed record QrBillResponse(
-    Guid SessionId, string TableCode, TableSessionStatus Status, IReadOnlyList<QrBillOrder> Orders, decimal Total, decimal Paid, decimal Due)
+    Guid SessionId, string TableCode, TableSessionStatus Status, IReadOnlyList<QrBillOrder> Orders, decimal Total, decimal Paid, decimal Due, bool CheckoutLocked = false)
 {
     public static QrBillResponse From(TableSession session, IReadOnlyList<Order> orders)
     {
@@ -85,6 +86,7 @@ public static class QrOrderEndpoints
 
         group.MapGet("/sessions", ListSessionsAsync).RequireAuthorization(AicosPolicies.Staff);
         group.MapGet("/sessions/{id:guid}/bill", StaffBillAsync).RequireAuthorization(AicosPolicies.Staff);
+        group.MapGet("/sessions/{id:guid}/close-eligibility", CloseEligibilityAsync).RequireAuthorization(AicosPolicies.Staff);
         group.MapPost("/sessions/{id:guid}/close", CloseSessionAsync).RequireAuthorization(b => b.RequireRole(OrderAccess.CounterRoles));
     }
 
@@ -288,9 +290,17 @@ public static class QrOrderEndpoints
                 redeemed = true;
             }
 
-            db.Orders.Add(order);
-            session.Touch(clock.UtcNow);
-            await db.SaveChangesAsync(ct);
+            await TableSessionLock.RunAsync(db, session.TenantId, session.TableId, async () =>
+            {
+                if (db.Database.IsRelational()) await db.Entry(session).ReloadAsync(ct);
+                if (!session.IsOpen || session.TableId != order.TableId)
+                    throw new ConflictException("The table session changed or closed. Reload before ordering.", "qr.session_changed");
+                await TableSessions.EnsureCanAddRoundAsync(db, session.Id, ct);
+                db.Orders.Add(order);
+                session.Touch(clock.UtcNow);
+                await db.SaveChangesAsync(ct);
+                return true;
+            }, ct);
         }
         catch
         {
@@ -322,7 +332,8 @@ public static class QrOrderEndpoints
     {
         var orders = await db.Orders.AsNoTracking().Include(o => o.Items).ThenInclude(i => i.Options).AsSplitQuery()
             .Where(o => o.TableSessionId == session.Id).ToListAsync(ct);
-        return QrBillResponse.From(session, orders);
+        var locked = db.BillEnabled && await db.SessionCheckouts.AnyAsync(x => x.SessionId == session.Id, ct);
+        return QrBillResponse.From(session, orders) with { CheckoutLocked = locked };
     }
 
     // ------------------------------------------------------------------ paying from the table
@@ -386,17 +397,40 @@ public static class QrOrderEndpoints
     private static async Task<QrBillResponse> StaffBillAsync(Guid id, OrderingDbContext db, ICurrentUser user, CancellationToken ct) =>
         await BuildBillAsync(db, await StaffSessionAsync(db, user, id, ct), ct);
 
-    /// <summary>Ends the sitting only when no non-void round is unpaid. Never abandons an outstanding bill.</summary>
-    private static async Task<IResult> CloseSessionAsync(Guid id, OrderingDbContext db, ICurrentUser user, ShopTime clock, OrderEventPublisher events, CancellationToken ct)
+    private static async Task<SessionCloseEligibility> CloseEligibilityAsync(Guid id, OrderingDbContext db, ICurrentUser user, IConfiguration config, SessionBillCloser closer, CancellationToken ct)
     {
         var session = await StaffSessionAsync(db, user, id, ct);
-        if (!session.IsOpen) return Results.NoContent();
-        if (await TableSessions.HasUnsettledOrdersAsync(db, session.Id, ct))
-            throw new ConflictException("Settle all rounds before closing the table session.", "qr.session_unsettled");
-        session.Close(TableSessionCloseReason.Staff, clock.UtcNow);
-        await db.SaveChangesAsync(ct);
-        await events.SessionClosedAsync(session, ct);
-        return Results.NoContent();
+        return AICOS.BuildingBlocks.Security.BillingMachineAuth.Enabled(config)
+            ? await closer.EligibilityAsync(session, ct) : await SessionCloseEligibility.ReadAsync(db, session, ct);
+    }
+
+    /// <summary>Never infer session settlement from per-order payment flags.</summary>
+    private static async Task<IResult> CloseSessionAsync(Guid id, OrderingDbContext db, ICurrentUser user, ShopTime clock, OrderEventPublisher events, IConfiguration config, SessionBillCloser closer, CancellationToken ct)
+    {
+        var session = await StaffSessionAsync(db, user, id, ct);
+        if (AICOS.BuildingBlocks.Security.BillingMachineAuth.Enabled(config) && await db.Orders.AnyAsync(o => o.TableSessionId == id, ct))
+        {
+            await closer.CloseAsync(session, ct);
+            return Results.NoContent();
+        }
+        var lockedTable = session.TableId;
+        return await TableSessionLock.RunAsync<IResult>(db, session.TenantId, lockedTable, async () =>
+        {
+            if (db.Database.IsRelational()) await db.Entry(session).ReloadAsync(ct);
+            if (!session.IsOpen) return Results.NoContent();
+            if (session.TableId != lockedTable)
+                throw new ConflictException("The session moved to another table. Reload before closing.", "qr.session_changed");
+            if (await TableSessions.HasUnsettledOrdersAsync(db, session.Id, ct))
+                throw new ConflictException("Settle all rounds before closing the table session.", "qr.session_unsettled");
+            // No authoritative session-bill/fulfillment close permit exists yet. Fail closed,
+            // including cancelled paid rounds which can still have unresolved refunds.
+            if (await db.Orders.AsNoTracking().AnyAsync(o => o.TableSessionId == session.Id, ct))
+                throw new ConflictException("Session bill settlement and fulfilment must be verified before closing.", "qr.session_verification_required");
+            session.Close(TableSessionCloseReason.Staff, clock.UtcNow);
+            await db.SaveChangesAsync(ct);
+            await events.SessionClosedAsync(session, ct);
+            return Results.NoContent();
+        }, ct);
     }
 }
 
@@ -408,31 +442,17 @@ public static class TableSessions
             && o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.NoShow && o.Status != OrderStatus.Unfulfillable
             && o.PaymentStatus != PaymentStatus.Paid && o.PaymentStatus != PaymentStatus.Refunded, ct);
 
-    /// <summary>Closes the session once it has orders and every order that was not cancelled is paid (all rounds settled).</summary>
-    public static async Task CloseIfSettledAsync(OrderingDbContext db, Guid? sessionId, DateTime now, OrderEventPublisher events, CancellationToken ct)
+    /// <summary>Conservative legacy guard; an authoritative Bill freeze is still required for in-flight payments.</summary>
+    public static async Task EnsureCanAddRoundAsync(OrderingDbContext db, Guid sessionId, CancellationToken ct)
     {
-        if (sessionId is null)
-        {
-            return;
-        }
-
-        var session = await db.TableSessions.FirstOrDefaultAsync(s => s.Id == sessionId && s.Status == TableSessionStatus.Open, ct);
-        if (session is null)
-        {
-            return;
-        }
-
-        var states = await db.Orders.AsNoTracking().Where(o => o.TableSessionId == sessionId && o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.NoShow && o.Status != OrderStatus.Unfulfillable)
+        var live = await db.Orders.AsNoTracking().Where(o => o.TableSessionId == sessionId
+            && o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.NoShow && o.Status != OrderStatus.Unfulfillable)
             .Select(o => o.PaymentStatus).ToListAsync(ct);
-        if (states.Count == 0 || states.Any(p => p is not (PaymentStatus.Paid or PaymentStatus.Refunded)))
-        {
-            return;
-        }
-
-        session.Close(TableSessionCloseReason.Paid, now);
-        await db.SaveChangesAsync(ct);
-        await events.SessionClosedAsync(session, ct);
+        if (live.Count > 0 && live.All(p => p is PaymentStatus.Paid or PaymentStatus.Refunded))
+            throw new ConflictException("All rounds are settled. Complete service and close this session before starting a new one.", "qr.session_already_settled");
     }
+
+
 }
 
 /// <summary>Closes table sessions nobody used for <c>Ordering:Qr:SessionIdleHours</c> (default 6) hours.</summary>
@@ -460,20 +480,26 @@ public sealed class TableSessionExpiryWorker(IServiceScopeFactory scopes, TimePr
     public static async Task<int> CloseIdleAsync(OrderingDbContext db, DateTime now, TimeSpan idle, CancellationToken ct, OrderEventPublisher? events = null)
     {
         var limit = now - idle;
-        var idleSessions = await db.TableSessions.Where(s => s.Status == TableSessionStatus.Open && s.LastActivityAtUtc < limit
-            && !db.Orders.Any(o => o.TableSessionId == s.Id && o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.NoShow && o.Status != OrderStatus.Unfulfillable
-                && o.PaymentStatus != PaymentStatus.Paid && o.PaymentStatus != PaymentStatus.Refunded)).Take(200).ToListAsync(ct);
-        foreach (var session in idleSessions)
+        var candidates = await db.TableSessions.AsNoTracking()
+            .Where(s => s.Status == TableSessionStatus.Open && s.LastActivityAtUtc < limit
+                && !db.Orders.Any(o => o.TableSessionId == s.Id))
+            .OrderBy(s => s.LastActivityAtUtc).Take(200).ToListAsync(ct);
+        var count = 0;
+        foreach (var candidate in candidates)
         {
-            session.Close(TableSessionCloseReason.Expired, now);
+            var closed = await TableSessionLock.RunAsync(db, candidate.TenantId, candidate.TableId, async () =>
+            {
+                var session = await db.TableSessions.FirstAsync(s => s.Id == candidate.Id, ct);
+                if (db.Database.IsRelational()) await db.Entry(session).ReloadAsync(ct);
+                if (!session.IsOpen || session.TableId != candidate.TableId || session.LastActivityAtUtc >= limit
+                    || await db.Orders.AnyAsync(o => o.TableSessionId == session.Id, ct)) return false;
+                session.Close(TableSessionCloseReason.Expired, now);
+                await db.SaveChangesAsync(ct);
+                if (events is not null) await events.SessionClosedAsync(session, ct);
+                return true;
+            }, ct);
+            if (closed) count++;
         }
-
-        await db.SaveChangesAsync(ct);
-        foreach (var session in idleSessions.Where(_ => events is not null))
-        {
-            await events!.SessionClosedAsync(session, ct);
-        }
-
-        return idleSessions.Count;
+        return count;
     }
 }

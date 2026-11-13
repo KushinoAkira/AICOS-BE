@@ -199,7 +199,7 @@ public sealed class MobileCounterTests : IDisposable
     }
 
     [Fact]
-    public async Task Delivered_then_cancelled_unpaid_round_closes_without_recording_payment()
+    public async Task Delivered_then_cancelled_round_still_requires_session_bill_verification()
     {
         var qr = _tables.Add(_tenant, _branch, "S10");
         var table = (await _tables.LookupAsync(qr, default))!;
@@ -238,9 +238,9 @@ public sealed class MobileCounterTests : IDisposable
         var bill = await client.GetFromJsonAsync<JsonElement>($"/api/v1/orders/qr/sessions/{session}/bill");
         bill.GetProperty("due").GetDecimal().Should().Be(0);
         (await client.PostAsJsonAsync($"/api/v1/orders/qr/sessions/{session}/close", new { }))
-            .StatusCode.Should().Be(System.Net.HttpStatusCode.NoContent);
+            .StatusCode.Should().Be(System.Net.HttpStatusCode.Conflict);
         var sessions = await client.GetFromJsonAsync<JsonElement>($"/api/v1/orders/qr/sessions?branchId={_branch}");
-        sessions.GetArrayLength().Should().Be(0);
+        sessions.GetArrayLength().Should().Be(1);
         var final = await client.GetFromJsonAsync<JsonElement>($"/api/v1/orders/{id}");
         final.GetProperty("status").GetString().Should().Be("Cancelled");
         final.GetProperty("paymentStatus").GetString().Should().Be("Unpaid");

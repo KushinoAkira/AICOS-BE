@@ -1,3 +1,4 @@
+using AICOS.Ordering.Api.Features.SessionBilling;
 using AICOS.BuildingBlocks.Caching;
 using AICOS.BuildingBlocks.Hosting;
 using AICOS.BuildingBlocks.Http;
@@ -15,6 +16,7 @@ using AICOS.Ordering.Api.Services;
 using AICOS.Ordering.Api.Features.KitchenAdmission;
 
 var builder = WebApplication.CreateBuilder(args);
+if (BillingMachineAuth.Enabled(builder.Configuration)) _ = BillingMachineAuth.Key(builder.Configuration);
 
 builder.AddAicosServiceDefaults(OrderingService.Info);
 builder.AddAicosPostgres<OrderingDbContext>(OrderingService.Info);
@@ -27,6 +29,8 @@ builder.Services.AddAicosServiceClient<IVoucherClient, HttpVoucherClient>(builde
 builder.Services.AddAicosServiceClient<IPaymentClient, HttpPaymentClient>(builder.Configuration, "Payment");
 
 builder.Services.AddSingleton<ShopTime>();
+builder.Services.AddScoped<SessionBillCloser>();
+builder.Services.AddAicosServiceClient<IBillSettlementClient, HttpBillSettlementClient>(builder.Configuration, "Payment");
 builder.AddKitchenAdmission();
 AICOS.Ordering.Api.Features.Fulfillment.FulfillmentEndpoints.AddFulfillment(builder);
 builder.Services.AddScoped<OrderEventPublisher>();
@@ -65,6 +69,7 @@ api.MapPickupOrderEndpoints();
 api.MapOrderingEndpoints();
 api.MapTableTransferEndpoints();
 api.MapQrOrderEndpoints();
+app.MapSessionBilling(api);
 
 app.MapHub<OrderTrackingHub>("/hubs/orders");
 

@@ -1,0 +1,8 @@
+BEGIN READ ONLY;
+SELECT current_database(),current_user;
+SELECT n.nspname,c.relname,count(a.attnum) columns FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace JOIN pg_attribute a ON a.attrelid=c.oid AND a.attnum>0 AND NOT a.attisdropped WHERE c.relkind='r' AND (n.nspname,c.relname) IN (('ordering','session_checkouts'),('payment','session_bills'),('payment','session_bill_orders'),('payment','session_bill_attempts'),('payment','session_bill_events')) GROUP BY n.nspname,c.relname ORDER BY c.relname;
+SELECT schemaname,tablename,indexname,indexdef FROM pg_indexes WHERE tablename IN ('session_checkouts','session_bills','session_bill_orders','session_bill_attempts','session_bill_events') ORDER BY schemaname,tablename,indexname;
+SELECT table_schema,table_name,constraint_name,constraint_type FROM information_schema.table_constraints WHERE table_name IN ('session_checkouts','session_bills','session_bill_orders','session_bill_attempts','session_bill_events') ORDER BY table_schema,table_name,constraint_type;
+SELECT grantee,table_schema,table_name,privilege_type FROM information_schema.role_table_grants WHERE grantee IN ('ordering_svc','payment_svc') AND table_name IN ('session_checkouts','session_bills','session_bill_orders','session_bill_attempts','session_bill_events') ORDER BY grantee,table_name,privilege_type;
+SELECT grantee,table_schema,table_name,column_name,privilege_type FROM information_schema.column_privileges WHERE grantee IN ('ordering_svc','payment_svc') AND table_name IN ('session_checkouts','session_bills','session_bill_orders','session_bill_attempts','session_bill_events') ORDER BY grantee,table_name,column_name;
+COMMIT;

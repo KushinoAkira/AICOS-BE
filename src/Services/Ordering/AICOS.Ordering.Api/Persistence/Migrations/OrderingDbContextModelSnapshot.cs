@@ -850,6 +850,62 @@ namespace AICOS.Ordering.Api.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("AICOS.Ordering.Api.Features.SessionBilling.SessionCheckout", b =>
+                {
+                    b.Property<Guid>("SessionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("session_id");
+
+                    b.Property<Guid>("BillId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("bill_id");
+
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("branch_id");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<string>("Fingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("fingerprint");
+
+                    b.Property<Guid?>("PaymentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("payment_id");
+
+                    b.Property<string>("QuoteJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("quote_json");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("state");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.HasKey("SessionId")
+                        .HasName("pk_session_checkouts");
+
+                    b.HasIndex("TenantId", "BillId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_session_checkouts_tenant_id_bill_id");
+
+                    b.ToTable("session_checkouts", "ordering", t =>
+                        {
+                            t.HasCheckConstraint("ck_session_checkout_state", "state IN ('Frozen','Paid','Closed')");
+                        });
+                });
+
             modelBuilder.Entity("AICOS.Ordering.Api.Domain.Entities.OrderItem", b =>
                 {
                     b.HasOne("AICOS.Ordering.Api.Domain.Entities.Order", null)

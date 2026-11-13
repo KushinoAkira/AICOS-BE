@@ -1,3 +1,5 @@
+using AICOS.Ordering.Api.Features.SessionBilling;
+using AICOS.BuildingBlocks.Security;
 using AICOS.BuildingBlocks.Persistence;
 using AICOS.Ordering.Api.Domain;
 using AICOS.Ordering.Api.Domain.Entities;
@@ -10,6 +12,8 @@ namespace AICOS.Ordering.Api.Persistence;
 
 public sealed class OrderingDbContext(DbContextOptions<OrderingDbContext> options, IConfiguration? configuration = null, TimeProvider? clock = null) : AicosDbContext(options)
 {
+    internal bool BillEnabled => configuration?.GetValue<bool>("SessionBilling:Enabled") == true;
+    public DbSet<SessionCheckout> SessionCheckouts => Set<SessionCheckout>();
     public DbSet<AdmissionOutbox> AdmissionOutbox => Set<AdmissionOutbox>();
     public DbSet<AdmissionReconcileState> AdmissionReconcile => Set<AdmissionReconcileState>();
     public DbSet<OrderFulfillmentProjection> FulfillmentProjection => Set<OrderFulfillmentProjection>();
@@ -26,9 +30,25 @@ public sealed class OrderingDbContext(DbContextOptions<OrderingDbContext> option
         }
     }
 
-    public override int SaveChanges(bool acceptAllChangesOnSuccess) { CaptureAdmissions(); return base.SaveChanges(acceptAllChangesOnSuccess); }
-    public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken ct = default)
-    { CaptureAdmissions(); return base.SaveChangesAsync(acceptAllChangesOnSuccess, ct); }
+    public override int SaveChanges(bool acceptAllChangesOnSuccess) => SaveChangesAsync(acceptAllChangesOnSuccess).GetAwaiter().GetResult();
+    public override async Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken ct = default)
+    {
+        async Task<int> Save()
+        {
+            if (configuration is not null && BillingMachineAuth.Enabled(configuration)) await SessionBillingWriteGuard.CheckAsync(this, ct);
+            CaptureAdmissions();
+            return await base.SaveChangesAsync(acceptAllChangesOnSuccess, ct);
+        }
+        if (configuration is null || !BillingMachineAuth.Enabled(configuration) || !Database.IsRelational() || Database.CurrentTransaction is not null)
+            return await Save();
+        return await Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+        {
+            await using var transaction = await Database.BeginTransactionAsync(ct);
+            var result = await Save();
+            await transaction.CommitAsync(ct);
+            return result;
+        });
+    }
 
     protected override string Schema => OrderingService.Info.Schema;
 

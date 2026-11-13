@@ -1,3 +1,4 @@
+using AICOS.KitchenOperations.Api.Features.SessionBilling;
 using AICOS.BuildingBlocks.Hosting;
 using AICOS.BuildingBlocks.Messaging;
 using AICOS.BuildingBlocks.Persistence;
@@ -11,6 +12,7 @@ using AICOS.KitchenOperations.Api.Services;
 using AICOS.KitchenOperations.Api.Features.KitchenAdmission;
 
 var builder = WebApplication.CreateBuilder(args);
+if (BillingMachineAuth.Enabled(builder.Configuration)) _ = BillingMachineAuth.Key(builder.Configuration);
 
 builder.AddAicosServiceDefaults(KitchenOperationsService.Info);
 builder.AddAicosPostgres<KitchenOperationsDbContext>(KitchenOperationsService.Info);
@@ -43,6 +45,7 @@ var app = builder.Build();
 
 await app.MigrateDatabaseAsync<KitchenOperationsDbContext>();
 app.UseAicosServiceDefaults();
+app.MapKitchenBillPaid();
 app.MapKitchenAdmission();
 AICOS.KitchenOperations.Api.Features.CupServing.CupServingEndpoints.MapCupServing(app);
 
