@@ -55,6 +55,19 @@ public sealed class MenuTests : IDisposable
         settings.EnumerateArray().Single(s => s.GetProperty("branchId").GetGuid() == _b1).GetProperty("effectivePrice").GetDecimal().Should().Be(30_000);
     }
 
+    [Fact]
+    public async Task A_drink_photo_is_a_link_or_a_small_uploaded_picture()
+    {
+        var category = await _admin.PostOk($"{Menu}/categories", new { name = "Trà", sortOrder = 1 });
+        const string photo = "data:image/jpeg;base64,/9j/4AAQSkZJRg==";
+        var product = await _admin.PostOk($"{Menu}/products", new { categoryId = category.Id(), name = "Trà đào", basePrice = 30_000, imageUrl = photo });
+        product.GetProperty("imageUrl").GetString().Should().Be(photo);
+
+        await _admin.Post($"{Menu}/products", new { categoryId = category.Id(), name = "Trà vải", basePrice = 30_000, imageUrl = "data:image/jpeg;base64," + new string('A', 400_001) }).ShouldBe(400);
+        await _admin.Post($"{Menu}/products", new { categoryId = category.Id(), name = "Trà sen", basePrice = 30_000, imageUrl = "data:text/html;base64,AAAA" }).ShouldBe(400);
+        await _admin.PostOk($"{Menu}/products", new { categoryId = category.Id(), name = "Trà chanh", basePrice = 30_000, imageUrl = "https://example.com/tra-chanh.jpg" });
+    }
+
     // ------------------------------------------------------------------ categories
     [Fact]
     public async Task Brand_admin_creates_a_category_for_the_whole_brand_and_duplicates_are_409()

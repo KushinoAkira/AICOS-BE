@@ -223,8 +223,8 @@ namespace AICOS.MenuCatalog.Api.Persistence.Migrations
                         .HasColumnName("description");
 
                     b.Property<string>("ImageUrl")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)")
+                        .HasMaxLength(400000)
+                        .HasColumnType("character varying(400000)")
                         .HasColumnName("image_url");
 
                     b.Property<string>("Name")
