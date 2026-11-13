@@ -1,0 +1,129 @@
+{
+  "cluster": "7707724615668207657",
+  "checks": [
+    {
+      "name": "SQL SHA256 matches reviewed manifests",
+      "status": "PASS"
+    },
+    {
+      "name": "Offline EF baseline export without service startup",
+      "status": "PASS"
+    },
+    {
+      "name": "Container/network/no-host-port/tmpfs/cluster guards",
+      "status": "PASS"
+    },
+    {
+      "name": "Synthetic fixtures only; no operating data/secrets copied",
+      "status": "PASS"
+    },
+    {
+      "name": "ordering: reviewed SQL, repeat safely refused, role login/deny, backup/restore and rollback/reapply PASS",
+      "status": "PASS"
+    },
+    {
+      "name": "payment: reviewed SQL, repeat safely refused, role login/deny, backup/restore and rollback/reapply PASS",
+      "status": "PASS"
+    },
+    {
+      "name": "Non-owner service roles have no superuser/role/DB creation/history update or cross-service CONNECT",
+      "status": "PASS"
+    },
+    {
+      "name": "All service tables/columns/nullability/types match EF relational models",
+      "status": "PASS"
+    },
+    {
+      "name": "Actual CHECK/PK/own FK and session/Bill/pending uniqueness definitions verified",
+      "status": "PASS"
+    },
+    {
+      "name": "Five new tables; no cross-service FK; existing session/bill uniqueness retained",
+      "status": "PASS"
+    },
+    {
+      "name": "Eight services live/ready/Swagger; Gateway metadata/live (ready/Swagger N/A by source)",
+      "status": "PASS"
+    },
+    {
+      "name": "Real Identity login and scoped Cashier/Barista accounts through Gateway",
+      "status": "PASS"
+    },
+    {
+      "name": "Real Table -> Menu prices -> two Orders -> one aggregate Bill",
+      "status": "PASS"
+    },
+    {
+      "name": "Unpaid DineIn reaches Kitchen before payment",
+      "status": "PASS"
+    },
+    {
+      "name": "Both Orders durably ACKED by Kitchen admission HTTP, not only Redis",
+      "status": "PASS"
+    },
+    {
+      "name": "Real paid invoice snapshot and Counter-only RBAC verified",
+      "status": "PASS"
+    },
+    {
+      "name": "Lost HTTP response after committed Cash; GET and same-key retry recover one payment",
+      "status": "PASS"
+    },
+    {
+      "name": "PAID forbids Add Order and cannot close before serving",
+      "status": "PASS"
+    },
+    {
+      "name": "Flutter real HTTP login/repositories and Session Bill screen show verified PAID",
+      "status": "PASS"
+    },
+    {
+      "name": "Real Barista -> serving -> parallel close -> Table Available with one CLOSED Bill",
+      "status": "PASS"
+    },
+    {
+      "name": "Two real cashier accounts race: exactly one collection",
+      "status": "PASS"
+    },
+    {
+      "name": "Real Add Order vs Cash race linearizes without omitted round",
+      "status": "PASS"
+    },
+    {
+      "name": "Durable PAID outbox retries after Kitchen outage and Payments/Redis restart",
+      "status": "PASS"
+    },
+    {
+      "name": "Mock only: PENDING survives restart; signed duplicate callbacks apply once; bad signature 401",
+      "status": "PASS"
+    },
+    {
+      "name": "Reporting and cash-shift reconciliation",
+      "status": "BLOCKED",
+      "evidence": {
+        "paidBillTotal": 210000,
+        "reportedGrossRevenue": 0,
+        "cashShiftLedger": 0,
+        "reason": "Existing consumers require per-order PaymentSucceeded/CashPaymentRecorded contracts; no approved Bill allocation/refund/shift contract."
+      }
+    },
+    {
+      "name": "No PAID Bill lacks matching SUCCEEDED amount proof",
+      "status": "PASS"
+    },
+    {
+      "name": "Nonempty financial rollback rejected; received money/audit retained",
+      "status": "PASS"
+    },
+    {
+      "name": "Paid ledger/attempts/audit and Ordering sessions/orders restored exactly into separate copies",
+      "status": "PASS"
+    },
+    {
+      "name": "All preexisting container IDs/images/start times/status/restart counts unchanged",
+      "status": "PASS"
+    }
+  ],
+  "operatingContainersUnchanged": true,
+  "qr": "Mock only; not bank verification"
+}

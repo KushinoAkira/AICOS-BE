@@ -1,3 +1,5 @@
+> Latest isolated migration/full-stack validation and remaining Reporting blocker: [SESSION_BILL_MIGRATION_AND_E2E_VALIDATION.md](SESSION_BILL_MIGRATION_AND_E2E_VALIDATION.md). Earlier test counts below are historical.
+
 # Session Bill Backend and Mobile implementation
 
 This supersedes the earlier P0-only checkpoint for the new feature-flagged Bill flow. Source implementation is complete for Cash and controlled test QR; this is NOT an operating deployment or real-bank certification.
