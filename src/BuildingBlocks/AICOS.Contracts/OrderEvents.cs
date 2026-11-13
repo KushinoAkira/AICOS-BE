@@ -22,7 +22,8 @@ public record OrderCreatedIntegrationEvent(
     DateTime? ScheduledPickupTimeUtc,
     IReadOnlyList<OrderItemDto> Items,
     DateTime CreatedAtUtc,
-    bool PayFirst = false) : IntegrationEvent;
+    bool PayFirst = false,
+    string FulfillmentMode = "WholeOrder") : IntegrationEvent;
 
 /// <summary>
 /// Published when an order is cancelled. <see cref="WasPaid"/> tells whether money has to go back (an exception, handled with a refund).

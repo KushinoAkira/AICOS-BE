@@ -6,16 +6,17 @@ namespace AICOS.Ordering.Api.Features.KitchenAdmission;
 
 public sealed class KitchenAdmissionReconciler(OrderingDbContext db, IKitchenAdmissionTransport transport, TimeProvider clock, ILogger<KitchenAdmissionReconciler> logger)
 {
-    public async Task<int> ReconcileOnceAsync(CancellationToken ct = default)
+    public async Task<int> ReconcileOnceAsync(CancellationToken ct = default, bool cups = false)
     {
+        var consumer = cups ? AICOS.Contracts.Serving.CupAdmissionProtocol.Consumer : AdmissionProtocol.Consumer;
         var now = clock.GetUtcNow().UtcDateTime;
         var state = await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
         {
             db.ChangeTracker.Clear();
             await using var tx = await db.Database.BeginTransactionAsync(ct);
             var cycle = Guid.NewGuid();
-            await db.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO ordering.kitchen_admission_reconcile_state (consumer_key, cycle_id, cycle_started_at_utc) VALUES ({AdmissionProtocol.Consumer}, {cycle}, {now}) ON CONFLICT (consumer_key) DO NOTHING", ct);
-            var states = await db.AdmissionReconcile.FromSqlInterpolated($"SELECT * FROM ordering.kitchen_admission_reconcile_state WHERE consumer_key = {AdmissionProtocol.Consumer} AND (lease_until_utc IS NULL OR lease_until_utc <= {now}) FOR UPDATE SKIP LOCKED").ToListAsync(ct);
+            await db.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO ordering.kitchen_admission_reconcile_state (consumer_key, cycle_id, cycle_started_at_utc) VALUES ({consumer}, {cycle}, {now}) ON CONFLICT (consumer_key) DO NOTHING", ct);
+            var states = await db.AdmissionReconcile.FromSqlInterpolated($"SELECT * FROM ordering.kitchen_admission_reconcile_state WHERE consumer_key = {consumer} AND (lease_until_utc IS NULL OR lease_until_utc <= {now}) FOR UPDATE SKIP LOCKED").ToListAsync(ct);
             var current = states.SingleOrDefault();
             if (current is not null)
             {
@@ -33,13 +34,13 @@ public sealed class KitchenAdmissionReconciler(OrderingDbContext db, IKitchenAdm
         if (state is null) return 0;
         var orders = state.UpperOrderId is null ? [] : await db.Orders.FromSqlInterpolated($"SELECT * FROM ordering.orders WHERE ({state.LastOrderId}::uuid IS NULL OR id > {state.LastOrderId}::uuid) AND id <= {state.UpperOrderId}::uuid ORDER BY id LIMIT 100")
             .AsNoTracking().Include(o => o.Items).ThenInclude(i => i.Options).AsSplitQuery().OrderBy(o => o.Id).ToListAsync(ct);
-        foreach (var order in orders)
+        foreach (var order in orders.Where(o => (o.FulfillmentMode == AICOS.Contracts.Serving.FulfillmentModes.CupV1) == cups))
         {
             var row = AdmissionProjection.New(order, now, "RECONCILE");
-            await db.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO ordering.kitchen_admission_outbox (event_id, tenant_id, branch_id, order_id, consumer_key, schema_version, creation_payload, creation_sha256, origin, state, created_at_utc, next_attempt_at_utc, attempt_count) VALUES ({row.EventId}, {row.TenantId}, {row.BranchId}, {row.OrderId}, {row.ConsumerKey}, 1, {row.CreationPayload}::jsonb, {row.CreationSha256}, 'RECONCILE', 'PENDING', {now}, {now}, 0) ON CONFLICT (tenant_id, order_id, consumer_key) DO NOTHING", ct);
+            await db.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO ordering.kitchen_admission_outbox (event_id, tenant_id, branch_id, order_id, consumer_key, schema_version, creation_payload, creation_sha256, origin, state, created_at_utc, next_attempt_at_utc, attempt_count) VALUES ({row.EventId}, {row.TenantId}, {row.BranchId}, {row.OrderId}, {row.ConsumerKey}, {row.SchemaVersion}, {row.CreationPayload}::jsonb, {row.CreationSha256}, 'RECONCILE', 'PENDING', {now}, {now}, 0) ON CONFLICT (tenant_id, order_id, consumer_key) DO NOTHING", ct);
         }
         var ids = orders.Select(o => o.Id).ToArray();
-        var rows = await db.AdmissionOutbox.AsNoTracking().Where(r => ids.Contains(r.OrderId) && r.ConsumerKey == AdmissionProtocol.Consumer
+        var rows = await db.AdmissionOutbox.AsNoTracking().Where(r => ids.Contains(r.OrderId) && r.ConsumerKey == consumer
             && (r.State == "ACKED" || r.State == "NEEDS_REVIEW")).ToListAsync(ct);
         foreach (var scope in rows.GroupBy(r => new { r.TenantId, r.BranchId }))
         {
@@ -64,7 +65,8 @@ public sealed class KitchenAdmissionReconciler(OrderingDbContext db, IKitchenAdm
                 var terminalMismatch = (order.DeliveredAtUtc is not null && target.Status != "Completed")
                     || (order.IsVoided && target.Status != "Cancelled")
                     || ((order.DeliveredAtUtc is not null || order.IsVoided) && target.Hold is not null);
-                if (!missing && !terminalMismatch && !(target.Hold is not null && row.State == "ACKED")) continue;
+                var eligibilityMismatch = cups && order.IsPaid && target.IsPaid == false;
+                if (!missing && !terminalMismatch && !eligibilityMismatch && !(target.Hold is not null && row.State == "ACKED")) continue;
                 await db.AdmissionOutbox.Where(r => r.EventId == row.EventId && r.State == row.State)
                     .ExecuteUpdateAsync(set => set.SetProperty(r => r.State, "PENDING").SetProperty(r => r.NextAttemptAtUtc, leaseNow)
                         .SetProperty(r => r.AcknowledgedAtUtc, (DateTime?)null).SetProperty(r => r.AcknowledgedTicketId, (Guid?)null)

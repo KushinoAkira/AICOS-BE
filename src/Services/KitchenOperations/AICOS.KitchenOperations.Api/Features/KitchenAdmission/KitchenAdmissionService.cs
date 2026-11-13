@@ -72,9 +72,17 @@ public sealed class KitchenAdmissionService(KitchenOperationsDbContext db, IKitc
             {
                 if (receipt is null)
                 {
-                    receipt = new AdmissionReceipt { ConsumerKey = AdmissionProtocol.Consumer, EventId = request.EventId,
-                        TenantId = request.TenantId, BranchId = request.BranchId, OrderId = request.OrderId,
-                        CreationSha256 = hash, TicketId = ticket.Id, RecordedAtUtc = now };
+                    receipt = new AdmissionReceipt
+                    {
+                        ConsumerKey = AdmissionProtocol.Consumer,
+                        EventId = request.EventId,
+                        TenantId = request.TenantId,
+                        BranchId = request.BranchId,
+                        OrderId = request.OrderId,
+                        CreationSha256 = hash,
+                        TicketId = ticket.Id,
+                        RecordedAtUtc = now
+                    };
                     db.AdmissionReceipts.Add(receipt);
                 }
                 receipt.ReceiptStatus = ticket.RecoveryHoldReason is null ? "APPLIED" : "NEEDS_REVIEW";
@@ -84,6 +92,9 @@ public sealed class KitchenAdmissionService(KitchenOperationsDbContext db, IKitc
             await db.SaveChangesAsync(ct);
             return (Ticket: ticket, Created: created, Notify: notify);
         }, ct);
+        logger.LogInformation("Kitchen admission committed for order {OrderId}: ticket {TicketId}, created {Created}, paid {IsPaid}, status {Status}, mode {FulfillmentMode}, held {Held}, durable {Durable}",
+            request.OrderId, outcome.Ticket.Id, outcome.Created, outcome.Ticket.IsPaid, outcome.Ticket.Status,
+            outcome.Ticket.FulfillmentMode, outcome.Ticket.RecoveryHoldReason is not null, durable);
         if (outcome.Notify)
         {
             await KitchenEndpoints.SafeAsync(logger, () => notifier.NotifyNewTicketAsync(outcome.Ticket.TenantId,

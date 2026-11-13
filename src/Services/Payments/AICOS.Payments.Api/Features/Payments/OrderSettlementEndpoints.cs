@@ -34,7 +34,7 @@ public static class OrderSettlementEndpoints
                 && (r.Status == RefundStatus.PendingApproval || r.Status == RefundStatus.Failed), ct);
         var paid = payments.Where(p => p.IsPaid).ToList();
         var net = paid.Sum(p => p.Amount - p.RefundedAmount);
-        var pending = payments.Any(p => p.Status == PaymentStatus.Pending);
+        var pending = payments.Any(p => p.RequiresReconciliation);
         var voided = order.Status is "Cancelled" or "NoShow" or "Unfulfillable";
         var required = voided ? 0 : order.FinalAmount;
         var inconsistent = payments.Any(p => p.ProviderState == ProviderState.Succeeded && !p.IsPaid)

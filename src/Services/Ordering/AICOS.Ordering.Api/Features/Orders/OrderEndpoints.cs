@@ -27,6 +27,7 @@ public static class OrderEndpoints
 
         group.MapRecommendationEndpoints();
         group.MapOrderCreatorEndpoints();
+        group.MapTakeawaySummary();
 
         group.MapPost("/", CreateAsync).RequireAuthorization(b => b.RequireRole(OrderAccess.CounterRoles));
         group.MapGet("/", ListAsync).RequireAuthorization(AicosPolicies.Staff);
@@ -306,7 +307,6 @@ public static class OrderEndpoints
 
         order.CancelOrder(r.Reason ?? string.Empty, clock.UtcNow);
         await db.SaveChangesAsync(ct);
-        await Qr.TableSessions.CloseIfSettledAsync(db, order.TableSessionId, clock.UtcNow, events, ct);
         await events.CancelledAsync(order, wasPaid: false, ct);
         return OrderResponse.From(order);
     }
@@ -377,7 +377,6 @@ public static class OrderEndpoints
 
         order.MarkNoShow(reason, now, refundRequested);
         await db.SaveChangesAsync(ct);
-        await Qr.TableSessions.CloseIfSettledAsync(db, order.TableSessionId, now, events, ct);
         await events.CancelledAsync(order, order.IsPaid, ct);
         return OrderResponse.From(order);
     }
@@ -404,7 +403,6 @@ public static class OrderEndpoints
         var now = clock.UtcNow;
         order.MarkUnfulfillable(reason, now, refundRequested);
         await db.SaveChangesAsync(ct);
-        await Qr.TableSessions.CloseIfSettledAsync(db, order.TableSessionId, now, events, ct);
         await events.CancelledAsync(order, order.IsPaid, ct);
         return OrderResponse.From(order);
     }

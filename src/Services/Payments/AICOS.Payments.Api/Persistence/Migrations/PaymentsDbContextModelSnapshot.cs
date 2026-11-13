@@ -541,6 +541,306 @@ namespace AICOS.Payments.Api.Persistence.Migrations
 
                     b.ToTable("payment_webhook_events", "payment");
                 });
+
+            modelBuilder.Entity("AICOS.Payments.Api.Features.SessionBilling.BillAttempt", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18)
+                        .HasColumnType("numeric(18,0)")
+                        .HasColumnName("amount");
+
+                    b.Property<Guid>("BillId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("bill_id");
+
+                    b.Property<string>("CheckoutUrl")
+                        .HasColumnType("text")
+                        .HasColumnName("checkout_url");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<string>("KeyHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("key_hash");
+
+                    b.Property<string>("Method")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("method");
+
+                    b.Property<DateTime?>("PaidAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("paid_at_utc");
+
+                    b.Property<string>("Provider")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("provider");
+
+                    b.Property<string>("ProviderReference")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("provider_reference");
+
+                    b.Property<string>("RequestHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("request_hash");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("status");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<decimal?>("Tendered")
+                        .HasPrecision(18)
+                        .HasColumnType("numeric(18,0)")
+                        .HasColumnName("tendered");
+
+                    b.Property<string>("TransactionRef")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("transaction_ref");
+
+                    b.HasKey("Id")
+                        .HasName("pk_session_bill_attempts");
+
+                    b.HasIndex("BillId")
+                        .IsUnique()
+                        .HasDatabaseName("uq_bill_pending_attempt")
+                        .HasFilter("status = 'PENDING'");
+
+                    b.HasIndex("TransactionRef")
+                        .IsUnique()
+                        .HasDatabaseName("ix_session_bill_attempts_transaction_ref");
+
+                    b.HasIndex("TenantId", "KeyHash")
+                        .IsUnique()
+                        .HasDatabaseName("ix_session_bill_attempts_tenant_id_key_hash");
+
+                    b.ToTable("session_bill_attempts", "payment", t =>
+                        {
+                            t.HasCheckConstraint("ck_bill_attempt_amount", "amount > 0");
+
+                            t.HasCheckConstraint("ck_bill_attempt_status", "status IN ('PENDING','SUCCEEDED','FAILED')");
+                        });
+                });
+
+            modelBuilder.Entity("AICOS.Payments.Api.Features.SessionBilling.BillJournal", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("BillId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("bill_id");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<DateTime?>("DeliveredAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("delivered_at_utc");
+
+                    b.Property<long>("Fence")
+                        .HasColumnType("bigint")
+                        .HasColumnName("fence");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("kind");
+
+                    b.Property<Guid?>("LeaseOwner")
+                        .HasColumnType("uuid")
+                        .HasColumnName("lease_owner");
+
+                    b.Property<DateTime?>("LeaseUntilUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("lease_until_utc");
+
+                    b.Property<DateTime>("NextAttemptAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("next_attempt_at_utc");
+
+                    b.Property<string>("Payload")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("payload");
+
+                    b.HasKey("Id")
+                        .HasName("pk_session_bill_events");
+
+                    b.HasIndex("BillId")
+                        .HasDatabaseName("ix_session_bill_events_bill_id");
+
+                    b.HasIndex("NextAttemptAtUtc", "Id")
+                        .HasDatabaseName("ix_session_bill_events_next_attempt_at_utc_id")
+                        .HasFilter("kind = 'PAID' AND delivered_at_utc IS NULL");
+
+                    b.ToTable("session_bill_events", "payment");
+                });
+
+            modelBuilder.Entity("AICOS.Payments.Api.Features.SessionBilling.SessionBill", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("branch_id");
+
+                    b.Property<DateTime?>("ClosedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("closed_at_utc");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<string>("Fingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("fingerprint");
+
+                    b.Property<bool>("NeedsReconciliation")
+                        .HasColumnType("boolean")
+                        .HasColumnName("needs_reconciliation");
+
+                    b.Property<bool>("OrderingAcknowledged")
+                        .HasColumnType("boolean")
+                        .HasColumnName("ordering_acknowledged");
+
+                    b.Property<DateTime?>("PaidAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("paid_at_utc");
+
+                    b.Property<Guid?>("PaidPaymentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("paid_payment_id");
+
+                    b.Property<string>("QuoteJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("quote_json");
+
+                    b.Property<Guid>("SessionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("session_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("status");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<decimal>("Total")
+                        .HasPrecision(18)
+                        .HasColumnType("numeric(18,0)")
+                        .HasColumnName("total");
+
+                    b.Property<long>("Version")
+                        .HasColumnType("bigint")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id")
+                        .HasName("pk_session_bills");
+
+                    b.HasIndex("TenantId", "SessionId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_session_bills_tenant_id_session_id");
+
+                    b.ToTable("session_bills", "payment", t =>
+                        {
+                            t.HasCheckConstraint("ck_session_bill_status", "status IN ('UNPAID','PAID','CLOSED')");
+
+                            t.HasCheckConstraint("ck_session_bill_total", "total >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("AICOS.Payments.Api.Features.SessionBilling.SessionBillOrder", b =>
+                {
+                    b.Property<Guid>("BillId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("bill_id");
+
+                    b.Property<Guid>("OrderId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("order_id");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18)
+                        .HasColumnType("numeric(18,0)")
+                        .HasColumnName("amount");
+
+                    b.HasKey("BillId", "OrderId")
+                        .HasName("pk_session_bill_orders");
+
+                    b.ToTable("session_bill_orders", "payment");
+                });
+
+            modelBuilder.Entity("AICOS.Payments.Api.Features.SessionBilling.BillAttempt", b =>
+                {
+                    b.HasOne("AICOS.Payments.Api.Features.SessionBilling.SessionBill", null)
+                        .WithMany()
+                        .HasForeignKey("BillId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_session_bill_attempts_session_bills_bill_id");
+                });
+
+            modelBuilder.Entity("AICOS.Payments.Api.Features.SessionBilling.BillJournal", b =>
+                {
+                    b.HasOne("AICOS.Payments.Api.Features.SessionBilling.SessionBill", null)
+                        .WithMany()
+                        .HasForeignKey("BillId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_session_bill_events_session_bills_bill_id");
+                });
+
+            modelBuilder.Entity("AICOS.Payments.Api.Features.SessionBilling.SessionBillOrder", b =>
+                {
+                    b.HasOne("AICOS.Payments.Api.Features.SessionBilling.SessionBill", null)
+                        .WithMany()
+                        .HasForeignKey("BillId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_session_bill_orders_session_bills_bill_id");
+                });
 #pragma warning restore 612, 618
         }
     }

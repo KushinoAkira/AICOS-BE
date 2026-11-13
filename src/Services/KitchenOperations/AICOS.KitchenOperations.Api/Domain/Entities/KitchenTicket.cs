@@ -26,6 +26,27 @@ public class KitchenTicket : AuditableEntity<Guid>, IBranchScoped
 
     internal long AdvanceFulfillmentVersion() => ++FulfillmentVersion;
 
+    internal void InitializeCups(Guid? tableId, Guid? sessionId)
+    {
+        if (_items.Count != 0 || FulfillmentMode != FulfillmentModes.WholeOrder)
+            throw new ConflictException("Only a new ticket can enter CupV1.", "serving.identity_conflict");
+        FulfillmentMode = FulfillmentModes.CupV1;
+        SourceTableId = tableId; SourceSessionId = sessionId;
+    }
+
+    internal KitchenTicketItem AddCupItem(Guid sourceItem, Guid product, string name, int quantity, string? note)
+    {
+        var item = new KitchenTicketItem(Id, product, name, quantity, note);
+        item.Correlate(sourceItem); _items.Add(item); return item;
+    }
+
+    internal void AddCupSticker(CupTask cup, KitchenTicketItem item, int total, DateTime now)
+    {
+        var sticker = new CupSticker(Id, OrderId, OrderCode, TableNumber, item.ProductName,
+            cup.OrderCupIndex, total, item.Note, now);
+        sticker.Correlate(cup.Id); _stickers.Add(sticker);
+    }
+
     internal void RecordCupProgress(IReadOnlyCollection<CupTask> cups, DateTime now)
     {
         if (FulfillmentMode != FulfillmentModes.CupV1 || cups.Count == 0 || cups.Count != TotalCups
@@ -257,6 +278,7 @@ public class KitchenTicket : AuditableEntity<Guid>, IBranchScoped
 
 public class KitchenTicketItem : Entity<Guid>
 {
+    internal void Correlate(Guid sourceItem) => OrderItemId = sourceItem;
     public Guid? OrderItemId { get; private set; }
     public Guid TicketId { get; private set; }
 
@@ -290,6 +312,7 @@ public class KitchenTicketItem : Entity<Guid>
 
 public class CupSticker : Entity<Guid>
 {
+    internal void Correlate(Guid cupId) => CupTaskId = cupId;
     public Guid? CupTaskId { get; private set; }
     public Guid TicketId { get; private set; }
 

@@ -23,7 +23,7 @@ namespace AICOS.Services.IntegrationTests;
 /// Boots one microservice in memory: EF in-memory database (fresh per factory), recording event bus instead of Redis,
 /// and a controllable clock for time-based rules. The guarded operational runner can opt into real PostgreSQL/Redis.
 /// </summary>
-public sealed class ServiceFactory<TService, TDbContext>(Action<IServiceCollection>? configure = null, string? postgresConnection = null, Action<DbContextOptionsBuilder>? configureDatabase = null, string? operationalRedis = null) : WebApplicationFactory<TService>
+public sealed class ServiceFactory<TService, TDbContext>(Action<IServiceCollection>? configure = null, string? postgresConnection = null, Action<DbContextOptionsBuilder>? configureDatabase = null, string? operationalRedis = null, IReadOnlyDictionary<string, string?>? settings = null, string? environmentName = null) : WebApplicationFactory<TService>
     where TService : class
     where TDbContext : DbContext
 {
@@ -48,6 +48,8 @@ public sealed class ServiceFactory<TService, TDbContext>(Action<IServiceCollecti
 
     protected override void ConfigureWebHost(Microsoft.AspNetCore.Hosting.IWebHostBuilder builder)
     {
+        if (environmentName is not null) builder.UseEnvironment(environmentName);
+        if (settings is not null) builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(settings));
         if (operationalRedis is not null)
         {
             OperationalTestTarget.ValidateRedis(operationalRedis);
@@ -68,12 +70,12 @@ public sealed class ServiceFactory<TService, TDbContext>(Action<IServiceCollecti
                 {
                     var target = new Npgsql.NpgsqlConnectionStringBuilder(postgresConnection);
                     var operational = OperationalTestTarget.IsApprovedConnection(postgresConnection);
-                    if (!operational && (target.Database != "aicos_cashflow_test" || target.Host != "127.0.0.1" || target.Port == 5432))
+                    if (!operational && (target.Database != "aicos_cashflow_test" && target.Database != "aicos_billflow_test" || target.Host != "127.0.0.1" || target.Port == 5432))
                         throw new InvalidOperationException("PostgreSQL tests require the isolated random-port cashflow cluster.");
                     options.UseNpgsql(postgresConnection, provider =>
                     {
                         provider.EnableRetryOnFailure(3);
-                        if (operational) provider.MigrationsHistoryTable("__ef_migrations_history", typeof(TDbContext).Name == "OrderingDbContext" ? "ordering" : "kitchen");
+                        provider.MigrationsHistoryTable("__ef_migrations_history", typeof(TDbContext).Name switch { "OrderingDbContext" => "ordering", "KitchenOperationsDbContext" => "kitchen", "PaymentsDbContext" => "payment", _ => "public" });
                     })
                         .UseSnakeCaseNamingConvention();
                 }

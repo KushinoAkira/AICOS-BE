@@ -48,14 +48,14 @@ internal static class CashCollection
                     throw new ConflictException("Request key belongs to a different cash confirmation.", "payment.request_key_conflict");
                 return (Payment: replay, Replay: prepared is null);
             }
-            await OrderChecks.EnsurePayableAsync(orders, request.OrderId.Value, branch, request.Amount!.Value, ct);
+            await OrderChecks.EnsurePayableAsync(orders, request.OrderId.Value, branch, request.Amount!.Value, ct, db.BillEnabled);
             var existing = await db.Payments.Where(p => p.TenantId == tenant && p.OrderId == request.OrderId).ToListAsync(ct);
             if (existing.Any(p => p.IsPaid))
                 throw new ConflictException("This order is already paid.", "payment.already_paid");
             if (existing.Any(p => p.ProviderState == ProviderState.Succeeded && !p.IsPaid))
                 throw new ConflictException("Provider reported received money; reconciliation is required.", "payment.reconciliation_required");
             // A transfer could already be on its way: never silently replace a pending online attempt with cash.
-            if (existing.Any(p => p.Status == PaymentStatus.Pending))
+            if (existing.Any(p => p.RequiresReconciliation))
                 throw new ConflictException("Resolve the pending online payment before taking cash.", "payment.online_pending");
             prepared ??= new Payment(tenant, branch, request.OrderId.Value, request.Amount.Value, Payment.CashMethod, description);
             prepared.RecordCash(cashier, processor.UtcNow);

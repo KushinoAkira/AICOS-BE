@@ -1,3 +1,4 @@
+using AICOS.KitchenOperations.Api.Features.SessionBilling;
 using AICOS.BuildingBlocks.Hosting;
 using AICOS.BuildingBlocks.Messaging;
 using AICOS.BuildingBlocks.Persistence;
@@ -11,6 +12,7 @@ using AICOS.KitchenOperations.Api.Services;
 using AICOS.KitchenOperations.Api.Features.KitchenAdmission;
 
 var builder = WebApplication.CreateBuilder(args);
+if (BillingMachineAuth.Enabled(builder.Configuration)) _ = BillingMachineAuth.Key(builder.Configuration);
 
 builder.AddAicosServiceDefaults(KitchenOperationsService.Info);
 builder.AddAicosPostgres<KitchenOperationsDbContext>(KitchenOperationsService.Info);
@@ -20,10 +22,13 @@ builder.Services.AddAicosBranchDirectory(builder.Configuration);   // asks Ident
 // Real-time screens for the bar and the cashiers (NFR-22). Several instances would need a Redis backplane for SignalR.
 builder.Services.AddSignalR();
 builder.Services.AddScoped<KitchenAdmissionService>();
+// Every CupV1 adapter remains opt-in; no production policy defaults.
+AICOS.KitchenOperations.Api.Features.CupServing.CupServingEndpoints.AddCupServing(builder);
 if (builder.Configuration.GetValue<bool>("KitchenAdmission:ReceiverEnabled"))
 {
     AdmissionMachineAuthentication.RequireKey(builder.Configuration);
-    builder.Services.AddAdmissionMachineAuthentication(builder.Configuration);
+    if (!builder.Configuration.GetValue<bool>("CupServing:AdmissionEnabled"))
+        builder.Services.AddAdmissionMachineAuthentication(builder.Configuration);
 }
 builder.Services.AddScoped<IKitchenNotifier, KitchenSignalRNotifier>();
 
@@ -40,7 +45,9 @@ var app = builder.Build();
 
 await app.MigrateDatabaseAsync<KitchenOperationsDbContext>();
 app.UseAicosServiceDefaults();
+app.MapKitchenBillPaid();
 app.MapKitchenAdmission();
+AICOS.KitchenOperations.Api.Features.CupServing.CupServingEndpoints.MapCupServing(app);
 
 app.MapHub<KitchenHub>("/hubs/kitchen");
 

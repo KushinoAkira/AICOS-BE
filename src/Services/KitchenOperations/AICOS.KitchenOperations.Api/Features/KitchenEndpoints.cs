@@ -27,7 +27,12 @@ public static class KitchenEndpoints
     {
         var group = api.MapGroup(string.Empty).WithTags("Kitchen Operations");
 
-        group.MapGet("/staff/capabilities", () => new { ConditionalTicketUpdatesVersion = 1, CupServingVersion = 0, ClaimVersion = 0 })
+        group.MapGet("/staff/capabilities", (IConfiguration config) => new
+        {
+            ConditionalTicketUpdatesVersion = 1,
+            CupServingVersion = config.GetValue<bool>("CupServing:ApiEnabled") ? 1 : 0,
+            ClaimVersion = config.GetValue<bool>("CupServing:ApiEnabled") && CupServing.CupServingEndpoints.LeaseApproved(config) ? 1 : 0
+        })
             .RequireAuthorization(AicosPolicies.Staff);
         group.MapGet("/queue", QueueAsync).RequireAuthorization(AicosPolicies.Staff);
         group.MapGet("/batches", BatchesAsync).RequireAuthorization(AicosPolicies.Staff);

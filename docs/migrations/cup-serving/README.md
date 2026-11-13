@@ -1,4 +1,6 @@
-# Cup Serving foundation — SQL review bundle, chưa apply
+# Cup Serving foundation — SQL review bundle
+
+**Cập nhật 2026-11-07:** 7 checksum và hai EF migrations giữ nguyên; SQL đã được áp dụng và kiểm tra trên cluster test disposable sau guard/preflight. **Chưa apply database vận hành.** API và kết quả mới ở [CUP_SERVING_V2_IMPLEMENTATION.md](../../CUP_SERVING_V2_IMPLEMENTATION.md); phần mô tả foundation chưa map API bên dưới là lịch sử review.
 
 Đây là phần storage/core theo phê duyệt có điều kiện, **không phải rollout Item-level Serving**. Hiện không có public Claim API, DI registration/worker hoặc public create CupV1. Capabilities trả version 0. Chưa có PostgreSQL E2E Serving; không dùng bundle này trên DB chính khi chưa được duyệt apply riêng.
 
@@ -33,4 +35,4 @@ Tái sử dụng: Kitchen ticket/items/stickers và admission receipt v1/v2; Ord
 - EF-generated Down có DROP bảng/cột/index mới và có thể mất custody/audit. **Không chạy Down tự động**, không có file rollback destructive trong bundle. Khi chưa có CupV1 data, có thể rollback binary sau tương thích review; giữ expand schema là mặc định.
 - Nếu đã có claim/Serve thật: dừng tạo CupV1 mới, giữ reader/command/Manager khả năng drain, không đổi mode về WholeOrder hoặc tự release. Trạng thái không rõ → hold/review/backup, không xóa ledger để reset.
 
-Integration test plan và approvals còn thiếu ở `../../CUP_SERVING_CONDITIONAL_APPROVAL_REVIEW.md`. Bộ SQL này chưa được apply trên DB chính hoặc DB test.
+Integration test plan và approvals còn thiếu ở `../../CUP_SERVING_CONDITIONAL_APPROVAL_REVIEW.md`; kết quả execution test mới ở `../../CUP_SERVING_V2_IMPLEMENTATION.md`. Bộ SQL chỉ apply test disposable, chưa apply database chính.

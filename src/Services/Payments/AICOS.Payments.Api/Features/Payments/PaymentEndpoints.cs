@@ -69,53 +69,7 @@ public static class PaymentEndpoints
 
         errors.ThrowIfAny();
 
-        var tenantId = TenantScope.Require(user);
-        return await PaymentOrderLock.RunAsync<IResult>(db, tenantId, r.OrderId!.Value, async () =>
-        {
-            db.ChangeTracker.Clear();
-            var branchId = await ResolveBranchAsync(user, directory, r.BranchId, ct);
-            await OrderChecks.EnsurePayableAsync(orders, r.OrderId!.Value, branchId, r.Amount!.Value, ct);
-            var merchant = await MerchantResolver.ResolveAsync(db, tenantId, branchId, code!, ct)
-                ?? throw new BusinessRuleException("payment.method_unavailable", $"{code} is not available at this branch.");
-
-            var orderId = r.OrderId!.Value;
-            var amount = r.Amount!.Value;
-            var existing = await db.Payments.Where(p => p.TenantId == tenantId && p.OrderId == orderId).ToListAsync(ct);
-            foreach (var old in existing.Where(p => p.Status == PaymentStatus.Pending))
-            {
-                await processor.ExpireIfDueAsync(old, ct);
-            }
-
-            if (existing.Any(p => p.IsPaid))
-            {
-                throw new ConflictException("This order is already paid.", "payment.already_paid");
-            }
-
-            var pending = existing.Where(p => p.Status == PaymentStatus.Pending).ToList();
-            var same = pending.FirstOrDefault(p => p.Method == code && p.Amount == amount && p.BranchId == branchId && p.CreatedBy == user.UserId);
-            if (same is not null)
-            {
-                return Results.Ok(PaymentResponse.From(same));   // the customer pressed pay twice: hand back the same QR
-            }
-
-            foreach (var old in pending)
-            {
-                old.Cancel("Replaced by a new payment attempt.");
-            }
-
-            var policy = await CancellationPolicyEndpoints.ForTenantAsync(db, tenantId, ct);
-            var payment = new Payment(tenantId, branchId, orderId, amount, code!, string.IsNullOrWhiteSpace(r.Description) ? "AICOS order" : r.Description.Trim());
-            var expiresAt = processor.UtcNow.AddMinutes(policy.UnpaidOrderTimeoutMinutes);
-            var setting = merchant.Setting;
-            var account = setting?.AccountNumberEncrypted is null ? null : protector.Unprotect(setting.AccountNumberEncrypted);
-            var checkout = await gateways.For(code!).CreatePaymentAsync(
-                new GatewayPaymentRequest(payment.TransactionRef, amount, payment.Description, expiresAt, setting?.BankCode, account, setting?.AccountName, setting?.MerchantCode), ct);
-            payment.SetCheckout(checkout.CheckoutUrl, expiresAt);
-
-            db.Payments.Add(payment);
-            await db.SaveChangesAsync(ct);
-            return Results.Created($"/api/v1/payments/transactions/{payment.Id}", PaymentResponse.From(payment));
-        }, ct);
+        return await OnlinePaymentCreation.CreateAsync(r, code!, db, processor, gateways, protector, user, directory, orders, ct);
     }
 
     private static async Task<IResult> RecordCashAsync(
@@ -211,7 +165,7 @@ public static class PaymentEndpoints
         {
             await processor.ApplySuccessAsync(payment, status.ProviderReference, ct);
         }
-        else if (status.State == ProviderState.Failed && payment.Status == PaymentStatus.Pending)
+        else if (status.State == ProviderState.Failed)
         {
             await processor.ApplyFailureAsync(payment, status.FailureReason ?? "Declined by the provider.", ct);
         }
@@ -278,7 +232,7 @@ public static class PaymentEndpoints
         return PaymentResponse.From(payment);
     }
 
-    private static async Task<Guid> ResolveBranchAsync(ICurrentUser user, IBranchDirectory directory, Guid? requested, CancellationToken ct)
+    internal static async Task<Guid> ResolveBranchAsync(ICurrentUser user, IBranchDirectory directory, Guid? requested, CancellationToken ct)
     {
         if (PaymentAccess.IsStaff(user))
         {

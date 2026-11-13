@@ -1,3 +1,6 @@
+using AICOS.Payments.Api.Domain;
+using AICOS.Payments.Api.Persistence;
+using Microsoft.Extensions.DependencyInjection;
 using System.Net.Http.Json;
 using System.Text.Json;
 using AICOS.BuildingBlocks.Security;
@@ -47,7 +50,17 @@ public sealed class PaymentReconciliationTests : PaymentTestBase
         var order = Guid.NewGuid();
         var replaced = await PayOnlineAsync(order, 40_000);
         await Customer.Post($"{Tx}/{replaced.Id()}/cancel", new { }).ShouldBe(200); // explicit cancellation, not silent cash replacement
-        await Cashier1.PostOk($"{Tx}/cash", new { orderId = order, amount = 40_000 });                          // cash wins, the QR is cancelled
+        // Import a historical inconsistency into the InMemory test fixture. The public
+        // API must now reject this unsafe replacement; reconciliation must still detect old data.
+        await Cashier1.Post($"{Tx}/cash", new { orderId = order, amount = 40_000 }).ShouldBe(409, "payment.online_pending");
+        using (var scope = F.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<PaymentsDbContext>();
+            var historicCash = new Payment(Tenant, B1, order, 40_000, Payment.CashMethod, "Historical duplicate fixture");
+            historicCash.RecordCash(CashierId, F.Clock.Now.UtcDateTime);
+            db.Payments.Add(historicCash);
+            await db.SaveChangesAsync();
+        }
         F.Clock.Now = F.Clock.Now.AddMinutes(1);
         await SimulateAsync(replaced.Id());                                                                     // ...but the customer paid the QR as well
         F.Clock.Now = F.Clock.Now.AddMinutes(20);

@@ -39,8 +39,14 @@ public sealed class PaymentProcessor(PaymentsDbContext db, IEventBus bus, TimePr
         var result = await PaymentOrderLock.RunAsync(db, payment.TenantId, payment.OrderId, async () =>
         {
             if (db.Database.IsRelational()) await db.Entry(payment).ReloadAsync(ct);
-            if (payment.IsFinal) return "ignored_final";
+            if (payment.IsPaid || (payment.IsFinal && payment.ProviderState == ProviderState.Failed)) return "ignored_final";
             payment.SetProviderState(ProviderState.Failed);
+            if (payment.IsFinal)
+            {
+                // Resolve the provider uncertainty; retain the historical local final status.
+                await db.SaveChangesAsync(ct);
+                return "resolved_failed";
+            }
             payment.MarkFailed(reason);
             await db.SaveChangesAsync(ct);
             return "applied";
@@ -60,7 +66,8 @@ public sealed class PaymentProcessor(PaymentsDbContext db, IEventBus bus, TimePr
             await db.SaveChangesAsync(ct);
             return true;
         }, ct);
-        if (expired) await PublishFailedAsync(payment, "Not paid in time.", ct, timedOut: true);
+        // A local deadline is not proof of failure at the provider. Keep reconciliation
+        // blocking and never cancel the order by publishing a timed-out failure here.
         return expired;
     }
 
@@ -79,7 +86,7 @@ public sealed class PaymentProcessor(PaymentsDbContext db, IEventBus bus, TimePr
         bus.PublishAsync(new PaymentFailedEvent(p.TenantId, p.BranchId, p.Id, p.OrderId, p.Method, reason, timedOut), ct);
 }
 
-/// <summary>Expires unpaid online payments on a timer so the held order slot is released even when nobody asks about the payment (BR-25, BR-60).</summary>
+/// <summary>Marks local payment deadlines without releasing collection or declaring provider failure.</summary>
 public sealed class PaymentExpiryJob(IServiceScopeFactory scopes, Microsoft.Extensions.Options.IOptions<PaymentOptions> options, ILogger<PaymentExpiryJob> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
