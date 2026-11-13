@@ -42,4 +42,23 @@ public sealed class OrderFeedback : AuditableEntity<Guid>
     public int Rating { get; private set; }
 
     public string? Comment { get; private set; }
+
+    /// <summary>The shop's answer to the customer, written by a branch manager or the brand admin. It can be changed later.</summary>
+    public string? Reply { get; private set; }
+
+    public DateTime? RepliedAtUtc { get; private set; }
+
+    public Guid? RepliedByUserId { get; private set; }
+
+    public void SetReply(string reply, Guid? userId, DateTime nowUtc)
+    {
+        if (string.IsNullOrWhiteSpace(reply))
+        {
+            throw new BusinessRuleException("feedback.reply_empty", "Write a reply first.");
+        }
+
+        Reply = reply.Trim();
+        RepliedAtUtc = nowUtc;
+        RepliedByUserId = userId;
+    }
 }

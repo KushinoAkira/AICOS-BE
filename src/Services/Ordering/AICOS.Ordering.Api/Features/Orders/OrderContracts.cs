@@ -174,7 +174,15 @@ public sealed record AvailablePickupSlotsResponse(Guid BranchId, DateOnly Date, 
 /// <summary>POST /orders/{id}/feedback</summary>
 public sealed record OrderFeedbackRequest(int? Rating, string? Comment);
 
-public sealed record OrderFeedbackResponse(Guid Id, Guid OrderId, string OrderCode, Guid BranchId, Guid CustomerId, int Rating, string? Comment, DateTime CreatedAtUtc)
+public sealed record ReplyFeedbackRequest(string? Reply);
+
+/// <summary>What was ordered, so a rating reads "Trà sữa (M) x2" instead of an order code.</summary>
+public sealed record FeedbackItem(string ProductName, int Quantity);
+
+public sealed record OrderFeedbackResponse(
+    Guid Id, Guid OrderId, string OrderCode, Guid BranchId, Guid CustomerId, int Rating, string? Comment, DateTime CreatedAtUtc,
+    string? Reply = null, DateTime? RepliedAtUtc = null, List<FeedbackItem>? Items = null)
 {
-    public static OrderFeedbackResponse From(Domain.OrderFeedback f) => new(f.Id, f.OrderId, f.OrderCode, f.BranchId, f.CustomerId, f.Rating, f.Comment, f.CreatedAtUtc);
+    public static OrderFeedbackResponse From(Domain.OrderFeedback f, List<FeedbackItem>? items = null) =>
+        new(f.Id, f.OrderId, f.OrderCode, f.BranchId, f.CustomerId, f.Rating, f.Comment, f.CreatedAtUtc, f.Reply, f.RepliedAtUtc, items ?? []);
 }

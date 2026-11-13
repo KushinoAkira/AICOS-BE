@@ -138,6 +138,7 @@ internal sealed class OrderFeedbackConfiguration : IEntityTypeConfiguration<Orde
         builder.Property(f => f.Id).ValueGeneratedNever();
         builder.Property(f => f.OrderCode).HasMaxLength(40).IsRequired();
         builder.Property(f => f.Comment).HasMaxLength(OrderFeedback.CommentMaxLength);
+        builder.Property(f => f.Reply).HasMaxLength(OrderFeedback.CommentMaxLength);
         builder.HasIndex(f => f.OrderId).IsUnique();
         builder.HasIndex(f => new { f.TenantId, f.BranchId, f.CreatedAtUtc });
         builder.HasIndex(f => f.CustomerId);

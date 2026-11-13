@@ -28,6 +28,7 @@ public static class PickupOrderEndpoints
         api.MapGet("/{id:guid}/feedback", GetFeedbackAsync).WithTags("Order feedback").RequireAuthorization();
         api.MapGet("/feedbacks", ListFeedbacksAsync).WithTags("Order feedback").RequireAuthorization(AicosPolicies.Management);
         api.MapGet("/feedbacks/mine", MyFeedbacksAsync).WithTags("Order feedback").RequireAuthorization(b => b.RequireRole(AicosRoles.Customer));
+        api.MapPut("/feedbacks/{feedbackId:guid}/reply", ReplyFeedbackAsync).WithTags("Order feedback").RequireAuthorization(AicosPolicies.Management);
     }
 
     // ------------------------------------------------------------------ slots
@@ -273,7 +274,35 @@ public static class PickupOrderEndpoints
         var customerId = user.UserId ?? throw new UnauthorizedException("Not signed in.");
         var rows = await db.OrderFeedbacks.AsNoTracking().Where(f => f.TenantId == tenantId && f.CustomerId == customerId)
             .OrderByDescending(f => f.CreatedAtUtc).Take(Math.Clamp(limit ?? 50, 1, OrderEndpoints.MaxPageSize)).ToListAsync(ct);
-        return rows.Select(OrderFeedbackResponse.From).ToList();
+        return await WithItemsAsync(db, rows, ct);
+    }
+
+    /// <summary>The drinks of each rated order, read in one query.</summary>
+    private static async Task<List<OrderFeedbackResponse>> WithItemsAsync(OrderingDbContext db, List<OrderFeedback> rows, CancellationToken ct)
+    {
+        var orderIds = rows.Select(f => f.OrderId).ToList();
+        var items = await db.Orders.AsNoTracking().Where(o => orderIds.Contains(o.Id))
+            .SelectMany(o => o.Items.Select(i => new { o.Id, i.ProductName, i.Quantity })).ToListAsync(ct);
+        var byOrder = items.GroupBy(i => i.Id).ToDictionary(g => g.Key, g => g.Select(i => new FeedbackItem(i.ProductName, i.Quantity)).ToList());
+        return rows.Select(f => OrderFeedbackResponse.From(f, byOrder.GetValueOrDefault(f.OrderId))).ToList();
+    }
+
+    /// <summary>The shop answers a rating. A branch manager answers only ratings of their branch; writing again replaces the answer.</summary>
+    private static async Task<OrderFeedbackResponse> ReplyFeedbackAsync(
+        Guid feedbackId, ReplyFeedbackRequest r, OrderingDbContext db, ICurrentUser user, ShopTime clock, CancellationToken ct)
+    {
+        var errors = new ValidationErrors();
+        CommonRules.Required(errors, "Reply", r.Reply, "Reply", OrderFeedback.CommentMaxLength);
+        errors.ThrowIfAny();
+
+        var tenantId = TenantScope.Require(user);
+        var feedback = await db.OrderFeedbacks.FirstOrDefaultAsync(f => f.Id == feedbackId && f.TenantId == tenantId, ct)
+            ?? throw new NotFoundException("Feedback", feedbackId);
+        BranchAccess.EnsureCanAccess(user, feedback.BranchId);
+
+        feedback.SetReply(r.Reply!, user.UserId, clock.UtcNow);
+        await db.SaveChangesAsync(ct);
+        return (await WithItemsAsync(db, [feedback], ct))[0];
     }
 
     /// <summary>Manager view: the ratings of the brand, or of the own branch for a branch manager.</summary>
@@ -299,7 +328,7 @@ public static class PickupOrderEndpoints
         }
 
         var rows = await query.OrderByDescending(f => f.CreatedAtUtc).Take(Math.Clamp(limit ?? 50, 1, OrderEndpoints.MaxPageSize)).ToListAsync(ct);
-        return rows.Select(OrderFeedbackResponse.From).ToList();
+        return await WithItemsAsync(db, rows, ct);
     }
 }
 

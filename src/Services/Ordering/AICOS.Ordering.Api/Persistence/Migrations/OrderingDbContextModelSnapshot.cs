@@ -386,6 +386,19 @@ namespace AICOS.Ordering.Api.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("rating");
 
+                    b.Property<DateTime?>("RepliedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("replied_at_utc");
+
+                    b.Property<Guid?>("RepliedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("replied_by_user_id");
+
+                    b.Property<string>("Reply")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("reply");
+
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid")
                         .HasColumnName("tenant_id");
