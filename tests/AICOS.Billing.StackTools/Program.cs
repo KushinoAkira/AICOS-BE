@@ -1,3 +1,7 @@
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
+using AICOS.KitchenOperations.Api.Features.Barista;
 using System.Text.Json;
 using AICOS.IdentityOrganization.Api.Persistence;
 using AICOS.IdentityOrganization.Api.Domain;
@@ -36,9 +40,26 @@ if(args is ["scripts",var path])
             File.WriteAllText(Path.Combine(path,name+".post.sql"),db.GetService<IMigrator>().GenerateScript(name=="ordering"?"20261113125751_OrderingSessionCheckout":"20261113125804_PaymentSessionBills",null));
         models[name]=db.Model.GetRelationalModel().Tables.SelectMany(t=>t.Columns.Select(c=>new{table=t.Name,name=c.Name,type=c.StoreType,nullable=c.IsNullable})).ToArray();
     }
+    File.WriteAllText(Path.Combine(path,"kitchen.barista.sql"),kitchen.GetService<IMigrator>().GenerateScript("20261108121518_KitchenEarlyPayments","20261114041318_KitchenBaristaWorkflow"));
+    File.WriteAllText(Path.Combine(path,"kitchen.barista.down.sql"),kitchen.GetService<IMigrator>().GenerateScript("20261114041318_KitchenBaristaWorkflow","20261108121518_KitchenEarlyPayments"));
+    File.WriteAllText(Path.Combine(path,"kitchen.pre-barista.sql"),kitchen.GetService<IMigrator>().GenerateScript("0","20261108121518_KitchenEarlyPayments"));
     File.WriteAllText(Path.Combine(path,"schema.json"),JsonSerializer.Serialize(models));
     Console.WriteLine("Offline baseline scripts generated; no database connection.");
     return;
+}
+if(args is ["test-printer"])
+{
+ var key=Environment.GetEnvironmentVariable("BARISTA_PRINT_TEST_KEY");if(key is not {Length:>=32})throw new InvalidOperationException("Isolated printer key required");
+ var builder=WebApplication.CreateBuilder();builder.WebHost.UseUrls("http://0.0.0.0:8080");var app=builder.Build();
+ var jobs=new System.Collections.Concurrent.ConcurrentDictionary<Guid,string>();
+ app.MapPost("/",async(HttpContext context)=>{
+  var body=await context.Request.ReadFromJsonAsync<JsonElement>();var id=body.GetProperty("id").GetGuid();var hash=body.GetProperty("payloadHash").GetString()!;
+  if(context.Request.Headers["X-Aicos-Print-Signature"]!=VerifiedPrintAgent.Sign(key,id,hash,"REQUEST"))return Results.StatusCode(403);
+  var unknown=body.GetProperty("document").GetProperty("lines")[0].GetProperty("copies").GetInt32()==4;
+  var status=jobs.GetOrAdd(id,unknown?"UNKNOWN":"TEST_PRINTED");
+  return Results.Ok(new{jobId=id,status,signature=VerifiedPrintAgent.Sign(key,id,hash,status)});
+ });
+ await app.RunAsync();return;
 }
 if(args is ["health"])
 {

@@ -1,3 +1,4 @@
+using AICOS.KitchenOperations.Api.Features.Barista;
 using AICOS.BuildingBlocks.Exceptions;
 using AICOS.BuildingBlocks.Security;
 using AICOS.KitchenOperations.Api.Domain.Entities;
@@ -10,7 +11,7 @@ internal static class KitchenTicketTransitions
 {
     public static async Task<(KitchenTicket Ticket, bool Changed)> UpdateAsync(Guid id,
         UpdateKitchenTicketStatusRequest request, KitchenOperationsDbContext db, ICurrentUser user,
-        DateTime now, CancellationToken ct)
+        DateTime now, CancellationToken ct, IConfiguration? configuration = null)
     {
         var hint = await TicketAccess.LoadAsync(db, user, id, ct, track: false);
         return await KitchenTicketWrites.RunAsync(db, hint.TenantId, hint.OrderId, async () =>
@@ -42,6 +43,8 @@ internal static class KitchenTicketTransitions
                     throw new ConflictException("The ticket status changed. Reload before confirming.", "ticket.stale");
             }
 
+            if(configuration is not null&&BaristaOperations.Enabled(configuration)&&request.Status==KitchenTicketStatus.Completed)throw new ConflictException("Barista marks READY; staff confirm serving separately.","barista.ready_only");
+            if(request.Status!=KitchenTicketStatus.Cancelled)await BaristaOperations.RequireAcceptedAsync(db, ticket, configuration, ct);
             switch (request.Status)
             {
                 case KitchenTicketStatus.Brewing: ticket.StartBrewing(now); break;
@@ -49,6 +52,7 @@ internal static class KitchenTicketTransitions
                 case KitchenTicketStatus.Completed: ticket.Complete(now); break;
                 case KitchenTicketStatus.Cancelled: ticket.Cancel(now); break;
             }
+            await BaristaOperations.CompleteAsync(db,ticket,user.UserId!.Value,now,configuration,ct);
             await db.SaveChangesAsync(ct);
             return (ticket, true);
         }, ct);

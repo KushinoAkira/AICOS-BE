@@ -278,6 +278,205 @@ namespace AICOS.KitchenOperations.Api.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("AICOS.KitchenOperations.Api.Features.Barista.BaristaAcceptance", b =>
+                {
+                    b.Property<Guid>("TicketId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("ticket_id");
+
+                    b.Property<int>("Cycle")
+                        .HasColumnType("integer")
+                        .HasColumnName("cycle");
+
+                    b.Property<DateTime>("AcceptedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("accepted_at_utc");
+
+                    b.Property<Guid>("AcceptedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("accepted_by");
+
+                    b.Property<string>("AcceptedName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("accepted_name");
+
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("branch_id");
+
+                    b.Property<DateTime?>("CompletedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("completed_at_utc");
+
+                    b.Property<Guid?>("CompletedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("completed_by");
+
+                    b.Property<string>("KeyHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("key_hash");
+
+                    b.Property<string>("RequestHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("request_hash");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.HasKey("TicketId", "Cycle")
+                        .HasName("pk_barista_acceptances");
+
+                    b.HasIndex("TenantId", "AcceptedBy", "KeyHash")
+                        .IsUnique()
+                        .HasDatabaseName("ix_barista_acceptances_tenant_id_accepted_by_key_hash");
+
+                    b.HasIndex("TenantId", "BranchId", "AcceptedAtUtc")
+                        .HasDatabaseName("ix_barista_acceptances_tenant_id_branch_id_accepted_at_utc");
+
+                    b.ToTable("barista_acceptances", "kitchen", t =>
+                        {
+                            t.HasCheckConstraint("ck_barista_cycle", "cycle >= 0 AND (completed_at_utc IS NULL OR completed_at_utc >= accepted_at_utc)");
+                        });
+                });
+
+            modelBuilder.Entity("AICOS.KitchenOperations.Api.Features.Barista.KitchenPrintJob", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("branch_id");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<int>("Cycle")
+                        .HasColumnType("integer")
+                        .HasColumnName("cycle");
+
+                    b.Property<string>("ErrorCode")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("error_code");
+
+                    b.Property<long>("Fence")
+                        .HasColumnType("bigint")
+                        .HasColumnName("fence");
+
+                    b.Property<string>("KeyHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("key_hash");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("kind");
+
+                    b.Property<Guid?>("LeaseOwner")
+                        .HasColumnType("uuid")
+                        .HasColumnName("lease_owner");
+
+                    b.Property<DateTime?>("LeaseUntilUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("lease_until_utc");
+
+                    b.Property<string>("Payload")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("payload");
+
+                    b.Property<string>("PayloadHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("payload_hash");
+
+                    b.Property<DateTime?>("PrintedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("printed_at_utc");
+
+                    b.Property<Guid?>("ReprintOf")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reprint_of");
+
+                    b.Property<string>("RequestHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("request_hash");
+
+                    b.Property<Guid>("RequestedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("requested_by");
+
+                    b.Property<DateTime?>("StartedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("started_at_utc");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("TableSnapshot")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("table_snapshot");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<bool>("TestOutput")
+                        .HasColumnType("boolean")
+                        .HasColumnName("test_output");
+
+                    b.Property<Guid>("TicketId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("ticket_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_kitchen_print_jobs");
+
+                    b.HasIndex("ReprintOf")
+                        .HasDatabaseName("ix_kitchen_print_jobs_reprint_of");
+
+                    b.HasIndex("Status", "CreatedAtUtc")
+                        .HasDatabaseName("ix_kitchen_print_jobs_status_created_at_utc");
+
+                    b.HasIndex("TicketId", "Cycle")
+                        .IsUnique()
+                        .HasDatabaseName("ix_kitchen_print_jobs_ticket_id_cycle")
+                        .HasFilter("kind = 'SLIP' AND reprint_of IS NULL");
+
+                    b.HasIndex("TenantId", "RequestedBy", "KeyHash")
+                        .IsUnique()
+                        .HasDatabaseName("ix_kitchen_print_jobs_tenant_id_requested_by_key_hash");
+
+                    b.ToTable("kitchen_print_jobs", "kitchen", t =>
+                        {
+                            t.HasCheckConstraint("ck_kitchen_print_ack", "(status = 'PRINTED' AND printed_at_utc IS NOT NULL) OR (status <> 'PRINTED' AND printed_at_utc IS NULL)");
+
+                            t.HasCheckConstraint("ck_kitchen_print_kind", "kind IN ('SLIP','LABELS')");
+
+                            t.HasCheckConstraint("ck_kitchen_print_state", "status IN ('QUEUED','PRINTING','PRINTED','FAILED','UNKNOWN') AND fence >= 0");
+                        });
+                });
+
             modelBuilder.Entity("AICOS.KitchenOperations.Api.Features.CupServing.CupClaim", b =>
                 {
                     b.Property<Guid>("Id")
@@ -787,6 +986,32 @@ namespace AICOS.KitchenOperations.Api.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_kitchen_ticket_items_kitchen_tickets_ticket_id");
+                });
+
+            modelBuilder.Entity("AICOS.KitchenOperations.Api.Features.Barista.BaristaAcceptance", b =>
+                {
+                    b.HasOne("AICOS.KitchenOperations.Api.Domain.Entities.KitchenTicket", null)
+                        .WithMany()
+                        .HasForeignKey("TicketId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_barista_acceptances_tickets_ticket_id");
+                });
+
+            modelBuilder.Entity("AICOS.KitchenOperations.Api.Features.Barista.KitchenPrintJob", b =>
+                {
+                    b.HasOne("AICOS.KitchenOperations.Api.Features.Barista.KitchenPrintJob", null)
+                        .WithMany()
+                        .HasForeignKey("ReprintOf")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_kitchen_print_jobs_kitchen_print_jobs_reprint_of");
+
+                    b.HasOne("AICOS.KitchenOperations.Api.Domain.Entities.KitchenTicket", null)
+                        .WithMany()
+                        .HasForeignKey("TicketId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_kitchen_print_jobs_tickets_ticket_id");
                 });
 
             modelBuilder.Entity("AICOS.KitchenOperations.Api.Features.CupServing.CupClaim", b =>

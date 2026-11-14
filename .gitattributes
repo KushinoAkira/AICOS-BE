@@ -3,3 +3,6 @@
 Dockerfile* text eol=lf
 *.yml text eol=lf
 *.yaml text eol=lf
+# Keep reviewed Barista SQL checksums identical on Windows and Linux.
+docs/migrations/barista-workflow/*.sql text eol=lf
+docs/migrations/barista-workflow/SHA256SUMS.txt text eol=lf

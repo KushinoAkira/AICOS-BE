@@ -7,11 +7,14 @@ import crypto from 'node:crypto';
 import assert from 'node:assert/strict';
 import {fileURLToPath} from 'node:url';
 import {runFlow} from './session-billing-stack-flow.mjs';
+import {runBaristaFlow} from './barista-stack-flow.mjs';
+const baristaMode=process.argv.includes('--barista');
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..');
 const purpose='session-bill-e2e',suffix=crypto.randomBytes(5).toString('hex'),network='aicos-bill-e2e-'+suffix;
 const temporary=await fs.mkdtemp(path.join(os.tmpdir(),'aicos-bill-e2e-'));
 const containers=[],checks=[],serviceIds={};let cluster,pg,gateway,base;
 const secret=()=>crypto.randomBytes(32).toString('hex');
+const printerKey=secret();
 const adminPassword=secret(),userPassword='Test-Aa1!'+secret(),jwt=secret(),machine=secret(),admission=secret(),webhook=secret();
 const services=[['identity','IdentityOrganization','AICOS.IdentityOrganization.Api','identity'],['menu','MenuCatalog','AICOS.MenuCatalog.Api','menu'],['table','TableReservation','AICOS.TableReservation.Api','table_reservation'],['order','Ordering','AICOS.Ordering.Api','ordering'],['kitchen','KitchenOperations','AICOS.KitchenOperations.Api','kitchen'],['payment','Payments','AICOS.Payments.Api','payment'],['reporting','ReportingAnalytics','AICOS.ReportingAnalytics.Api','reporting'],['workforce','WorkforceScheduling','AICOS.WorkforceScheduling.Api','workforce'],['gateway',null,'AICOS.Gateway',null]];
 const databases=Object.fromEntries(services.filter(s=>s[3]).map(([name,,,schema])=>[schema,schema==='payment'?'aicos_billflow_test':'aicos_billstack_'+schema]));
@@ -34,9 +37,9 @@ async function guard(){
 async function sql(db,text,{schema,approval,user='bill_stack_admin',deny=false}={}){
  await guard();assert.ok(Object.values(databases).includes(db)||db.startsWith('aicos_billstack_restore_')||db==='postgres');
  const env={},args=['exec','-i'];if(user!=='bill_stack_admin'){env.PGPASSWORD=passwords[schema];args.push('-e','PGPASSWORD');}
- args.push(pg,'psql','-X','-v','ON_ERROR_STOP=1','-U',user,'-d',db,'-At');if(user!=='bill_stack_admin')args.push('-h','127.0.0.1');
+ args.push(pg,'psql','-X','-v','ON_ERROR_STOP=1','-U',user,'-d',db,'-Atq');if(user!=='bill_stack_admin')args.push('-h','127.0.0.1');
  const settings=schema?"SET aicos.expected_database='"+db+"'; SET aicos.expected_schema='"+schema+"'; ":'';
- const result=await run('docker',args,{env,input:settings+(approval?"SET aicos.bill_"+approval+"_approved='true'; ":'')+text,allowFailure:deny});if(deny){assert.notEqual(result.code,0);return result;}return result.out.trim();
+ const result=await run('docker',args,{env,input:settings+"SET aicos.expected_cluster='"+cluster+"'; "+(approval?"SET aicos.barista_"+approval+"_approved='true'; ":'')+(approval?"SET aicos.bill_"+approval+"_approved='true'; ":'')+text,allowFailure:deny});if(deny){assert.notEqual(result.code,0);return result;}return result.out.trim();
 }
 async function create(name,image,args=[],env={}){
  const keys=Object.keys(env).flatMap(k=>['-e',k]);const id=await docker(['run','-d','--name',network+'-'+name,'--label','aicos.purpose='+purpose,'--network',network,'--network-alias',name,...keys,...args,image],{env});containers.push(id);return id;
@@ -60,8 +63,28 @@ try{
  await until(async()=>{const r=await run('docker',['exec',pg,'pg_isready','-h','127.0.0.1','-U','bill_stack_admin'],{allowFailure:true});return r.code===0;},'PostgreSQL');await guard();report('Container/network/no-host-port/tmpfs/cluster guards');console.log('TEST cluster '+cluster);
  for(const [schema,db] of Object.entries(databases)){
   await sql('postgres','CREATE DATABASE '+db+'; CREATE ROLE '+role(schema)+" LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT PASSWORD '"+passwords[schema]+"'; REVOKE CONNECT ON DATABASE "+db+' FROM PUBLIC; GRANT CONNECT ON DATABASE '+db+' TO '+role(schema)+';');
-  await sql(db,await fs.readFile(path.join(baselines,schema+'.sql'),'utf8'));
+  await sql(db,await fs.readFile(path.join(baselines,baristaMode&&schema==='kitchen'?'kitchen.pre-barista.sql':schema+'.sql'),'utf8'));
   await sql(db,'GRANT USAGE ON SCHEMA '+schema+' TO '+role(schema)+'; GRANT SELECT,INSERT,UPDATE,DELETE ON ALL TABLES IN SCHEMA '+schema+' TO '+role(schema)+'; GRANT USAGE,SELECT ON ALL SEQUENCES IN SCHEMA '+schema+' TO '+role(schema)+'; REVOKE ALL ON '+schema+'.__ef_migrations_history FROM '+role(schema)+';');
+ }
+ if(baristaMode){
+  const folder=path.join(root,'docs/migrations/barista-workflow');
+  for(const line of (await fs.readFile(path.join(folder,'SHA256SUMS.txt'),'utf8')).trim().split(/\r?\n/)){const [hash,name]=line.split('  ');assert.equal(crypto.createHash('sha256').update(await fs.readFile(path.join(folder,name))).digest('hex'),hash);}
+  const bs=n=>fs.readFile(path.join(folder,n),'utf8'),db=databases.kitchen;
+  await sql(db,await bs('00_preflight.READ_ONLY.sql'),{schema:'kitchen'});
+  await docker(['exec',pg,'pg_dump','-U','bill_stack_admin','-Fc','-d',db,'-f','/tmp/kitchen-before.dump']);
+  await sql(db,await bs('01_expand.sql'),{schema:'kitchen',approval:'expand'});
+  await sql(db,await bs('01_expand.sql'),{schema:'kitchen',approval:'expand',deny:true});
+  await sql(db,await bs('02_service_grants.PROPOSAL.sql'),{schema:'kitchen',approval:'grants'});
+  await sql(db,await bs('03_verify.READ_ONLY.sql'),{schema:'kitchen'});
+  await sql(db,'DELETE FROM kitchen.barista_acceptances WHERE false;',{schema:'kitchen',user:'kitchen_svc',deny:true});
+  await sql(db,"UPDATE kitchen.kitchen_print_jobs SET payload='{}'::jsonb WHERE false;",{schema:'kitchen',user:'kitchen_svc',deny:true});
+  const clone='aicos_billstack_restore_kitchen';await sql('postgres','CREATE DATABASE '+clone+';');
+  await docker(['exec',pg,'pg_restore','-U','bill_stack_admin','-d',clone,'/tmp/kitchen-before.dump']);
+  await sql(clone,await bs('01_expand.sql'),{schema:'kitchen',approval:'expand'});
+  await sql(clone,await bs('90_rollback.EMPTY_ONLY.sql'),{schema:'kitchen',approval:'rollback'});
+  assert.equal(await sql(clone,"SELECT to_regclass('kitchen.barista_acceptances') IS NULL AND to_regclass('kitchen.kitchen_print_jobs') IS NULL;"),'t');
+  await sql(clone,await bs('01_expand.sql'),{schema:'kitchen',approval:'expand'});
+  report('Barista migration checksum/preflight/expand/repeat refusal, column ACL, restore/empty rollback/reapply PASS');
  }
  const fixtureEnv={BILL_STACK_ADMIN_CONNECTION:'Host=postgres;Database='+databases.identity+';Username=bill_stack_admin;Password='+adminPassword,BILL_STACK_CLUSTER:cluster,BILL_STACK_USER_PASSWORD:userPassword};
  const fixtureArgs=Object.keys(fixtureEnv).flatMap(k=>['-e',k]);await docker(['run','--rm','--network',network,...fixtureArgs,'--mount','type=bind,src='+tools+',dst=/testtools,readonly','--entrypoint','dotnet','aicos-main/identity:local','/testtools/AICOS.Billing.StackTools.dll','fixtures'],{env:fixtureEnv});
@@ -107,12 +130,16 @@ try{
   assert.ok(index.includes(schema==='ordering'?'(tenant_id, bill_id)':'(tenant_id, session_id)'));if(schema==='payment'){assert.ok(index.includes('uq_bill_pending_attempt'));assert.ok(index.includes('PENDING'));}else assert.ok(index.includes('Open'));
  }report('Actual CHECK/PK/own FK and session/Bill/pending uniqueness definitions verified');
  report('Five new tables; no cross-service FK; existing session/bill uniqueness retained');
+ if(baristaMode){
+  const env={BARISTA_PRINT_TEST_KEY:printerKey};const id=await docker(['run','-d','--name',network+'-printer','--label','aicos.purpose='+purpose,'--network',network,'--network-alias','printer','-e','BARISTA_PRINT_TEST_KEY','--mount','type=bind,src='+tools+',dst=/testtools,readonly','--entrypoint','dotnet','aicos-main/identity:local','/testtools/AICOS.Billing.StackTools.dll','test-printer'],{env});containers.push(id);
+ }
  const redis=await create('redis','redis:7-alpine',['--tmpfs','/data:rw']);
  for(const [name,folder,assembly,schema] of services){
   console.log('Preparing TEST '+name);const output=path.join(temporary,name);await publish(folder?'src/Services/'+folder+'/'+assembly:'src/Gateway/'+assembly,output);
   const env={ASPNETCORE_ENVIRONMENT:'Development',Database__MigrateOnStartup:'false',Seed__DemoPlans:'false',Swagger__Enabled:'true',Jwt__SigningKey:jwt,Jwt__Issuer:'aicos-billstack-test',Jwt__Audience:'aicos-billstack-clients',ConnectionStrings__Redis:'redis:6379',SessionBilling__Enabled:'true',SessionBilling__MachineKey:machine,SessionBilling__AllowTestProviders:'true',SessionBilling__TestWebhookSecret:webhook,SessionBilling__DispatcherEnabled:'true',Serilog__MinimumLevel__Default:'Warning',RateLimiting__PermitLimitPerMinute:'10000',RateLimiting__AuthPermitLimitPerMinute:'100'};
   for(const [n,,,s] of services){if(n!=='gateway'){const key={identity:'Identity',menu:'Menu',table:'Table',order:'Order',kitchen:'Kitchen',payment:'Payment',reporting:'Reporting',workforce:'Workforce'}[n];env['Services__'+key+'__BaseUrl']='http://'+n+':8080';env['ReverseProxy__Clusters__'+n+'__Destinations__primary__Address']='http://'+n+':8080';}}
   if(schema)env.ConnectionStrings__Default='Host=postgres;Database='+databases[schema]+';Username='+role(schema)+';Password='+passwords[schema];
+  if(baristaMode&&name==='kitchen'){env.BaristaWorkflow__Enabled='true';env.BaristaWorkflow__PrintAgentUrl='http://printer:8080/';env.BaristaWorkflow__PrintAgentKey=printerKey;env.BaristaWorkflow__AllowTestPrinter='true';}
   if(name==='order'){env.KitchenAdmission__CaptureEnabled='true';env.KitchenAdmission__DispatcherEnabled='true';env.KitchenAdmission__ReconciliationEnabled='true';env.KitchenAdmission__MachineKey=admission;}
   if(name==='kitchen'){env.KitchenAdmission__ReceiverEnabled='true';env.KitchenAdmission__MachineKey=admission;}
   const flags=['--mount','type=bind,src='+output+',dst=/app,readonly','--workdir','/app','--entrypoint','dotnet'];if(name==='gateway')flags.push('--publish','127.0.0.1::8080');
@@ -121,7 +148,7 @@ try{
  gateway=serviceIds.gateway;const inspection=JSON.parse(await docker(['inspect',gateway]))[0];const binding=inspection.NetworkSettings.Ports['8080/tcp'][0];assert.equal(binding.HostIp,'127.0.0.1');base='http://127.0.0.1:'+binding.HostPort;
  await until(async()=>{const r=await fetch(base+'/api/v1/identity/public/subscription-plans');return r.status===200;},'Gateway Identity');
  await docker(['run','--rm','--network',network,'--mount','type=bind,src='+tools+',dst=/testtools,readonly','--entrypoint','dotnet','aicos-main/identity:local','/testtools/AICOS.Billing.StackTools.dll','health']);report('Eight services live/ready/Swagger; Gateway metadata/live (ready/Swagger N/A by source)');
- const ctx={base,userPassword,webhook,sql,databases,report,until,docker,run,serviceIds,redis,temporary,root,checks};await runFlow(ctx);
+ const ctx={base,userPassword,webhook,sql,databases,report,until,docker,run,serviceIds,redis,temporary,root,checks};if(baristaMode){await runBaristaFlow(ctx);await sql(databases.kitchen,await fs.readFile(path.join(root,'docs/migrations/barista-workflow/90_rollback.EMPTY_ONLY.sql'),'utf8'),{schema:'kitchen',approval:'rollback',deny:true});report('Nonempty Barista acceptance/print audit rollback refused');}else await runFlow(ctx);
  await sql(databases.payment,await script('90_payments_rollback.sql'),{schema:'payment',approval:'rollback',deny:true});report('Nonempty financial rollback rejected; received money/audit retained');
  for(const name of ['payment','order','kitchen','reporting','workforce'])await docker(['stop',serviceIds[name]]);
  for(const schema of ['ordering','payment']){
@@ -134,9 +161,9 @@ try{
  console.log('RESULT '+checks.filter(x=>x.status==='PASS').length+' PASS; '+checks.filter(x=>x.status==='BLOCKED').length+' BLOCKED');
 }catch(error){console.log('FAIL '+error.message);checks.push({name:error.message,status:'FAIL'});process.exitCode=1;
  // Container logs stay in ephemeral containers. Do not dump secrets or authorization bodies.
- if(error.detail){let diagnostic=error.detail;for(const value of [adminPassword,userPassword,jwt,machine,admission,webhook,...Object.values(passwords)])diagnostic=diagnostic.replaceAll(value,'[redacted]');console.log('Diagnostic: '+diagnostic.replace(/eyJ[A-Za-z0-9_.-]{40,}/g,'[redacted token]').slice(-2500));}
+ if(error.detail){let diagnostic=error.detail;for(const value of [adminPassword,userPassword,jwt,machine,admission,webhook,printerKey,...Object.values(passwords)])diagnostic=diagnostic.replaceAll(value,'[redacted]');console.log('Diagnostic: '+diagnostic.replace(/eyJ[A-Za-z0-9_.-]{40,}/g,'[redacted token]').slice(-2500));}
 }finally{
- await fs.writeFile(path.join(root,'docs','SESSION_BILL_STACK_TEST_EVIDENCE.json'),JSON.stringify({cluster,checks,operatingContainersUnchanged:await snapshot(existing)===before,qr:'Mock only; not bank verification'},null,2)+'\n');
+ await fs.writeFile(path.join(root,'docs',baristaMode?'BARISTA_STACK_TEST_EVIDENCE.json':'SESSION_BILL_STACK_TEST_EVIDENCE.json'),JSON.stringify({cluster,checks,operatingContainersUnchanged:await snapshot(existing)===before,qr:'Mock only; not bank verification'},null,2)+'\n');
  for(const id of containers.reverse()){const x=JSON.parse(await docker(['inspect',id]))[0];assert.equal(x.Config.Labels['aicos.purpose'],purpose);assert.deepEqual(Object.keys(x.NetworkSettings.Networks),[network]);await docker(['rm','-f',id]);}
  if((await docker(['network','ls','--filter','name=^'+network+'$','-q'])))await docker(['network','rm',network]);
  console.log('Removed only this run test containers/network; no operating volume touched. Temporary build files contain no credentials.');
