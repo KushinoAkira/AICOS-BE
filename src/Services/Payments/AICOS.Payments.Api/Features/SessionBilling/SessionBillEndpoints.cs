@@ -21,6 +21,7 @@ public static class SessionBillEndpoints
             BillingMachineAuth.Enabled(context.HttpContext.RequestServices.GetRequiredService<IConfiguration>()) ? await next(context) : Results.StatusCode(503));
         bills.MapGet("/", (Guid sessionId, ICurrentUser user, BillLedgerService ledger, CancellationToken ct) => ledger.GetAsync(sessionId, user, ct)).RequireAuthorization(AicosPolicies.Staff);
         bills.MapGet("/{id:guid}", (Guid id, ICurrentUser user, BillLedgerService ledger, CancellationToken ct) => ledger.GetByIdAsync(id, user, false, ct)).RequireAuthorization(AicosPolicies.Staff);
+        bills.MapGet("/{id:guid}/history", BillHistoryEndpoint.GetAsync).RequireAuthorization(b => b.RequireRole(PaymentAccess.CounterRoles));
         bills.MapGet("/{id:guid}/invoice", (Guid id, ICurrentUser user, BillLedgerService ledger, CancellationToken ct) => ledger.GetByIdAsync(id, user, true, ct)).RequireAuthorization(b => b.RequireRole(PaymentAccess.CounterRoles));
         bills.MapPost("/{id:guid}/payments/cash", (Guid id, CollectBillRequest request, HttpContext http, ICurrentUser user, BillLedgerService ledger, CancellationToken ct) =>
             ledger.CollectAsync(id, request, http.Request.Headers["Idempotency-Key"].ToString().Trim(), "Cash", user, ct)).RequireAuthorization(b => b.RequireRole(PaymentAccess.CounterRoles));

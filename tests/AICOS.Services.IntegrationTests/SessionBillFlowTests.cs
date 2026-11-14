@@ -144,4 +144,39 @@ public sealed class SessionBillFlowTests : IAsyncLifetime
         gateway.Calls.Should().Be(1); await h.CollectAsync(draft, "cash").ShouldBe(409);
     }
 
+    [Fact]
+    public async Task History_is_read_only_for_draft_and_paid_and_keeps_collecting_actor()
+    {
+        await _h.RoundAsync(); var draft = await _h.BillAsync();
+        var path = $"/api/v1/payments/bills/{draft.Id}/history?sessionId={_h.Session}";
+        var empty = await _h.Cashier.GetFromJsonAsync<JsonElement>(path);
+        empty.GetProperty("attempts").GetArrayLength().Should().Be(0);
+        using (var scope = _h.Payments.Services.CreateScope())
+            (await scope.ServiceProvider.GetRequiredService<PaymentsDbContext>().SessionBills.CountAsync()).Should().Be(0);
+        var paid = await _h.CashAsync(draft, "history-cash-key");
+        paid.Payment!.CashierUserId.Should().Be(_h.CashierId);
+        using var state = _h.Payments.Services.CreateScope(); var db = state.ServiceProvider.GetRequiredService<PaymentsDbContext>();
+        var before = await db.BillJournal.CountAsync();
+        var history = await _h.Cashier.GetFromJsonAsync<JsonElement>(path);
+        history.GetProperty("billId").GetGuid().Should().Be(paid.Id);
+        history.GetProperty("attempts")[0].GetProperty("cashierUserId").GetGuid().Should().Be(_h.CashierId);
+        history.GetProperty("attempts")[0].GetProperty("status").GetString().Should().Be("SUCCEEDED");
+        history.GetProperty("events")[0].TryGetProperty("payload", out _).Should().BeFalse();
+        (await db.BillJournal.CountAsync()).Should().Be(before);
+        (await db.BillAttempts.CountAsync()).Should().Be(1);
+    }
+    [Fact]
+    public async Task History_checks_role_branch_tenant_and_session_identity()
+    {
+        await _h.RoundAsync(); var paid = await _h.CashAsync(await _h.BillAsync());
+        var path = $"/api/v1/payments/bills/{paid.Id}/history?sessionId={_h.Session}";
+        using var barista = _h.Payments.As(AicosRoles.Barista, _h.Branch);
+        using var foreign = _h.Payments.As(AicosRoles.Cashier, Guid.NewGuid());
+        using var tenant = _h.Payments.As(AicosRoles.Cashier, _h.Branch, tenantId: Guid.NewGuid());
+        (await barista.GetAsync(path)).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        (await foreign.GetAsync(path)).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        (await tenant.GetAsync($"/api/v1/payments/bills/{paid.Id}/history")).StatusCode.Should().Be(HttpStatusCode.NotFound);
+        (await _h.Cashier.GetAsync($"/api/v1/payments/bills/{paid.Id}/history?sessionId={Guid.NewGuid()}")).StatusCode.Should().Be(HttpStatusCode.Conflict);
+    }
+
 }

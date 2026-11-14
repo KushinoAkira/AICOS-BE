@@ -1,5 +1,5 @@
 {
-  "cluster": "7707732407153684522",
+  "cluster": "7708001629431062581",
   "checks": [
     {
       "name": "SQL SHA256 matches reviewed manifests",
@@ -63,6 +63,10 @@
     },
     {
       "name": "Real paid invoice snapshot and Counter-only RBAC verified",
+      "status": "PASS"
+    },
+    {
+      "name": "Persisted Bill history through Gateway: scoped receipt actor, journal metadata only, Barista denied",
       "status": "PASS"
     },
     {
