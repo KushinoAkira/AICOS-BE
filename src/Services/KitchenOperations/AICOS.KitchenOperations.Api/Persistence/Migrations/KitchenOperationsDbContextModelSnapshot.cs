@@ -200,6 +200,10 @@ namespace AICOS.KitchenOperations.Api.Persistence.Migrations
                         .HasColumnType("character varying(20)")
                         .HasColumnName("table_number");
 
+                    b.Property<long>("TableTransferVersion")
+                        .HasColumnType("bigint")
+                        .HasColumnName("table_transfer_version");
+
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid")
                         .HasColumnName("tenant_id");

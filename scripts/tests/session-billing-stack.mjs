@@ -9,6 +9,8 @@ import {fileURLToPath} from 'node:url';
 import {runFlow} from './session-billing-stack-flow.mjs';
 import {runBaristaFlow} from './barista-stack-flow.mjs';
 const baristaMode=process.argv.includes('--barista');
+const operationsMode=process.argv.includes('--operations');
+const cashierMode=process.argv.includes('--cashier')||operationsMode;
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..');
 const purpose='session-bill-e2e',suffix=crypto.randomBytes(5).toString('hex'),network='aicos-bill-e2e-'+suffix;
 const temporary=await fs.mkdtemp(path.join(os.tmpdir(),'aicos-bill-e2e-'));
@@ -35,6 +37,7 @@ async function guard(){
  const actual=await docker(['exec',pg,'psql','-U','bill_stack_admin','-d','postgres','-AtX','-c','SELECT system_identifier FROM pg_control_system()']);if(cluster)assert.equal(actual,cluster);else{assert.match(actual,/^\d+$/);cluster=actual;}
 }
 async function sql(db,text,{schema,approval,user='bill_stack_admin',deny=false}={}){
+ text=text.replace(/\uFEFF/g,''); // EF exports may carry a UTF-8 BOM after session guard statements.
  await guard();assert.ok(Object.values(databases).includes(db)||db.startsWith('aicos_billstack_restore_')||db==='postgres');
  const env={},args=['exec','-i'];if(user!=='bill_stack_admin'){env.PGPASSWORD=passwords[schema];args.push('-e','PGPASSWORD');}
  args.push(pg,'psql','-X','-v','ON_ERROR_STOP=1','-U',user,'-d',db,'-Atq');if(user!=='bill_stack_admin')args.push('-h','127.0.0.1');
@@ -54,7 +57,10 @@ try{
   const p=path.join(root,'docs',dir,'session-billing');for(const line of (await fs.readFile(path.join(p,'SHA256SUMS.txt'),'utf8')).trim().split(/\r?\n/)){
    const [hash,name]=line.split('  ');assert.equal(crypto.createHash('sha256').update(await fs.readFile(path.join(p,name))).digest('hex'),hash);
   }
- }report('SQL SHA256 matches reviewed manifests');
+ }
+ if(operationsMode){const folder=path.join(root,'docs/migrations/table-transfer-split');for(const line of (await fs.readFile(path.join(folder,'SHA256SUMS.txt'),'utf8')).trim().split(/\r?\n/)){const [hash,name]=line.split('  ');assert.equal(crypto.createHash('sha256').update(await fs.readFile(path.join(folder,name))).digest('hex'),hash);}}
+ if(cashierMode){const folder=path.join(root,'docs/migrations/cashier-shifts');for(const line of (await fs.readFile(path.join(folder,'SHA256SUMS.txt'),'utf8')).trim().split(/\r?\n/)){const [hash,name]=line.split('  ');assert.equal(crypto.createHash('sha256').update(await fs.readFile(path.join(folder,name))).digest('hex'),hash);}}
+ report('SQL SHA256 matches reviewed manifests');
  const tools=path.join(temporary,'tools'),baselines=path.join(temporary,'baseline');
  await publish('tests/AICOS.Billing.StackTools/AICOS.Billing.StackTools.csproj',tools);
  await run('dotnet',[path.join(tools,'AICOS.Billing.StackTools.dll'),'scripts',baselines]);report('Offline EF baseline export without service startup');
@@ -66,6 +72,10 @@ try{
   await sql(db,await fs.readFile(path.join(baselines,baristaMode&&schema==='kitchen'?'kitchen.pre-barista.sql':schema+'.sql'),'utf8'));
   await sql(db,'GRANT USAGE ON SCHEMA '+schema+' TO '+role(schema)+'; GRANT SELECT,INSERT,UPDATE,DELETE ON ALL TABLES IN SCHEMA '+schema+' TO '+role(schema)+'; GRANT USAGE,SELECT ON ALL SEQUENCES IN SCHEMA '+schema+' TO '+role(schema)+'; REVOKE ALL ON '+schema+'.__ef_migrations_history FROM '+role(schema)+';');
  }
+ if(cashierMode){
+  const clone='aicos_billstack_restore_reporting';await docker(['exec',pg,'pg_dump','-U','bill_stack_admin','-Fc','-d',databases.reporting,'-f','/tmp/reporting-before.dump']);await sql('postgres','CREATE DATABASE '+clone+';');await docker(['exec',pg,'pg_restore','-U','bill_stack_admin','-d',clone,'/tmp/reporting-before.dump']);
+  await sql(clone,await fs.readFile(path.join(baselines,'reporting.cashier.down.sql'),'utf8'));await sql(clone,await fs.readFile(path.join(baselines,'reporting.cashier.sql'),'utf8'));assert.equal(await sql(clone,'SELECT count(*) FROM reporting.collection_facts;'),'0');report('Reporting empty inbox backup/restore/rollback/reapply verified on clone');
+ }
  if(baristaMode){
   const folder=path.join(root,'docs/migrations/barista-workflow');
   for(const line of (await fs.readFile(path.join(folder,'SHA256SUMS.txt'),'utf8')).trim().split(/\r?\n/)){const [hash,name]=line.split('  ');assert.equal(crypto.createHash('sha256').update(await fs.readFile(path.join(folder,name))).digest('hex'),hash);}
@@ -73,6 +83,7 @@ try{
   await sql(db,await bs('00_preflight.READ_ONLY.sql'),{schema:'kitchen'});
   await docker(['exec',pg,'pg_dump','-U','bill_stack_admin','-Fc','-d',db,'-f','/tmp/kitchen-before.dump']);
   await sql(db,await bs('01_expand.sql'),{schema:'kitchen',approval:'expand'});
+  await sql(db,await fs.readFile(path.join(baselines,'kitchen.operations.sql'),'utf8'));
   await sql(db,await bs('01_expand.sql'),{schema:'kitchen',approval:'expand',deny:true});
   await sql(db,await bs('02_service_grants.PROPOSAL.sql'),{schema:'kitchen',approval:'grants'});
   await sql(db,await bs('03_verify.READ_ONLY.sql'),{schema:'kitchen'});
@@ -106,6 +117,12 @@ try{
   assert.equal(await sql(clone,'SELECT md5(string_agg(row_to_json(t)::text,chr(124) ORDER BY id)) FROM '+schema+'.'+table+' t;'),sampleBefore[schema]);
   await sql(clone,await script(schema==='ordering'?'01_ordering_expand.sql':'02_payments_expand.sql'),{schema,approval:'expand'});
   await sql(clone,await fs.readFile(path.join(baselines,schema+'.post.sql'),'utf8'));
+  if(cashierMode&&schema==='payment'){
+    assert.equal(await sql(clone,'SELECT count(*) FROM payment.collection_outbox;'),'0');assert.equal(await sql(clone,'SELECT count(*) FROM payment.cashier_shifts;'),'0');
+    await sql(clone,await fs.readFile(path.join(baselines,'payment.cashier.down.sql'),'utf8'));
+    await sql(clone,await fs.readFile(path.join(baselines,'payment.cashier.sql'),'utf8'));
+    report('Empty Cashier migration rollback/reapply tested on separate restored clone only');
+  }
   await sql(clone,await script(schema==='ordering'?'91_ordering_rollback.sql':'90_payments_rollback.sql'),{schema,approval:'rollback'});
   assert.equal(await sql(clone,'SELECT md5(string_agg(row_to_json(t)::text,chr(124) ORDER BY id)) FROM '+schema+'.'+table+' t;'),sampleBefore[schema]);
   await sql(clone,await script(schema==='ordering'?'01_ordering_expand.sql':'02_payments_expand.sql'),{schema,approval:'expand'});
@@ -134,10 +151,28 @@ try{
   const env={BARISTA_PRINT_TEST_KEY:printerKey};const id=await docker(['run','-d','--name',network+'-printer','--label','aicos.purpose='+purpose,'--network',network,'--network-alias','printer','-e','BARISTA_PRINT_TEST_KEY','--mount','type=bind,src='+tools+',dst=/testtools,readonly','--entrypoint','dotnet','aicos-main/identity:local','/testtools/AICOS.Billing.StackTools.dll','test-printer'],{env});containers.push(id);
  }
  const redis=await create('redis','redis:7-alpine',['--tmpfs','/data:rw']);
+ if(operationsMode){
+  const folder=path.join(root,'docs/migrations/table-transfer-split');
+  for(const [schema,file] of [['ordering','01_ordering_expand.sql'],['kitchen','02_kitchen_expand.sql'],['payment','03_payments_expand.sql']]){
+    const clone='aicos_billstack_restore_operations_'+schema;await docker(['exec',pg,'pg_dump','-U','bill_stack_admin','-Fc','-d',databases[schema],'-f','/tmp/ops-'+schema+'.dump']);await sql('postgres','CREATE DATABASE '+clone+';');await docker(['exec',pg,'pg_restore','-U','bill_stack_admin','-d',clone,'/tmp/ops-'+schema+'.dump']);
+    await sql(clone,await fs.readFile(path.join(baselines,schema+'.operations.down.sql'),'utf8'));await sql(clone,"SET aicos.operations_expand_approved='true'; "+await fs.readFile(path.join(folder,file),'utf8'),{schema});await sql(clone,"SET aicos.operations_expand_approved='true'; "+await fs.readFile(path.join(folder,file),'utf8'),{schema});
+  }
+  await sql(databases.ordering,'GRANT SELECT,INSERT ON ordering.table_transfer_operations TO ordering_svc; GRANT UPDATE(synced_at_utc) ON ordering.table_transfer_operations TO ordering_svc;');
+  await sql(databases.payment,'GRANT SELECT,INSERT ON payment.bill_split_plans TO payment_svc; GRANT UPDATE(version,fingerprint,quote_json,groups_json,updated_by,updated_at_utc) ON payment.bill_split_plans TO payment_svc; GRANT SELECT,INSERT ON payment.bill_split_operations TO payment_svc;');
+  await sql(databases.ordering,'DELETE FROM ordering.table_transfer_operations WHERE false;',{schema:'ordering',user:'ordering_svc',deny:true});await sql(databases.payment,'DELETE FROM payment.bill_split_operations WHERE false;',{schema:'payment',user:'payment_svc',deny:true});
+  report('Operations SQL checksum, guarded clone rollback/reapply/repeat and role no-DELETE verified');
+ }
+ if(cashierMode){
+  await sql(databases.payment,'GRANT SELECT,INSERT ON payment.cashier_shifts TO payment_svc; GRANT UPDATE(closed_at_utc,counted_cash,expected_cash,closing_note,version) ON payment.cashier_shifts TO payment_svc; GRANT SELECT,INSERT ON payment.collection_outbox TO payment_svc; GRANT UPDATE(delivered_at_utc) ON payment.collection_outbox TO payment_svc;');
+  await sql(databases.reporting,'REVOKE ALL ON reporting.collection_facts FROM reporting_svc; GRANT SELECT,INSERT ON reporting.collection_facts TO reporting_svc;');
+  report('Cashier projection and outbox role ACL prepared on guarded test cluster only');
+ }
  for(const [name,folder,assembly,schema] of services){
   console.log('Preparing TEST '+name);const output=path.join(temporary,name);await publish(folder?'src/Services/'+folder+'/'+assembly:'src/Gateway/'+assembly,output);
   const env={ASPNETCORE_ENVIRONMENT:'Development',Database__MigrateOnStartup:'false',Seed__DemoPlans:'false',Swagger__Enabled:'true',Jwt__SigningKey:jwt,Jwt__Issuer:'aicos-billstack-test',Jwt__Audience:'aicos-billstack-clients',ConnectionStrings__Redis:'redis:6379',SessionBilling__Enabled:'true',SessionBilling__MachineKey:machine,SessionBilling__AllowTestProviders:'true',SessionBilling__TestWebhookSecret:webhook,SessionBilling__DispatcherEnabled:'true',Serilog__MinimumLevel__Default:'Warning',RateLimiting__PermitLimitPerMinute:'10000',RateLimiting__AuthPermitLimitPerMinute:'100'};
   for(const [n,,,s] of services){if(n!=='gateway'){const key={identity:'Identity',menu:'Menu',table:'Table',order:'Order',kitchen:'Kitchen',payment:'Payment',reporting:'Reporting',workforce:'Workforce'}[n];env['Services__'+key+'__BaseUrl']='http://'+n+':8080';env['ReverseProxy__Clusters__'+n+'__Destinations__primary__Address']='http://'+n+':8080';}}
+  if(operationsMode){env.TableTransfer__Enabled='true';env.TableTransfer__MachineKey=machine;env.SplitBill__Enabled='true';}
+  if(cashierMode){env.CashierShifts__Enabled='true';env.CashierShifts__MachineKey=machine;}
   if(schema)env.ConnectionStrings__Default='Host=postgres;Database='+databases[schema]+';Username='+role(schema)+';Password='+passwords[schema];
   if(baristaMode&&name==='kitchen'){env.BaristaWorkflow__Enabled='true';env.BaristaWorkflow__PrintAgentUrl='http://printer:8080/';env.BaristaWorkflow__PrintAgentKey=printerKey;env.BaristaWorkflow__AllowTestPrinter='true';}
   if(name==='order'){env.KitchenAdmission__CaptureEnabled='true';env.KitchenAdmission__DispatcherEnabled='true';env.KitchenAdmission__ReconciliationEnabled='true';env.KitchenAdmission__MachineKey=admission;}
@@ -148,7 +183,9 @@ try{
  gateway=serviceIds.gateway;const inspection=JSON.parse(await docker(['inspect',gateway]))[0];const binding=inspection.NetworkSettings.Ports['8080/tcp'][0];assert.equal(binding.HostIp,'127.0.0.1');base='http://127.0.0.1:'+binding.HostPort;
  await until(async()=>{const r=await fetch(base+'/api/v1/identity/public/subscription-plans');return r.status===200;},'Gateway Identity');
  await docker(['run','--rm','--network',network,'--mount','type=bind,src='+tools+',dst=/testtools,readonly','--entrypoint','dotnet','aicos-main/identity:local','/testtools/AICOS.Billing.StackTools.dll','health']);report('Eight services live/ready/Swagger; Gateway metadata/live (ready/Swagger N/A by source)');
- const ctx={base,userPassword,webhook,sql,databases,report,until,docker,run,serviceIds,redis,temporary,root,checks};if(baristaMode){await runBaristaFlow(ctx);await sql(databases.kitchen,await fs.readFile(path.join(root,'docs/migrations/barista-workflow/90_rollback.EMPTY_ONLY.sql'),'utf8'),{schema:'kitchen',approval:'rollback',deny:true});report('Nonempty Barista acceptance/print audit rollback refused');}else await runFlow(ctx);
+ const ctx={base,userPassword,webhook,sql,databases,report,until,docker,run,serviceIds,redis,temporary,root,checks,cashierMode,operationsMode};if(baristaMode){await runBaristaFlow(ctx);await sql(databases.kitchen,await fs.readFile(path.join(root,'docs/migrations/barista-workflow/90_rollback.EMPTY_ONLY.sql'),'utf8'),{schema:'kitchen',approval:'rollback',deny:true});report('Nonempty Barista acceptance/print audit rollback refused');}else await runFlow(ctx);
+ if(operationsMode){for(const schema of ['ordering','kitchen','payment'])await sql(databases[schema],await fs.readFile(path.join(baselines,schema+'.operations.down.sql'),'utf8'),{deny:true});report('Nonempty transfer/split audit and used routing rollback refused');}
+ if(cashierMode){await sql(databases.payment,await fs.readFile(path.join(baselines,'payment.cashier.down.sql'),'utf8'),{deny:true});await sql(databases.reporting,await fs.readFile(path.join(baselines,'reporting.cashier.down.sql'),'utf8'),{deny:true});report('Nonempty cashier ledger and Reporting inbox rollback refused');}
  await sql(databases.payment,await script('90_payments_rollback.sql'),{schema:'payment',approval:'rollback',deny:true});report('Nonempty financial rollback rejected; received money/audit retained');
  for(const name of ['payment','order','kitchen','reporting','workforce'])await docker(['stop',serviceIds[name]]);
  for(const schema of ['ordering','payment']){
@@ -163,7 +200,7 @@ try{
  // Container logs stay in ephemeral containers. Do not dump secrets or authorization bodies.
  if(error.detail){let diagnostic=error.detail;for(const value of [adminPassword,userPassword,jwt,machine,admission,webhook,printerKey,...Object.values(passwords)])diagnostic=diagnostic.replaceAll(value,'[redacted]');console.log('Diagnostic: '+diagnostic.replace(/eyJ[A-Za-z0-9_.-]{40,}/g,'[redacted token]').slice(-2500));}
 }finally{
- await fs.writeFile(path.join(root,'docs',baristaMode?'BARISTA_STACK_TEST_EVIDENCE.json':'SESSION_BILL_STACK_TEST_EVIDENCE.json'),JSON.stringify({cluster,checks,operatingContainersUnchanged:await snapshot(existing)===before,qr:'Mock only; not bank verification'},null,2)+'\n');
+ await fs.writeFile(path.join(root,'docs',baristaMode?'BARISTA_STACK_TEST_EVIDENCE.json':operationsMode?'TABLE_TRANSFER_SPLIT_E2E_EVIDENCE.json':cashierMode?'CASHIER_SHIFT_STACK_TEST_EVIDENCE.json':'SESSION_BILL_STACK_TEST_EVIDENCE.json'),JSON.stringify({cluster,checks,operatingContainersUnchanged:await snapshot(existing)===before,qr:'Mock only; not bank verification'},null,2)+'\n');
  for(const id of containers.reverse()){const x=JSON.parse(await docker(['inspect',id]))[0];assert.equal(x.Config.Labels['aicos.purpose'],purpose);assert.deepEqual(Object.keys(x.NetworkSettings.Networks),[network]);await docker(['rm','-f',id]);}
  if((await docker(['network','ls','--filter','name=^'+network+'$','-q'])))await docker(['network','rm',network]);
  console.log('Removed only this run test containers/network; no operating volume touched. Temporary build files contain no credentials.');

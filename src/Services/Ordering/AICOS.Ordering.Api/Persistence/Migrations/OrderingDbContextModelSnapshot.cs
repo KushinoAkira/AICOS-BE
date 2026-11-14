@@ -863,6 +863,82 @@ namespace AICOS.Ordering.Api.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("AICOS.Ordering.Api.Features.Qr.TableTransferOperation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_id");
+
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("branch_id");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<string>("OrderIdsJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("order_ids_json");
+
+                    b.Property<string>("RequestHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("request_hash");
+
+                    b.Property<Guid>("SessionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("session_id");
+
+                    b.Property<Guid>("SourceTableId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("source_table_id");
+
+                    b.Property<DateTime?>("SyncedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("synced_at_utc");
+
+                    b.Property<string>("TargetCode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("target_code");
+
+                    b.Property<Guid>("TargetTableId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("target_table_id");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<long>("Version")
+                        .HasColumnType("bigint")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id")
+                        .HasName("pk_table_transfer_operations");
+
+                    b.HasIndex("CreatedAtUtc")
+                        .HasDatabaseName("ix_table_transfer_operations_created_at_utc")
+                        .HasFilter("synced_at_utc IS NULL");
+
+                    b.HasIndex("SessionId")
+                        .HasDatabaseName("ix_table_transfer_operations_session_id");
+
+                    b.HasIndex("TenantId", "SessionId", "Version")
+                        .IsUnique()
+                        .HasDatabaseName("ix_table_transfer_operations_tenant_id_session_id_version");
+
+                    b.ToTable("table_transfer_operations", "ordering");
+                });
+
             modelBuilder.Entity("AICOS.Ordering.Api.Features.SessionBilling.SessionCheckout", b =>
                 {
                     b.Property<Guid>("SessionId")
@@ -957,6 +1033,16 @@ namespace AICOS.Ordering.Api.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_order_fulfillment_projection_orders_order_id");
+                });
+
+            modelBuilder.Entity("AICOS.Ordering.Api.Features.Qr.TableTransferOperation", b =>
+                {
+                    b.HasOne("AICOS.Ordering.Api.Domain.TableSession", null)
+                        .WithMany()
+                        .HasForeignKey("SessionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_table_transfer_operations_table_sessions_session_id");
                 });
 
             modelBuilder.Entity("AICOS.Ordering.Api.Domain.Entities.Order", b =>

@@ -1,3 +1,4 @@
+using AICOS.Payments.Api.Features.CashierShifts;
 using System.Text.Json;
 using AICOS.BuildingBlocks.Exceptions;
 using AICOS.BuildingBlocks.Security;
@@ -99,7 +100,7 @@ public sealed class BillLedgerService(PaymentsDbContext db, IBillOrderingClient 
                 Tendered = method == "Cash" ? request.AmountTendered : null, TransactionRef = "BILL" + stableAttemptId.ToString("N"), CreatedAtUtc = Now };
             db.BillAttempts.Add(attempt);
             AddJournal(bill, "ATTEMPT", new { attempt.Id, method, actor }, Now);
-            if (method == "Cash") MarkPaid(bill, attempt, null, Now);
+            if (method == "Cash") await MarkPaidAsync(bill, attempt, null, Now, ct);
             await db.SaveChangesAsync(ct);
             return (Attempt: attempt, Created: true);
         }, ct, keyHash);
@@ -155,7 +156,7 @@ public sealed class BillLedgerService(PaymentsDbContext db, IBillOrderingClient 
     internal void AddJournal(SessionBill bill, string kind, object payload, DateTime now, Guid? id = null) =>
         db.BillJournal.Add(new BillJournal { Id = id ?? Guid.NewGuid(), BillId = bill.Id, Kind = kind, Payload = JsonSerializer.Serialize(payload),
             CreatedAtUtc = now, NextAttemptAtUtc = now, DeliveredAtUtc = kind == "PAID" ? null : now });
-    internal void MarkPaid(SessionBill bill, BillAttempt attempt, string? reference, DateTime now)
+    internal async Task MarkPaidAsync(SessionBill bill, BillAttempt attempt, string? reference, DateTime now, CancellationToken ct)
     {
         if (attempt.Status == "SUCCEEDED") return;
         attempt.Status = "SUCCEEDED"; attempt.PaidAtUtc = now; attempt.ProviderReference = reference;
@@ -164,6 +165,7 @@ public sealed class BillLedgerService(PaymentsDbContext db, IBillOrderingClient 
             bill.NeedsReconciliation = true; bill.Version++;
             AddJournal(bill, "DUPLICATE_RECEIPT", new { attempt.Id, reference }, now); return;
         }
+        await CashierLedger.CaptureAsync(db,new(attempt.Id,bill.TenantId,bill.BranchId,bill.Id,null,attempt.Method == "Cash" ? attempt.CreatedByUserId : null,null,attempt.Method,attempt.Amount,now,attempt.TransactionRef),ct);
         bill.Status = "PAID"; bill.PaidPaymentId = attempt.Id; bill.PaidAtUtc = now; bill.Version++;
         AddJournal(bill, "PAID", new BillPaidNotice(bill.TenantId, bill.BranchId, bill.SessionId, bill.Id, bill.Fingerprint, attempt.Id, attempt.Method, now), now, attempt.Id);
     }

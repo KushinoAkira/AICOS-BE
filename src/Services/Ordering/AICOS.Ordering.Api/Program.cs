@@ -34,6 +34,10 @@ builder.Services.AddAicosServiceClient<IBillSettlementClient, HttpBillSettlement
 builder.AddKitchenAdmission();
 AICOS.Ordering.Api.Features.Fulfillment.FulfillmentEndpoints.AddFulfillment(builder);
 builder.Services.AddScoped<OrderEventPublisher>();
+builder.Services.AddScoped<DurableTableTransferService>();
+builder.Services.AddScoped<TableTransferDispatcher>();
+builder.Services.AddHttpClient("table-transfer");
+builder.Services.AddHostedService<TableTransferWorker>();
 
 // Real-time channel for customers (a guest at a table and signed-in members) in place of polling. Several instances would need a Redis backplane.
 builder.Services.AddSignalR();
@@ -68,6 +72,7 @@ api.MapPickupSlotEndpoints();
 api.MapPickupOrderEndpoints();
 api.MapOrderingEndpoints();
 api.MapTableTransferEndpoints();
+api.MapTransferHistory();
 api.MapQrOrderEndpoints();
 app.MapSessionBilling(api);
 

@@ -1,3 +1,4 @@
+import {runOperationsFlow} from './table-transfer-split-flow.mjs';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import http from 'node:http';
@@ -10,7 +11,7 @@ export async function runFlow(c){
   if(expected!==undefined)assert.equal(response.status,expected,method+' '+url+' HTTP '+response.status+' '+(data?.code??data?.title??''));
   return {status:response.status,data};
  }
- const login=async(email)=>(await request('POST','/api/v1/identity/auth/login',null,{login:email,password:userPassword},null,200)).data.accessToken;
+ const login=async(email,password=userPassword)=>(await request('POST','/api/v1/identity/auth/login',null,{login:email,password},null,200)).data.accessToken;
  const superToken=await login('admin@billstack.invalid');
  const stamp=crypto.randomBytes(4).toString('hex');
  const tenant=(await request('POST','/api/v1/identity/tenants',superToken,{name:'Isolated Bill '+stamp,code:'billtest-'+stamp,firstAdmin:{fullName:'Test Owner',email:'owner@billstack.invalid',password:userPassword}},null,201)).data;
@@ -19,7 +20,11 @@ export async function runFlow(c){
  await request('POST','/api/v1/identity/tenants/'+tenant.id+'/subscription',superToken,{planId:plan.id},null,201);
  const branch=(await request('POST','/api/v1/identity/branches',owner,{name:'Test Branch',address:'Test only',phone:'0900000001',openingTime:'00:00:00',closingTime:'23:59:00'},null,201)).data;
  for(const [name,role] of [['cashier','Cashier'],['cashier2','Cashier'],['barista','Barista']])await request('POST','/api/v1/identity/users',owner,{fullName:'Test '+name,email:name+'@billstack.invalid',username:name,password:userPassword,role,branchId:branch.id},null,201);
- const cashier=await login('cashier@billstack.invalid'),cashier2=await login('cashier2@billstack.invalid'),barista=await login('barista@billstack.invalid');report('Real Identity login and scoped Cashier/Barista accounts through Gateway');
+ const staffPassword=userPassword+'-Changed1!';
+ for(const name of ['cashier','cashier2','barista']){const token=await login(name+'@billstack.invalid');await request('POST','/api/v1/identity/auth/change-password',token,{currentPassword:userPassword,newPassword:staffPassword,confirmNewPassword:staffPassword},null,204);}
+ const cashier=await login('cashier@billstack.invalid',staffPassword),cashier2=await login('cashier2@billstack.invalid',staffPassword),barista=await login('barista@billstack.invalid',staffPassword);report('Real Identity login and scoped Cashier/Barista accounts through Gateway');
+ let moneyShift;
+ if(c.cashierMode){moneyShift=(await request('POST','/api/v1/payments/cashier-shifts',cashier,{branchId:branch.id,openingCash:100000,note:'Test drawer'},'open-test-drawer',200)).data;await request('POST','/api/v1/payments/cashier-shifts',cashier,{branchId:branch.id,openingCash:0},'second-open-request',409);report('Money shift opens without attendance; second open request conflicts');}
  await request('GET','/api/v1/payments/bills?sessionId='+crypto.randomUUID(),null,null,null,401);
  const category=(await request('POST','/api/v1/menu/categories',owner,{name:'Test Coffee'},null,201)).data;
  const product=(await request('POST','/api/v1/menu/products',owner,{categoryId:category.id,name:'Bill Test Latte',basePrice:35000},null,201)).data;
@@ -45,7 +50,7 @@ export async function runFlow(c){
  const replay=await collect(draft,cashier,cashKey);assert.equal(replay.status,200);assert.equal(replay.data.payment.id,paid.payment.id);report('Lost HTTP response after committed Cash; GET and same-key retry recover one payment');
  await request('POST','/api/v1/orders',cashier,orderBody(s),'paid-new-'+crypto.randomUUID(),409);
  const blocked=(await request('GET','/api/v1/orders/qr/sessions/'+s.session+'/close-eligibility',cashier,null,null,200)).data;assert.equal(blocked.canClose,false);await request('POST','/api/v1/orders/qr/sessions/'+s.session+'/close',cashier,{},null,409);report('PAID forbids Add Order and cannot close before serving');
- const mobile=await run('cmd.exe',['/d','/s','/c','C:/src/flutter/bin/flutter.bat test test/session_bill_live_stack_test.dart --dart-define=AICOS_MAIN_API=false --reporter expanded'],{cwd:path.resolve(root,'../AICOS-Mobile'),env:{AICOS_BILL_STACK_URL:base,AICOS_BILL_STACK_LOGIN:'cashier@billstack.invalid',AICOS_BILL_STACK_PASSWORD:userPassword,AICOS_BILL_STACK_BRANCH:branch.id,AICOS_BILL_STACK_TABLE:s.table.id,AICOS_BILL_STACK_SESSION:s.session}});assert.match(mobile.out,/All tests passed/);report('Flutter real HTTP login/repositories and Session Bill screen show verified PAID');
+ const mobile=await run('cmd.exe',['/d','/s','/c','C:/src/flutter/bin/flutter.bat test test/session_bill_live_stack_test.dart --dart-define=AICOS_MAIN_API=false --reporter expanded'],{cwd:path.resolve(root,'../AICOS-Mobile'),env:{AICOS_BILL_STACK_URL:base,AICOS_BILL_STACK_LOGIN:'cashier@billstack.invalid',AICOS_BILL_STACK_PASSWORD:staffPassword,AICOS_BILL_STACK_BRANCH:branch.id,AICOS_BILL_STACK_TABLE:s.table.id,AICOS_BILL_STACK_SESSION:s.session}});assert.match(mobile.out,/All tests passed/);report('Flutter real HTTP login/repositories and Session Bill screen show verified PAID');
  async function serve(order){
   let t=await until(async()=>(await queue()).find(x=>x.orderId===order.id),'ticket '+order.id,75);
   for(const status of ['Brewing','ReadyForPickup']){const previous=t.status;const result=await request('PUT','/api/v1/kitchen/tickets/'+t.id+'/status',barista,{status,expectedStatus:previous,expectedRemakeCount:t.remakeCount},null,200);t=result.data;}
@@ -73,7 +78,23 @@ export async function runFlow(c){
  const received=await sql(databases.payment,"SELECT COALESCE(sum(total),0) FROM payment.session_bills WHERE status IN ('PAID','CLOSED');");
  const drawer=await sql(databases.workforce,'SELECT COALESCE(sum(amount),0) FROM workforce.cash_transactions;');
  assert.ok(Number(received)>0);assert.equal(reportView.totals.grossRevenue,0);assert.equal(Number(drawer),0);
- c.checks.push({name:'Reporting and cash-shift reconciliation',status:'BLOCKED',evidence:{paidBillTotal:Number(received),reportedGrossRevenue:reportView.totals.grossRevenue,cashShiftLedger:Number(drawer),reason:'Existing consumers require per-order PaymentSucceeded/CashPaymentRecorded contracts; no approved Bill allocation/refund/shift contract.'}});
- console.log('BLOCKED Reporting/shift ledger omit Bill receipts; no revenue allocation policy fabricated.');
+ if(c.cashierMode){
+  const read=async()=>(await request('GET','/api/v1/reporting/collections?branchId='+branch.id,cashier,null,null,200)).data;
+  await until(async()=>Number((await read()).confirmedCollected)===Number(received),'Bill collections reach Reporting',90);
+  const r=await read();assert.equal(r.netSales,null);assert.equal(r.transactions,r.rows.length);report('Confirmed Bill collections now match Payments ledger; no fake per-order/net-sales revenue');
+  await sql(databases.payment,'UPDATE payment.collection_outbox SET delivered_at_utc=NULL;');await docker(['restart',serviceIds.payment]);await docker(['restart',serviceIds.reporting]);await docker(['restart',redis]);
+  await until(async()=>Number(await sql(databases.payment,'SELECT count(*) FROM payment.collection_outbox WHERE delivered_at_utc IS NULL;'))===0,'duplicate outbox ACKs after restart',90);assert.equal((await read()).confirmedCollected,r.confirmedCollected);report('Lost ACK replay after Payments/Reporting/Redis restart does not double count');
+  const id=moneyShift.id,shift=(await request('GET','/api/v1/payments/cashier-shifts/'+id,cashier,null,null,200)).data;
+  assert.equal(shift.qrCollected,null);assert.equal(shift.expectedCash,100000+shift.cashCollected);assert.equal(shift.canClose,true);
+  const closing={version:shift.version,countedCash:shift.expectedCash,note:'Matched isolated count'};
+  const closes=await Promise.all([request('POST','/api/v1/payments/cashier-shifts/'+id+'/close',cashier,closing),request('POST','/api/v1/payments/cashier-shifts/'+id+'/close',cashier,closing)]);assert.ok(closes.every(x=>x.status===200));
+  await request('POST','/api/v1/payments/cashier-shifts/'+id+'/close',cashier,{...closing,countedCash:1},null,409);await request('GET','/api/v1/payments/cashier-shifts/'+id,cashier2,null,null,403);
+  const history=(await request('GET','/api/v1/payments/cashier-shifts?branchId='+branch.id+'&status=CLOSED',cashier,null,null,200)).data;assert.ok(history.some(x=>x.id===id));report('Cash drawer counts reconcile, parallel close is idempotent, closed history immutable and foreign cashier denied');
+  c.checks.push({name:'Gross/net sales and refund/manager allocation policy',status:'BLOCKED',evidence:{confirmedCollections:r.confirmedCollected,legacyGross:reportView.totals.grossRevenue,reason:'Collections are fixed; net sales/refund allocation and manager approval policy remain distinct and are not fabricated.'}});
+ }else{
+  c.checks.push({name:'Reporting and cash-shift reconciliation',status:'BLOCKED',evidence:{paidBillTotal:Number(received),reportedGrossRevenue:reportView.totals.grossRevenue,cashShiftLedger:Number(drawer),reason:'CashierShifts feature disabled.'}});
+  console.log('BLOCKED Reporting/shift feature disabled in baseline stack.');
+ }
+ if(c.operationsMode)await runOperationsFlow({...c,request,open,add,bill,cashier,cashier2,barista,owner,branch,area,product});
  const money=await sql(databases.payment,"SELECT count(*) FROM payment.session_bills b JOIN payment.session_bill_attempts a ON a.id=b.paid_payment_id WHERE b.status IN ('PAID','CLOSED') AND (a.status<>'SUCCEEDED' OR a.amount<>b.total);");assert.equal(money,'0');report('No PAID Bill lacks matching SUCCEEDED amount proof');
 }

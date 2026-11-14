@@ -12,6 +12,7 @@ namespace AICOS.Ordering.Api.Persistence;
 
 public sealed class OrderingDbContext(DbContextOptions<OrderingDbContext> options, IConfiguration? configuration = null, TimeProvider? clock = null) : AicosDbContext(options)
 {
+    public DbSet<AICOS.Ordering.Api.Features.Qr.TableTransferOperation> TableTransfers => Set<AICOS.Ordering.Api.Features.Qr.TableTransferOperation>();
     internal bool BillEnabled => configuration?.GetValue<bool>("SessionBilling:Enabled") == true;
     public DbSet<SessionCheckout> SessionCheckouts => Set<SessionCheckout>();
     public DbSet<AdmissionOutbox> AdmissionOutbox => Set<AdmissionOutbox>();

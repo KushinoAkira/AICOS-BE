@@ -109,6 +109,52 @@ namespace AICOS.ReportingAnalytics.Api.Persistence.Migrations
                             t.HasCheckConstraint("ck_order_facts_amounts", "total_amount >= 0 AND paid_amount >= 0 AND refunded_amount >= 0");
                         });
                 });
+
+            modelBuilder.Entity("AICOS.ReportingAnalytics.Api.Features.Reports.CollectionFact", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18)
+                        .HasColumnType("numeric(18,0)")
+                        .HasColumnName("amount");
+
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("branch_id");
+
+                    b.Property<string>("Method")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("method");
+
+                    b.Property<DateTime>("PaidAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("paid_at_utc");
+
+                    b.Property<string>("Payload")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("payload");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_collection_facts");
+
+                    b.HasIndex("TenantId", "BranchId", "PaidAtUtc")
+                        .HasDatabaseName("ix_collection_facts_tenant_id_branch_id_paid_at_utc");
+
+                    b.ToTable("collection_facts", "reporting", t =>
+                        {
+                            t.HasCheckConstraint("ck_collection_fact_amount", "amount > 0");
+                        });
+                });
 #pragma warning restore 612, 618
         }
     }

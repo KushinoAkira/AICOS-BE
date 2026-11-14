@@ -44,7 +44,7 @@ public sealed class BillWebhookReceiver(PaymentsDbContext db, BillLedgerService 
                 bill.NeedsReconciliation = true; bill.Version++;
                 ledger.AddJournal(bill, "AMOUNT_MISMATCH", new { row.Id, request.Amount, Expected = row.Amount }, now);
             }
-            else if (request.Status == "success") ledger.MarkPaid(bill, row, request.EventId, now);
+            else if (request.Status == "success") await ledger.MarkPaidAsync(bill, row, request.EventId, now, ct);
             else if (row.Status == "PENDING") row.Status = "FAILED";
             db.BillJournal.Add(new BillJournal { Id = receiptId, BillId = bill.Id, Kind = "PROVIDER_RECEIPT", Payload = payload,
                 CreatedAtUtc = now, DeliveredAtUtc = now, NextAttemptAtUtc = now });

@@ -1,3 +1,4 @@
+using AICOS.Payments.Api.Features.CashierShifts;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
@@ -60,6 +61,7 @@ internal static class CashCollection
             prepared ??= new Payment(tenant, branch, request.OrderId.Value, request.Amount.Value, Payment.CashMethod, description);
             prepared.RecordCash(cashier, processor.UtcNow);
             db.Payments.Add(prepared);
+            await CashierLedger.CaptureAsync(db,new(prepared.Id,tenant,branch,null,prepared.OrderId,cashier,null,"Cash",prepared.Amount,prepared.PaidAtUtc!.Value,prepared.TransactionRef),ct);
             await db.SaveChangesAsync(ct);
             return (Payment: prepared, Replay: false);
         }, ct);

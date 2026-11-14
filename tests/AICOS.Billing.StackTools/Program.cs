@@ -20,6 +20,7 @@ using AICOS.ReportingAnalytics.Api.Persistence;
 using AICOS.WorkforceScheduling.Api.Persistence;
 
 static DbContextOptions<T> Options<T>(string schema,string connection) where T:DbContext => new DbContextOptionsBuilder<T>().UseNpgsql(connection,p=>p.MigrationsHistoryTable("__ef_migrations_history",schema)).UseSnakeCaseNamingConvention().Options;
+if (await ItemTransferDesignProbe.TryRunAsync(args)) return;
 const string offline="Host=127.0.0.1;Port=1;Database=offline;Username=offline;Timeout=1";
 if(args is ["scripts",var path])
 {
@@ -43,6 +44,16 @@ if(args is ["scripts",var path])
     File.WriteAllText(Path.Combine(path,"kitchen.barista.sql"),kitchen.GetService<IMigrator>().GenerateScript("20261108121518_KitchenEarlyPayments","20261114041318_KitchenBaristaWorkflow"));
     File.WriteAllText(Path.Combine(path,"kitchen.barista.down.sql"),kitchen.GetService<IMigrator>().GenerateScript("20261114041318_KitchenBaristaWorkflow","20261108121518_KitchenEarlyPayments"));
     File.WriteAllText(Path.Combine(path,"kitchen.pre-barista.sql"),kitchen.GetService<IMigrator>().GenerateScript("0","20261108121518_KitchenEarlyPayments"));
+    File.WriteAllText(Path.Combine(path,"payment.cashier.sql"),payment.GetService<IMigrator>().GenerateScript("20261113125804_PaymentSessionBills","20261114125030_CashierMoneyShifts"));
+    File.WriteAllText(Path.Combine(path,"payment.cashier.down.sql"),payment.GetService<IMigrator>().GenerateScript("20261114125030_CashierMoneyShifts","20261113125804_PaymentSessionBills"));
+    File.WriteAllText(Path.Combine(path,"reporting.cashier.sql"),reporting.GetService<IMigrator>().GenerateScript("20261021151155_OrderFacts","20261114125038_ConfirmedCollectionInbox"));
+    File.WriteAllText(Path.Combine(path,"reporting.cashier.down.sql"),reporting.GetService<IMigrator>().GenerateScript("20261114125038_ConfirmedCollectionInbox","20261021151155_OrderFacts"));
+    File.WriteAllText(Path.Combine(path,"ordering.operations.sql"),order.GetService<IMigrator>().GenerateScript("20261113125751_OrderingSessionCheckout","20261114164841_DurableTableTransfer"));
+    File.WriteAllText(Path.Combine(path,"ordering.operations.down.sql"),order.GetService<IMigrator>().GenerateScript("20261114164841_DurableTableTransfer","20261113125751_OrderingSessionCheckout"));
+    File.WriteAllText(Path.Combine(path,"payment.operations.sql"),payment.GetService<IMigrator>().GenerateScript("20261114125030_CashierMoneyShifts","20261114164856_BillSplitPlans"));
+    File.WriteAllText(Path.Combine(path,"payment.operations.down.sql"),payment.GetService<IMigrator>().GenerateScript("20261114164856_BillSplitPlans","20261114125030_CashierMoneyShifts"));
+    File.WriteAllText(Path.Combine(path,"kitchen.operations.sql"),kitchen.GetService<IMigrator>().GenerateScript("20261114041318_KitchenBaristaWorkflow","20261114164849_TableTransferRoutingVersion"));
+    File.WriteAllText(Path.Combine(path,"kitchen.operations.down.sql"),kitchen.GetService<IMigrator>().GenerateScript("20261114164849_TableTransferRoutingVersion","20261114041318_KitchenBaristaWorkflow"));
     File.WriteAllText(Path.Combine(path,"schema.json"),JsonSerializer.Serialize(models));
     Console.WriteLine("Offline baseline scripts generated; no database connection.");
     return;

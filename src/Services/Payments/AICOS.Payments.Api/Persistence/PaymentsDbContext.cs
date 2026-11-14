@@ -1,3 +1,4 @@
+using AICOS.Payments.Api.Features.CashierShifts;
 using AICOS.Payments.Api.Features.SessionBilling;
 using AICOS.BuildingBlocks.Persistence;
 using AICOS.Payments.Api.Domain;
@@ -8,6 +9,11 @@ namespace AICOS.Payments.Api.Persistence;
 
 public sealed class PaymentsDbContext(DbContextOptions<PaymentsDbContext> options, IConfiguration? configuration = null) : AicosDbContext(options)
 {
+    public bool CashierEnabled => configuration?.GetValue<bool>("CashierShifts:Enabled") == true;
+    public DbSet<CashierShift> CashierShifts => Set<CashierShift>();
+    public DbSet<CollectionOutbox> Collections => Set<CollectionOutbox>();
+    public DbSet<AICOS.Payments.Api.Features.SplitBilling.SplitPlan> SplitPlans => Set<AICOS.Payments.Api.Features.SplitBilling.SplitPlan>();
+    public DbSet<AICOS.Payments.Api.Features.SplitBilling.SplitPlanOperation> SplitOperations => Set<AICOS.Payments.Api.Features.SplitBilling.SplitPlanOperation>();
     internal bool BillEnabled => configuration?.GetValue<bool>("SessionBilling:Enabled") == true;
     public DbSet<SessionBill> SessionBills => Set<SessionBill>();
     public DbSet<SessionBillOrder> SessionBillOrders => Set<SessionBillOrder>();

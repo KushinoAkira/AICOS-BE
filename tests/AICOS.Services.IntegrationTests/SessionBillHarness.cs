@@ -36,6 +36,9 @@ public sealed class SessionBillHarness : IDisposable
     public Guid Session, Table, Product;
     public string Qr = "";
     public bool LosePaidAck, KitchenOffline;
+    public bool EnableCashierShifts;
+    public bool EnableSplitBill, EnableTableTransfer;
+    public string AddTransferTarget(string code) => _tables.Add(Tenant,Branch,code);
     public AICOS.Payments.Api.Infrastructure.IPaymentGateway? TestGateway;
     private string? _connection;
     public Func<Task>? BeforeFreeze;
@@ -44,6 +47,12 @@ public sealed class SessionBillHarness : IDisposable
     public IReadOnlyDictionary<string, string?> Settings => new Dictionary<string, string?>
     {
         ["Database:MigrateOnStartup"] = "false",
+        ["CashierShifts:Enabled"] = EnableCashierShifts.ToString(),
+        ["CashierShifts:DispatcherEnabled"] = "false",
+        ["SplitBill:Enabled"] = EnableSplitBill.ToString(),
+        ["TableTransfer:Enabled"] = EnableTableTransfer.ToString(),
+        ["TableTransfer:MachineKey"] = MachineKey,
+        ["TableTransfer:DispatcherEnabled"] = "false",
         ["SessionBilling:Enabled"] = "true",
         ["SessionBilling:MachineKey"] = MachineKey,
         ["SessionBilling:AllowTestProviders"] = "true",
@@ -61,6 +70,7 @@ public sealed class SessionBillHarness : IDisposable
         Ordering = new(services =>
         {
             services.RemoveAll<IMenuCatalogClient>(); services.AddSingleton<IMenuCatalogClient>(_menu);
+            if(EnableTableTransfer)services.AddHttpClient("table-transfer").ConfigurePrimaryHttpMessageHandler(()=>new TransferBridge(this));
             services.RemoveAll<ITableQrClient>(); services.AddSingleton<ITableQrClient>(_tables);
             services.RemoveAll<IBillSettlementClient>(); services.AddSingleton<IBillSettlementClient>(new SettlementBridge(this)); NoTimers(services);
         }, connection, settings: Settings, environmentName: "Development");
@@ -221,4 +231,15 @@ public sealed class SessionBillHarness : IDisposable
         }
     }
     public void Dispose() { Cashier?.Dispose(); OrderCashier?.Dispose(); Payments?.Dispose(); Kitchen?.Dispose(); Ordering?.Dispose(); }
+
+    private sealed class TransferBridge(SessionBillHarness h):HttpMessageHandler
+    {
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,CancellationToken ct)
+        {
+            if(h.KitchenOffline)throw new HttpRequestException("Test Kitchen offline");
+            using var client=h.Kitchen.CreateClient();client.DefaultRequestHeaders.Add(TableTransferMachineAuth.Header,h.MachineKey);
+            var body=await request.Content!.ReadFromJsonAsync<AICOS.Contracts.Events.DurableTableTransfer>(cancellationToken:ct);
+            return await client.PostAsJsonAsync("/internal/table-transfers",body,ct);
+        }
+    }
 }

@@ -30,5 +30,6 @@ app.UseAicosServiceDefaults();
 
 var api = app.MapAicosApiGroup();
 api.MapReportEndpoints();
+app.MapCollections(api);
 
 await app.RunAsync();

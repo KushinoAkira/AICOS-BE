@@ -49,6 +49,7 @@ await app.MigrateDatabaseAsync<KitchenOperationsDbContext>();
 app.UseAicosServiceDefaults();
 app.MapKitchenBillPaid();
 app.MapKitchenAdmission();
+app.MapTableTransferReceiver();
 AICOS.KitchenOperations.Api.Features.CupServing.CupServingEndpoints.MapCupServing(app);
 
 app.MapHub<KitchenHub>("/hubs/kitchen");
