@@ -70,6 +70,7 @@ try{
   const db=databases[schema],table=schema==='ordering'?'table_sessions':'payment_providers';sampleBefore[schema]=await sql(db,'SELECT md5(string_agg(row_to_json(t)::text,chr(124) ORDER BY id)) FROM '+schema+'.'+table+' t;');
   await docker(['exec',pg,'pg_dump','-U','bill_stack_admin','-Fc','-d',db,'-f','/tmp/'+schema+'-before.dump']);
   await sql(db,await script('00_preflight.READ_ONLY.sql'),{schema});await sql(db,await script(schema==='ordering'?'01_ordering_expand.sql':'02_payments_expand.sql'),{schema,approval:'expand'});
+  await sql(db,await fs.readFile(path.join(baselines,schema+'.post.sql'),'utf8'));
   assert.equal(await sql(db,'SELECT md5(string_agg(row_to_json(t)::text,chr(124) ORDER BY id)) FROM '+schema+'.'+table+' t;'),sampleBefore[schema]);
   await sql(db,await script(schema==='ordering'?'01_ordering_expand.sql':'02_payments_expand.sql'),{schema,approval:'expand',deny:true});
   await sql(db,await script('03_service_grants.PROPOSAL.sql'),{schema,approval:'grants'});
@@ -81,6 +82,7 @@ try{
   await docker(['exec',pg,'pg_restore','-U','bill_stack_admin','-d',clone,'/tmp/'+schema+'-before.dump']);
   assert.equal(await sql(clone,'SELECT md5(string_agg(row_to_json(t)::text,chr(124) ORDER BY id)) FROM '+schema+'.'+table+' t;'),sampleBefore[schema]);
   await sql(clone,await script(schema==='ordering'?'01_ordering_expand.sql':'02_payments_expand.sql'),{schema,approval:'expand'});
+  await sql(clone,await fs.readFile(path.join(baselines,schema+'.post.sql'),'utf8'));
   await sql(clone,await script(schema==='ordering'?'91_ordering_rollback.sql':'90_payments_rollback.sql'),{schema,approval:'rollback'});
   assert.equal(await sql(clone,'SELECT md5(string_agg(row_to_json(t)::text,chr(124) ORDER BY id)) FROM '+schema+'.'+table+' t;'),sampleBefore[schema]);
   await sql(clone,await script(schema==='ordering'?'01_ordering_expand.sql':'02_payments_expand.sql'),{schema,approval:'expand'});

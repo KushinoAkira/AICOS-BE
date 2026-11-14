@@ -32,6 +32,8 @@ if(args is ["scripts",var path])
     foreach(var (name,db,to) in new (string,DbContext,string?)[]{("reporting",reporting,null),("workforce",workforce,null),("identity",identity,null),("menu",menu,null),("table_reservation",table,null),("ordering",order,"20261106183340_OrderingCupFulfillmentFoundation"),("kitchen",kitchen,null),("payment",payment,"20261021102642_ConstraintsAndIndexes")})
     {
         File.WriteAllText(Path.Combine(path,name+".sql"),db.GetService<IMigrator>().GenerateScript("0",to));
+        if (name is "ordering" or "payment")
+            File.WriteAllText(Path.Combine(path,name+".post.sql"),db.GetService<IMigrator>().GenerateScript(name=="ordering"?"20261113125751_OrderingSessionCheckout":"20261113125804_PaymentSessionBills",null));
         models[name]=db.Model.GetRelationalModel().Tables.SelectMany(t=>t.Columns.Select(c=>new{table=t.Name,name=c.Name,type=c.StoreType,nullable=c.IsNullable})).ToArray();
     }
     File.WriteAllText(Path.Combine(path,"schema.json"),JsonSerializer.Serialize(models));

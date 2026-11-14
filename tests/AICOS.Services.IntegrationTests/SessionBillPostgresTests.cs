@@ -77,14 +77,16 @@ public sealed class SessionBillPostgresTests : IAsyncLifetime
         {
             var db = s.ServiceProvider.GetRequiredService<PaymentsDbContext>(); var applied = (await db.Database.GetAppliedMigrationsAsync()).ToArray();
             (await db.SessionBills.CountAsync()).Should().Be(0, "rollback runs separately before financial fixtures");
-            await db.GetService<IMigrator>().MigrateAsync(applied[^2]); await db.Database.MigrateAsync();
+            await db.Database.ExecuteSqlRawAsync(db.GetService<IMigrator>().GenerateScript("20261113125804_PaymentSessionBills", "20261021102642_ConstraintsAndIndexes")); await db.Database.MigrateAsync();
+            (await db.Database.GetAppliedMigrationsAsync()).Should().Equal(applied);
         }
         using (var s = _h.Ordering.Services.CreateScope())
         {
             var db = s.ServiceProvider.GetRequiredService<OrderingDbContext>(); var applied = (await db.Database.GetAppliedMigrationsAsync()).ToArray();
-            await db.GetService<IMigrator>().MigrateAsync(applied[^2]);
+            await db.Database.ExecuteSqlRawAsync(db.GetService<IMigrator>().GenerateScript("20261113125751_OrderingSessionCheckout", "20261106183340_OrderingCupFulfillmentFoundation"));
             (await db.TableSessions.CountAsync(x => x.Id == _h.Session)).Should().Be(1);
             await db.Database.MigrateAsync();
+            (await db.Database.GetAppliedMigrationsAsync()).Should().Equal(applied);
         }
     }
 }

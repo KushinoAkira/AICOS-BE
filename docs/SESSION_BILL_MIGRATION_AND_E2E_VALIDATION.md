@@ -14,7 +14,7 @@ Date: 2026-11-14. No operating database/secret/feature, container or volume was 
 | Reporting / cashier shift reconciliation | BLOCKED (financial acceptance not met) | Paid Bill total 210000 VND, Reporting gross 0, Workforce cash ledger 0; new receipt contract absent |
 | Real bank QR / physical device/printer | NOT RUN | Mock callback only, no bank verification or physical device claim |
 
-Machine-readable final evidence: [SESSION_BILL_STACK_TEST_EVIDENCE.json](SESSION_BILL_STACK_TEST_EVIDENCE.json). Final test cluster: 7707724615668207657. Scratch containers/network were removed after checks. All preexisting container IDs, image IDs, start times, statuses and restart counters are unchanged, including the stopped operating stack and old Gate D cluster.
+Machine-readable final evidence: [SESSION_BILL_STACK_TEST_EVIDENCE.json](SESSION_BILL_STACK_TEST_EVIDENCE.json). Final test cluster: 7707732407153684522. Scratch containers/network were removed after checks. All preexisting container IDs, image IDs, start times, statuses and restart counters are unchanged, including the stopped operating stack and old Gate D cluster.
 
 ## Isolation and execution
 
@@ -85,7 +85,7 @@ Before implementing the adapter, approve a Bill receipt contract containing stab
 
 | Run | PASS | FAIL | SKIP / BLOCKED |
 | --- | ---: | ---: | --- |
-| Backend regression | 526 | 0 | 51 SKIP / 577 total |
+| Backend regression after current main integration | 532 | 0 | 51 SKIP / 583 total |
 | Related Tracking/Closing/Bill subset | 33 | 0 | 0 (subset, not extra cases) |
 | Isolated PostgreSQL Bill suite | 7 | 0 | 0; 1 rollback + 5 financial + 1 controlled projection race |
 | Isolated stack acceptance | 28 groups | 0 | 1 Reporting/shift BLOCKED |
@@ -107,4 +107,10 @@ Commands executed: dotnet test tests/AICOS.Services.IntegrationTests/AICOS.Servi
 - docs/SESSION_BILL_STACK_TEST_EVIDENCE.json, this report and SESSION_BILL_IMPLEMENTATION.md: evidence and scope/limits.
 - AICOS-Mobile/test/session_bill_live_stack_test.dart, docs/IMPLEMENTATION_LOG.md and docs/SESSION_BILL_INTEGRATION.md: opt-in actual Gateway/PAID UI test and results. No production Mobile UI/configuration changed.
 
-No additional migration was required for the race fix. The two existing proposed Bill migrations, SQL contents and SHA256SUMS remain unchanged in this task. Formatting and git diff whitespace checks completed. The two preexisting Backend compiler warnings (WorkforceReviewTests CS0628 and OrderTests CS8620) are unrelated; no new compilation error remains.
+No additional migration was required for the race fix. The two existing proposed Bill migrations, SQL contents and SHA256SUMS remain unchanged in this task. Formatting and git diff whitespace checks completed. Existing compiler warnings are recorded in test logs; no compilation error remains.
+
+## Revalidation before push after newer main integration
+
+Integrated origin/main 5a4792a (seven newer commits) without source conflicts; only the unpublished local commit was replayed. New upstream Feedback follows the Bill migration, so the test exporter now applies later main migration deltas only inside scratch databases after the reviewed Bill expansion. Rollback tests target the exact Bill migration instead of assuming the last migration is Bill, and assert the complete migration-history set is restored. Unrelated newer migrations remain applied. The reviewed Bill SQL/checksums and operating configuration are unchanged.
+
+Revalidation: Services integration **532 PASS / 51 SKIP**, Identity **203 PASS / 0 SKIP**, PostgreSQL Bill **7/7 PASS**, isolated full stack **28 PASS groups / 1 Reporting BLOCKED**, including the live Flutter HTTP test. This was test-only validation; no operating database or container was changed.
