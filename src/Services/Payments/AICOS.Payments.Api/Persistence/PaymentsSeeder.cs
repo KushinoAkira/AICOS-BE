@@ -61,6 +61,26 @@ public static class PaymentsSeeder
             }
         }
 
+        // ZaloPay: the same, with app id, key1 and key2.
+        var zalo = scope.ServiceProvider.GetRequiredService<IOptions<ZaloPayOptions>>().Value;
+        if (!string.IsNullOrWhiteSpace(zalo.AppId) && !string.IsNullOrWhiteSpace(zalo.Key1) && !string.IsNullOrWhiteSpace(zalo.Key2))
+        {
+            var protector = scope.ServiceProvider.GetRequiredService<SecretProtector>();
+            var provider = await db.PaymentProviders.FirstOrDefaultAsync(p => p.Code == ZaloPay.Code);
+            if (provider is null)
+            {
+                provider = new PaymentProvider(ZaloPay.Code, "ZaloPay", ProviderMode.Sandbox);
+                provider.SetEnabled(true);
+                db.PaymentProviders.Add(provider);
+            }
+
+            if (!provider.HasCredentials)
+            {
+                provider.Update(provider.DisplayName, provider.Mode, zalo.AppId, provider.CallbackUrl);
+                provider.SetCredentials(protector.Protect(zalo.Key1.Trim()), protector.Protect(zalo.Key2.Trim()));
+            }
+        }
+
         await db.SaveChangesAsync();
     }
 }

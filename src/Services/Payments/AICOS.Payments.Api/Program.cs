@@ -28,11 +28,16 @@ builder.Services.Configure<MomoOptions>(builder.Configuration.GetSection(MomoOpt
 builder.Services.PostConfigure<MomoOptions>(o => o.Live = o.Live || !string.IsNullOrWhiteSpace(o.PartnerCode));
 builder.Services.AddHttpClient(MomoGateway.HttpClientName, c => c.Timeout = TimeSpan.FromSeconds(35));   // MoMo asks for at least 30 s
 builder.Services.AddSingleton<MomoGateway>();
+builder.Services.Configure<ZaloPayOptions>(builder.Configuration.GetSection(ZaloPayOptions.SectionName));
+builder.Services.PostConfigure<ZaloPayOptions>(o => o.Live = o.Live || !string.IsNullOrWhiteSpace(o.AppId));
+builder.Services.AddHttpClient(ZaloPayGateway.HttpClientName, c => c.Timeout = TimeSpan.FromSeconds(30));
+builder.Services.AddSingleton<ZaloPayGateway>();
 // payOS talks to the real payOS API; the other providers are still simulated inside AICOS.
 builder.Services.AddSingleton(sp => new GatewayRegistry(
-    PaymentProvider.SupportedCodes.Where(c => c != PaymentProvider.PayOsCode && c != PaymentProvider.MomoCode).Select(c => (IPaymentGateway)new SimulatedGateway(c))
+    PaymentProvider.SupportedCodes.Where(c => c != PaymentProvider.PayOsCode && c != PaymentProvider.MomoCode && c != ZaloPay.Code).Select(c => (IPaymentGateway)new SimulatedGateway(c))
         .Append(sp.GetRequiredService<PayOsGateway>())
-        .Append(sp.GetRequiredService<MomoGateway>())));
+        .Append(sp.GetRequiredService<MomoGateway>())
+        .Append(sp.GetRequiredService<ZaloPayGateway>())));
 builder.Services.AddScoped<PaymentProcessor>();
 builder.Services.AddScoped<RefundProcessor>();
 builder.Services.AddHostedService<PaymentExpiryJob>();
@@ -58,6 +63,7 @@ api.MapOrderSettlementEndpoints();
 api.MapWebhookEndpoints();
 api.MapPayOsEndpoints();
 api.MapMomoEndpoints();
+api.MapZaloPayEndpoints();
 api.MapRefundEndpoints();
 api.MapReconciliationEndpoints();
 

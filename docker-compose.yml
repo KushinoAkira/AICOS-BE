@@ -248,6 +248,15 @@ services:
       Payments__Momo__ReturnUrl: ${MOMO_RETURN_URL:-http://localhost:8080/api/v1/payments/momo/return}
       Payments__Momo__IpnUrl: ${MOMO_IPN_URL:-http://localhost:8080/api/v1/payments/momo/ipn}
       Payments__Momo__ResultPageUrl: ${APP_URL:-http://localhost:8443}/thanh-toan/ket-qua
+      # ZaloPay (empty: ZaloPay stays simulated). Sandbox keys: see .env.example.
+      Payments__ZaloPay__ApiUrl: ${ZALOPAY_API_URL:-https://sb-openapi.zalopay.vn}
+      Payments__ZaloPay__AppId: ${ZALOPAY_APP_ID:-}
+      Payments__ZaloPay__Key1: ${ZALOPAY_KEY1:-}
+      Payments__ZaloPay__Key2: ${ZALOPAY_KEY2:-}
+      Payments__ZaloPay__BankCode: ${ZALOPAY_BANK_CODE:-}
+      Payments__ZaloPay__ReturnUrl: ${ZALOPAY_RETURN_URL:-http://localhost:8080/api/v1/payments/zalopay/return}
+      Payments__ZaloPay__CallbackUrl: ${ZALOPAY_CALLBACK_URL:-http://localhost:8080/api/v1/payments/zalopay/callback}
+      Payments__ZaloPay__ResultPageUrl: ${APP_URL:-http://localhost:8443}/thanh-toan/ket-qua
     ports: ["5105:8080"]
 
   # ------------------------------------------------------------------ OPERATIONS
