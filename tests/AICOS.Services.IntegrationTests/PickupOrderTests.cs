@@ -262,11 +262,16 @@ public sealed class PickupOrderTests : IDisposable
         var paymentId = Guid.NewGuid();
         await _f.HandleAsync(Paid(order, paymentId));
 
-        var cancelled = await (await _customer.Post($"{Orders}/{order.Id()}/cancel", new { reason = "Bận việc" })).Body();
+        await _customer.Post($"{Orders}/{order.Id()}/cancel", new { reason = "Bận việc" }).ShouldBe(400);   // a paid order needs the bank account
+        await _customer.Post($"{Orders}/{order.Id()}/cancel", new { bankName = "Vietcombank", bankAccountNumber = "0123456789", bankAccountHolder = "Nguyen Van A" }).ShouldBe(400);                 // and the reason
+        _payments.Refunds.Should().BeEmpty();
+
+        var cancelled = await (await _customer.Post($"{Orders}/{order.Id()}/cancel", new { reason = "Bận việc", bankName = "Vietcombank", bankAccountNumber = "0123456789", bankAccountHolder = "Nguyen Van A" })).Body();
 
         cancelled.GetProperty("status").GetString().Should().Be("Cancelled");
         cancelled.GetProperty("refundStatus").GetString().Should().Be("RefundPending");
         _payments.Refunds.Should().ContainSingle().Which.Should().Be((paymentId, "Cancellation", (decimal?)null, "Bận việc"));
+        _payments.BankAccounts.Should().ContainSingle().Which.Should().Be((paymentId, "Vietcombank", "0123456789", "Nguyen Van A"));
         _f.Events.Published.OfType<OrderCancelledIntegrationEvent>().Single().WasPaid.Should().BeTrue();
         (await _manager.GetFromJsonAsync<JsonElement>($"{Orders}/exceptions")).EnumerateArray().Select(o => o.Id()).Should().Contain(order.Id());
     }
@@ -278,7 +283,7 @@ public sealed class PickupOrderTests : IDisposable
         await _f.HandleAsync(Paid(order));
         _payments.Fail = new AICOS.BuildingBlocks.Exceptions.BusinessRuleException("refund.nothing_to_refund", "The brand policy refunds nothing.");
 
-        await _customer.Post($"{Orders}/{order.Id()}/cancel", new { reason = "x" }).ShouldBe(422, "refund.nothing_to_refund");
+        await _customer.Post($"{Orders}/{order.Id()}/cancel", new { reason = "x", bankName = "Vietcombank", bankAccountNumber = "0123456789", bankAccountHolder = "Nguyen Van A" }).ShouldBe(422, "refund.nothing_to_refund");
 
         (await GetAsync(order.Id())).GetProperty("status").GetString().Should().Be("Confirmed");
     }

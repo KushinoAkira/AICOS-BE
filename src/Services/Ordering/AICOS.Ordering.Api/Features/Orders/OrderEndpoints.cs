@@ -302,7 +302,7 @@ public static class OrderEndpoints
         var order = await OrderAccess.LoadAsync(db, user, id, ct);
         if (user.IsInRole(AicosRoles.Customer))
         {
-            return await CancelAsCustomerAsync(order, r.Reason, db, payments, events, clock, ct);
+            return await CancelAsCustomerAsync(order, r, db, payments, events, clock, ct);
         }
 
         order.CancelOrder(r.Reason ?? string.Empty, clock.UtcNow);
@@ -312,12 +312,14 @@ public static class OrderEndpoints
     }
 
     /// <summary>
-    /// A customer cancels their own order (BR-24): before the bar starts it and, for a pickup order, before the slot is locked. A paid order is
-    /// refunded by the brand cancellation policy; when the policy gives nothing back, Payment refuses and the order stays as it is.
+    /// A customer cancels their own order (BR-24): before the bar starts it and, for a pickup order, before the slot is locked. The order is
+    /// cancelled at once. A paid order needs the reason and the customer's bank account: the refund (by the brand cancellation policy) waits for
+    /// the brand admin, who transfers it. When the policy gives nothing back, Payment refuses and the order stays as it is.
     /// </summary>
     private static async Task<OrderResponse> CancelAsCustomerAsync(
-        Order order, string? reason, OrderingDbContext db, IPaymentClient payments, OrderEventPublisher events, ShopTime clock, CancellationToken ct)
+        Order order, CancelOrderRequest r, OrderingDbContext db, IPaymentClient payments, OrderEventPublisher events, ShopTime clock, CancellationToken ct)
     {
+        var reason = r.Reason;
         var now = clock.UtcNow;
         DateTime? lockedAt = null;
         if (order.PickupSlotStartUtc is not null)
@@ -335,7 +337,14 @@ public static class OrderEndpoints
                 throw new BusinessRuleException("order.not_refundable", "This order has no payment to refund; please ask the staff.");
             }
 
-            await payments.RequestRefundAsync(order.PaymentId.Value, "Cancellation", null, text, ct);
+            var errors = new ValidationErrors();
+            CommonRules.Required(errors, "Reason", r.Reason, "Reason", 300);
+            CommonRules.Required(errors, "BankName", r.BankName, "Bank", 100);
+            CommonRules.Required(errors, "BankAccountNumber", r.BankAccountNumber, "Account number", 20);
+            CommonRules.Required(errors, "BankAccountHolder", r.BankAccountHolder, "Account holder", 100);
+            errors.ThrowIfAny();
+
+            await payments.RequestRefundToBankAsync(order.PaymentId.Value, text, r.BankName!, r.BankAccountNumber!, r.BankAccountHolder!, ct);
             await db.Entry(order).ReloadAsync(ct);   // the refund event may already have reached this service
         }
 

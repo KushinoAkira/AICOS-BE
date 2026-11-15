@@ -46,6 +46,31 @@ public sealed class PaymentRefundTests : PaymentTestBase
     }
 
     [Fact]
+    public async Task When_the_bar_cannot_make_a_cash_order_the_money_leaves_the_till_of_the_cashier_who_took_it()
+    {
+        var payment = await PaidCashAsync(60_000);
+        var baristaId = Guid.NewGuid();
+
+        await F.As(AicosRoles.Barista, B1, baristaId).Post(RefundsOf(payment), new { kind = "Unfulfillable", reason = "Hết sữa" }).ShouldBe(201);
+
+        // The bar has no till: the cashier who took the cash hands it back, so the closing of that cashier must expect 60,000 less.
+        var cash = F.Events.Published.OfType<CashPaymentRecordedEvent>().Last();
+        (cash.Amount, cash.CashierUserId).Should().Be((-60_000m, CashierId));
+    }
+
+    [Fact]
+    public async Task A_cash_refund_the_brand_admin_approves_leaves_the_till_of_the_cashier_who_took_it()
+    {
+        var payment = await PaidCashAsync(60_000);
+        var request = await Cashier1.PostOk(RefundsOf(payment), new { kind = "Exception", amount = 20_000, reason = "Ly bị đổ" });
+
+        await Admin.PostOk($"{Refunds}/{request.Id()}/approve", new { });
+
+        var cash = F.Events.Published.OfType<CashPaymentRecordedEvent>().Last();
+        (cash.Amount, cash.CashierUserId).Should().Be((-20_000m, CashierId));   // the brand admin is not at the till
+    }
+
+    [Fact]
     public async Task The_policy_percentage_limits_the_automatic_refund_and_more_than_that_needs_approval()
     {
         await SetPolicyAsync(cancel: 50);
@@ -161,24 +186,46 @@ public sealed class PaymentRefundTests : PaymentTestBase
     }
 
     [Fact]
-    public async Task A_customer_asks_for_the_refund_of_their_own_online_payment_only_by_the_brand_policy()
+    public async Task A_customer_asks_for_the_refund_of_their_own_online_payment_to_their_bank_account_and_the_brand_admin_transfers_it()
     {
-        await SetPolicyAsync(cancel: 50);
+        await SetPolicyAsync(cancel: 50);                                                // auto approval is on, but a bank transfer always waits
         var payment = await PaidOnlineAsync(100_000);                                  // paid by the customer
 
-        var refund = await Customer.PostOk(RefundsOf(payment), new { kind = "Cancellation", reason = "Bận việc" });
+        await Customer.Post(RefundsOf(payment), new { kind = "Cancellation", reason = "Bận việc" }).ShouldBe(400);                       // no bank account
+        await Customer.Post(RefundsOf(payment), new { kind = "Cancellation", reason = "Bận việc", bankName = "VCB", bankAccountNumber = "0123 456", bankAccountHolder = "A" }).ShouldBe(400);
+        var refund = await Customer.PostOk(RefundsOf(payment), new { kind = "Cancellation", reason = "Bận việc", bankName = "Vietcombank", bankAccountNumber = "0123456789", bankAccountHolder = "Nguyen Van A" });
 
-        (refund.GetProperty("amount").GetDecimal(), refund.GetProperty("status").GetString(), refund.GetProperty("withinPolicy").GetBoolean()).Should().Be((50_000m, "Succeeded", true));
-        await Customer.Post(RefundsOf(payment), new { kind = "Cancellation", reason = "Again" }).ShouldBe(422, "refund.nothing_to_refund");
+        (refund.GetProperty("amount").GetDecimal(), refund.GetProperty("status").GetString(), refund.GetProperty("withinPolicy").GetBoolean()).Should().Be((50_000m, "PendingApproval", true));
+        (refund.GetProperty("bankName").GetString(), refund.GetProperty("bankAccountNumber").GetString(), refund.GetProperty("bankAccountHolder").GetString()).Should().Be(("Vietcombank", "0123456789", "NGUYEN VAN A"));
+        F.Events.Published.OfType<RefundRequestedEvent>().Should().ContainSingle();     // the approvers are told
+        await Customer.Post(RefundsOf(payment), new { kind = "Cancellation", reason = "Again", bankName = "Vietcombank", bankAccountNumber = "0123456789", bankAccountHolder = "Nguyen Van A" }).ShouldBe(422, "refund.nothing_to_refund");
         await Customer.GetAsync($"{Refunds}").ShouldBe(403);                           // the refund list stays for the counter
+
+        await Manager1.Post($"{Refunds}/{refund.Id()}/approve", new { reference = "FT123" }).ShouldBe(403, "refund.approver_required");   // the brand admin decides
+        await Admin.Post($"{Refunds}/{refund.Id()}/approve", new { }).ShouldBe(400);                                                    // the transfer reference is required
+        var done = await Admin.PostOk($"{Refunds}/{refund.Id()}/approve", new { reference = "FT26111512345" });
+
+        (done.GetProperty("status").GetString(), done.GetProperty("providerReference").GetString()).Should().Be(("Succeeded", "BANK:FT26111512345"));
+        (await GetAsync(Cashier1, $"{Tx}/{payment.Id()}")).GetProperty("refundedAmount").GetDecimal().Should().Be(50_000);
+        F.Events.Published.OfType<PaymentRefundedEvent>().Single().Amount.Should().Be(50_000m);
     }
 
     [Fact]
-    public async Task A_customer_cannot_refund_a_payment_taken_at_the_counter()
+    public async Task A_customer_can_cancel_a_counter_cash_payment_of_their_own_order_only_and_the_transfer_does_not_touch_the_till()
     {
-        var cash = await PaidCashAsync(60_000);                                        // the cashier took it
+        var order = Guid.NewGuid();
+        var cash = await PaidCashAsync(60_000, order);                                 // the cashier took it at the counter
+        await Customer.Post(RefundsOf(cash), new { kind = "Cancellation", reason = "x", bankName = "Vietcombank", bankAccountNumber = "0123456789", bankAccountHolder = "Nguyen Van A" }).ShouldBe(404);   // the order service does not say it is theirs
 
-        await Customer.Post(RefundsOf(cash), new { kind = "Cancellation", reason = "x" }).ShouldBe(404);
+        Orders.Set(order, B1, 60_000, "Confirmed", "Paid", customerId: CustomerId);
+        var refund = await Customer.PostOk(RefundsOf(cash), new { kind = "Cancellation", reason = "Đổi ý", bankName = "Vietcombank", bankAccountNumber = "0123456789", bankAccountHolder = "Nguyen Van A" });
+        refund.GetProperty("status").GetString().Should().Be("PendingApproval");
+        await F.As(AicosRoles.Customer, userId: Guid.NewGuid()).Post(RefundsOf(cash), new { kind = "Cancellation", reason = "x", bankName = "Vietcombank", bankAccountNumber = "0123456789", bankAccountHolder = "Nguyen Van A" }).ShouldBe(404);
+
+        await Admin.PostOk($"{Refunds}/{refund.Id()}/approve", new { reference = "FT1" });
+
+        // The brand transferred the money from its bank: the cashier's till only has the cash that came in.
+        F.Events.Published.OfType<CashPaymentRecordedEvent>().Select(e => e.Amount).Should().Equal(60_000m);
     }
 
     [Fact]

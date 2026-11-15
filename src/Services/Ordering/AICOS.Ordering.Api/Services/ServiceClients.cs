@@ -36,6 +36,9 @@ public interface IPaymentClient
 {
     Task<RefundRequestResult> RequestRefundAsync(Guid paymentId, string kind, decimal? amount, string reason, CancellationToken ct);
 
+    /// <summary>A customer's cancellation refund, sent to their bank account once the brand admin approves.</summary>
+    Task<RefundRequestResult> RequestRefundToBankAsync(Guid paymentId, string reason, string bankName, string accountNumber, string accountHolder, CancellationToken ct);
+
     /// <summary>How long after the pickup time (or when the order was ready) a no-show may be recorded: the brand cancellation policy.</summary>
     Task<int> GetNoShowAfterMinutesAsync(CancellationToken ct);
 }
@@ -165,10 +168,16 @@ internal sealed class HttpVoucherClient(HttpClient http) : IVoucherClient
 
 internal sealed class HttpPaymentClient(HttpClient http) : IPaymentClient
 {
-    public async Task<RefundRequestResult> RequestRefundAsync(Guid paymentId, string kind, decimal? amount, string reason, CancellationToken ct)
+    public Task<RefundRequestResult> RequestRefundToBankAsync(Guid paymentId, string reason, string bankName, string accountNumber, string accountHolder, CancellationToken ct) =>
+        SendRefundAsync(paymentId, new { kind = "Cancellation", amount = (decimal?)null, reason, bankName, bankAccountNumber = accountNumber, bankAccountHolder = accountHolder }, ct);
+
+    public Task<RefundRequestResult> RequestRefundAsync(Guid paymentId, string kind, decimal? amount, string reason, CancellationToken ct) =>
+        SendRefundAsync(paymentId, new { kind, amount, reason }, ct);
+
+    private async Task<RefundRequestResult> SendRefundAsync(Guid paymentId, object request, CancellationToken ct)
     {
         using var response = await ServiceCall.SendAsync(
-            "payment", () => http.PostAsJsonAsync($"/api/v1/payments/transactions/{paymentId}/refunds", new { kind, amount, reason }, ct), ct);
+            "payment", () => http.PostAsJsonAsync($"/api/v1/payments/transactions/{paymentId}/refunds", request, ct), ct);
         if (!response.IsSuccessStatusCode)
         {
             throw await ServiceCall.ErrorAsync("payment", "refund.refused", response, ct);
