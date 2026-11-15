@@ -41,6 +41,26 @@ public static class PaymentsSeeder
             db.PaymentProviders.Add(provider);
         }
 
+        // MoMo: created with the configured keys; a Momo row that exists without keys (set up before) gets them.
+        var momo = scope.ServiceProvider.GetRequiredService<IOptions<MomoOptions>>().Value;
+        if (!string.IsNullOrWhiteSpace(momo.PartnerCode) && !string.IsNullOrWhiteSpace(momo.AccessKey) && !string.IsNullOrWhiteSpace(momo.SecretKey))
+        {
+            var protector = scope.ServiceProvider.GetRequiredService<SecretProtector>();
+            var provider = await db.PaymentProviders.FirstOrDefaultAsync(p => p.Code == PaymentProvider.MomoCode);
+            if (provider is null)
+            {
+                provider = new PaymentProvider(PaymentProvider.MomoCode, "MoMo", ProviderMode.Sandbox);
+                provider.SetEnabled(true);
+                db.PaymentProviders.Add(provider);
+            }
+
+            if (!provider.HasCredentials)
+            {
+                provider.Update(provider.DisplayName, provider.Mode, momo.PartnerCode, provider.CallbackUrl);
+                provider.SetCredentials(protector.Protect(momo.AccessKey.Trim()), protector.Protect(momo.SecretKey.Trim()));
+            }
+        }
+
         await db.SaveChangesAsync();
     }
 }

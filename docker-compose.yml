@@ -240,6 +240,14 @@ services:
       Payments__PayOs__ChecksumKey: ${PAYOS_CHECKSUM_KEY:-}
       Payments__PayOs__ReturnUrl: ${PAYOS_RETURN_URL:-http://localhost:8080/api/v1/payments/payos/return}
       Payments__PayOs__ResultPageUrl: ${APP_URL:-http://localhost:8443}/thanh-toan/ket-qua
+      # MoMo (empty: Momo stays simulated). Test environment keys: see .env.example.
+      Payments__Momo__ApiUrl: ${MOMO_API_URL:-https://test-payment.momo.vn}
+      Payments__Momo__PartnerCode: ${MOMO_PARTNER_CODE:-}
+      Payments__Momo__AccessKey: ${MOMO_ACCESS_KEY:-}
+      Payments__Momo__SecretKey: ${MOMO_SECRET_KEY:-}
+      Payments__Momo__ReturnUrl: ${MOMO_RETURN_URL:-http://localhost:8080/api/v1/payments/momo/return}
+      Payments__Momo__IpnUrl: ${MOMO_IPN_URL:-http://localhost:8080/api/v1/payments/momo/ipn}
+      Payments__Momo__ResultPageUrl: ${APP_URL:-http://localhost:8443}/thanh-toan/ket-qua
     ports: ["5105:8080"]
 
   # ------------------------------------------------------------------ OPERATIONS

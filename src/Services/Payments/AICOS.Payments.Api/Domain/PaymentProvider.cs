@@ -22,6 +22,8 @@ public sealed class PaymentProvider : AuditableEntity<Guid>
 
     /// <summary>payOS: merchant id is the client id, API key the API key, secret key the checksum key.</summary>
     public const string PayOsCode = "PayOS";
+
+    public const string MomoCode = "Momo";
     public const int DisplayNameMaxLength = 100;
     public const int MerchantIdMaxLength = 100;
     public const int CallbackUrlMaxLength = 500;

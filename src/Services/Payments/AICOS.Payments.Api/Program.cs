@@ -24,10 +24,15 @@ builder.Services.AddSingleton<SecretProtector>();
 builder.Services.Configure<PayOsOptions>(builder.Configuration.GetSection(PayOsOptions.SectionName));
 builder.Services.AddHttpClient(PayOsGateway.HttpClientName, c => c.Timeout = TimeSpan.FromSeconds(15));
 builder.Services.AddSingleton<PayOsGateway>();
+builder.Services.Configure<MomoOptions>(builder.Configuration.GetSection(MomoOptions.SectionName));
+builder.Services.PostConfigure<MomoOptions>(o => o.Live = o.Live || !string.IsNullOrWhiteSpace(o.PartnerCode));
+builder.Services.AddHttpClient(MomoGateway.HttpClientName, c => c.Timeout = TimeSpan.FromSeconds(35));   // MoMo asks for at least 30 s
+builder.Services.AddSingleton<MomoGateway>();
 // payOS talks to the real payOS API; the other providers are still simulated inside AICOS.
 builder.Services.AddSingleton(sp => new GatewayRegistry(
-    PaymentProvider.SupportedCodes.Where(c => c != PaymentProvider.PayOsCode).Select(c => (IPaymentGateway)new SimulatedGateway(c))
-        .Append(sp.GetRequiredService<PayOsGateway>())));
+    PaymentProvider.SupportedCodes.Where(c => c != PaymentProvider.PayOsCode && c != PaymentProvider.MomoCode).Select(c => (IPaymentGateway)new SimulatedGateway(c))
+        .Append(sp.GetRequiredService<PayOsGateway>())
+        .Append(sp.GetRequiredService<MomoGateway>())));
 builder.Services.AddScoped<PaymentProcessor>();
 builder.Services.AddScoped<RefundProcessor>();
 builder.Services.AddHostedService<PaymentExpiryJob>();
@@ -52,6 +57,7 @@ api.MapPaymentEndpoints();
 api.MapOrderSettlementEndpoints();
 api.MapWebhookEndpoints();
 api.MapPayOsEndpoints();
+api.MapMomoEndpoints();
 api.MapRefundEndpoints();
 api.MapReconciliationEndpoints();
 
