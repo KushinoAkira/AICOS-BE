@@ -36,7 +36,7 @@ public interface IPaymentClient
 {
     Task<RefundRequestResult> RequestRefundAsync(Guid paymentId, string kind, decimal? amount, string reason, CancellationToken ct);
 
-    /// <summary>A customer's cancellation refund, sent to their bank account once the brand admin approves.</summary>
+    /// <summary>A customer's cancellation refund, sent to their bank account once the branch manager approves.</summary>
     Task<RefundRequestResult> RequestRefundToBankAsync(Guid paymentId, string reason, string bankName, string accountNumber, string accountHolder, CancellationToken ct);
 
     /// <summary>How long after the pickup time (or when the order was ready) a no-show may be recorded: the brand cancellation policy.</summary>

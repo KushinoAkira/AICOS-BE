@@ -186,7 +186,7 @@ public sealed class PaymentRefundTests : PaymentTestBase
     }
 
     [Fact]
-    public async Task A_customer_asks_for_the_refund_of_their_own_online_payment_to_their_bank_account_and_the_brand_admin_transfers_it()
+    public async Task A_customer_asks_for_the_refund_of_their_own_online_payment_to_their_bank_account_and_the_branch_manager_transfers_it()
     {
         await SetPolicyAsync(cancel: 50);                                                // auto approval is on, but a bank transfer always waits
         var payment = await PaidOnlineAsync(100_000);                                  // paid by the customer
@@ -201,9 +201,9 @@ public sealed class PaymentRefundTests : PaymentTestBase
         await Customer.Post(RefundsOf(payment), new { kind = "Cancellation", reason = "Again", bankName = "Vietcombank", bankAccountNumber = "0123456789", bankAccountHolder = "Nguyen Van A" }).ShouldBe(422, "refund.nothing_to_refund");
         await Customer.GetAsync($"{Refunds}").ShouldBe(403);                           // the refund list stays for the counter
 
-        await Manager1.Post($"{Refunds}/{refund.Id()}/approve", new { reference = "FT123" }).ShouldBe(403, "refund.approver_required");   // the brand admin decides
-        await Admin.Post($"{Refunds}/{refund.Id()}/approve", new { }).ShouldBe(400);                                                    // the transfer reference is required
-        var done = await Admin.PostOk($"{Refunds}/{refund.Id()}/approve", new { reference = "FT26111512345" });
+        await F.As(AicosRoles.BranchManager, B2).Post($"{Refunds}/{refund.Id()}/approve", new { reference = "FT123" }).ShouldBe(403, "branch.forbidden");   // the branch of the order decides
+        await Manager1.Post($"{Refunds}/{refund.Id()}/approve", new { }).ShouldBe(400);                                                    // the transfer reference is required
+        var done = await Manager1.PostOk($"{Refunds}/{refund.Id()}/approve", new { reference = "FT26111512345" });
 
         (done.GetProperty("status").GetString(), done.GetProperty("providerReference").GetString()).Should().Be(("Succeeded", "BANK:FT26111512345"));
         (await GetAsync(Cashier1, $"{Tx}/{payment.Id()}")).GetProperty("refundedAmount").GetDecimal().Should().Be(50_000);

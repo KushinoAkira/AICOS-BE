@@ -14,7 +14,7 @@ namespace AICOS.Payments.Api.Features.Payments;
 
 /// <summary>
 /// POST /transactions/{id}/refunds. A missing amount means "as much as the brand policy allows". A customer gives the bank account the money
-/// should go back to; such a refund always waits for the brand admin, who transfers it by hand.
+/// should go back to; such a refund always waits for an approver (the manager of the branch, or the brand admin when the policy says so), who transfers it by hand.
 /// </summary>
 public sealed record RefundRequest(decimal? Amount, RefundKind? Kind, string? Reason, string? BankName = null, string? BankAccountNumber = null, string? BankAccountHolder = null);
 
@@ -209,10 +209,6 @@ public static partial class RefundEndpoints
             CommonRules.Required(errors, "Reference", r?.Reference, "Bank transaction reference", 80);
             CommonRules.MaxLength(errors, "Note", r?.Note, "Note", 300);
             errors.ThrowIfAny();
-            if (!user.IsInRole(AicosRoles.BrandAdmin))
-            {
-                throw new ForbiddenException("Only the brand admin approves a refund sent to the customer's bank account.", "refund.approver_required");
-            }
         }
 
         var policy = await CancellationPolicyEndpoints.ForTenantAsync(db, refund.TenantId, ct);
@@ -366,7 +362,7 @@ public sealed class RefundProcessor(PaymentsDbContext db, GatewayRegistry gatewa
     }
 
     /// <summary>
-    /// The brand admin sent the money to the customer's bank account by hand: the refund is done with that bank reference. Nothing leaves the till,
+    /// The approver sent the money to the customer's bank account by hand: the refund is done with that bank reference. Nothing leaves the till,
     /// whatever the customer paid with: the transfer comes from the brand's bank account.
     /// </summary>
     public async Task CompleteBankTransferAsync(PaymentRefund refund, Payment payment, string bankReference, Guid? actor, CancellationToken ct)

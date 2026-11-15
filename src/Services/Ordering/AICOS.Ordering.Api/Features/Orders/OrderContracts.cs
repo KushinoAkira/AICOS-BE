@@ -26,7 +26,7 @@ public sealed record OrderItemRequest(Guid? ProductId, int? Quantity, string? No
 public sealed record SwitchServiceTypeRequest(OrderType? Type, Guid? TableId, string? TableNumber, string? DeliveryAddress);
 
 /// <summary>
-/// POST /orders/{id}/cancel. A customer cancelling a paid order gives the bank account the money goes back to; the brand admin approves and
+/// POST /orders/{id}/cancel. A customer cancelling a paid order gives the bank account the money goes back to; the branch manager approves and
 /// transfers it.
 /// </summary>
 public sealed record CancelOrderRequest(string? Reason, string? BankName = null, string? BankAccountNumber = null, string? BankAccountHolder = null);
