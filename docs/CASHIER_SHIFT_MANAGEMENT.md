@@ -78,3 +78,13 @@ Remaining decisions: refund/payout allocation to money shifts, Manager review/ap
 - Remaining BLOCKED: gross/net Bill allocation, refund/payout attribution, Manager approval policy and operational rollout. Real bank and physical device/printer NOT RUN.
 
 Final safety validation: a linked Bill marked NeedsReconciliation blocks closing the drawer; actor lock/version rules remain intact. A separate injected-HttpMessageHandler timeout test proves the background worker stays alive and leaves the receipt unacknowledged; it is a mock transport test, not PostgreSQL evidence. Final full regression after these changes: 555 PASS / 51 SKIP / 0 FAIL.
+
+## Dashboard validation — 2026-11-15
+
+CashierShifts:RequireOpenForCash defaults false. Existing Cash without a money shift remains supported when OFF. When ON, CashierLedger checks the actor's own OPEN drawer in the same branch under the existing transaction-scoped actor lock before saving the collection receipt. A CLOSED/no drawer rejects new Cash with 409 cashier.open_shift_required. RequireOpenForCash=true with CashierShifts disabled rejects Cash with cashier.shift_unavailable instead of bypassing the guard. No schema, public DTO or endpoint change.
+
+QR is still branch-only, never counted as drawer cash. Recovered receipts do not retroactively change a closed drawer. Idempotent replay of an already committed payment does not become a new cash collection after close. Both legacy Cash and aggregate Bill Cash use this shared capture path. Feature is enabled only in disposable test containers; no operating environment modified.
+
+Read CASHIER_DASHBOARD_E2E_VALIDATION.md for the actual source boundary, PostgreSQL/Redis/Gateway and real Flutter HTTP results. The paused Item Transfer V2 working tree is excluded from the validated stable worktree. Do not claim its full build or production readiness from these tests.
+
+Validation complete: full .NET solution on stable source plus this Cashier diff is 832 PASS / 51 SKIP (Services 564/51, BuildingBlocks 15, Identity 203, Smoke 50). Flutter 347 PASS / 4 SKIP, analyzer 0 issues. Real test stack enforcement ON: 49 PASS groups / 3 BLOCKED, Cash 175000 + QR 70000 = 245000. OFF: 50 PASS groups / 3 BLOCKED, Cash 315000 + QR 70000 = 385000, nine receipts. Mobile Cash UI itself confirms tender 50000/change 15000 on one 35000 Bill. These are actual HTTP host-widget tests, not Android device tests or bank certification. Both runs preserve existing containers and clean their own resources. No operating migration/feature enable or push. User later approved committing only validated scope; paused V2/local rollout excluded.

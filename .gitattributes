@@ -6,3 +6,11 @@ Dockerfile* text eol=lf
 # Keep reviewed Barista SQL checksums identical on Windows and Linux.
 docs/migrations/barista-workflow/*.sql text eol=lf
 docs/migrations/barista-workflow/SHA256SUMS.txt text eol=lf
+
+# Reviewed billing SQL uses canonical LF bytes for checksum portability.
+docs/migrations/session-billing/*.sql text eol=lf
+docs/migrations/session-billing/SHA256SUMS.txt text eol=lf
+docs/proposals/session-billing/*.sql text eol=lf
+docs/proposals/session-billing/SHA256SUMS.txt text eol=lf
+docs/migrations/cashier-shifts/*.sql text eol=lf
+docs/migrations/cashier-shifts/SHA256SUMS.txt text eol=lf

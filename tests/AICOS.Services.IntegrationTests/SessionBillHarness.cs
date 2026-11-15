@@ -36,7 +36,7 @@ public sealed class SessionBillHarness : IDisposable
     public Guid Session, Table, Product;
     public string Qr = "";
     public bool LosePaidAck, KitchenOffline;
-    public bool EnableCashierShifts;
+    public bool EnableCashierShifts, RequireCashierShift;
     public bool EnableSplitBill, EnableTableTransfer;
     public string AddTransferTarget(string code) => _tables.Add(Tenant,Branch,code);
     public AICOS.Payments.Api.Infrastructure.IPaymentGateway? TestGateway;
@@ -48,6 +48,7 @@ public sealed class SessionBillHarness : IDisposable
     {
         ["Database:MigrateOnStartup"] = "false",
         ["CashierShifts:Enabled"] = EnableCashierShifts.ToString(),
+        ["CashierShifts:RequireOpenForCash"] = RequireCashierShift.ToString(),
         ["CashierShifts:DispatcherEnabled"] = "false",
         ["SplitBill:Enabled"] = EnableSplitBill.ToString(),
         ["TableTransfer:Enabled"] = EnableTableTransfer.ToString(),

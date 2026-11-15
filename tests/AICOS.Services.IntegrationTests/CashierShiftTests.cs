@@ -82,6 +82,32 @@ public sealed class CashierShiftTests
         using var verify=h.Payments.Services.CreateScope();
         (await verify.ServiceProvider.GetRequiredService<PaymentsDbContext>().Collections.SingleAsync()).DeliveredAtUtc.Should().BeNull();await worker.StopAsync(default);
     }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Required_shift_rejects_cash_without_receipt_even_when_feature_misconfigured(bool shiftsEnabled)
+    {
+        using var h = new SessionBillHarness { EnableCashierShifts = shiftsEnabled, RequireCashierShift = true };
+        await h.InitializeAsync(); await h.RoundAsync(); var bill = await h.BillAsync();
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/payments/bills/" + bill.Id + "/payments/cash")
+        { Content = JsonContent.Create(new { sessionId = h.Session, fingerprint = bill.Fingerprint, amountTendered = 50000, confirmReceived = true }) };
+        request.Headers.Add("Idempotency-Key", "requires-open-drawer");
+        (await h.Cashier.SendAsync(request)).StatusCode.Should().Be(HttpStatusCode.Conflict);
+        using var scope = h.Payments.Services.CreateScope(); var db = scope.ServiceProvider.GetRequiredService<PaymentsDbContext>();
+        (await db.BillAttempts.CountAsync()).Should().Be(0); (await db.Collections.CountAsync()).Should().Be(0);
+    }
+    [Fact] public async Task Required_shift_allows_cash_and_replay_after_close()
+    {
+        using var h = new SessionBillHarness { EnableCashierShifts = true, RequireCashierShift = true };
+        await h.InitializeAsync(); var shift = await Open(h); await h.RoundAsync(); var bill = await h.BillAsync();
+        await h.CashAsync(bill, "required-shift-cash");
+        var url = "/api/v1/payments/cashier-shifts/" + shift.GetProperty("id").GetGuid();
+        (await h.Cashier.PostAsJsonAsync(url + "/close", new { version = 2, countedCash = 150000 })).StatusCode.Should().Be(HttpStatusCode.OK);
+        await h.CashAsync(bill, "required-shift-cash");
+        using var scope = h.Payments.Services.CreateScope(); var db = scope.ServiceProvider.GetRequiredService<PaymentsDbContext>();
+        (await db.Collections.CountAsync()).Should().Be(1);
+    }
     private sealed class TimeoutClients:IHttpClientFactory
     {
         public int Calls;

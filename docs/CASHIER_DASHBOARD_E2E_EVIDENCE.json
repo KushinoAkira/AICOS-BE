@@ -1,0 +1,234 @@
+{
+  "cluster": "7708249897289920553",
+  "checks": [
+    {
+      "name": "SQL SHA256 matches reviewed manifests",
+      "status": "PASS"
+    },
+    {
+      "name": "Offline EF baseline export without service startup",
+      "status": "PASS"
+    },
+    {
+      "name": "Container/network/no-host-port/tmpfs/cluster guards",
+      "status": "PASS"
+    },
+    {
+      "name": "Reporting empty inbox backup/restore/rollback/reapply verified on clone",
+      "status": "PASS"
+    },
+    {
+      "name": "Synthetic fixtures only; no operating data/secrets copied",
+      "status": "PASS"
+    },
+    {
+      "name": "ordering: reviewed SQL, repeat safely refused, role login/deny, backup/restore and rollback/reapply PASS",
+      "status": "PASS"
+    },
+    {
+      "name": "Empty Cashier migration rollback/reapply tested on separate restored clone only",
+      "status": "PASS"
+    },
+    {
+      "name": "payment: reviewed SQL, repeat safely refused, role login/deny, backup/restore and rollback/reapply PASS",
+      "status": "PASS"
+    },
+    {
+      "name": "Non-owner service roles have no superuser/role/DB creation/history update or cross-service CONNECT",
+      "status": "PASS"
+    },
+    {
+      "name": "All service tables/columns/nullability/types match EF relational models",
+      "status": "PASS"
+    },
+    {
+      "name": "Actual CHECK/PK/own FK and session/Bill/pending uniqueness definitions verified",
+      "status": "PASS"
+    },
+    {
+      "name": "Five new tables; no cross-service FK; existing session/bill uniqueness retained",
+      "status": "PASS"
+    },
+    {
+      "name": "Cashier projection and outbox role ACL prepared on guarded test cluster only",
+      "status": "PASS"
+    },
+    {
+      "name": "Eight services live/ready/Swagger; Gateway metadata/live (ready/Swagger N/A by source)",
+      "status": "PASS"
+    },
+    {
+      "name": "Real Identity login and scoped Cashier/Barista accounts through Gateway",
+      "status": "PASS"
+    },
+    {
+      "name": "Flutter real HTTP Dashboard EMPTY at 360/393/430px: Cash 0, QR 0, shift NONE",
+      "status": "PASS"
+    },
+    {
+      "name": "Money shift opens without attendance; second open request conflicts",
+      "status": "PASS"
+    },
+    {
+      "name": "Cash shift enforcement OFF preserves unassigned Cash; parallel open replay and real JWT branch/role isolation",
+      "status": "PASS"
+    },
+    {
+      "name": "Real Table -> Menu prices -> two Orders -> one aggregate Bill",
+      "status": "PASS"
+    },
+    {
+      "name": "Unpaid DineIn reaches Kitchen before payment",
+      "status": "PASS"
+    },
+    {
+      "name": "Both Orders durably ACKED by Kitchen admission HTTP, not only Redis",
+      "status": "PASS"
+    },
+    {
+      "name": "Real paid invoice snapshot and Counter-only RBAC verified",
+      "status": "PASS"
+    },
+    {
+      "name": "Persisted Bill history through Gateway: scoped receipt actor, journal metadata only, Barista denied",
+      "status": "PASS"
+    },
+    {
+      "name": "Lost HTTP response after committed Cash; GET and same-key retry recover one payment",
+      "status": "PASS"
+    },
+    {
+      "name": "PAID forbids Add Order and cannot close before serving",
+      "status": "PASS"
+    },
+    {
+      "name": "Flutter real HTTP Dashboard PAID at 360/393/430px: Cash 140000, QR 0, shift OPEN",
+      "status": "PASS"
+    },
+    {
+      "name": "Flutter real HTTP login/repositories and Session Bill screen show verified PAID",
+      "status": "PASS"
+    },
+    {
+      "name": "Real Barista -> serving -> parallel close -> Table Available with one CLOSED Bill",
+      "status": "PASS"
+    },
+    {
+      "name": "Two real cashier accounts race: exactly one collection",
+      "status": "PASS"
+    },
+    {
+      "name": "Real Add Order vs Cash race linearizes without omitted round",
+      "status": "PASS"
+    },
+    {
+      "name": "Durable PAID outbox retries after Kitchen outage and Payments/Redis restart",
+      "status": "PASS"
+    },
+    {
+      "name": "Flutter real HTTP Dashboard QR_PENDING at 360/393/430px: Cash 210000, QR 0, shift OPEN",
+      "status": "PASS"
+    },
+    {
+      "name": "Mock only: PENDING survives restart; signed duplicate callbacks apply once; bad signature 401",
+      "status": "PASS"
+    },
+    {
+      "name": "Confirmed Bill collections now match Payments ledger; no fake per-order/net-sales revenue",
+      "status": "PASS"
+    },
+    {
+      "name": "Lost ACK replay after Payments/Reporting/Redis restart does not double count",
+      "status": "PASS"
+    },
+    {
+      "name": "Cash drawer counts reconcile, parallel close is idempotent, closed history immutable and foreign cashier denied",
+      "status": "PASS"
+    },
+    {
+      "name": "Gross/net sales and refund/manager allocation policy",
+      "status": "BLOCKED",
+      "evidence": {
+        "confirmedCollections": 245000,
+        "legacyGross": 0,
+        "reason": "Collections are fixed; net sales/refund allocation and manager approval policy remain distinct and are not fabricated."
+      }
+    },
+    {
+      "name": "Flutter real HTTP Dashboard CLOSED at 360/393/430px: Cash 210000, QR 35000, shift CLOSED",
+      "status": "PASS"
+    },
+    {
+      "name": "Closed drawer does not silently capture later Cash; replay of earlier receipts remains valid",
+      "status": "PASS"
+    },
+    {
+      "name": "Mock FAILED excluded; late signed success after CLOSED shift collected once, QR branch-only, closed drawer immutable",
+      "status": "PASS"
+    },
+    {
+      "name": "Flutter actual Cash UI: tender 50000, change 15000, explicit received confirmation, one PAID Bill and own shift receipt",
+      "status": "PASS"
+    },
+    {
+      "name": "Real Cash vs close concurrency preserves committed closed drawer sums",
+      "status": "PASS"
+    },
+    {
+      "name": "Flutter real HTTP Dashboard REPORTING_OFFLINE at 360/393/430px: Cash 315000, QR 70000, shift CLOSED",
+      "status": "PASS"
+    },
+    {
+      "name": "Flutter real HTTP Dashboard RECOVERED at 360/393/430px: Cash 315000, QR 70000, shift CLOSED",
+      "status": "PASS"
+    },
+    {
+      "name": "Payment = Reporting = Dashboard reconciliation figures",
+      "status": "PASS",
+      "evidence": {
+        "cash": 315000,
+        "qr": 70000,
+        "total": 385000,
+        "receipts": 9,
+        "hasMore": false,
+        "metric": "CONFIRMED_COLLECTIONS_NOT_NET_SALES"
+      }
+    },
+    {
+      "name": "Payment durable receipts = Reporting confirmed collections = Flutter Dashboard, no PENDING or duplicate revenue",
+      "status": "PASS"
+    },
+    {
+      "name": "Actual Identity multi-role SERVER+CASHIER",
+      "status": "BLOCKED",
+      "evidence": "Identity user request stores one canonical role. No forged multi-role JWT; Mobile combined-role contract is unit-tested only."
+    },
+    {
+      "name": "Global branch Bill counts",
+      "status": "BLOCKED",
+      "evidence": "No owner-defined global all/paid/pending Bill count contract; loaded session pages are never reported as branch totals."
+    },
+    {
+      "name": "No PAID Bill lacks matching SUCCEEDED amount proof",
+      "status": "PASS"
+    },
+    {
+      "name": "Nonempty cashier ledger and Reporting inbox rollback refused",
+      "status": "PASS"
+    },
+    {
+      "name": "Nonempty financial rollback rejected; received money/audit retained",
+      "status": "PASS"
+    },
+    {
+      "name": "Paid ledger/attempts/audit and Ordering sessions/orders restored exactly into separate copies",
+      "status": "PASS"
+    },
+    {
+      "name": "All preexisting container IDs/images/start times/status/restart counts unchanged",
+      "status": "PASS"
+    }
+  ],
+  "operatingContainersUnchanged": true,
+  "qr": "Mock only; not bank verification"
+}

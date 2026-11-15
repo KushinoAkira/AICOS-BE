@@ -1,4 +1,5 @@
 using System.Text.Json;
+using AICOS.BuildingBlocks.Exceptions;
 using AICOS.Contracts.Billing;
 using AICOS.Payments.Api.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -62,17 +63,26 @@ public static class CashierLedger
     }
     public static async Task CaptureAsync(PaymentsDbContext db, CollectionReceipt receipt, CancellationToken ct)
     {
-        if (!db.CashierEnabled) return;
+        if (!db.CashierEnabled)
+        {
+            if (db.RequireCashierShift && !receipt.Recovered && receipt.Method == "Cash")
+                throw new ConflictException("Cashier shifts must be enabled before requiring an open drawer.", "cashier.shift_unavailable");
+            return;
+        }
         if (db.Collections.Local.Any(x=>x.Id==receipt.EventId) || await db.Collections.AnyAsync(x=>x.Id==receipt.EventId,ct)) return;
         Guid? shift = null;
         if (!receipt.Recovered && receipt.Method == "Cash" && receipt.CashierId is {} actor)
         {
             await ActorLockAsync(db,receipt.TenantId,actor,ct);
             var open = await db.CashierShifts.SingleOrDefaultAsync(x=>x.TenantId==receipt.TenantId && x.BranchId==receipt.BranchId && x.CashierId==actor && x.ClosedAtUtc==null,ct);
+            if (db.RequireCashierShift && open is null)
+                throw new ConflictException("Open your own cash drawer in this branch before collecting cash.", "cashier.open_shift_required");
             shift = open?.Id;
             if(open is not null) open.Version++; // A new receipt invalidates a previously displayed drawer count.
 
         }
+        if (db.RequireCashierShift && !receipt.Recovered && receipt.Method == "Cash" && receipt.CashierId is null)
+            throw new ConflictException("A cashier identity is required for cash collection.", "cashier.open_shift_required");
         receipt = receipt with { ShiftId = shift };
         db.Collections.Add(new CollectionOutbox {Id=receipt.EventId,TenantId=receipt.TenantId,BranchId=receipt.BranchId,CashierId=receipt.CashierId,ShiftId=shift,Amount=receipt.Amount,Method=receipt.Method,PaidAtUtc=receipt.PaidAtUtc,Payload=JsonSerializer.Serialize(receipt)});
     }

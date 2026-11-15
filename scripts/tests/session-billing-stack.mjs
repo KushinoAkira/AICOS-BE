@@ -10,7 +10,10 @@ import {runFlow} from './session-billing-stack-flow.mjs';
 import {runBaristaFlow} from './barista-stack-flow.mjs';
 const baristaMode=process.argv.includes('--barista');
 const operationsMode=process.argv.includes('--operations');
-const cashierMode=process.argv.includes('--cashier')||operationsMode;
+const dashboardMode=process.argv.includes('--dashboard');
+const requireShift=process.argv.includes('--require-shift');
+const mobileRoot=process.env.AICOS_MOBILE_WORKSPACE||path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../../../AICOS-Mobile');
+const cashierMode=process.argv.includes('--cashier')||operationsMode||dashboardMode;
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..');
 const purpose='session-bill-e2e',suffix=crypto.randomBytes(5).toString('hex'),network='aicos-bill-e2e-'+suffix;
 const temporary=await fs.mkdtemp(path.join(os.tmpdir(),'aicos-bill-e2e-'));
@@ -47,7 +50,7 @@ async function sql(db,text,{schema,approval,user='bill_stack_admin',deny=false}=
 async function create(name,image,args=[],env={}){
  const keys=Object.keys(env).flatMap(k=>['-e',k]);const id=await docker(['run','-d','--name',network+'-'+name,'--label','aicos.purpose='+purpose,'--network',network,'--network-alias',name,...keys,...args,image],{env});containers.push(id);return id;
 }
-async function until(action,label,seconds=90){let last;for(let i=0;i<seconds*2;i++){try{last=await action();if(last)return last;}catch{}await new Promise(r=>setTimeout(r,500));}throw Error('Timeout: '+label);}
+async function until(action,label,seconds=90){const deadline=performance.now()+seconds*1000;while(performance.now()<deadline){try{const value=await action();if(value)return value;}catch{}await new Promise(r=>setTimeout(r,500));}throw Error('Timeout: '+label);}
 async function publish(project,out){const result=await run('dotnet',['publish',project,'-c','Debug','-o',out,'--verbosity','quiet']);return result;}
 const sqlPath=n=>path.join(root,'docs/migrations/session-billing',n);
 const script=n=>fs.readFile(sqlPath(n),'utf8');
@@ -172,7 +175,7 @@ try{
   const env={ASPNETCORE_ENVIRONMENT:'Development',Database__MigrateOnStartup:'false',Seed__DemoPlans:'false',Swagger__Enabled:'true',Jwt__SigningKey:jwt,Jwt__Issuer:'aicos-billstack-test',Jwt__Audience:'aicos-billstack-clients',ConnectionStrings__Redis:'redis:6379',SessionBilling__Enabled:'true',SessionBilling__MachineKey:machine,SessionBilling__AllowTestProviders:'true',SessionBilling__TestWebhookSecret:webhook,SessionBilling__DispatcherEnabled:'true',Serilog__MinimumLevel__Default:'Warning',RateLimiting__PermitLimitPerMinute:'10000',RateLimiting__AuthPermitLimitPerMinute:'100'};
   for(const [n,,,s] of services){if(n!=='gateway'){const key={identity:'Identity',menu:'Menu',table:'Table',order:'Order',kitchen:'Kitchen',payment:'Payment',reporting:'Reporting',workforce:'Workforce'}[n];env['Services__'+key+'__BaseUrl']='http://'+n+':8080';env['ReverseProxy__Clusters__'+n+'__Destinations__primary__Address']='http://'+n+':8080';}}
   if(operationsMode){env.TableTransfer__Enabled='true';env.TableTransfer__MachineKey=machine;env.SplitBill__Enabled='true';}
-  if(cashierMode){env.CashierShifts__Enabled='true';env.CashierShifts__MachineKey=machine;}
+  if(cashierMode){env.CashierShifts__RequireOpenForCash=String(requireShift);env.CashierShifts__Enabled='true';env.CashierShifts__MachineKey=machine;}
   if(schema)env.ConnectionStrings__Default='Host=postgres;Database='+databases[schema]+';Username='+role(schema)+';Password='+passwords[schema];
   if(baristaMode&&name==='kitchen'){env.BaristaWorkflow__Enabled='true';env.BaristaWorkflow__PrintAgentUrl='http://printer:8080/';env.BaristaWorkflow__PrintAgentKey=printerKey;env.BaristaWorkflow__AllowTestPrinter='true';}
   if(name==='order'){env.KitchenAdmission__CaptureEnabled='true';env.KitchenAdmission__DispatcherEnabled='true';env.KitchenAdmission__ReconciliationEnabled='true';env.KitchenAdmission__MachineKey=admission;}
@@ -183,7 +186,7 @@ try{
  gateway=serviceIds.gateway;const inspection=JSON.parse(await docker(['inspect',gateway]))[0];const binding=inspection.NetworkSettings.Ports['8080/tcp'][0];assert.equal(binding.HostIp,'127.0.0.1');base='http://127.0.0.1:'+binding.HostPort;
  await until(async()=>{const r=await fetch(base+'/api/v1/identity/public/subscription-plans');return r.status===200;},'Gateway Identity');
  await docker(['run','--rm','--network',network,'--mount','type=bind,src='+tools+',dst=/testtools,readonly','--entrypoint','dotnet','aicos-main/identity:local','/testtools/AICOS.Billing.StackTools.dll','health']);report('Eight services live/ready/Swagger; Gateway metadata/live (ready/Swagger N/A by source)');
- const ctx={base,userPassword,webhook,sql,databases,report,until,docker,run,serviceIds,redis,temporary,root,checks,cashierMode,operationsMode};if(baristaMode){await runBaristaFlow(ctx);await sql(databases.kitchen,await fs.readFile(path.join(root,'docs/migrations/barista-workflow/90_rollback.EMPTY_ONLY.sql'),'utf8'),{schema:'kitchen',approval:'rollback',deny:true});report('Nonempty Barista acceptance/print audit rollback refused');}else await runFlow(ctx);
+ const ctx={base,userPassword,webhook,sql,databases,report,until,docker,run,serviceIds,redis,temporary,root,checks,cashierMode,operationsMode,dashboardMode,requireShift,mobileRoot};if(baristaMode){await runBaristaFlow(ctx);await sql(databases.kitchen,await fs.readFile(path.join(root,'docs/migrations/barista-workflow/90_rollback.EMPTY_ONLY.sql'),'utf8'),{schema:'kitchen',approval:'rollback',deny:true});report('Nonempty Barista acceptance/print audit rollback refused');}else await runFlow(ctx);
  if(operationsMode){for(const schema of ['ordering','kitchen','payment'])await sql(databases[schema],await fs.readFile(path.join(baselines,schema+'.operations.down.sql'),'utf8'),{deny:true});report('Nonempty transfer/split audit and used routing rollback refused');}
  if(cashierMode){await sql(databases.payment,await fs.readFile(path.join(baselines,'payment.cashier.down.sql'),'utf8'),{deny:true});await sql(databases.reporting,await fs.readFile(path.join(baselines,'reporting.cashier.down.sql'),'utf8'),{deny:true});report('Nonempty cashier ledger and Reporting inbox rollback refused');}
  await sql(databases.payment,await script('90_payments_rollback.sql'),{schema:'payment',approval:'rollback',deny:true});report('Nonempty financial rollback rejected; received money/audit retained');
@@ -200,8 +203,11 @@ try{
  // Container logs stay in ephemeral containers. Do not dump secrets or authorization bodies.
  if(error.detail){let diagnostic=error.detail;for(const value of [adminPassword,userPassword,jwt,machine,admission,webhook,printerKey,...Object.values(passwords)])diagnostic=diagnostic.replaceAll(value,'[redacted]');console.log('Diagnostic: '+diagnostic.replace(/eyJ[A-Za-z0-9_.-]{40,}/g,'[redacted token]').slice(-2500));}
 }finally{
- await fs.writeFile(path.join(root,'docs',baristaMode?'BARISTA_STACK_TEST_EVIDENCE.json':operationsMode?'TABLE_TRANSFER_SPLIT_E2E_EVIDENCE.json':cashierMode?'CASHIER_SHIFT_STACK_TEST_EVIDENCE.json':'SESSION_BILL_STACK_TEST_EVIDENCE.json'),JSON.stringify({cluster,checks,operatingContainersUnchanged:await snapshot(existing)===before,qr:'Mock only; not bank verification'},null,2)+'\n');
+ await fs.writeFile(path.join(root,'docs',dashboardMode?(requireShift?'CASHIER_DASHBOARD_ENFORCED_EVIDENCE.json':'CASHIER_DASHBOARD_E2E_EVIDENCE.json'):baristaMode?'BARISTA_STACK_TEST_EVIDENCE.json':operationsMode?'TABLE_TRANSFER_SPLIT_E2E_EVIDENCE.json':cashierMode?'CASHIER_SHIFT_STACK_TEST_EVIDENCE.json':'SESSION_BILL_STACK_TEST_EVIDENCE.json'),JSON.stringify({cluster,checks,operatingContainersUnchanged:await snapshot(existing)===before,qr:'Mock only; not bank verification'},null,2)+'\n');
+ if(process.exitCode && dashboardMode && process.argv.includes('--keep-failed-test')){console.log('Retained only this labelled disposable test stack for diagnosis: '+network);}
+ else {
  for(const id of containers.reverse()){const x=JSON.parse(await docker(['inspect',id]))[0];assert.equal(x.Config.Labels['aicos.purpose'],purpose);assert.deepEqual(Object.keys(x.NetworkSettings.Networks),[network]);await docker(['rm','-f',id]);}
  if((await docker(['network','ls','--filter','name=^'+network+'$','-q'])))await docker(['network','rm',network]);
  console.log('Removed only this run test containers/network; no operating volume touched. Temporary build files contain no credentials.');
+ }
 }

@@ -30,3 +30,7 @@ Disable the new feature/workers first. Prefer rolling code forward and retaining
 CREATE TABLE/index operations and the owned FK take metadata locks; use a maintenance window, lock_timeout and statement_timeout chosen by DBA. No backfill transaction rewrites existing payment records. Reconciliation reads confirmed sources in batches and creates immutable recovered receipts, unassigned to closed shifts. No inferred historical custody.
 
 The isolated stack runner applies new migrations only after container/network/no-host-port/tmpfs/cluster guard. It checks schema, role access, backups, restore and empty rollback/reapply. Final actual execution evidence is in CASHIER_SHIFT_MANAGEMENT.md and CASHIER_SHIFT_STACK_TEST_EVIDENCE.json. Do not treat older test counts as a pass for a changed SQL manifest.
+
+## Portable reviewed checksums — 2026-11-15
+
+Billing and cashier SQL/manifest paths now explicitly use LF in .gitattributes. Four cashier manifest hashes were recalculated against the same SQL content with canonical LF bytes. No EF Up/Down, DDL, grant, guard or history identifier was changed. This fixes mixed Windows checkout line endings failing checksum preflight before container startup. Review the manifest diff and verify checksums before every test/deployment; operational migration remains separately gated.

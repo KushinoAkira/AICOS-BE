@@ -9,6 +9,7 @@ namespace AICOS.Payments.Api.Persistence;
 
 public sealed class PaymentsDbContext(DbContextOptions<PaymentsDbContext> options, IConfiguration? configuration = null) : AicosDbContext(options)
 {
+    public bool RequireCashierShift => configuration?.GetValue<bool>("CashierShifts:RequireOpenForCash") == true;
     public bool CashierEnabled => configuration?.GetValue<bool>("CashierShifts:Enabled") == true;
     public DbSet<CashierShift> CashierShifts => Set<CashierShift>();
     public DbSet<CollectionOutbox> Collections => Set<CollectionOutbox>();

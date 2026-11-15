@@ -1,3 +1,4 @@
+import {dashboardSnapshot, dashboardFinalChecks} from './cashier-dashboard-flow.mjs';
 import {runOperationsFlow} from './table-transfer-split-flow.mjs';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
@@ -23,6 +24,7 @@ export async function runFlow(c){
  const staffPassword=userPassword+'-Changed1!';
  for(const name of ['cashier','cashier2','barista']){const token=await login(name+'@billstack.invalid');await request('POST','/api/v1/identity/auth/change-password',token,{currentPassword:userPassword,newPassword:staffPassword,confirmNewPassword:staffPassword},null,204);}
  const cashier=await login('cashier@billstack.invalid',staffPassword),cashier2=await login('cashier2@billstack.invalid',staffPassword),barista=await login('barista@billstack.invalid',staffPassword);report('Real Identity login and scoped Cashier/Barista accounts through Gateway');
+ if(c.dashboardMode)await dashboardSnapshot(c,{branch,cashier,staffPassword,shift:'NONE',stage:'EMPTY'});
  let moneyShift;
  if(c.cashierMode){moneyShift=(await request('POST','/api/v1/payments/cashier-shifts',cashier,{branchId:branch.id,openingCash:100000,note:'Test drawer'},'open-test-drawer',200)).data;await request('POST','/api/v1/payments/cashier-shifts',cashier,{branchId:branch.id,openingCash:0},'second-open-request',409);report('Money shift opens without attendance; second open request conflicts');}
  await request('GET','/api/v1/payments/bills?sessionId='+crypto.randomUUID(),null,null,null,401);
@@ -36,6 +38,21 @@ export async function runFlow(c){
  const bill=async(s)=>(await request('GET','/api/v1/payments/bills?sessionId='+s.session,cashier,null,null,200)).data;
  const collect=(b,who=cashier,key='cash-'+crypto.randomUUID())=>request('POST','/api/v1/payments/bills/'+b.id+'/payments/cash',who,{sessionId:b.sessionId,fingerprint:b.fingerprint,amountTendered:200000,confirmReceived:true},key);
  async function synced(s){return until(async()=>{const b=await bill(s);return b.orderingAcknowledged&&b;},'durable paid sync',75);}
+ if(c.dashboardMode){
+  const noShift=await open('NO-SHIFT');await add(noShift);const unassigned=await bill(noShift);
+  const result=await collect(unassigned,cashier2);assert.equal(result.status,c.requireShift?409:200);
+  const bad=await request('POST','/api/v1/payments/bills/'+unassigned.id+'/payments/cash',barista,{sessionId:noShift.session,fingerprint:unassigned.fingerprint,amountTendered:200000,confirmReceived:true},'barista-denied-cash');assert.equal(bad.status,403);
+  const duplicates=await Promise.all(Array.from({length:3},()=>request('POST','/api/v1/payments/cashier-shifts',cashier,{branchId:branch.id,openingCash:100000,note:'Test drawer'},'open-test-drawer',200)));assert.ok(duplicates.every(x=>x.data.id===moneyShift.id));
+  const foreign=(await request('POST','/api/v1/identity/branches',owner,{name:'Other Branch',address:'Test only',phone:'0900000002',openingTime:'00:00:00',closingTime:'23:59:00'},null,201)).data;
+  for(const url of ['/api/v1/payments/cashier-shifts?branchId=','/api/v1/reporting/collections?branchId='])await request('GET',url+foreign.id,cashier,null,null,403);
+  await request('POST','/api/v1/identity/users',owner,{fullName:'Foreign Cashier',email:'foreign@billstack.invalid',password:userPassword,role:'Cashier',branchId:foreign.id},null,201);
+  const initialForeign=await login('foreign@billstack.invalid');await request('POST','/api/v1/identity/auth/change-password',initialForeign,{currentPassword:userPassword,newPassword:staffPassword,confirmNewPassword:staffPassword},null,204);
+  const foreignToken=await login('foreign@billstack.invalid',staffPassword);assert.ok([403,404].includes((await collect(unassigned,foreignToken)).status), 'Foreign branch Bill must be denied; 404 may conceal ownership');
+  await request('GET','/api/v1/reporting/collections?branchId='+branch.id,null,null,null,401);await request('GET','/api/v1/reporting/collections?branchId='+branch.id,'invalid-token',null,null,401);
+
+  for(const url of ['/api/v1/payments/cashier-shifts?branchId=','/api/v1/reporting/collections?branchId='])await request('GET',url+branch.id,barista,null,null,403);
+  report('Cash shift enforcement '+(c.requireShift?'ON rejects unassigned Cash':'OFF preserves unassigned Cash')+'; parallel open replay and real JWT branch/role isolation');
+ }
  const s=await open('B01'),o1=await add(s),o2=await add(s,2);const draft=await bill(s);assert.equal(draft.quote.total,105000);assert.equal(draft.quote.orders.length,2);report('Real Table -> Menu prices -> two Orders -> one aggregate Bill');
  const queue=async()=>(await request('GET','/api/v1/kitchen/queue',barista,null,null,200)).data;
  await until(async()=>{const q=await queue();return q.some(t=>t.orderId===o1.id)&&q.some(t=>t.orderId===o2.id);},'Kitchen real Redis/admission',75);report('Unpaid DineIn reaches Kitchen before payment');
@@ -50,7 +67,8 @@ export async function runFlow(c){
  const replay=await collect(draft,cashier,cashKey);assert.equal(replay.status,200);assert.equal(replay.data.payment.id,paid.payment.id);report('Lost HTTP response after committed Cash; GET and same-key retry recover one payment');
  await request('POST','/api/v1/orders',cashier,orderBody(s),'paid-new-'+crypto.randomUUID(),409);
  const blocked=(await request('GET','/api/v1/orders/qr/sessions/'+s.session+'/close-eligibility',cashier,null,null,200)).data;assert.equal(blocked.canClose,false);await request('POST','/api/v1/orders/qr/sessions/'+s.session+'/close',cashier,{},null,409);report('PAID forbids Add Order and cannot close before serving');
- const mobile=await run('cmd.exe',['/d','/s','/c','C:/src/flutter/bin/flutter.bat test test/session_bill_live_stack_test.dart --dart-define=AICOS_MAIN_API=false --reporter expanded'],{cwd:path.resolve(root,'../AICOS-Mobile'),env:{AICOS_BILL_STACK_URL:base,AICOS_BILL_STACK_LOGIN:'cashier@billstack.invalid',AICOS_BILL_STACK_PASSWORD:staffPassword,AICOS_BILL_STACK_BRANCH:branch.id,AICOS_BILL_STACK_TABLE:s.table.id,AICOS_BILL_STACK_SESSION:s.session}});assert.match(mobile.out,/All tests passed/);report('Flutter real HTTP login/repositories and Session Bill screen show verified PAID');
+ if(c.dashboardMode)await dashboardSnapshot(c,{branch,cashier,staffPassword,shift:'OPEN',stage:'PAID'});
+ const mobile=await run('cmd.exe',['/d','/s','/c','C:/src/flutter/bin/flutter.bat test test/session_bill_live_stack_test.dart --dart-define=AICOS_MAIN_API=false --reporter expanded'],{cwd:c.mobileRoot||path.resolve(root,'../AICOS-Mobile'),env:{AICOS_BILL_STACK_URL:base,AICOS_BILL_STACK_LOGIN:'cashier@billstack.invalid',AICOS_BILL_STACK_PASSWORD:staffPassword,AICOS_BILL_STACK_BRANCH:branch.id,AICOS_BILL_STACK_TABLE:s.table.id,AICOS_BILL_STACK_SESSION:s.session}});assert.match(mobile.out,/All tests passed/);report('Flutter real HTTP login/repositories and Session Bill screen show verified PAID');
  async function serve(order){
   let t=await until(async()=>(await queue()).find(x=>x.orderId===order.id),'ticket '+order.id,75);
   for(const status of ['Brewing','ReadyForPickup']){const previous=t.status;const result=await request('PUT','/api/v1/kitchen/tickets/'+t.id+'/status',barista,{status,expectedStatus:previous,expectedRemakeCount:t.remakeCount},null,200);t=result.data;}
@@ -68,6 +86,7 @@ export async function runFlow(c){
  await docker(['restart',serviceIds.payment]);await docker(['restart',redis]);await docker(['start',serviceIds.kitchen]);await synced(s4);report('Durable PAID outbox retries after Kitchen outage and Payments/Redis restart');
  const s5=await open('B05');await add(s5);const qdraft=await bill(s5);const qr=(await request('POST','/api/v1/payments/bills/'+qdraft.id+'/payments/qr',cashier,{sessionId:s5.session,fingerprint:qdraft.fingerprint,providerCode:'Mock'},'qr-'+crypto.randomUUID(),200)).data;assert.equal(qr.status,'UNPAID');assert.equal(qr.payment.status,'PENDING');
  await docker(['restart',serviceIds.payment]);await until(async()=>{const r=await request('GET','/api/v1/payments/bills?sessionId='+s5.session,cashier);return r.status===200;},'Payments restart');assert.equal((await bill(s5)).payment.id,qr.payment.id);
+ if(c.dashboardMode)await dashboardSnapshot(c,{branch,cashier,staffPassword,shift:'OPEN',stage:'QR_PENDING'});
  const eventId='mock-'+crypto.randomUUID(),ref=qr.payment.transactionRef,amount=qr.quote.total;
  const signature=crypto.createHmac('sha256',webhook).update(eventId+'|'+ref+'|success|'+amount).digest('hex');
  const callback={eventId,transactionRef:ref,status:'success',amount,signature};
@@ -95,6 +114,7 @@ export async function runFlow(c){
   c.checks.push({name:'Reporting and cash-shift reconciliation',status:'BLOCKED',evidence:{paidBillTotal:Number(received),reportedGrossRevenue:reportView.totals.grossRevenue,cashShiftLedger:Number(drawer),reason:'CashierShifts feature disabled.'}});
   console.log('BLOCKED Reporting/shift feature disabled in baseline stack.');
  }
+ if(c.dashboardMode)await dashboardFinalChecks(c,{request,open,add,bill,collect,cashier,cashier2,barista,branch,staffPassword,moneyShift});
  if(c.operationsMode)await runOperationsFlow({...c,request,open,add,bill,cashier,cashier2,barista,owner,branch,area,product});
  const money=await sql(databases.payment,"SELECT count(*) FROM payment.session_bills b JOIN payment.session_bill_attempts a ON a.id=b.paid_payment_id WHERE b.status IN ('PAID','CLOSED') AND (a.status<>'SUCCEEDED' OR a.amount<>b.total);");assert.equal(money,'0');report('No PAID Bill lacks matching SUCCEEDED amount proof');
 }
