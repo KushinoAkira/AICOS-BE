@@ -1,5 +1,7 @@
 # Cash Precheck — điều kiện chạy Backend local
 
+> Cập nhật 16/11/2026: gói SQL Dashboard local đã chuẩn bị và rehearsal 16 nhóm PASS trên PostgreSQL riêng; xem [CASHIER_DASHBOARD_LOCAL_MIGRATION_REVIEW.md](CASHIER_DASHBOARD_LOCAL_MIGRATION_REVIEW.md). Main chưa apply/GRANT; full-data backup/restore và rollout vẫn chờ duyệt. Các trạng thái container dừng/số test bên dưới là snapshot audit ngày 15/11, không thay thế kiểm tra runtime mới.
+
 Ngày kiểm tra: 2026-11-15. Kết quả: **CODE PASS, LOCAL RUNTIME BLOCKED do schema**.
 
 ## Phạm vi đã được thực hiện

@@ -1,0 +1,53 @@
+[CmdletBinding()]
+param([switch]$Run)
+$ErrorActionPreference='Stop'
+$databases=@('aicos_ordering','aicos_kitchen','aicos_payment','aicos_reporting')
+if(-not$Run){
+    Write-Output 'PLAN ONLY: after separate maintenance approval, require main application containers stopped, verify cluster, then back up four service databases to a private LOCALAPPDATA folder. No database, container or file changed.'
+    return
+}
+$inspection=docker inspect aicos-main-postgres | ConvertFrom-Json
+if($LASTEXITCODE-ne0-or-not$inspection[0].Id.StartsWith('c014190eed2d')){throw 'Unexpected PostgreSQL container'}
+$pg=$inspection[0]
+$writers=@('identity','menu','table','order','kitchen','payment','reporting','workforce','customer','ai','gateway')
+foreach($service in $writers){
+    $container=docker inspect ('aicos-main-'+$service) | ConvertFrom-Json
+    if($LASTEXITCODE-ne0-or$container[0].State.Running){throw 'Approved maintenance pause required. This script never stops application containers.'}
+}
+$admin=(@($pg.Config.Env|Where-Object {$_-match'^POSTGRES_USER='})-replace'^POSTGRES_USER=','')|Select-Object -First 1
+if(-not$admin){$admin='postgres'}
+if($admin-notmatch'^[A-Za-z_][A-Za-z0-9_]*$'){throw 'Unexpected administrator name'}
+$identity=docker exec $pg.Id psql -XqAt -v ON_ERROR_STOP=1 -U $admin -d postgres -c "BEGIN READ ONLY; SELECT system_identifier::text FROM pg_control_system(); SELECT count(*) FROM pg_stat_activity WHERE datname IN ('aicos_ordering','aicos_kitchen','aicos_payment','aicos_reporting') AND pid<>pg_backend_pid() AND backend_type='client backend'; COMMIT;"
+if($LASTEXITCODE-ne0-or$identity[0]-ne'7703616372368646182'-or$identity[1]-ne'0'){throw 'Cluster mismatch or remaining database connections; backup stopped'}
+$base=[IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA 'AICOS\backups'))
+if(Test-Path $base){if((Get-Item -LiteralPath $base).Attributes-band[IO.FileAttributes]::ReparsePoint){throw 'Backup root must not be a reparse point'}}
+$backupPath=[IO.Path]::GetFullPath((Join-Path $base ('dashboard-'+[DateTime]::UtcNow.ToString('yyyyMMddTHHmmssZ')+'-'+[Guid]::NewGuid().ToString('N').Substring(0,8))))
+if(-not$backupPath.StartsWith($base+[IO.Path]::DirectorySeparatorChar,[StringComparison]::OrdinalIgnoreCase)){throw 'Backup path escaped approved root'}
+$null=New-Item -ItemType Directory -Path $backupPath -Force
+$security=New-Object Security.AccessControl.DirectorySecurity
+$security.SetAccessRuleProtection($true,$false)
+foreach($sid in @([Security.Principal.WindowsIdentity]::GetCurrent().User,(New-Object Security.Principal.SecurityIdentifier 'S-1-5-18'))){
+    $rule=New-Object Security.AccessControl.FileSystemAccessRule($sid,'FullControl','ContainerInherit,ObjectInherit','None','Allow')
+    $security.AddAccessRule($rule)
+}
+Set-Acl -LiteralPath $backupPath -AclObject $security
+$manifest=@()
+foreach($database in $databases){
+    $file=Join-Path $backupPath ($database+'.dump')
+    $start=New-Object Diagnostics.ProcessStartInfo
+    $start.FileName=(Get-Command docker -ErrorAction Stop).Source
+    $start.Arguments='exec -e "PGOPTIONS=-c default_transaction_read_only=on" '+$pg.Id+' pg_dump -U '+$admin+' -d '+$database+' -Fc'
+    $start.UseShellExecute=$false;$start.CreateNoWindow=$true
+    $start.RedirectStandardOutput=$true;$start.RedirectStandardError=$true
+    $process=[Diagnostics.Process]::Start($start)
+    $stream=[IO.File]::Create($file)
+    try{$process.StandardOutput.BaseStream.CopyTo($stream)}finally{$stream.Dispose()}
+    $null=$process.StandardError.ReadToEnd();$process.WaitForExit()
+    if($process.ExitCode-ne0){throw 'Backup failed; private partial artifact retained. Never use it for restore.'}
+    $header=[IO.File]::OpenRead($file)
+    try{$bytes=New-Object byte[] 5;$null=$header.Read($bytes,0,5);if([Text.Encoding]::ASCII.GetString($bytes)-ne'PGDMP'){throw 'Invalid custom-format backup header'}}finally{$header.Dispose()}
+    $manifest+=[pscustomobject]@{Database=$database;File=[IO.Path]::GetFileName($file);SHA256=(Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant();Bytes=(Get-Item -LiteralPath $file).Length}
+}
+$record=[pscustomobject]@{Cluster='7703616372368646182';CreatedAtUtc=[DateTime]::UtcNow.ToString('o');Container=$pg.Id;Databases=$manifest;RestoreVerified=$false}
+[IO.File]::WriteAllText((Join-Path $backupPath 'MANIFEST.json'),($record|ConvertTo-Json -Depth 5),[Text.UTF8Encoding]::new($false))
+Write-Output ('Backup files stored privately at '+$backupPath+'. Restore drill still required; do not apply migration yet.')

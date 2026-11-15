@@ -22,6 +22,29 @@ using AICOS.WorkforceScheduling.Api.Persistence;
 static DbContextOptions<T> Options<T>(string schema,string connection) where T:DbContext => new DbContextOptionsBuilder<T>().UseNpgsql(connection,p=>p.MigrationsHistoryTable("__ef_migrations_history",schema)).UseSnakeCaseNamingConvention().Options;
 if (await ItemTransferDesignProbe.TryRunAsync(args)) return;
 const string offline="Host=127.0.0.1;Port=1;Database=offline;Username=offline;Timeout=1";
+if(args is ["local-dashboard-scripts",var dashboardPath])
+{
+    Directory.CreateDirectory(dashboardPath);
+    var targets = new (string Schema, DbContext Db, string From, string To)[]
+    {
+        ("ordering",new OrderingDbContext(Options<OrderingDbContext>("ordering",offline)),"20261101173630_TableBillRequest","20261114164841_DurableTableTransfer"),
+        ("kitchen",new KitchenOperationsDbContext(Options<KitchenOperationsDbContext>("kitchen",offline)),"20261114041318_KitchenBaristaWorkflow","20261114164849_TableTransferRoutingVersion"),
+        ("payment",new PaymentsDbContext(Options<PaymentsDbContext>("payment",offline)),"20261021102642_ConstraintsAndIndexes","20261114164856_BillSplitPlans"),
+        ("reporting",new ReportingAnalyticsDbContext(Options<ReportingAnalyticsDbContext>("reporting",offline)),"20261021151155_OrderFacts","20261114125038_ConfirmedCollectionInbox")
+    };
+    var excluded = new HashSet<string>{"item_transfer_operations","unit_session_allocations","unit_settlement_receipts","cup_transfer_receipts","cup_delivery_routes","session_bill_units"};
+    var description = new List<object>();
+    foreach(var (schema,db,from,to) in targets)
+    using(db)
+    {
+        var migrator=db.GetService<IMigrator>();
+        File.WriteAllText(Path.Combine(dashboardPath,schema+".up.sql"),migrator.GenerateScript(from,to,MigrationsSqlGenerationOptions.NoTransactions));
+        File.WriteAllText(Path.Combine(dashboardPath,schema+".down.sql"),migrator.GenerateScript(to,from,MigrationsSqlGenerationOptions.NoTransactions));
+        description.Add(new{schema,from,to,baseline=db.Database.GetMigrations().Where(x=>string.CompareOrdinal(x,from)<=0).ToArray(),pending=db.Database.GetMigrations().Where(x=>string.CompareOrdinal(x,from)>0&&string.CompareOrdinal(x,to)<=0).ToArray(),columns=db.Model.GetRelationalModel().Tables.Where(t=>!excluded.Contains(t.Name)).SelectMany(t=>t.Columns.Select(c=>new{table=t.Name,name=c.Name,type=c.StoreType,nullable=c.IsNullable})).ToArray()});
+    }
+    File.WriteAllText(Path.Combine(dashboardPath,"targets.json"),JsonSerializer.Serialize(description));
+    Console.WriteLine("Four offline Dashboard deltas exported; no DB connection or V2 migration.");return;
+}
 if(args is ["scripts",var path])
 {
     Directory.CreateDirectory(path);

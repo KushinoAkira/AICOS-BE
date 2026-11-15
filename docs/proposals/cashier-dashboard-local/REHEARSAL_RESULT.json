@@ -1,0 +1,311 @@
+{
+  "date": "2026-11-16",
+  "mainCluster": "7703616372368646182",
+  "mainConnectionsReadOnly": true,
+  "mainDataCopied": false,
+  "checks": [
+    {
+      "name": "Exact Docker main container/cluster and four READ ONLY catalog audits; schema-only export has no business rows or secrets",
+      "status": "PASS"
+    },
+    {
+      "name": "Fifteen new tables/five columns only; existing types/nullability match; ten pending migrations and no V2",
+      "status": "PASS"
+    },
+    {
+      "name": "Fresh internal-only/no-host-port/tmpfs test cluster pinned before DDL",
+      "status": "PASS"
+    },
+    {
+      "name": "ordering: guarded additive SQL, repeat/wrong-target refusal, complete columns/index/FK/CHECK and real service-role ACL PASS; legacy fixtures preserved",
+      "status": "PASS"
+    },
+    {
+      "name": "ordering: synthetic data backup/restore, unused-only rollback and reapply on separate clone PASS",
+      "status": "PASS"
+    },
+    {
+      "name": "ordering: rollback refuses new data/history rather than deleting it",
+      "status": "PASS"
+    },
+    {
+      "name": "kitchen: guarded additive SQL, repeat/wrong-target refusal, complete columns/index/FK/CHECK and real service-role ACL PASS; legacy fixtures preserved",
+      "status": "PASS"
+    },
+    {
+      "name": "kitchen: synthetic data backup/restore, unused-only rollback and reapply on separate clone PASS",
+      "status": "PASS"
+    },
+    {
+      "name": "kitchen: rollback refuses new data/history rather than deleting it",
+      "status": "PASS"
+    },
+    {
+      "name": "payment: guarded additive SQL, repeat/wrong-target refusal, complete columns/index/FK/CHECK and real service-role ACL PASS; legacy fixtures preserved",
+      "status": "PASS"
+    },
+    {
+      "name": "payment: synthetic data backup/restore, unused-only rollback and reapply on separate clone PASS",
+      "status": "PASS"
+    },
+    {
+      "name": "payment: rollback refuses new data/history rather than deleting it",
+      "status": "PASS"
+    },
+    {
+      "name": "reporting: guarded additive SQL, repeat/wrong-target refusal, complete columns/index/FK/CHECK and real service-role ACL PASS; legacy fixtures preserved",
+      "status": "PASS"
+    },
+    {
+      "name": "reporting: synthetic data backup/restore, unused-only rollback and reapply on separate clone PASS",
+      "status": "PASS"
+    },
+    {
+      "name": "reporting: rollback refuses new data/history rather than deleting it",
+      "status": "PASS"
+    },
+    {
+      "name": "All preexisting containers and every original-column main table fingerprint/count unchanged",
+      "status": "PASS"
+    }
+  ],
+  "targets": [
+    {
+      "database": "aicos_ordering",
+      "schema": "ordering",
+      "from": "20261101173630_TableBillRequest",
+      "to": "20261114164841_DurableTableTransfer",
+      "pending": [
+        "20261106164220_KitchenAdmissionOutbox",
+        "20261106183340_OrderingCupFulfillmentFoundation",
+        "20261113125751_OrderingSessionCheckout",
+        "20261113151937_FeedbackReply",
+        "20261114164841_DurableTableTransfer"
+      ],
+      "role": {
+        "role": "ordering_svc",
+        "superuser": false,
+        "createRole": false,
+        "createDb": false,
+        "bypassRls": false,
+        "schemaOwner": "ordering_svc",
+        "databaseOwner": "ordering_svc"
+      },
+      "mainOriginalFingerprints": {
+        "order_feedbacks": {
+          "rows": 0,
+          "hash": "d41d8cd98f00b204e9800998ecf8427e"
+        },
+        "order_item_options": {
+          "rows": 62,
+          "hash": "409752b6916c9a5743df77f5d0b8fcfd"
+        },
+        "order_items": {
+          "rows": 17,
+          "hash": "df4e1e1d3e623f0e1350ed4237cd03a3"
+        },
+        "orders": {
+          "rows": 16,
+          "hash": "88a7235060440bc34407107d7b806c78"
+        },
+        "pickup_slot_settings": {
+          "rows": 0,
+          "hash": "d41d8cd98f00b204e9800998ecf8427e"
+        },
+        "table_sessions": {
+          "rows": 8,
+          "hash": "896f494d3e1bcbc60f5f182cf2817c7b"
+        }
+      },
+      "schemaOnlyBackupSha256": "462fc7d8948f80773f38403bcc57277f1e348e619446672d7d3242a6b5c5bfc0",
+      "newTables": [
+        "fulfillment_receipts",
+        "kitchen_admission_outbox",
+        "kitchen_admission_reconcile_state",
+        "order_fulfillment_projection",
+        "session_checkouts",
+        "table_transfer_operations"
+      ],
+      "newColumns": [
+        "order_feedbacks.replied_at_utc",
+        "order_feedbacks.replied_by_user_id",
+        "order_feedbacks.reply",
+        "orders.fulfillment_mode"
+      ]
+    },
+    {
+      "database": "aicos_kitchen",
+      "schema": "kitchen",
+      "from": "20261114041318_KitchenBaristaWorkflow",
+      "to": "20261114164849_TableTransferRoutingVersion",
+      "pending": [
+        "20261114164849_TableTransferRoutingVersion"
+      ],
+      "role": {
+        "role": "kitchen_svc",
+        "superuser": false,
+        "createRole": false,
+        "createDb": false,
+        "bypassRls": false,
+        "schemaOwner": "kitchen_svc",
+        "databaseOwner": "kitchen_svc"
+      },
+      "mainOriginalFingerprints": {
+        "barista_acceptances": {
+          "rows": 11,
+          "hash": "38b6361460a8f9a64becac7d16c61c45"
+        },
+        "cup_claims": {
+          "rows": 0,
+          "hash": "d41d8cd98f00b204e9800998ecf8427e"
+        },
+        "cup_operations": {
+          "rows": 0,
+          "hash": "d41d8cd98f00b204e9800998ecf8427e"
+        },
+        "cup_stickers": {
+          "rows": 16,
+          "hash": "d3bfe4b102b626c753a7c73a489e6f81"
+        },
+        "cup_tasks": {
+          "rows": 0,
+          "hash": "d41d8cd98f00b204e9800998ecf8427e"
+        },
+        "early_payments": {
+          "rows": 0,
+          "hash": "d41d8cd98f00b204e9800998ecf8427e"
+        },
+        "fulfillment_outbox": {
+          "rows": 0,
+          "hash": "d41d8cd98f00b204e9800998ecf8427e"
+        },
+        "kitchen_print_jobs": {
+          "rows": 17,
+          "hash": "9beeaa272ec05dc68edb1ee932583867"
+        },
+        "kitchen_ticket_items": {
+          "rows": 17,
+          "hash": "763693d80befcbfa6c5dd4cdce27762d"
+        },
+        "kitchen_tickets": {
+          "rows": 16,
+          "hash": "9445b59849107c6d461ed513e2bccdf9"
+        },
+        "order_admission_receipts": {
+          "rows": 0,
+          "hash": "d41d8cd98f00b204e9800998ecf8427e"
+        }
+      },
+      "schemaOnlyBackupSha256": "c6f349a2669138ed01f6df7efd1e18507db432352dbd3a27cb475734dfbb7fb7",
+      "newTables": [],
+      "newColumns": [
+        "kitchen_tickets.table_transfer_version"
+      ]
+    },
+    {
+      "database": "aicos_payment",
+      "schema": "payment",
+      "from": "20261021102642_ConstraintsAndIndexes",
+      "to": "20261114164856_BillSplitPlans",
+      "pending": [
+        "20261113125804_PaymentSessionBills",
+        "20261114125030_CashierMoneyShifts",
+        "20261114164856_BillSplitPlans"
+      ],
+      "role": {
+        "role": "payment_svc",
+        "superuser": false,
+        "createRole": false,
+        "createDb": false,
+        "bypassRls": false,
+        "schemaOwner": "payment_svc",
+        "databaseOwner": "payment_svc"
+      },
+      "mainOriginalFingerprints": {
+        "cancellation_policies": {
+          "rows": 0,
+          "hash": "d41d8cd98f00b204e9800998ecf8427e"
+        },
+        "merchant_settings": {
+          "rows": 0,
+          "hash": "d41d8cd98f00b204e9800998ecf8427e"
+        },
+        "payment_providers": {
+          "rows": 0,
+          "hash": "d41d8cd98f00b204e9800998ecf8427e"
+        },
+        "payment_refunds": {
+          "rows": 0,
+          "hash": "d41d8cd98f00b204e9800998ecf8427e"
+        },
+        "payment_webhook_events": {
+          "rows": 0,
+          "hash": "d41d8cd98f00b204e9800998ecf8427e"
+        },
+        "payments": {
+          "rows": 2,
+          "hash": "2314439dda78b88a198d40c85f53cc30"
+        }
+      },
+      "schemaOnlyBackupSha256": "24b6509a55a930d5de61900b5741499d855fb11929db1b70dfbe005f5bc72654",
+      "newTables": [
+        "bill_split_operations",
+        "bill_split_plans",
+        "cashier_shifts",
+        "collection_outbox",
+        "session_bill_attempts",
+        "session_bill_events",
+        "session_bill_orders",
+        "session_bills"
+      ],
+      "newColumns": []
+    },
+    {
+      "database": "aicos_reporting",
+      "schema": "reporting",
+      "from": "20261021151155_OrderFacts",
+      "to": "20261114125038_ConfirmedCollectionInbox",
+      "pending": [
+        "20261114125038_ConfirmedCollectionInbox"
+      ],
+      "role": {
+        "role": "reporting_svc",
+        "superuser": false,
+        "createRole": false,
+        "createDb": false,
+        "bypassRls": false,
+        "schemaOwner": "reporting_svc",
+        "databaseOwner": "reporting_svc"
+      },
+      "mainOriginalFingerprints": {
+        "order_facts": {
+          "rows": 15,
+          "hash": "1b0275b9c066a7f3a6ce1defcfa247ad"
+        }
+      },
+      "schemaOnlyBackupSha256": "76f9884b160b1920d2a7ff0f6a145ca09ff26df3d60e683d07c27beea5753d6b",
+      "newTables": [
+        "collection_facts"
+      ],
+      "newColumns": []
+    }
+  ],
+  "sqlChecksums": [
+    "cad66f0e136eea006375db1d74f9a9d95181dfc939f49202d2f4cc1957d12d2c  00_preflight.READ_ONLY.sql",
+    "e8fad15a7b3ce122d8ef4af83b4b7da7776408d870c9e63a13f39b743e223657  01_ordering_expand.sql",
+    "20e2749841c1a13cea7c10e16b562be9eb07b9a91680739203c4c599d277b144  02_kitchen_expand.sql",
+    "805c779c83e279e2d9fefdd8847069c08ffc49abf6986bf4e11ffd6d98dea6cf  03_payments_expand.sql",
+    "92040da0b67ba65b806f30fa8a6d181e18e7a9a49d80dd92809ac0f2c5fe9546  04_reporting_expand.sql",
+    "e3e87562bfbf54fedeea3f383a70cdcc570a5fadb7851577698c16bd77e6e6b7  10_ordering_grants.PROPOSAL.sql",
+    "da30a5a552b52490f3bd5c8b9bb494092bdc255ec68d2a677d0afc62eb536158  11_kitchen_grants.PROPOSAL.sql",
+    "4e4828d05795788a37464be7ddb84ce02fdeee867428b95b15818b8e5e6ade52  12_payment_grants.PROPOSAL.sql",
+    "db2b6453c0faa0c677dead78041de097b4f1523344371161e1e247bfdcb94fca  13_reporting_grants.PROPOSAL.sql",
+    "819136a2c888fe227ca648656a6aa5e7e54f77ea573f0c963d06c2530cde67f2  90_ordering_rollback.UNUSED_ONLY.sql",
+    "6333c8ac63664f936becb76f53e87af0b2f107fad260b9153fa54771063d11a3  91_kitchen_rollback.UNUSED_ONLY.sql",
+    "d3e77e146525c4e34bd96e8fdc4f1edc05dc9e717ff5a5e0e076ac272574ea8e  92_payment_rollback.UNUSED_ONLY.sql",
+    "be64e0f2c94fd4e42db5e337f00486eef8c5f28e9d5190d7fb9b1a1583737e7e  93_reporting_rollback.UNUSED_ONLY.sql"
+  ],
+  "testCluster": "7708466442335600681",
+  "preexistingContainersUnchanged": true,
+  "mainOriginalRowsUnchanged": true
+}
