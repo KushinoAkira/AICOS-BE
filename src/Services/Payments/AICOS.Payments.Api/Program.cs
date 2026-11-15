@@ -36,6 +36,7 @@ builder.Services.AddIntegrationEventHandler<OrderCancelledIntegrationEvent, Paym
 // builder.Services.AddIntegrationEventHandler<SomeEvent, SomeEventHandler>();   // consume events from other services
 // builder.Services.AddAicosServiceClient<IOtherClient, OtherClient>(builder.Configuration, "Other");   // sync REST call to another service
 
+builder.Services.AddAicosServiceClient<ICashActorVerifier, HttpCashActorVerifier>(builder.Configuration, "Identity");
 builder.AddSessionBilling();
 builder.Services.AddHttpClient("collections");
 builder.Services.AddScoped<CollectionDispatcher>();

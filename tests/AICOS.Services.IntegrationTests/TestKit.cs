@@ -107,6 +107,8 @@ public sealed class ServiceFactory<TService, TDbContext>(Action<IServiceCollecti
             services.AddSingleton(Users);
             services.AddScoped<IUserDirectory, FakeUserDirectory>();
 
+            services.RemoveAll<AICOS.Payments.Api.Features.CashierShifts.ICashActorVerifier>();
+            services.AddScoped<AICOS.Payments.Api.Features.CashierShifts.ICashActorVerifier, TestCashActorVerifier>();
             configure?.Invoke(services);
         });
     }
@@ -312,3 +314,7 @@ public sealed class FakeOrderDirectory : AICOS.Payments.Api.Infrastructure.IOrde
     public Task<IReadOnlyList<AICOS.Payments.Api.Features.Payments.OrderForReconciliation>> ListForReconciliationAsync(Guid? branchId, DateOnly from, DateOnly to, CancellationToken ct) =>
         Task.FromResult<IReadOnlyList<AICOS.Payments.Api.Features.Payments.OrderForReconciliation>>(Listed.ToList());
 }
+
+// Explicit Identity double; real account revalidation is exercised in the isolated Gateway stack.
+internal sealed class TestCashActorVerifier : AICOS.Payments.Api.Features.CashierShifts.ICashActorVerifier
+{ public Task EnsureAsync(ICurrentUser user, CancellationToken ct) => Task.CompletedTask; }

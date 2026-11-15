@@ -33,11 +33,12 @@ export async function dashboardFinalChecks(c,f){
   const result=await c.run('cmd.exe',['/d','/s','/c','C:/src/flutter/bin/flutter.bat test test/cashier_shift_live_stack_test.dart --dart-define=AICOS_MAIN_API=false --reporter expanded'],{cwd:c.mobileRoot,env:{AICOS_BILL_STACK_URL:c.base,AICOS_BILL_STACK_LOGIN:'cashier@billstack.invalid',AICOS_BILL_STACK_PASSWORD:staffPassword,AICOS_BILL_STACK_BRANCH:branch.id,AICOS_MONEY_SHIFT_STEP:step,AICOS_EXPECT_SHIFT_ID:id}});assert.match(result.out,/All tests passed/);
   c.report('Flutter actual shift '+step+' UI: explicit count confirmation, persisted own branch/actor, reload without duplicate');
  };
- await shiftUi('OPEN');
- const active=(await request('GET','/api/v1/payments/cashier-shifts?branchId='+branch.id+'&status=OPEN',cashier,null,null,200)).data;assert.equal(active.length,1);const uiShift=active[0];
+ if(!c.precheckMode||!c.requireShift)await shiftUi('OPEN');
+ const active=(await request('GET','/api/v1/payments/cashier-shifts?branchId='+branch.id+'&status=OPEN',cashier,null,null,200)).data;assert.equal(active.length,c.precheckMode&&c.requireShift?0:1);let uiShift=active[0];
  const uiSession=await open('MOBILE-CASH');await add(uiSession);
- const ui=await c.run('cmd.exe',['/d','/s','/c','C:/src/flutter/bin/flutter.bat test test/session_bill_live_stack_test.dart --name=real.Cash.UI --dart-define=AICOS_MAIN_API=false --reporter expanded'],{cwd:c.mobileRoot,env:{AICOS_BILL_STACK_URL:c.base,AICOS_BILL_STACK_LOGIN:'cashier@billstack.invalid',AICOS_BILL_STACK_PASSWORD:staffPassword,AICOS_BILL_STACK_BRANCH:branch.id,AICOS_BILL_STACK_TABLE:uiSession.table.id,AICOS_BILL_STACK_SESSION:uiSession.session,AICOS_CASH_UI:'true'}});assert.match(ui.out,/All tests passed/);
+ const ui=await c.run('cmd.exe',['/d','/s','/c','C:/src/flutter/bin/flutter.bat test test/session_bill_live_stack_test.dart --name=real.Cash.UI --dart-define=AICOS_MAIN_API=false --reporter expanded'],{cwd:c.mobileRoot,env:{AICOS_BILL_STACK_URL:c.base,AICOS_BILL_STACK_LOGIN:'cashier@billstack.invalid',AICOS_BILL_STACK_PASSWORD:staffPassword,AICOS_BILL_STACK_BRANCH:branch.id,AICOS_BILL_STACK_TABLE:uiSession.table.id,AICOS_BILL_STACK_SESSION:uiSession.session,AICOS_CASH_UI:'true',AICOS_OPEN_SHIFT_FIRST:c.precheckMode&&c.requireShift?'true':'false'}});assert.match(ui.out,/All tests passed/);
  const uiPaid=await bill(uiSession);assert.equal(uiPaid.status,'PAID');assert.equal(uiPaid.payment.change,15000);
+ if(c.precheckMode&&c.requireShift){const rows=(await request('GET','/api/v1/payments/cashier-shifts?branchId='+branch.id+'&status=OPEN',cashier,null,null,200)).data;assert.equal(rows.length,1);uiShift={...rows[0],version:1};c.report('Flutter denied precheck opens existing shift screen, creates own OPEN shift explicitly and rechecks before Cash form');}
  const uiCurrent=(await request('GET','/api/v1/payments/cashier-shifts/'+uiShift.id,cashier,null,null,200)).data;assert.equal(uiCurrent.cashCollected,35000);
  assert.ok(uiCurrent.version>uiShift.version);
  const closeUiUrl='/api/v1/payments/cashier-shifts/'+uiShift.id+'/close';
@@ -50,6 +51,13 @@ export async function dashboardFinalChecks(c,f){
  for(const key of ['version','countedCash','expectedCash','closedAtUtc','closingNote'])assert.equal(retryClose[key],uiClosed[key]);
  assert.equal((await bill(uiSession)).status,'PAID');assert.equal((await request('GET','/api/v1/orders/qr/sessions/'+uiSession.session+'/close-eligibility',cashier,null,null,200)).data.canClose,false);
  c.report('Flutter actual Cash UI: tender 50000, change 15000, explicit received confirmation, one PAID Bill and own shift receipt');
+ if(c.precheckMode){
+  const takeShift=(await request('POST','/api/v1/payments/cashier-shifts',cashier,{branchId:branch.id,openingCash:100000},'precheck-takeaway-shift',200)).data;
+  const order=(await request('POST','/api/v1/orders',cashier,{branchId:branch.id,type:'Takeaway',items:[{productId:f.product.id,quantity:1}]},'precheck-takeaway-order',201)).data;
+  const result=await c.run('cmd.exe',['/d','/s','/c','C:/src/flutter/bin/flutter.bat test test/cash_precheck_takeaway_live_test.dart --dart-define=AICOS_MAIN_API=false --reporter expanded'],{cwd:c.mobileRoot,env:{AICOS_BILL_STACK_URL:c.base,AICOS_BILL_STACK_LOGIN:'cashier@billstack.invalid',AICOS_BILL_STACK_PASSWORD:staffPassword,AICOS_BILL_STACK_BRANCH:branch.id,AICOS_TAKEAWAY_ORDER:order.id}});assert.match(result.out,/All tests passed/);
+  const row=(await request('GET','/api/v1/payments/cashier-shifts/'+takeShift.id,cashier,null,null,200)).data;assert.equal(row.cashCollected,35000);await request('POST','/api/v1/payments/cashier-shifts/'+takeShift.id+'/close',cashier,{version:row.version,countedCash:row.expectedCash},null,200);
+  assert.equal(await c.sql(c.databases.payment,"SELECT count(*) FROM payment.payments WHERE order_id='"+order.id+"';"),'1');c.report('Flutter Takeaway Cash through shared precheck, one real Order payment, own drawer receipt');
+ }
  // A second drawer races Cash vs close; actor lock must bind only receipts accepted before close.
  const shift=(await request('POST','/api/v1/payments/cashier-shifts',cashier2,{branchId:branch.id,openingCash:100000},'second-cashier-drawer',200)).data;
  const raceSession=await open('CLOSE-RACE');await add(raceSession);const raceBill=await bill(raceSession);

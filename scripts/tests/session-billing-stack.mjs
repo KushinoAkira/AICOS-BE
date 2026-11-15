@@ -10,7 +10,8 @@ import {runFlow} from './session-billing-stack-flow.mjs';
 import {runBaristaFlow} from './barista-stack-flow.mjs';
 const baristaMode=process.argv.includes('--barista');
 const operationsMode=process.argv.includes('--operations');
-const dashboardMode=process.argv.includes('--dashboard');
+const precheckMode=process.argv.includes('--precheck');
+const dashboardMode=process.argv.includes('--dashboard')||precheckMode;
 const requireShift=process.argv.includes('--require-shift');
 const mobileRoot=process.env.AICOS_MOBILE_WORKSPACE||path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../../../AICOS-Mobile');
 const cashierMode=process.argv.includes('--cashier')||operationsMode||dashboardMode;
@@ -186,7 +187,7 @@ try{
  gateway=serviceIds.gateway;const inspection=JSON.parse(await docker(['inspect',gateway]))[0];const binding=inspection.NetworkSettings.Ports['8080/tcp'][0];assert.equal(binding.HostIp,'127.0.0.1');base='http://127.0.0.1:'+binding.HostPort;
  await until(async()=>{const r=await fetch(base+'/api/v1/identity/public/subscription-plans');return r.status===200;},'Gateway Identity');
  await docker(['run','--rm','--network',network,'--mount','type=bind,src='+tools+',dst=/testtools,readonly','--entrypoint','dotnet','aicos-main/identity:local','/testtools/AICOS.Billing.StackTools.dll','health']);report('Eight services live/ready/Swagger; Gateway metadata/live (ready/Swagger N/A by source)');
- const ctx={base,userPassword,webhook,sql,databases,report,until,docker,run,serviceIds,redis,temporary,root,checks,cashierMode,operationsMode,dashboardMode,requireShift,mobileRoot};if(baristaMode){await runBaristaFlow(ctx);await sql(databases.kitchen,await fs.readFile(path.join(root,'docs/migrations/barista-workflow/90_rollback.EMPTY_ONLY.sql'),'utf8'),{schema:'kitchen',approval:'rollback',deny:true});report('Nonempty Barista acceptance/print audit rollback refused');}else await runFlow(ctx);
+ const ctx={base,userPassword,webhook,sql,databases,report,until,docker,run,serviceIds,redis,temporary,root,checks,cashierMode,operationsMode,dashboardMode,requireShift,mobileRoot,precheckMode};if(baristaMode){await runBaristaFlow(ctx);await sql(databases.kitchen,await fs.readFile(path.join(root,'docs/migrations/barista-workflow/90_rollback.EMPTY_ONLY.sql'),'utf8'),{schema:'kitchen',approval:'rollback',deny:true});report('Nonempty Barista acceptance/print audit rollback refused');}else await runFlow(ctx);
  if(operationsMode){for(const schema of ['ordering','kitchen','payment'])await sql(databases[schema],await fs.readFile(path.join(baselines,schema+'.operations.down.sql'),'utf8'),{deny:true});report('Nonempty transfer/split audit and used routing rollback refused');}
  if(cashierMode){await sql(databases.payment,await fs.readFile(path.join(baselines,'payment.cashier.down.sql'),'utf8'),{deny:true});await sql(databases.reporting,await fs.readFile(path.join(baselines,'reporting.cashier.down.sql'),'utf8'),{deny:true});report('Nonempty cashier ledger and Reporting inbox rollback refused');}
  await sql(databases.payment,await script('90_payments_rollback.sql'),{schema:'payment',approval:'rollback',deny:true});report('Nonempty financial rollback rejected; received money/audit retained');
@@ -203,7 +204,7 @@ try{
  // Container logs stay in ephemeral containers. Do not dump secrets or authorization bodies.
  if(error.detail){let diagnostic=error.detail;for(const value of [adminPassword,userPassword,jwt,machine,admission,webhook,printerKey,...Object.values(passwords)])diagnostic=diagnostic.replaceAll(value,'[redacted]');console.log('Diagnostic: '+diagnostic.replace(/eyJ[A-Za-z0-9_.-]{40,}/g,'[redacted token]').slice(-2500));}
 }finally{
- await fs.writeFile(path.join(root,'docs',dashboardMode?(requireShift?'CASHIER_DASHBOARD_ENFORCED_EVIDENCE.json':'CASHIER_DASHBOARD_E2E_EVIDENCE.json'):baristaMode?'BARISTA_STACK_TEST_EVIDENCE.json':operationsMode?'TABLE_TRANSFER_SPLIT_E2E_EVIDENCE.json':cashierMode?'CASHIER_SHIFT_STACK_TEST_EVIDENCE.json':'SESSION_BILL_STACK_TEST_EVIDENCE.json'),JSON.stringify({cluster,checks,operatingContainersUnchanged:await snapshot(existing)===before,qr:'Mock only; not bank verification'},null,2)+'\n');
+ await fs.writeFile(path.join(root,'docs',precheckMode?(requireShift?'CASH_PRECHECK_E2E_EVIDENCE.json':'CASH_PRECHECK_OFF_EVIDENCE.json'):dashboardMode?(requireShift?'CASHIER_DASHBOARD_ENFORCED_EVIDENCE.json':'CASHIER_DASHBOARD_E2E_EVIDENCE.json'):baristaMode?'BARISTA_STACK_TEST_EVIDENCE.json':operationsMode?'TABLE_TRANSFER_SPLIT_E2E_EVIDENCE.json':cashierMode?'CASHIER_SHIFT_STACK_TEST_EVIDENCE.json':'SESSION_BILL_STACK_TEST_EVIDENCE.json'),JSON.stringify({cluster,checks,operatingContainersUnchanged:await snapshot(existing)===before,qr:'Mock only; not bank verification'},null,2)+'\n');
  if(process.exitCode && dashboardMode && process.argv.includes('--keep-failed-test')){console.log('Retained only this labelled disposable test stack for diagnosis: '+network);}
  else {
  for(const id of containers.reverse()){const x=JSON.parse(await docker(['inspect',id]))[0];assert.equal(x.Config.Labels['aicos.purpose'],purpose);assert.deepEqual(Object.keys(x.NetworkSettings.Networks),[network]);await docker(['rm','-f',id]);}

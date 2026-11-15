@@ -1,3 +1,4 @@
+import {precheckContracts} from './cash-precheck-flow.mjs';
 import {dashboardSnapshot, dashboardFinalChecks} from './cashier-dashboard-flow.mjs';
 import {runOperationsFlow} from './table-transfer-split-flow.mjs';
 import assert from 'node:assert/strict';
@@ -53,6 +54,7 @@ export async function runFlow(c){
   for(const url of ['/api/v1/payments/cashier-shifts?branchId=','/api/v1/reporting/collections?branchId='])await request('GET',url+branch.id,barista,null,null,403);
   report('Cash shift enforcement '+(c.requireShift?'ON rejects unassigned Cash':'OFF preserves unassigned Cash')+'; parallel open replay and real JWT branch/role isolation');
  }
+ if(c.precheckMode)await precheckContracts(c,{request,branch,cashier,cashier2,barista,owner,open,add,bill,collect});
  const s=await open('B01'),o1=await add(s),o2=await add(s,2);const draft=await bill(s);assert.equal(draft.quote.total,105000);assert.equal(draft.quote.orders.length,2);report('Real Table -> Menu prices -> two Orders -> one aggregate Bill');
  const queue=async()=>(await request('GET','/api/v1/kitchen/queue',barista,null,null,200)).data;
  await until(async()=>{const q=await queue();return q.some(t=>t.orderId===o1.id)&&q.some(t=>t.orderId===o2.id);},'Kitchen real Redis/admission',75);report('Unpaid DineIn reaches Kitchen before payment');
@@ -114,7 +116,7 @@ export async function runFlow(c){
   c.checks.push({name:'Reporting and cash-shift reconciliation',status:'BLOCKED',evidence:{paidBillTotal:Number(received),reportedGrossRevenue:reportView.totals.grossRevenue,cashShiftLedger:Number(drawer),reason:'CashierShifts feature disabled.'}});
   console.log('BLOCKED Reporting/shift feature disabled in baseline stack.');
  }
- if(c.dashboardMode)await dashboardFinalChecks(c,{request,open,add,bill,collect,cashier,cashier2,barista,branch,staffPassword,moneyShift});
+ if(c.dashboardMode)await dashboardFinalChecks(c,{request,open,add,bill,collect,cashier,cashier2,barista,branch,staffPassword,moneyShift,product});
  if(c.operationsMode)await runOperationsFlow({...c,request,open,add,bill,cashier,cashier2,barista,owner,branch,area,product});
  const money=await sql(databases.payment,"SELECT count(*) FROM payment.session_bills b JOIN payment.session_bill_attempts a ON a.id=b.paid_payment_id WHERE b.status IN ('PAID','CLOSED') AND (a.status<>'SUCCEEDED' OR a.amount<>b.total);");assert.equal(money,'0');report('No PAID Bill lacks matching SUCCEEDED amount proof');
 }

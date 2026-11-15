@@ -13,6 +13,7 @@ public static class CashierShiftEndpoints
 {
     public static void MapCashierShifts(this RouteGroupBuilder api)
     {
+        api.MapGet("/cashier-shifts/cash-precheck", CashPrecheck.GetAsync).WithTags("Cashier money shifts").RequireAuthorization(b => b.RequireRole(PaymentAccess.CounterRoles));
         var g=api.MapGroup("/cashier-shifts").WithTags("Cashier money shifts").RequireAuthorization(b=>b.RequireRole(PaymentAccess.CounterRoles))
             .AddEndpointFilter(async(c,next)=>c.HttpContext.RequestServices.GetRequiredService<IConfiguration>().GetValue<bool>("CashierShifts:Enabled") ? await next(c) : Results.StatusCode(503));
         g.MapPost("/",OpenAsync); g.MapPost("/{id:guid}/close",CloseAsync);

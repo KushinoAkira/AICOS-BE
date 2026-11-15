@@ -24,7 +24,7 @@ public static class SessionBillEndpoints
         bills.MapGet("/{id:guid}/history", BillHistoryEndpoint.GetAsync).RequireAuthorization(b => b.RequireRole(PaymentAccess.CounterRoles));
         bills.MapGet("/{id:guid}/invoice", (Guid id, ICurrentUser user, BillLedgerService ledger, CancellationToken ct) => ledger.GetByIdAsync(id, user, true, ct)).RequireAuthorization(b => b.RequireRole(PaymentAccess.CounterRoles));
         bills.MapPost("/{id:guid}/payments/cash", (Guid id, CollectBillRequest request, HttpContext http, ICurrentUser user, BillLedgerService ledger, CancellationToken ct) =>
-            ledger.CollectAsync(id, request, http.Request.Headers["Idempotency-Key"].ToString().Trim(), "Cash", user, ct)).RequireAuthorization(b => b.RequireRole(PaymentAccess.CounterRoles));
+            ledger.CollectAsync(id, request, http.Request.Headers["Idempotency-Key"].ToString().Trim(), "Cash", user, ct)).RequireAuthorization(b => b.RequireRole(PaymentAccess.CounterRoles)).AddEndpointFilter<AICOS.Payments.Api.Features.CashierShifts.CashActorFilter>();
         bills.MapPost("/{id:guid}/payments/qr", (Guid id, CollectBillRequest request, HttpContext http, ICurrentUser user, BillLedgerService ledger, CancellationToken ct) =>
             ledger.CollectAsync(id, request, http.Request.Headers["Idempotency-Key"].ToString().Trim(), "QR", user, ct)).RequireAuthorization(b => b.RequireRole(PaymentAccess.CounterRoles));
         bills.MapPost("/webhooks/{provider}", (string provider, WebhookRequest request, BillWebhookReceiver receiver, CancellationToken ct) => receiver.ReceiveAsync(provider, request, ct)).AllowAnonymous();

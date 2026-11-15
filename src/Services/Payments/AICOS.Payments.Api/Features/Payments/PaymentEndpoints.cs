@@ -38,7 +38,7 @@ public static class PaymentEndpoints
         var group = api.MapGroup("/transactions").WithTags("Payments");
 
         group.MapPost("/", CreateAsync).RequireAuthorization();
-        group.MapPost("/cash", RecordCashAsync).RequireAuthorization(b => b.RequireRole(PaymentAccess.CounterRoles));
+        group.MapPost("/cash", RecordCashAsync).RequireAuthorization(b => b.RequireRole(PaymentAccess.CounterRoles)).AddEndpointFilter<AICOS.Payments.Api.Features.CashierShifts.CashActorFilter>();
         group.MapGet("/", ListAsync).RequireAuthorization();
         group.MapGet("/{id:guid}", GetAsync).RequireAuthorization();
         group.MapPost("/{id:guid}/cancel", CancelAsync).RequireAuthorization();

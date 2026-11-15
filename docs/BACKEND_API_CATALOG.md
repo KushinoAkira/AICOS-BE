@@ -598,3 +598,6 @@ See [CASH_COLLECTION_MAIN.md](CASH_COLLECTION_MAIN.md): GET Payments staff/capab
 - Online attempts persist before provider I/O; ambiguous Pending/Expired/Cancelled blocks replacement and cash. Expiry no longer publishes a timed-out payment failure to cancel orders. PaymentResponse adds `requiresReconciliation` without removing existing fields.
 - Chosen policy: no additional rounds after Bill PAID. Legacy round projection guard is conservative; durable Bill checkout fence still pending.
 - Bill-scoped Cash/QR/invoice APIs are still missing; do not loop per-order Cash for Dine-in. Source, tests, SQL draft and blockers: [SESSION_BILL_P0_IMPLEMENTATION.md](SESSION_BILL_P0_IMPLEMENTATION.md).
+## Cashier Shift Precheck — 2026-11-15
+
+GET /api/v1/payments/cashier-shifts/cash-precheck?branchId=... (Payments; Counter roles) returns branchId/cashierId/allowed/requiresOpenShift/shiftStatus/reasonCode/message. GET is read-only and does not reserve eligibility or confirm money. Additive, no existing endpoint/DTO removed. Shared by Mobile Dine-in and Takeaway. Cash command routes revalidate live Identity authorization plus the existing transactional drawer policy. QR unchanged. See CASH_PRECHECK.md.
