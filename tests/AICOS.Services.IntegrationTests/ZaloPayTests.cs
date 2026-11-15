@@ -202,3 +202,57 @@ public sealed class ZaloPayTests : PaymentTestBase
         (await ReadAsync(payment)).GetProperty("status").GetString().Should().Be("Succeeded");
     }
 }
+
+/// <summary>The failure simulation (testing only): what ZaloPay reports as paid is taken as refused, for the reason chosen in the settings.</summary>
+public sealed class ZaloPaySimulatedFailureTests : PaymentTestBase
+{
+    private const string AppId = "2554";
+    private const string Key1 = "key1_sim_1234567890";
+    private const string Key2 = "key2_sim_1234567890";
+
+    private static readonly FakeZaloPayApi Api = new();
+
+    public ZaloPaySimulatedFailureTests()
+        : base(services =>
+        {
+            services.PostConfigure<ZaloPayOptions>(o => { o.Live = true; o.SimulateFailure = "lost"; });
+            services.AddHttpClient(ZaloPayGateway.HttpClientName).ConfigurePrimaryHttpMessageHandler(() => Api);
+        })
+    {
+        Api.Calls.Clear();
+        Api.Answer = call => call.Path == "/v2/create"
+            ? new { return_code = 1, return_message = "Giao dịch thành công", order_url = "https://qcgateway.zalopay.vn/openinapp?order=x" }
+            : new { return_code = 1, return_message = "Giao dịch thành công", is_processing = false, amount = 74_000, zp_trans_id = 240901000000999 };
+        Super.PostOk(Providers, new { code = "ZaloPay", displayName = "ZaloPay", mode = "Sandbox", merchantId = AppId, apiKey = Key1, secretKey = Key2 }).GetAwaiter().GetResult();
+        SetProviderEnabledAsync("ZaloPay", true).GetAwaiter().GetResult();
+        Admin.Put(Merchants, new { providerCode = "ZaloPay", isEnabled = true, merchantCode = "ZALOPAY" }).ShouldBe(201).GetAwaiter().GetResult();
+    }
+
+    [Fact]
+    public async Task A_paid_order_comes_back_refused_for_the_simulated_reason_and_can_be_paid_again()
+    {
+        var order = Guid.NewGuid();
+        var payment = await PayOnlineAsync(order, 74_000, provider: "ZaloPay");
+        var appTransId = Api.Calls.First(c => c.Path == "/v2/create").Form["app_trans_id"];
+        var browser = F.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+
+        var back = await browser.GetAsync($"/api/v1/payments/zalopay/return?apptransid={appTransId}&status=1");
+
+        var result = QueryHelpers.ParseQuery(new Uri(back.Headers.Location!.ToString()).Query);
+        (result["status"].ToString(), result["reason"].ToString()).Should().Be(("failed", "ZaloPay (giả lập): Thẻ bị mất hoặc bị khóa (-217)."));
+        (await GetAsync(Customer, $"{Tx}/{payment.Id()}")).GetProperty("status").GetString().Should().Be("Failed");
+        F.Events.Published.OfType<PaymentSucceededEvent>().Should().BeEmpty();
+
+        var again = await PayOnlineAsync(order, 74_000, provider: "ZaloPay");
+        again.GetProperty("status").GetString().Should().Be("Pending");
+    }
+
+    [Theory]
+    [InlineData(null, null)]
+    [InlineData("", null)]
+    [InlineData("no_money", "ZaloPay (giả lập): Số dư tài khoản không đủ (-63).")]
+    [InlineData("TIMEOUT", "ZaloPay (giả lập): Giao dịch quá thời gian chờ (-54).")]
+    [InlineData("other", "ZaloPay (giả lập): Giao dịch thất bại (-1).")]
+    public void The_simulated_reason_follows_the_setting(string? setting, string? reason) =>
+        ZaloPay.SimulatedFailure(setting).Should().Be(reason);
+}

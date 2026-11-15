@@ -257,6 +257,8 @@ services:
       Payments__ZaloPay__ReturnUrl: ${ZALOPAY_RETURN_URL:-http://localhost:8080/api/v1/payments/zalopay/return}
       Payments__ZaloPay__CallbackUrl: ${ZALOPAY_CALLBACK_URL:-http://localhost:8080/api/v1/payments/zalopay/callback}
       Payments__ZaloPay__ResultPageUrl: ${APP_URL:-http://localhost:8443}/thanh-toan/ket-qua
+      # Testing only: lost | no_money | timeout. Every payment ZaloPay reports paid is taken as refused for that reason.
+      Payments__ZaloPay__SimulateFailure: ${ZALOPAY_SIMULATE_FAILURE:-}
     ports: ["5105:8080"]
 
   # ------------------------------------------------------------------ OPERATIONS

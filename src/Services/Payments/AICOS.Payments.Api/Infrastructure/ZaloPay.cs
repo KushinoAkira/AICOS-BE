@@ -41,6 +41,13 @@ public sealed class ZaloPayOptions
     public string? Key1 { get; set; }
 
     public string? Key2 { get; set; }
+
+    /// <summary>
+    /// For testing only. ZaloPay's public sandbox apps let every test card through, so the failures a customer can meet cannot be played
+    /// on them. Set to <c>lost</c>, <c>no_money</c>, <c>timeout</c> (or anything else for a generic refusal), every payment ZaloPay
+    /// reports as paid is taken as refused for that reason instead. Empty (the default): ZaloPay's answer is taken as it is.
+    /// </summary>
+    public string SimulateFailure { get; set; } = string.Empty;
 }
 
 /// <summary>The keys of the platform's ZaloPay merchant app: key1 signs the requests, key2 the callbacks.</summary>
@@ -114,6 +121,16 @@ public static class ZaloPay
         body.ValueKind == JsonValueKind.Object && body.TryGetProperty(name, out var value)
             ? value.ValueKind == JsonValueKind.String ? value.GetString() : value.ValueKind == JsonValueKind.Number ? value.GetRawText() : null
             : null;
+
+    /// <summary>The refusal played instead of a payment when <see cref="ZaloPayOptions.SimulateFailure"/> is set; null when it is not.</summary>
+    public static string? SimulatedFailure(string? setting) => setting?.Trim().ToLowerInvariant() switch
+    {
+        null or "" => null,
+        "lost" => "ZaloPay (giả lập): Thẻ bị mất hoặc bị khóa (-217).",
+        "no_money" => "ZaloPay (giả lập): Số dư tài khoản không đủ (-63).",
+        "timeout" => "ZaloPay (giả lập): Giao dịch quá thời gian chờ (-54).",
+        _ => "ZaloPay (giả lập): Giao dịch thất bại (-1).",
+    };
 
     public static int? ReturnCode(JsonElement body) =>
         int.TryParse(Text(body, "return_code"), NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out var code) ? code : null;
@@ -202,6 +219,12 @@ public sealed class ZaloPayGateway(
         if (answer is not { } json)
         {
             return pending;
+        }
+
+        if (ZaloPay.ReturnCode(json) == 1 && ZaloPay.SimulatedFailure(options.Value.SimulateFailure) is { } simulated)
+        {
+            logger.LogWarning("ZaloPay failure simulation is on: payment {Ref} is taken as refused.", payment.TransactionRef);
+            return new GatewayStatus(ProviderState.Failed, null, simulated);
         }
 
         return ZaloPay.ReturnCode(json) switch

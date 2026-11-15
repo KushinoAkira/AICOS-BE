@@ -33,7 +33,7 @@ public static class ZaloPayEndpoints
     }
 
     private static async Task<ZaloPayCallbackResponse> CallbackAsync(
-        JsonElement body, PaymentsDbContext db, PaymentProcessor processor, SecretProtector protector, CancellationToken ct)
+        JsonElement body, PaymentsDbContext db, PaymentProcessor processor, SecretProtector protector, IOptions<ZaloPayOptions> options, CancellationToken ct)
     {
         var credentials = await ZaloPayCredentials.LoadAsync(db, protector, ct);
         if (credentials is null || !ZaloPay.VerifyCallback(credentials.Key2, body, out var data) || ZaloPay.Text(data, "app_id") != credentials.AppId)
@@ -61,7 +61,12 @@ public static class ZaloPayEndpoints
         }
 
         // ZaloPay calls back only for paid orders. Never mark a payment paid for a different amount.
-        var outcome = amount != payment.Amount ? "amount_mismatch" : await processor.ApplySuccessAsync(payment, zpTransId, ct);
+        // With the failure simulation on (testing only), the paid order is taken as refused.
+        var simulated = ZaloPay.SimulatedFailure(options.Value.SimulateFailure);
+        var outcome = amount != payment.Amount ? "amount_mismatch"
+            : simulated is not null ? await processor.ApplyFailureAsync(payment, simulated, ct)
+            : await processor.ApplySuccessAsync(payment, zpTransId, ct);
+
         var record = new PaymentWebhookEvent(ZaloPay.Code, eventId, payment.TransactionRef, "success", amount, processor.UtcNow);
         record.Resolve(payment, outcome);
         db.WebhookEvents.Add(record);
