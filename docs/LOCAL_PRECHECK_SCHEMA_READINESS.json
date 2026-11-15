@@ -1,0 +1,4074 @@
+{
+  "cluster": "7703616372368646182",
+  "readOnly": "on",
+  "databases": [
+    {
+      "database": "aicos_identity",
+      "schema": "identity",
+      "history": [
+        "20261009154540_AddBranches",
+        "20261011154400_AddUsersSessionsOtp",
+        "20261020154659_AddTenantsAndRoles",
+        "20261020172512_AddAuditLogs",
+        "20261020181248_AddSubscriptions",
+        "20261021102704_ConstraintsAndIndexes",
+        "20261026070957_BrandSelfService",
+        "20261031171829_SignUpEmailVerification",
+        "20261101170921_GlobalCustomerAccounts",
+        "20261101175626_LargerLogo",
+        "20261101192134_PlanTableLimit"
+      ],
+      "columns": [
+        {
+          "table": "__ef_migrations_history",
+          "column": "migration_id",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "__ef_migrations_history",
+          "column": "product_version",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "audit_logs",
+          "column": "id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "audit_logs",
+          "column": "scope",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "audit_logs",
+          "column": "tenant_id",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "audit_logs",
+          "column": "actor_user_id",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "audit_logs",
+          "column": "actor_name",
+          "type": "character varying",
+          "nullable": "YES"
+        },
+        {
+          "table": "audit_logs",
+          "column": "actor_role",
+          "type": "character varying",
+          "nullable": "YES"
+        },
+        {
+          "table": "audit_logs",
+          "column": "action",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "audit_logs",
+          "column": "entity_type",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "audit_logs",
+          "column": "entity_id",
+          "type": "character varying",
+          "nullable": "YES"
+        },
+        {
+          "table": "audit_logs",
+          "column": "before",
+          "type": "jsonb",
+          "nullable": "YES"
+        },
+        {
+          "table": "audit_logs",
+          "column": "after",
+          "type": "jsonb",
+          "nullable": "YES"
+        },
+        {
+          "table": "audit_logs",
+          "column": "occurred_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "NO"
+        },
+        {
+          "table": "audit_logs",
+          "column": "source_event_id",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "branches",
+          "column": "id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "branches",
+          "column": "name",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "branches",
+          "column": "address",
+          "type": "character varying",
+          "nullable": "YES"
+        },
+        {
+          "table": "branches",
+          "column": "phone",
+          "type": "character varying",
+          "nullable": "YES"
+        },
+        {
+          "table": "branches",
+          "column": "opening_time",
+          "type": "time without time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "branches",
+          "column": "closing_time",
+          "type": "time without time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "branches",
+          "column": "status",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "branches",
+          "column": "created_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "NO"
+        },
+        {
+          "table": "branches",
+          "column": "created_by",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "branches",
+          "column": "updated_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "branches",
+          "column": "updated_by",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "branches",
+          "column": "tenant_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "contact_messages",
+          "column": "id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "contact_messages",
+          "column": "full_name",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "contact_messages",
+          "column": "email",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "contact_messages",
+          "column": "phone",
+          "type": "character varying",
+          "nullable": "YES"
+        },
+        {
+          "table": "contact_messages",
+          "column": "subject",
+          "type": "character varying",
+          "nullable": "YES"
+        },
+        {
+          "table": "contact_messages",
+          "column": "message",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "contact_messages",
+          "column": "status",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "contact_messages",
+          "column": "handled_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "contact_messages",
+          "column": "handled_by",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "contact_messages",
+          "column": "created_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "NO"
+        },
+        {
+          "table": "contact_messages",
+          "column": "created_by",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "contact_messages",
+          "column": "updated_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "contact_messages",
+          "column": "updated_by",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "otp_codes",
+          "column": "id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "otp_codes",
+          "column": "target",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "otp_codes",
+          "column": "code_hash",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "otp_codes",
+          "column": "purpose",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "otp_codes",
+          "column": "attempts",
+          "type": "integer",
+          "nullable": "NO"
+        },
+        {
+          "table": "otp_codes",
+          "column": "created_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "NO"
+        },
+        {
+          "table": "otp_codes",
+          "column": "expires_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "NO"
+        },
+        {
+          "table": "otp_codes",
+          "column": "consumed_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "subscription_payments",
+          "column": "id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "subscription_payments",
+          "column": "subscription_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "subscription_payments",
+          "column": "tenant_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "subscription_payments",
+          "column": "amount",
+          "type": "numeric",
+          "nullable": "NO"
+        },
+        {
+          "table": "subscription_payments",
+          "column": "paid_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "NO"
+        },
+        {
+          "table": "subscription_payments",
+          "column": "method",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "subscription_payments",
+          "column": "reference",
+          "type": "character varying",
+          "nullable": "YES"
+        },
+        {
+          "table": "subscription_payments",
+          "column": "period_start_utc",
+          "type": "timestamp with time zone",
+          "nullable": "NO"
+        },
+        {
+          "table": "subscription_payments",
+          "column": "recorded_by",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "subscription_plans",
+          "column": "id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "subscription_plans",
+          "column": "name",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "subscription_plans",
+          "column": "tier",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "subscription_plans",
+          "column": "fee",
+          "type": "numeric",
+          "nullable": "NO"
+        },
+        {
+          "table": "subscription_plans",
+          "column": "billing_period",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "subscription_plans",
+          "column": "max_branches",
+          "type": "integer",
+          "nullable": "YES"
+        },
+        {
+          "table": "subscription_plans",
+          "column": "max_staff_accounts",
+          "type": "integer",
+          "nullable": "YES"
+        },
+        {
+          "table": "subscription_plans",
+          "column": "description",
+          "type": "character varying",
+          "nullable": "YES"
+        },
+        {
+          "table": "subscription_plans",
+          "column": "is_active",
+          "type": "boolean",
+          "nullable": "NO"
+        },
+        {
+          "table": "subscription_plans",
+          "column": "created_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "NO"
+        },
+        {
+          "table": "subscription_plans",
+          "column": "created_by",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "subscription_plans",
+          "column": "updated_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "subscription_plans",
+          "column": "updated_by",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "subscription_plans",
+          "column": "max_tables_per_branch",
+          "type": "integer",
+          "nullable": "YES"
+        },
+        {
+          "table": "tenant_subscriptions",
+          "column": "id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "tenant_subscriptions",
+          "column": "tenant_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "tenant_subscriptions",
+          "column": "plan_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "tenant_subscriptions",
+          "column": "plan_name",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "tenant_subscriptions",
+          "column": "fee",
+          "type": "numeric",
+          "nullable": "NO"
+        },
+        {
+          "table": "tenant_subscriptions",
+          "column": "billing_period",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "tenant_subscriptions",
+          "column": "status",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "tenant_subscriptions",
+          "column": "period_start_utc",
+          "type": "timestamp with time zone",
+          "nullable": "NO"
+        },
+        {
+          "table": "tenant_subscriptions",
+          "column": "period_end_utc",
+          "type": "timestamp with time zone",
+          "nullable": "NO"
+        },
+        {
+          "table": "tenant_subscriptions",
+          "column": "payment_status",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "tenant_subscriptions",
+          "column": "paid_amount",
+          "type": "numeric",
+          "nullable": "NO"
+        },
+        {
+          "table": "tenant_subscriptions",
+          "column": "paid_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "tenant_subscriptions",
+          "column": "renewal_notice_for_period_end_utc",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "tenant_subscriptions",
+          "column": "overdue_notice_for_period_end_utc",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "tenant_subscriptions",
+          "column": "created_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "NO"
+        },
+        {
+          "table": "tenant_subscriptions",
+          "column": "created_by",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "tenant_subscriptions",
+          "column": "updated_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "tenant_subscriptions",
+          "column": "updated_by",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "tenants",
+          "column": "id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "tenants",
+          "column": "name",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "tenants",
+          "column": "code",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "tenants",
+          "column": "status",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "tenants",
+          "column": "created_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "NO"
+        },
+        {
+          "table": "tenants",
+          "column": "created_by",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "tenants",
+          "column": "updated_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "tenants",
+          "column": "updated_by",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "tenants",
+          "column": "description",
+          "type": "character varying",
+          "nullable": "YES"
+        },
+        {
+          "table": "tenants",
+          "column": "logo_url",
+          "type": "character varying",
+          "nullable": "YES"
+        },
+        {
+          "table": "tenants",
+          "column": "primary_color",
+          "type": "character varying",
+          "nullable": "YES"
+        },
+        {
+          "table": "tenants",
+          "column": "review_note",
+          "type": "character varying",
+          "nullable": "YES"
+        },
+        {
+          "table": "tenants",
+          "column": "reviewed_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "tenants",
+          "column": "reviewed_by",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "tenants",
+          "column": "secondary_color",
+          "type": "character varying",
+          "nullable": "YES"
+        },
+        {
+          "table": "user_sessions",
+          "column": "id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "user_sessions",
+          "column": "user_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "user_sessions",
+          "column": "refresh_token_hash",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "user_sessions",
+          "column": "device_label",
+          "type": "character varying",
+          "nullable": "YES"
+        },
+        {
+          "table": "user_sessions",
+          "column": "ip_address",
+          "type": "character varying",
+          "nullable": "YES"
+        },
+        {
+          "table": "user_sessions",
+          "column": "created_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "NO"
+        },
+        {
+          "table": "user_sessions",
+          "column": "last_active_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "NO"
+        },
+        {
+          "table": "user_sessions",
+          "column": "expires_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "NO"
+        },
+        {
+          "table": "user_sessions",
+          "column": "revoked_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "user_sessions",
+          "column": "active_tenant_id",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "users",
+          "column": "id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "users",
+          "column": "full_name",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "users",
+          "column": "email",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "users",
+          "column": "username",
+          "type": "character varying",
+          "nullable": "YES"
+        },
+        {
+          "table": "users",
+          "column": "phone",
+          "type": "character varying",
+          "nullable": "YES"
+        },
+        {
+          "table": "users",
+          "column": "password_hash",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "users",
+          "column": "role",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "users",
+          "column": "branch_id",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "users",
+          "column": "status",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "users",
+          "column": "must_change_password",
+          "type": "boolean",
+          "nullable": "NO"
+        },
+        {
+          "table": "users",
+          "column": "failed_login_count",
+          "type": "integer",
+          "nullable": "NO"
+        },
+        {
+          "table": "users",
+          "column": "lockout_end_utc",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "users",
+          "column": "last_login_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "users",
+          "column": "deleted_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "users",
+          "column": "created_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "NO"
+        },
+        {
+          "table": "users",
+          "column": "created_by",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "users",
+          "column": "updated_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "users",
+          "column": "updated_by",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "users",
+          "column": "tenant_id",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "users",
+          "column": "google_subject",
+          "type": "character varying",
+          "nullable": "YES"
+        }
+      ],
+      "fingerprints": [
+        {
+          "table": "__ef_migrations_history",
+          "rows": 11,
+          "fingerprint": "4d28dee33c68361a4e38eaa7c2102680"
+        },
+        {
+          "table": "audit_logs",
+          "rows": 27,
+          "fingerprint": "3b5522085043ee62ee27e648dfe7bd20"
+        },
+        {
+          "table": "branches",
+          "rows": 3,
+          "fingerprint": "f2d74f67b09c2e29a942a79d266bf066"
+        },
+        {
+          "table": "contact_messages",
+          "rows": 0,
+          "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+        },
+        {
+          "table": "otp_codes",
+          "rows": 0,
+          "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+        },
+        {
+          "table": "subscription_payments",
+          "rows": 0,
+          "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+        },
+        {
+          "table": "subscription_plans",
+          "rows": 1,
+          "fingerprint": "aba3f0a24f07b6578345140c79cb4b41"
+        },
+        {
+          "table": "tenant_subscriptions",
+          "rows": 1,
+          "fingerprint": "4891acda4e7758a0d1c74f1ffc7cdd49"
+        },
+        {
+          "table": "tenants",
+          "rows": 1,
+          "fingerprint": "9b06a9678498f4ba48782cf342f4d680"
+        },
+        {
+          "table": "user_sessions",
+          "rows": 86,
+          "fingerprint": "2dcbd1f11c5735b336aa86880096661a"
+        },
+        {
+          "table": "users",
+          "rows": 9,
+          "fingerprint": "88d508c5c10fb4348ec0ae0fafdf685c"
+        }
+      ],
+      "efComparison": {
+        "missingTables": [],
+        "missingColumns": [],
+        "nullabilityDifferences": []
+      },
+      "postAudit": {
+        "columns": 134,
+        "fingerprintsUnchanged": true
+      }
+    },
+    {
+      "database": "aicos_menu",
+      "schema": "menu",
+      "history": [
+        "20261011161406_AddMenuCatalog",
+        "20261020185416_TenantMenuAndBranchProducts",
+        "20261021102711_ConstraintsAndIndexes"
+      ],
+      "columns": [
+        {
+          "table": "__ef_migrations_history",
+          "column": "migration_id",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "__ef_migrations_history",
+          "column": "product_version",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "branch_products",
+          "column": "id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "branch_products",
+          "column": "tenant_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "branch_products",
+          "column": "branch_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "branch_products",
+          "column": "product_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "branch_products",
+          "column": "is_published",
+          "type": "boolean",
+          "nullable": "NO"
+        },
+        {
+          "table": "branch_products",
+          "column": "is_available",
+          "type": "boolean",
+          "nullable": "NO"
+        },
+        {
+          "table": "branch_products",
+          "column": "price_override",
+          "type": "numeric",
+          "nullable": "YES"
+        },
+        {
+          "table": "branch_products",
+          "column": "created_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "NO"
+        },
+        {
+          "table": "branch_products",
+          "column": "created_by",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "branch_products",
+          "column": "updated_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "branch_products",
+          "column": "updated_by",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "categories",
+          "column": "id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "categories",
+          "column": "tenant_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "categories",
+          "column": "name",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "categories",
+          "column": "sort_order",
+          "type": "integer",
+          "nullable": "NO"
+        },
+        {
+          "table": "categories",
+          "column": "status",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "categories",
+          "column": "created_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "NO"
+        },
+        {
+          "table": "categories",
+          "column": "created_by",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "categories",
+          "column": "updated_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "categories",
+          "column": "updated_by",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "option_groups",
+          "column": "id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "option_groups",
+          "column": "product_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "option_groups",
+          "column": "name",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "option_groups",
+          "column": "selection_type",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "option_groups",
+          "column": "is_required",
+          "type": "boolean",
+          "nullable": "NO"
+        },
+        {
+          "table": "option_groups",
+          "column": "sort_order",
+          "type": "integer",
+          "nullable": "NO"
+        },
+        {
+          "table": "option_groups",
+          "column": "kind",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "option_groups",
+          "column": "max_selections",
+          "type": "integer",
+          "nullable": "YES"
+        },
+        {
+          "table": "product_options",
+          "column": "id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "product_options",
+          "column": "option_group_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "product_options",
+          "column": "name",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "product_options",
+          "column": "price_delta",
+          "type": "numeric",
+          "nullable": "NO"
+        },
+        {
+          "table": "product_options",
+          "column": "is_default",
+          "type": "boolean",
+          "nullable": "NO"
+        },
+        {
+          "table": "product_options",
+          "column": "requires_option_id",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "products",
+          "column": "id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "products",
+          "column": "tenant_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "products",
+          "column": "category_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "products",
+          "column": "name",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "products",
+          "column": "description",
+          "type": "character varying",
+          "nullable": "YES"
+        },
+        {
+          "table": "products",
+          "column": "image_url",
+          "type": "character varying",
+          "nullable": "YES"
+        },
+        {
+          "table": "products",
+          "column": "base_price",
+          "type": "numeric",
+          "nullable": "NO"
+        },
+        {
+          "table": "products",
+          "column": "tags",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "products",
+          "column": "deleted_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "products",
+          "column": "created_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "NO"
+        },
+        {
+          "table": "products",
+          "column": "created_by",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "products",
+          "column": "updated_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "products",
+          "column": "updated_by",
+          "type": "uuid",
+          "nullable": "YES"
+        }
+      ],
+      "fingerprints": [
+        {
+          "table": "__ef_migrations_history",
+          "rows": 3,
+          "fingerprint": "8cdec2de71b8de3167eba3b4201b9f08"
+        },
+        {
+          "table": "branch_products",
+          "rows": 150,
+          "fingerprint": "9ba44b4a831dfa4aa2f4eab4129a3557"
+        },
+        {
+          "table": "categories",
+          "rows": 6,
+          "fingerprint": "3939d6c6caaf15a55f18c5ca2774757b"
+        },
+        {
+          "table": "option_groups",
+          "rows": 132,
+          "fingerprint": "cbb210cc8d06228f9ad5ff37db1d8f73"
+        },
+        {
+          "table": "product_options",
+          "rows": 546,
+          "fingerprint": "0e90a4c4a5609ac8fba1cddc7f4295df"
+        },
+        {
+          "table": "products",
+          "rows": 50,
+          "fingerprint": "253612df435c49c9353e27aa0e8a4b3f"
+        }
+      ],
+      "efComparison": {
+        "missingTables": [],
+        "missingColumns": [],
+        "nullabilityDifferences": []
+      },
+      "postAudit": {
+        "columns": 49,
+        "fingerprintsUnchanged": true
+      }
+    },
+    {
+      "database": "aicos_table_reservation",
+      "schema": "table_reservation",
+      "history": [
+        "20261011162143_AddTablesReservations",
+        "20261020185648_TenantFloorPlan",
+        "20261021102726_ConstraintsAndIndexes"
+      ],
+      "columns": [
+        {
+          "table": "__ef_migrations_history",
+          "column": "migration_id",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "__ef_migrations_history",
+          "column": "product_version",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "dining_tables",
+          "column": "id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "dining_tables",
+          "column": "branch_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "dining_tables",
+          "column": "table_code",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "dining_tables",
+          "column": "capacity",
+          "type": "integer",
+          "nullable": "NO"
+        },
+        {
+          "table": "dining_tables",
+          "column": "position_x",
+          "type": "integer",
+          "nullable": "YES"
+        },
+        {
+          "table": "dining_tables",
+          "column": "position_y",
+          "type": "integer",
+          "nullable": "YES"
+        },
+        {
+          "table": "dining_tables",
+          "column": "status",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "dining_tables",
+          "column": "qr_token",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "dining_tables",
+          "column": "created_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "NO"
+        },
+        {
+          "table": "dining_tables",
+          "column": "created_by",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "dining_tables",
+          "column": "updated_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "dining_tables",
+          "column": "updated_by",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "dining_tables",
+          "column": "area_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "dining_tables",
+          "column": "qr_issued_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "NO"
+        },
+        {
+          "table": "dining_tables",
+          "column": "tenant_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "table_areas",
+          "column": "id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "table_areas",
+          "column": "tenant_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "table_areas",
+          "column": "branch_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "table_areas",
+          "column": "name",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "table_areas",
+          "column": "sort_order",
+          "type": "integer",
+          "nullable": "NO"
+        },
+        {
+          "table": "table_areas",
+          "column": "created_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "NO"
+        },
+        {
+          "table": "table_areas",
+          "column": "created_by",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "table_areas",
+          "column": "updated_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "table_areas",
+          "column": "updated_by",
+          "type": "uuid",
+          "nullable": "YES"
+        }
+      ],
+      "fingerprints": [
+        {
+          "table": "__ef_migrations_history",
+          "rows": 3,
+          "fingerprint": "10bacb3c52ced5de04f557f546ee7bfd"
+        },
+        {
+          "table": "dining_tables",
+          "rows": 120,
+          "fingerprint": "f0fc8dac8a058481b60a78b982809220"
+        },
+        {
+          "table": "table_areas",
+          "rows": 9,
+          "fingerprint": "85682d87c40c9003a414d310d2c44a9a"
+        }
+      ],
+      "efComparison": {
+        "missingTables": [],
+        "missingColumns": [],
+        "nullabilityDifferences": []
+      },
+      "postAudit": {
+        "columns": 26,
+        "fingerprintsUnchanged": true
+      }
+    },
+    {
+      "database": "aicos_ordering",
+      "schema": "ordering",
+      "history": [
+        "20261020192345_PickupSlotSettings",
+        "20261021102649_ConstraintsAndIndexes",
+        "20261021145456_OrdersAndItems",
+        "20261024121125_PickupOrdersAndFeedback",
+        "20261024140713_OrderItemOptions",
+        "20261024151542_TableSessions",
+        "20261024160203_NoShowUnfulfillableRemake",
+        "20261101173630_TableBillRequest"
+      ],
+      "columns": [
+        {
+          "table": "__ef_migrations_history",
+          "column": "migration_id",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "__ef_migrations_history",
+          "column": "product_version",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "order_feedbacks",
+          "column": "id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "order_feedbacks",
+          "column": "tenant_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "order_feedbacks",
+          "column": "branch_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "order_feedbacks",
+          "column": "order_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "order_feedbacks",
+          "column": "order_code",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "order_feedbacks",
+          "column": "customer_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "order_feedbacks",
+          "column": "rating",
+          "type": "integer",
+          "nullable": "NO"
+        },
+        {
+          "table": "order_feedbacks",
+          "column": "comment",
+          "type": "character varying",
+          "nullable": "YES"
+        },
+        {
+          "table": "order_feedbacks",
+          "column": "created_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "NO"
+        },
+        {
+          "table": "order_feedbacks",
+          "column": "created_by",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "order_feedbacks",
+          "column": "updated_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "order_feedbacks",
+          "column": "updated_by",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "order_item_options",
+          "column": "id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "order_item_options",
+          "column": "order_item_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "order_item_options",
+          "column": "option_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "order_item_options",
+          "column": "group_name",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "order_item_options",
+          "column": "name",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "order_item_options",
+          "column": "price_delta",
+          "type": "numeric",
+          "nullable": "NO"
+        },
+        {
+          "table": "order_items",
+          "column": "id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "order_items",
+          "column": "order_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "order_items",
+          "column": "product_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "order_items",
+          "column": "product_name",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "order_items",
+          "column": "unit_price",
+          "type": "numeric",
+          "nullable": "NO"
+        },
+        {
+          "table": "order_items",
+          "column": "quantity",
+          "type": "integer",
+          "nullable": "NO"
+        },
+        {
+          "table": "order_items",
+          "column": "note",
+          "type": "character varying",
+          "nullable": "YES"
+        },
+        {
+          "table": "orders",
+          "column": "id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "orders",
+          "column": "tenant_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "orders",
+          "column": "order_code",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "orders",
+          "column": "branch_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "orders",
+          "column": "cashier_id",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "orders",
+          "column": "customer_id",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "orders",
+          "column": "table_id",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "orders",
+          "column": "table_number",
+          "type": "character varying",
+          "nullable": "YES"
+        },
+        {
+          "table": "orders",
+          "column": "delivery_address",
+          "type": "character varying",
+          "nullable": "YES"
+        },
+        {
+          "table": "orders",
+          "column": "type",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "orders",
+          "column": "status",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "orders",
+          "column": "payment_status",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "orders",
+          "column": "payment_method",
+          "type": "character varying",
+          "nullable": "YES"
+        },
+        {
+          "table": "orders",
+          "column": "payment_provider",
+          "type": "character varying",
+          "nullable": "YES"
+        },
+        {
+          "table": "orders",
+          "column": "payment_id",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "orders",
+          "column": "paid_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "orders",
+          "column": "ready_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "orders",
+          "column": "delivered_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "orders",
+          "column": "delivered_by",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "orders",
+          "column": "completed_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "orders",
+          "column": "cancelled_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "orders",
+          "column": "cancelled_reason",
+          "type": "character varying",
+          "nullable": "YES"
+        },
+        {
+          "table": "orders",
+          "column": "note",
+          "type": "character varying",
+          "nullable": "YES"
+        },
+        {
+          "table": "orders",
+          "column": "promotion_code",
+          "type": "character varying",
+          "nullable": "YES"
+        },
+        {
+          "table": "orders",
+          "column": "discount_amount",
+          "type": "numeric",
+          "nullable": "NO"
+        },
+        {
+          "table": "orders",
+          "column": "refunded_amount",
+          "type": "numeric",
+          "nullable": "NO"
+        },
+        {
+          "table": "orders",
+          "column": "refund_status",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "orders",
+          "column": "exception_by",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "orders",
+          "column": "is_printed",
+          "type": "boolean",
+          "nullable": "NO"
+        },
+        {
+          "table": "orders",
+          "column": "printed_count",
+          "type": "integer",
+          "nullable": "NO"
+        },
+        {
+          "table": "orders",
+          "column": "last_printed_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "orders",
+          "column": "created_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "NO"
+        },
+        {
+          "table": "orders",
+          "column": "created_by",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "orders",
+          "column": "updated_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "orders",
+          "column": "updated_by",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "orders",
+          "column": "idempotency_key",
+          "type": "character varying",
+          "nullable": "YES"
+        },
+        {
+          "table": "orders",
+          "column": "payment_due_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "orders",
+          "column": "pickup_slot_start_utc",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "orders",
+          "column": "table_session_id",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "orders",
+          "column": "remake_count",
+          "type": "integer",
+          "nullable": "NO"
+        },
+        {
+          "table": "pickup_slot_settings",
+          "column": "id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "pickup_slot_settings",
+          "column": "tenant_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "pickup_slot_settings",
+          "column": "branch_id",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "pickup_slot_settings",
+          "column": "slot_minutes",
+          "type": "integer",
+          "nullable": "NO"
+        },
+        {
+          "table": "pickup_slot_settings",
+          "column": "capacity_per_slot",
+          "type": "integer",
+          "nullable": "NO"
+        },
+        {
+          "table": "pickup_slot_settings",
+          "column": "cutoff_minutes",
+          "type": "integer",
+          "nullable": "NO"
+        },
+        {
+          "table": "pickup_slot_settings",
+          "column": "advance_days",
+          "type": "integer",
+          "nullable": "NO"
+        },
+        {
+          "table": "pickup_slot_settings",
+          "column": "created_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "NO"
+        },
+        {
+          "table": "pickup_slot_settings",
+          "column": "created_by",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "pickup_slot_settings",
+          "column": "updated_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "pickup_slot_settings",
+          "column": "updated_by",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "table_sessions",
+          "column": "id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "table_sessions",
+          "column": "tenant_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "table_sessions",
+          "column": "branch_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "table_sessions",
+          "column": "table_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "table_sessions",
+          "column": "table_code",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "table_sessions",
+          "column": "status",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "table_sessions",
+          "column": "opened_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "NO"
+        },
+        {
+          "table": "table_sessions",
+          "column": "last_activity_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "NO"
+        },
+        {
+          "table": "table_sessions",
+          "column": "closed_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "table_sessions",
+          "column": "close_reason",
+          "type": "character varying",
+          "nullable": "YES"
+        },
+        {
+          "table": "table_sessions",
+          "column": "created_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "NO"
+        },
+        {
+          "table": "table_sessions",
+          "column": "created_by",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "table_sessions",
+          "column": "updated_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "table_sessions",
+          "column": "updated_by",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "table_sessions",
+          "column": "bill_requested_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "table_sessions",
+          "column": "bill_requested_method",
+          "type": "character varying",
+          "nullable": "YES"
+        }
+      ],
+      "fingerprints": [
+        {
+          "table": "__ef_migrations_history",
+          "rows": 8,
+          "fingerprint": "ed6943e44e629786129b45acb164f79a"
+        },
+        {
+          "table": "order_feedbacks",
+          "rows": 0,
+          "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+        },
+        {
+          "table": "order_item_options",
+          "rows": 51,
+          "fingerprint": "cb91588dd9009a9e3ec10312166ccb3f"
+        },
+        {
+          "table": "order_items",
+          "rows": 14,
+          "fingerprint": "5edb6c1b22e8daeaaff1567c59646b1e"
+        },
+        {
+          "table": "orders",
+          "rows": 14,
+          "fingerprint": "d5c06ca47befe6742cee506202ee65b6"
+        },
+        {
+          "table": "pickup_slot_settings",
+          "rows": 0,
+          "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+        },
+        {
+          "table": "table_sessions",
+          "rows": 6,
+          "fingerprint": "2799f6eda025f95d280fea5f475b24ee"
+        }
+      ],
+      "efComparison": {
+        "missingTables": [
+          "fulfillment_receipts",
+          "kitchen_admission_outbox",
+          "kitchen_admission_reconcile_state",
+          "order_fulfillment_projection",
+          "session_checkouts",
+          "table_transfer_operations"
+        ],
+        "missingColumns": [
+          {
+            "table": "order_feedbacks",
+            "column": "replied_at_utc",
+            "type": "timestamp with time zone",
+            "nullable": true
+          },
+          {
+            "table": "order_feedbacks",
+            "column": "replied_by_user_id",
+            "type": "uuid",
+            "nullable": true
+          },
+          {
+            "table": "order_feedbacks",
+            "column": "reply",
+            "type": "character varying(500)",
+            "nullable": true
+          },
+          {
+            "table": "orders",
+            "column": "fulfillment_mode",
+            "type": "character varying(20)",
+            "nullable": false
+          }
+        ],
+        "nullabilityDifferences": []
+      },
+      "postAudit": {
+        "columns": 94,
+        "fingerprintsUnchanged": true
+      }
+    },
+    {
+      "database": "aicos_kitchen",
+      "schema": "kitchen",
+      "history": [
+        "20261021145859_KitchenTickets",
+        "20261024155943_TicketRemake",
+        "20261106164227_KitchenAdmissionReceipts",
+        "20261106183333_KitchenCupServingFoundation",
+        "20261108104113_QrOrdersPayFirst",
+        "20261108121518_KitchenEarlyPayments",
+        "20261114041318_KitchenBaristaWorkflow"
+      ],
+      "columns": [
+        {
+          "table": "__ef_migrations_history",
+          "column": "migration_id",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "__ef_migrations_history",
+          "column": "product_version",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "barista_acceptances",
+          "column": "ticket_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "barista_acceptances",
+          "column": "cycle",
+          "type": "integer",
+          "nullable": "NO"
+        },
+        {
+          "table": "barista_acceptances",
+          "column": "tenant_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "barista_acceptances",
+          "column": "branch_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "barista_acceptances",
+          "column": "accepted_by",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "barista_acceptances",
+          "column": "key_hash",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "barista_acceptances",
+          "column": "accepted_name",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "barista_acceptances",
+          "column": "accepted_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "NO"
+        },
+        {
+          "table": "barista_acceptances",
+          "column": "request_hash",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "barista_acceptances",
+          "column": "completed_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "barista_acceptances",
+          "column": "completed_by",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "cup_claims",
+          "column": "id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "cup_claims",
+          "column": "cup_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "cup_claims",
+          "column": "tenant_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "cup_claims",
+          "column": "branch_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "cup_claims",
+          "column": "owner_user_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "cup_claims",
+          "column": "preparation_cycle",
+          "type": "integer",
+          "nullable": "NO"
+        },
+        {
+          "table": "cup_claims",
+          "column": "fence",
+          "type": "bigint",
+          "nullable": "NO"
+        },
+        {
+          "table": "cup_claims",
+          "column": "version",
+          "type": "bigint",
+          "nullable": "NO"
+        },
+        {
+          "table": "cup_claims",
+          "column": "state",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "cup_claims",
+          "column": "created_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "NO"
+        },
+        {
+          "table": "cup_claims",
+          "column": "lease_expires_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "NO"
+        },
+        {
+          "table": "cup_claims",
+          "column": "picked_up_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "cup_claims",
+          "column": "ended_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "cup_operations",
+          "column": "id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "cup_operations",
+          "column": "tenant_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "cup_operations",
+          "column": "branch_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "cup_operations",
+          "column": "cup_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "cup_operations",
+          "column": "actor_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "cup_operations",
+          "column": "operation_key",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "cup_operations",
+          "column": "command",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "cup_operations",
+          "column": "request_hash",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "cup_operations",
+          "column": "version_before",
+          "type": "bigint",
+          "nullable": "NO"
+        },
+        {
+          "table": "cup_operations",
+          "column": "version_after",
+          "type": "bigint",
+          "nullable": "NO"
+        },
+        {
+          "table": "cup_operations",
+          "column": "before_json",
+          "type": "jsonb",
+          "nullable": "NO"
+        },
+        {
+          "table": "cup_operations",
+          "column": "after_json",
+          "type": "jsonb",
+          "nullable": "NO"
+        },
+        {
+          "table": "cup_operations",
+          "column": "result_json",
+          "type": "jsonb",
+          "nullable": "NO"
+        },
+        {
+          "table": "cup_operations",
+          "column": "reason",
+          "type": "character varying",
+          "nullable": "YES"
+        },
+        {
+          "table": "cup_operations",
+          "column": "committed_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "NO"
+        },
+        {
+          "table": "cup_stickers",
+          "column": "id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "cup_stickers",
+          "column": "ticket_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "cup_stickers",
+          "column": "order_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "cup_stickers",
+          "column": "order_code",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "cup_stickers",
+          "column": "table_number",
+          "type": "character varying",
+          "nullable": "YES"
+        },
+        {
+          "table": "cup_stickers",
+          "column": "product_name",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "cup_stickers",
+          "column": "cup_index",
+          "type": "integer",
+          "nullable": "NO"
+        },
+        {
+          "table": "cup_stickers",
+          "column": "total_cups_in_order",
+          "type": "integer",
+          "nullable": "NO"
+        },
+        {
+          "table": "cup_stickers",
+          "column": "customizations",
+          "type": "character varying",
+          "nullable": "YES"
+        },
+        {
+          "table": "cup_stickers",
+          "column": "printed_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "NO"
+        },
+        {
+          "table": "cup_stickers",
+          "column": "cup_task_id",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "cup_tasks",
+          "column": "id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "cup_tasks",
+          "column": "tenant_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "cup_tasks",
+          "column": "branch_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "cup_tasks",
+          "column": "order_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "cup_tasks",
+          "column": "ticket_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "cup_tasks",
+          "column": "ticket_item_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "cup_tasks",
+          "column": "order_item_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "cup_tasks",
+          "column": "unit_index",
+          "type": "integer",
+          "nullable": "NO"
+        },
+        {
+          "table": "cup_tasks",
+          "column": "order_cup_index",
+          "type": "integer",
+          "nullable": "NO"
+        },
+        {
+          "table": "cup_tasks",
+          "column": "preparation",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "cup_tasks",
+          "column": "service",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "cup_tasks",
+          "column": "preparation_cycle",
+          "type": "integer",
+          "nullable": "NO"
+        },
+        {
+          "table": "cup_tasks",
+          "column": "version",
+          "type": "bigint",
+          "nullable": "NO"
+        },
+        {
+          "table": "cup_tasks",
+          "column": "fence",
+          "type": "bigint",
+          "nullable": "NO"
+        },
+        {
+          "table": "cup_tasks",
+          "column": "created_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "NO"
+        },
+        {
+          "table": "cup_tasks",
+          "column": "ready_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "cup_tasks",
+          "column": "prepared_by",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "cup_tasks",
+          "column": "picked_up_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "cup_tasks",
+          "column": "served_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "cup_tasks",
+          "column": "served_by",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "cup_tasks",
+          "column": "review_reason",
+          "type": "character varying",
+          "nullable": "YES"
+        },
+        {
+          "table": "early_payments",
+          "column": "tenant_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "early_payments",
+          "column": "order_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "early_payments",
+          "column": "paid_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "NO"
+        },
+        {
+          "table": "fulfillment_outbox",
+          "column": "event_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "fulfillment_outbox",
+          "column": "tenant_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "fulfillment_outbox",
+          "column": "branch_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "fulfillment_outbox",
+          "column": "order_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "fulfillment_outbox",
+          "column": "source_version",
+          "type": "bigint",
+          "nullable": "NO"
+        },
+        {
+          "table": "fulfillment_outbox",
+          "column": "payload",
+          "type": "jsonb",
+          "nullable": "NO"
+        },
+        {
+          "table": "fulfillment_outbox",
+          "column": "payload_hash",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "fulfillment_outbox",
+          "column": "state",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "fulfillment_outbox",
+          "column": "created_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "NO"
+        },
+        {
+          "table": "fulfillment_outbox",
+          "column": "next_attempt_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "NO"
+        },
+        {
+          "table": "fulfillment_outbox",
+          "column": "attempt_count",
+          "type": "integer",
+          "nullable": "NO"
+        },
+        {
+          "table": "fulfillment_outbox",
+          "column": "lease_token",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "fulfillment_outbox",
+          "column": "lease_until_utc",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "fulfillment_outbox",
+          "column": "acknowledged_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "fulfillment_outbox",
+          "column": "last_error_code",
+          "type": "character varying",
+          "nullable": "YES"
+        },
+        {
+          "table": "kitchen_print_jobs",
+          "column": "id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "kitchen_print_jobs",
+          "column": "tenant_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "kitchen_print_jobs",
+          "column": "branch_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "kitchen_print_jobs",
+          "column": "ticket_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "kitchen_print_jobs",
+          "column": "cycle",
+          "type": "integer",
+          "nullable": "NO"
+        },
+        {
+          "table": "kitchen_print_jobs",
+          "column": "requested_by",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "kitchen_print_jobs",
+          "column": "reprint_of",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "kitchen_print_jobs",
+          "column": "key_hash",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "kitchen_print_jobs",
+          "column": "request_hash",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "kitchen_print_jobs",
+          "column": "kind",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "kitchen_print_jobs",
+          "column": "status",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "kitchen_print_jobs",
+          "column": "payload",
+          "type": "jsonb",
+          "nullable": "NO"
+        },
+        {
+          "table": "kitchen_print_jobs",
+          "column": "payload_hash",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "kitchen_print_jobs",
+          "column": "table_snapshot",
+          "type": "character varying",
+          "nullable": "YES"
+        },
+        {
+          "table": "kitchen_print_jobs",
+          "column": "created_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "NO"
+        },
+        {
+          "table": "kitchen_print_jobs",
+          "column": "started_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "kitchen_print_jobs",
+          "column": "printed_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "kitchen_print_jobs",
+          "column": "test_output",
+          "type": "boolean",
+          "nullable": "NO"
+        },
+        {
+          "table": "kitchen_print_jobs",
+          "column": "error_code",
+          "type": "character varying",
+          "nullable": "YES"
+        },
+        {
+          "table": "kitchen_print_jobs",
+          "column": "lease_owner",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "kitchen_print_jobs",
+          "column": "lease_until_utc",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "kitchen_print_jobs",
+          "column": "fence",
+          "type": "bigint",
+          "nullable": "NO"
+        },
+        {
+          "table": "kitchen_ticket_items",
+          "column": "id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "kitchen_ticket_items",
+          "column": "ticket_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "kitchen_ticket_items",
+          "column": "product_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "kitchen_ticket_items",
+          "column": "product_name",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "kitchen_ticket_items",
+          "column": "quantity",
+          "type": "integer",
+          "nullable": "NO"
+        },
+        {
+          "table": "kitchen_ticket_items",
+          "column": "note",
+          "type": "character varying",
+          "nullable": "YES"
+        },
+        {
+          "table": "kitchen_ticket_items",
+          "column": "order_item_id",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "kitchen_tickets",
+          "column": "id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "kitchen_tickets",
+          "column": "tenant_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "kitchen_tickets",
+          "column": "order_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "kitchen_tickets",
+          "column": "order_code",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "kitchen_tickets",
+          "column": "branch_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "kitchen_tickets",
+          "column": "table_number",
+          "type": "character varying",
+          "nullable": "YES"
+        },
+        {
+          "table": "kitchen_tickets",
+          "column": "order_type",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "kitchen_tickets",
+          "column": "status",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "kitchen_tickets",
+          "column": "is_paid",
+          "type": "boolean",
+          "nullable": "NO"
+        },
+        {
+          "table": "kitchen_tickets",
+          "column": "scheduled_pickup_time_utc",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "kitchen_tickets",
+          "column": "brewing_started_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "kitchen_tickets",
+          "column": "ready_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "kitchen_tickets",
+          "column": "completed_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "kitchen_tickets",
+          "column": "cancelled_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "kitchen_tickets",
+          "column": "created_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "NO"
+        },
+        {
+          "table": "kitchen_tickets",
+          "column": "created_by",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "kitchen_tickets",
+          "column": "updated_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "kitchen_tickets",
+          "column": "updated_by",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "kitchen_tickets",
+          "column": "last_remake_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "kitchen_tickets",
+          "column": "last_remake_reason",
+          "type": "character varying",
+          "nullable": "YES"
+        },
+        {
+          "table": "kitchen_tickets",
+          "column": "remake_count",
+          "type": "integer",
+          "nullable": "NO"
+        },
+        {
+          "table": "kitchen_tickets",
+          "column": "recovery_hold_reason",
+          "type": "character varying",
+          "nullable": "YES"
+        },
+        {
+          "table": "kitchen_tickets",
+          "column": "fulfillment_mode",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "kitchen_tickets",
+          "column": "fulfillment_version",
+          "type": "bigint",
+          "nullable": "NO"
+        },
+        {
+          "table": "kitchen_tickets",
+          "column": "source_session_id",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "kitchen_tickets",
+          "column": "source_table_id",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "kitchen_tickets",
+          "column": "pay_first",
+          "type": "boolean",
+          "nullable": "NO"
+        },
+        {
+          "table": "order_admission_receipts",
+          "column": "producer_key",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "order_admission_receipts",
+          "column": "consumer_key",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "order_admission_receipts",
+          "column": "event_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "order_admission_receipts",
+          "column": "tenant_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "order_admission_receipts",
+          "column": "branch_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "order_admission_receipts",
+          "column": "order_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "order_admission_receipts",
+          "column": "creation_sha256",
+          "type": "bytea",
+          "nullable": "NO"
+        },
+        {
+          "table": "order_admission_receipts",
+          "column": "ticket_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "order_admission_receipts",
+          "column": "receipt_status",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "order_admission_receipts",
+          "column": "recorded_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "NO"
+        },
+        {
+          "table": "order_admission_receipts",
+          "column": "applied_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "order_admission_receipts",
+          "column": "last_verified_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "NO"
+        },
+        {
+          "table": "order_admission_receipts",
+          "column": "last_error_code",
+          "type": "character varying",
+          "nullable": "YES"
+        }
+      ],
+      "fingerprints": [
+        {
+          "table": "__ef_migrations_history",
+          "rows": 7,
+          "fingerprint": "f31e0e25a009b86a2abc331d303a12f5"
+        },
+        {
+          "table": "barista_acceptances",
+          "rows": 9,
+          "fingerprint": "37ccd75c9d03846e30dbc2be84fe2653"
+        },
+        {
+          "table": "cup_claims",
+          "rows": 0,
+          "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+        },
+        {
+          "table": "cup_operations",
+          "rows": 0,
+          "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+        },
+        {
+          "table": "cup_stickers",
+          "rows": 13,
+          "fingerprint": "c6978594f4bb290ff8fe518dbb171c1d"
+        },
+        {
+          "table": "cup_tasks",
+          "rows": 0,
+          "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+        },
+        {
+          "table": "early_payments",
+          "rows": 0,
+          "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+        },
+        {
+          "table": "fulfillment_outbox",
+          "rows": 0,
+          "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+        },
+        {
+          "table": "kitchen_print_jobs",
+          "rows": 12,
+          "fingerprint": "76b32e3ba33165df3e76c3816ae19c6e"
+        },
+        {
+          "table": "kitchen_ticket_items",
+          "rows": 14,
+          "fingerprint": "ce6c252129d71300c520d1bf09dca245"
+        },
+        {
+          "table": "kitchen_tickets",
+          "rows": 14,
+          "fingerprint": "04d958a9b9ba76b17a8731732d17ef2c"
+        },
+        {
+          "table": "order_admission_receipts",
+          "rows": 0,
+          "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+        }
+      ],
+      "efComparison": {
+        "missingTables": [],
+        "missingColumns": [
+          {
+            "table": "kitchen_tickets",
+            "column": "table_transfer_version",
+            "type": "bigint",
+            "nullable": false
+          }
+        ],
+        "nullabilityDifferences": []
+      },
+      "postAudit": {
+        "columns": 160,
+        "fingerprintsUnchanged": true
+      }
+    },
+    {
+      "database": "aicos_payment",
+      "schema": "payment",
+      "history": [
+        "20261020180751_AddPaymentProviders",
+        "20261020192200_CancellationPolicyAndMerchantSettings",
+        "20261021094418_PaymentsRefundsWebhooks",
+        "20261021102642_ConstraintsAndIndexes"
+      ],
+      "columns": [
+        {
+          "table": "__ef_migrations_history",
+          "column": "migration_id",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "__ef_migrations_history",
+          "column": "product_version",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "cancellation_policies",
+          "column": "id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "cancellation_policies",
+          "column": "tenant_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "cancellation_policies",
+          "column": "cancel_refund_percent",
+          "type": "integer",
+          "nullable": "NO"
+        },
+        {
+          "table": "cancellation_policies",
+          "column": "no_show_after_minutes",
+          "type": "integer",
+          "nullable": "NO"
+        },
+        {
+          "table": "cancellation_policies",
+          "column": "no_show_refund_percent",
+          "type": "integer",
+          "nullable": "NO"
+        },
+        {
+          "table": "cancellation_policies",
+          "column": "unpaid_order_timeout_minutes",
+          "type": "integer",
+          "nullable": "NO"
+        },
+        {
+          "table": "cancellation_policies",
+          "column": "auto_approve_within_policy",
+          "type": "boolean",
+          "nullable": "NO"
+        },
+        {
+          "table": "cancellation_policies",
+          "column": "exception_approver",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "cancellation_policies",
+          "column": "created_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "NO"
+        },
+        {
+          "table": "cancellation_policies",
+          "column": "created_by",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "cancellation_policies",
+          "column": "updated_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "cancellation_policies",
+          "column": "updated_by",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "merchant_settings",
+          "column": "id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "merchant_settings",
+          "column": "tenant_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "merchant_settings",
+          "column": "branch_id",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "merchant_settings",
+          "column": "provider_code",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "merchant_settings",
+          "column": "is_enabled",
+          "type": "boolean",
+          "nullable": "NO"
+        },
+        {
+          "table": "merchant_settings",
+          "column": "account_name",
+          "type": "character varying",
+          "nullable": "YES"
+        },
+        {
+          "table": "merchant_settings",
+          "column": "bank_code",
+          "type": "character varying",
+          "nullable": "YES"
+        },
+        {
+          "table": "merchant_settings",
+          "column": "account_number_encrypted",
+          "type": "character varying",
+          "nullable": "YES"
+        },
+        {
+          "table": "merchant_settings",
+          "column": "account_number_hint",
+          "type": "character varying",
+          "nullable": "YES"
+        },
+        {
+          "table": "merchant_settings",
+          "column": "merchant_code",
+          "type": "character varying",
+          "nullable": "YES"
+        },
+        {
+          "table": "merchant_settings",
+          "column": "created_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "NO"
+        },
+        {
+          "table": "merchant_settings",
+          "column": "created_by",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "merchant_settings",
+          "column": "updated_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "merchant_settings",
+          "column": "updated_by",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "payment_providers",
+          "column": "id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "payment_providers",
+          "column": "code",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "payment_providers",
+          "column": "display_name",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "payment_providers",
+          "column": "mode",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "payment_providers",
+          "column": "is_enabled",
+          "type": "boolean",
+          "nullable": "NO"
+        },
+        {
+          "table": "payment_providers",
+          "column": "merchant_id",
+          "type": "character varying",
+          "nullable": "YES"
+        },
+        {
+          "table": "payment_providers",
+          "column": "api_key_encrypted",
+          "type": "character varying",
+          "nullable": "YES"
+        },
+        {
+          "table": "payment_providers",
+          "column": "secret_key_encrypted",
+          "type": "character varying",
+          "nullable": "YES"
+        },
+        {
+          "table": "payment_providers",
+          "column": "callback_url",
+          "type": "character varying",
+          "nullable": "YES"
+        },
+        {
+          "table": "payment_providers",
+          "column": "created_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "NO"
+        },
+        {
+          "table": "payment_providers",
+          "column": "created_by",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "payment_providers",
+          "column": "updated_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "payment_providers",
+          "column": "updated_by",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "payment_refunds",
+          "column": "id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "payment_refunds",
+          "column": "payment_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "payment_refunds",
+          "column": "tenant_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "payment_refunds",
+          "column": "branch_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "payment_refunds",
+          "column": "order_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "payment_refunds",
+          "column": "amount",
+          "type": "numeric",
+          "nullable": "NO"
+        },
+        {
+          "table": "payment_refunds",
+          "column": "kind",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "payment_refunds",
+          "column": "reason",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "payment_refunds",
+          "column": "status",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "payment_refunds",
+          "column": "within_policy",
+          "type": "boolean",
+          "nullable": "NO"
+        },
+        {
+          "table": "payment_refunds",
+          "column": "requested_by",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "payment_refunds",
+          "column": "decided_by",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "payment_refunds",
+          "column": "decided_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "payment_refunds",
+          "column": "decision_note",
+          "type": "character varying",
+          "nullable": "YES"
+        },
+        {
+          "table": "payment_refunds",
+          "column": "provider_reference",
+          "type": "character varying",
+          "nullable": "YES"
+        },
+        {
+          "table": "payment_refunds",
+          "column": "created_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "NO"
+        },
+        {
+          "table": "payment_refunds",
+          "column": "created_by",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "payment_refunds",
+          "column": "updated_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "payment_refunds",
+          "column": "updated_by",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "payment_webhook_events",
+          "column": "id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "payment_webhook_events",
+          "column": "provider_code",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "payment_webhook_events",
+          "column": "event_id",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "payment_webhook_events",
+          "column": "transaction_ref",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "payment_webhook_events",
+          "column": "reported_status",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "payment_webhook_events",
+          "column": "reported_amount",
+          "type": "numeric",
+          "nullable": "NO"
+        },
+        {
+          "table": "payment_webhook_events",
+          "column": "payment_id",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "payment_webhook_events",
+          "column": "tenant_id",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "payment_webhook_events",
+          "column": "outcome",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "payment_webhook_events",
+          "column": "received_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "NO"
+        },
+        {
+          "table": "payments",
+          "column": "id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "payments",
+          "column": "tenant_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "payments",
+          "column": "branch_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "payments",
+          "column": "order_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "payments",
+          "column": "amount",
+          "type": "numeric",
+          "nullable": "NO"
+        },
+        {
+          "table": "payments",
+          "column": "method",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "payments",
+          "column": "status",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "payments",
+          "column": "description",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "payments",
+          "column": "transaction_ref",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "payments",
+          "column": "provider_reference",
+          "type": "character varying",
+          "nullable": "YES"
+        },
+        {
+          "table": "payments",
+          "column": "checkout_url",
+          "type": "character varying",
+          "nullable": "YES"
+        },
+        {
+          "table": "payments",
+          "column": "provider_state",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "payments",
+          "column": "expires_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "payments",
+          "column": "paid_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "payments",
+          "column": "failure_reason",
+          "type": "character varying",
+          "nullable": "YES"
+        },
+        {
+          "table": "payments",
+          "column": "paid_late",
+          "type": "boolean",
+          "nullable": "NO"
+        },
+        {
+          "table": "payments",
+          "column": "refunded_amount",
+          "type": "numeric",
+          "nullable": "NO"
+        },
+        {
+          "table": "payments",
+          "column": "cashier_user_id",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "payments",
+          "column": "created_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "NO"
+        },
+        {
+          "table": "payments",
+          "column": "created_by",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "payments",
+          "column": "updated_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "payments",
+          "column": "updated_by",
+          "type": "uuid",
+          "nullable": "YES"
+        }
+      ],
+      "fingerprints": [
+        {
+          "table": "__ef_migrations_history",
+          "rows": 4,
+          "fingerprint": "4f398fad6b74e6ebb8f9166efbf2dc8e"
+        },
+        {
+          "table": "cancellation_policies",
+          "rows": 0,
+          "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+        },
+        {
+          "table": "merchant_settings",
+          "rows": 0,
+          "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+        },
+        {
+          "table": "payment_providers",
+          "rows": 0,
+          "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+        },
+        {
+          "table": "payment_refunds",
+          "rows": 0,
+          "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+        },
+        {
+          "table": "payment_webhook_events",
+          "rows": 0,
+          "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+        },
+        {
+          "table": "payments",
+          "rows": 2,
+          "fingerprint": "55312f4e440971710ad86d80ee78b8a8"
+        }
+      ],
+      "efComparison": {
+        "missingTables": [
+          "bill_split_operations",
+          "bill_split_plans",
+          "cashier_shifts",
+          "collection_outbox",
+          "session_bill_attempts",
+          "session_bill_events",
+          "session_bill_orders",
+          "session_bills"
+        ],
+        "missingColumns": [],
+        "nullabilityDifferences": []
+      },
+      "postAudit": {
+        "columns": 92,
+        "fingerprintsUnchanged": true
+      }
+    },
+    {
+      "database": "aicos_reporting",
+      "schema": "reporting",
+      "history": [
+        "20261021151155_OrderFacts"
+      ],
+      "columns": [
+        {
+          "table": "__ef_migrations_history",
+          "column": "migration_id",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "__ef_migrations_history",
+          "column": "product_version",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "order_facts",
+          "column": "id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "order_facts",
+          "column": "tenant_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "order_facts",
+          "column": "branch_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "table": "order_facts",
+          "column": "order_type",
+          "type": "character varying",
+          "nullable": "NO"
+        },
+        {
+          "table": "order_facts",
+          "column": "total_amount",
+          "type": "numeric",
+          "nullable": "NO"
+        },
+        {
+          "table": "order_facts",
+          "column": "placed_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "order_facts",
+          "column": "paid_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "order_facts",
+          "column": "payment_method",
+          "type": "character varying",
+          "nullable": "YES"
+        },
+        {
+          "table": "order_facts",
+          "column": "paid_amount",
+          "type": "numeric",
+          "nullable": "NO"
+        },
+        {
+          "table": "order_facts",
+          "column": "refunded_amount",
+          "type": "numeric",
+          "nullable": "NO"
+        },
+        {
+          "table": "order_facts",
+          "column": "cancelled_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "order_facts",
+          "column": "completed_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "order_facts",
+          "column": "created_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "NO"
+        },
+        {
+          "table": "order_facts",
+          "column": "created_by",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "table": "order_facts",
+          "column": "updated_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "table": "order_facts",
+          "column": "updated_by",
+          "type": "uuid",
+          "nullable": "YES"
+        }
+      ],
+      "fingerprints": [
+        {
+          "table": "__ef_migrations_history",
+          "rows": 1,
+          "fingerprint": "a34af0464c94dbf62e32070699fe117f"
+        },
+        {
+          "table": "order_facts",
+          "rows": 13,
+          "fingerprint": "17aec483a86028cdc04e6fabbec6d260"
+        }
+      ],
+      "efComparison": {
+        "missingTables": [
+          "collection_facts"
+        ],
+        "missingColumns": [],
+        "nullabilityDifferences": []
+      },
+      "postAudit": {
+        "columns": 18,
+        "fingerprintsUnchanged": true
+      }
+    }
+  ],
+  "runtime": [
+    {
+      "name": "aicos-main-kitchen",
+      "id": "bdd90f8b81ed24c15ae39c4285db8fd0ea68fe45152ea6824da142008d16d821",
+      "image": "aicos-main/kitchen:local",
+      "status": "exited",
+      "started": "2026-11-14T11:30:18.473167863Z",
+      "migrateOnStartup": "false",
+      "sessionBillingEnabled": null,
+      "cashierShiftsEnabled": null,
+      "requireOpenForCash": null
+    },
+    {
+      "name": "aicos-main-order",
+      "id": "238f33cf6d67583428371e4e5277d9a5594049b81e1155c494d3cb492343d8e3",
+      "image": "aicos-main/order:session-guard-20261112",
+      "status": "exited",
+      "started": "2026-11-14T11:00:13.013339499Z",
+      "migrateOnStartup": "false",
+      "sessionBillingEnabled": null,
+      "cashierShiftsEnabled": null,
+      "requireOpenForCash": null
+    },
+    {
+      "name": "aicos-main-payment",
+      "id": "e63ea5c2b10609bdf7c1d35ca99e215c0d2e19b7472672f685099c903367df90",
+      "image": "aicos-main/payment:local",
+      "status": "exited",
+      "started": "2026-11-14T11:00:16.510694376Z",
+      "migrateOnStartup": "false",
+      "sessionBillingEnabled": null,
+      "cashierShiftsEnabled": null,
+      "requireOpenForCash": null
+    },
+    {
+      "name": "aicos-main-menu",
+      "id": "2a107c1fec8bea7212e5b34865ee53e623fc209ffcbd67674c0021320f8753e7",
+      "image": "aicos-main/menu:local",
+      "status": "exited",
+      "started": "2026-11-14T11:00:15.417440713Z",
+      "migrateOnStartup": "false",
+      "sessionBillingEnabled": null,
+      "cashierShiftsEnabled": null,
+      "requireOpenForCash": null
+    },
+    {
+      "name": "aicos-main-gateway",
+      "id": "8ce8eeed09dc21fa5982bb446dda87e817ea8f2b0afae0359afa720c6e1cf33a",
+      "image": "aicos-main/gateway:local",
+      "status": "exited",
+      "started": "2026-11-14T11:00:13.530457399Z",
+      "migrateOnStartup": "false",
+      "sessionBillingEnabled": null,
+      "cashierShiftsEnabled": null,
+      "requireOpenForCash": null
+    },
+    {
+      "name": "aicos-main-ai",
+      "id": "2ad6ce9f43ac04871f14a269f026e455c6b4c644710548b1cc738346c0dc30e1",
+      "image": "aicos-main/ai:local",
+      "status": "exited",
+      "started": "2026-11-14T11:00:18.79716784Z",
+      "migrateOnStartup": null,
+      "sessionBillingEnabled": null,
+      "cashierShiftsEnabled": null,
+      "requireOpenForCash": null
+    },
+    {
+      "name": "aicos-main-customer",
+      "id": "84d1a944a39fa7ff5c5a7ac86ba3756d369b8cfea89fb6adb41ddf2ef25bac7f",
+      "image": "aicos-main/customer:local",
+      "status": "exited",
+      "started": "2026-11-14T11:00:15.965789534Z",
+      "migrateOnStartup": "false",
+      "sessionBillingEnabled": null,
+      "cashierShiftsEnabled": null,
+      "requireOpenForCash": null
+    },
+    {
+      "name": "aicos-main-reporting",
+      "id": "8b0b1f7deb88ff8dbc0e69f3f8f8df1045f0750a857157ba9b98e998da562365",
+      "image": "aicos-main/reporting:local",
+      "status": "exited",
+      "started": "2026-11-14T11:00:11.588855493Z",
+      "migrateOnStartup": "false",
+      "sessionBillingEnabled": null,
+      "cashierShiftsEnabled": null,
+      "requireOpenForCash": null
+    },
+    {
+      "name": "aicos-main-workforce",
+      "id": "cec13b9560866ba2bffc4ce1ca61d77353cbd4f68d423c2a1566fcaafbec0feb",
+      "image": "aicos-main/workforce:local",
+      "status": "exited",
+      "started": "2026-11-14T11:00:17.911443653Z",
+      "migrateOnStartup": "false",
+      "sessionBillingEnabled": null,
+      "cashierShiftsEnabled": null,
+      "requireOpenForCash": null
+    },
+    {
+      "name": "aicos-main-table",
+      "id": "345ddd6a94407db5728474606853f51e073fd1d38afd55134ab6be9c0fd991c9",
+      "image": "aicos-main/table:local",
+      "status": "exited",
+      "started": "2026-11-14T11:00:20.497489277Z",
+      "migrateOnStartup": "false",
+      "sessionBillingEnabled": null,
+      "cashierShiftsEnabled": null,
+      "requireOpenForCash": null
+    },
+    {
+      "name": "aicos-main-identity",
+      "id": "a3ae40e36b623067d09e3a7ed66f30c37ee989fc079f1ab18cd7cc66d872de06",
+      "image": "aicos-main/identity:local",
+      "status": "exited",
+      "started": "2026-11-14T11:00:14.614643868Z",
+      "migrateOnStartup": "false",
+      "sessionBillingEnabled": null,
+      "cashierShiftsEnabled": null,
+      "requireOpenForCash": null
+    },
+    {
+      "name": "aicos-main-redis",
+      "id": "8044508b8e2a82601016ddf1a8ddf719ca210bc6d34531c0c23f6d5d2f35bfdd",
+      "image": "redis:7-alpine",
+      "status": "exited",
+      "started": "2026-11-14T11:00:12.259733293Z",
+      "migrateOnStartup": null,
+      "sessionBillingEnabled": null,
+      "cashierShiftsEnabled": null,
+      "requireOpenForCash": null
+    },
+    {
+      "name": "aicos-main-postgres",
+      "id": "c014190eed2dd5a00374c4a7e45678a7ca6bb7c897dea75c0c952d82eb3043d1",
+      "image": "pgvector/pgvector:pg16",
+      "status": "running",
+      "started": "2026-11-15T11:37:07.774532771Z",
+      "migrateOnStartup": null,
+      "sessionBillingEnabled": null,
+      "cashierShiftsEnabled": null,
+      "requireOpenForCash": null
+    }
+  ],
+  "verifiedAt": "2026-11-15T11:43:52.825Z",
+  "verifiedTables": 48,
+  "fingerprintAlgorithm": "md5(coalesce(string_agg(row_to_json(t)::text,chr(124) ORDER BY row_to_json(t)::text),''))",
+  "finalState": {
+    "postgresRestoredToStopped": true,
+    "allBackendServicesStopped": true,
+    "containerIdsAndImageReferencesUnchanged": true,
+    "verifiedAt": "2026-11-15T11:47:20.987Z"
+  },
+  "code": {
+    "backendPrecheckCommit": "694aca0",
+    "mobilePrecheckCommit": "51ac435",
+    "cleanCheckout": "D:/ki9/sep490/Sep490/AICOS-BE-local",
+    "build": "PASS",
+    "warnings": 2,
+    "focusedBackendTests": {
+      "passed": 10,
+      "failed": 0,
+      "skipped": 0
+    },
+    "sqlChecksums": {
+      "files": 30,
+      "result": "PASS"
+    }
+  }
+}
