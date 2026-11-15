@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore;
 namespace AICOS.Ordering.Api.Features.Qr;
 
 public sealed record TransferTableRequest(Guid? ExpectedTableId, string? TargetQrToken);
-public sealed record TransferTableResponse(Guid SessionId, Guid TableId, string TableCode, int Orders);
+public sealed record TransferTableResponse(Guid SessionId, Guid TableId, string TableCode, int Orders, Guid? OperationId = null, string SyncStatus = "COMPLETED");
 
 public static class TableTransferEndpoints
 {
@@ -20,9 +20,10 @@ public static class TableTransferEndpoints
         api.MapPost("/qr/sessions/{id:guid}/transfer", TransferAsync)
             .WithTags("Table Sessions").RequireAuthorization(b => b.RequireRole(OrderAccess.CounterRoles));
 
-    private static async Task<TransferTableResponse> TransferAsync(Guid id, TransferTableRequest request,
-        OrderingDbContext db, ICurrentUser user, ITableQrClient tables, IEventBus events, ShopTime clock, CancellationToken ct)
+    private static async Task<IResult> TransferAsync(Guid id, TransferTableRequest request,
+        OrderingDbContext db, ICurrentUser user, ITableQrClient tables, IEventBus events, ShopTime clock, IConfiguration config, HttpContext http, DurableTableTransferService durable, CancellationToken ct)
     {
+        if(config.GetValue<bool>("TableTransfer:Enabled")){var result=await durable.TransferAsync(id,request,http.Request.Headers["Idempotency-Key"].ToString(),ct);return Results.Json(result,statusCode:result.SyncStatus=="COMPLETED"?200:202);}
         var tenant = TenantScope.Require(user);
         if (request.ExpectedTableId is null || string.IsNullOrWhiteSpace(request.TargetQrToken) || request.TargetQrToken.Length > 200)
             throw new ValidationFailedException("target", "Expected source table and a target table reference are required.");
@@ -64,6 +65,6 @@ public static class TableTransferEndpoints
             return (Response: new TransferTableResponse(session.Id, session.TableId, session.TableCode, orders.Count), Orders: orders.Select(o => o.Id).ToArray());
         });
         await events.PublishAsync(new TableTransferredIntegrationEvent(tenant, target.BranchId, id, target.TableId, target.TableCode, outcome.Orders), ct);
-        return outcome.Response;
+        return Results.Ok(outcome.Response);
     }
 }

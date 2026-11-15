@@ -1,3 +1,4 @@
+using AICOS.Payments.Api.Features.CashierShifts;
 using AICOS.BuildingBlocks.Messaging;
 using AICOS.Contracts.Events;
 using AICOS.Payments.Api.Domain;
@@ -26,6 +27,7 @@ public sealed class PaymentProcessor(PaymentsDbContext db, IEventBus bus, TimePr
                 return appliedInThisCall ? (payment.PaidLate ? "applied_late" : "applied") : "ignored_final";
             payment.SetProviderState(ProviderState.Succeeded);
             payment.MarkSucceeded(providerReference, UtcNow);
+            await CashierLedger.CaptureAsync(db,new(payment.Id,payment.TenantId,payment.BranchId,null,payment.OrderId,payment.CashierUserId,null,payment.Method,payment.Amount,payment.PaidAtUtc!.Value,payment.TransactionRef),ct);
             await db.SaveChangesAsync(ct);
             appliedInThisCall = true;
             return payment.PaidLate ? "applied_late" : "applied";

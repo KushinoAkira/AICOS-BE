@@ -156,6 +156,14 @@ public class KitchenTicket : AuditableEntity<Guid>, IBranchScoped
         _items.Add(new KitchenTicketItem(Id, productId, productName, quantity, note));
     }
 
+    public long TableTransferVersion { get; private set; }
+    public void ApplyTableTransfer(string code,long version)
+    {
+        if(version<TableTransferVersion)return;
+        if(version==TableTransferVersion&&TableNumber!=code)throw new ConflictException("Routing version differs.","table.transfer_stale");
+        if(version==TableTransferVersion)return;
+        TableNumber=code;TableTransferVersion=version;
+    }
     public void TransferTable(string code) => TableNumber = code;
 
     public void StartBrewing(DateTime now)

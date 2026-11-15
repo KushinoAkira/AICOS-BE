@@ -3,7 +3,7 @@ using System.Text;
 using System.Text.Json;
 namespace AICOS.Contracts.Billing;
 
-public sealed record BillLine(Guid OrderId, string OrderCode, string Name, int Quantity, decimal UnitPrice, decimal Total, string Options, string? Note);
+public sealed record BillLine(Guid OrderId, string OrderCode, string Name, int Quantity, decimal UnitPrice, decimal Total, string Options, string? Note, Guid? OrderItemId = null);
 public sealed record BillRound(Guid OrderId, string OrderCode, decimal Amount);
 public sealed record SessionBillQuote(Guid TenantId, Guid BranchId, Guid SessionId, Guid TableId, string TableCode,
     string Fingerprint, decimal Subtotal, decimal Discount, decimal Total, IReadOnlyList<BillRound> Orders, IReadOnlyList<BillLine> Lines, decimal Tax = 0, decimal ServiceFee = 0);

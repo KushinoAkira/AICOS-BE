@@ -25,7 +25,7 @@ internal static class SessionBillQuotes
         if (live.Count == 0) throw new ConflictException("There are no billable orders.", "billing.empty");
         var rounds = live.Select(o => new BillRound(o.Id, o.OrderCode, o.FinalAmount)).ToArray();
         var lines = live.SelectMany(o => o.Items.OrderBy(i => i.Id).Select(i => new BillLine(o.Id, o.OrderCode,
-            i.ProductName, i.Quantity, i.UnitPrice, i.TotalPrice, i.OptionsText, i.Note))).ToArray();
+            i.ProductName, i.Quantity, i.UnitPrice, i.TotalPrice, i.OptionsText, i.Note, i.Id))).ToArray();
         // Include full snapshot content so same-price item edits cannot reuse an obsolete quote.
         var fingerprint = BillIdentity.Hash(System.Text.Json.JsonSerializer.Serialize(new { Rounds = rounds, Lines = lines }));
         return new(session.TenantId, session.BranchId, session.Id, session.TableId, session.TableCode,

@@ -31,7 +31,7 @@ public static class OrderEndpoints
 
         group.MapPost("/", CreateAsync).RequireAuthorization(b => b.RequireRole(OrderAccess.CounterRoles));
         group.MapGet("/", ListAsync).RequireAuthorization(AicosPolicies.Staff);
-        group.MapGet("/staff/capabilities", () => new { CounterIdempotency = true, CounterTableSessions = true, TableOrderFilter = true, CounterTableTransfer = true, ExpectedTableSession = true })
+        group.MapGet("/staff/capabilities", (IConfiguration config) => new { CounterIdempotency = true, CounterTableSessions = true, TableOrderFilter = true, CounterTableTransfer = true, DurableTableTransfer = config.GetValue<bool>("TableTransfer:Enabled"), ExpectedTableSession = true })
             .RequireAuthorization(AicosPolicies.Staff);
         group.MapGet("/mine", MineAsync).RequireAuthorization(b => b.RequireRole(AicosRoles.Customer));
         group.MapGet("/exceptions", ExceptionsAsync).RequireAuthorization(AicosPolicies.Management);

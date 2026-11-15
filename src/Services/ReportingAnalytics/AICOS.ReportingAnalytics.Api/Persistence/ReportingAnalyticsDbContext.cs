@@ -1,3 +1,4 @@
+using AICOS.ReportingAnalytics.Api.Features.Reports;
 using AICOS.BuildingBlocks.Persistence;
 using AICOS.ReportingAnalytics.Api.Domain;
 using Microsoft.EntityFrameworkCore;
@@ -9,6 +10,7 @@ public sealed class ReportingAnalyticsDbContext(DbContextOptions<ReportingAnalyt
 {
     protected override string Schema => ReportingAnalyticsService.Info.Schema;
 
+    public DbSet<CollectionFact> CollectionFacts => Set<CollectionFact>();
     public DbSet<OrderFact> OrderFacts => Set<OrderFact>();
 }
 

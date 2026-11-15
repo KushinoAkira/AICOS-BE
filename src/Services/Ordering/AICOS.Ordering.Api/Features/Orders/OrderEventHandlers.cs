@@ -100,19 +100,9 @@ public sealed class KitchenOrderStartedHandler(OrderingDbContext db, OrderEventP
 {
     public async Task HandleAsync(KitchenOrderStartedIntegrationEvent @event, CancellationToken cancellationToken)
     {
-        var order = await OrderLookup.FindAsync(db, @event.TenantId, @event.OrderId, cancellationToken);
-        if (order is null)
-        {
-            return;
-        }
-
-        var before = order.Status;
-        order.MarkAsPreparing();
-        await db.SaveChangesAsync(cancellationToken);
-        if (order.Status != before)
-        {
-            await events.ChangedAsync(order, "Preparing", cancellationToken);
-        }
+        var result = await KitchenOrderProjection.ApplyAsync(db, @event.TenantId, @event.OrderId, o => o.MarkAsPreparing(), cancellationToken);
+        if (result.Order is not null && result.Changed)
+            await events.ChangedAsync(result.Order, "Preparing", cancellationToken);
     }
 }
 
@@ -121,19 +111,9 @@ public sealed class KitchenOrderReadyHandler(OrderingDbContext db, OrderEventPub
 {
     public async Task HandleAsync(KitchenOrderReadyIntegrationEvent @event, CancellationToken cancellationToken)
     {
-        var order = await OrderLookup.FindAsync(db, @event.TenantId, @event.OrderId, cancellationToken);
-        if (order is null)
-        {
-            return;
-        }
-
-        var before = order.Status;
-        order.MarkAsReady(@event.ReadyAtUtc);
-        await db.SaveChangesAsync(cancellationToken);
-        if (order.Status != before)
-        {
-            await events.ChangedAsync(order, "Ready", cancellationToken);
-        }
+        var result = await KitchenOrderProjection.ApplyAsync(db, @event.TenantId, @event.OrderId, o => o.MarkAsReady(@event.ReadyAtUtc), cancellationToken);
+        if (result.Order is not null && result.Changed)
+            await events.ChangedAsync(result.Order, "Ready", cancellationToken);
     }
 }
 
@@ -142,18 +122,8 @@ public sealed class KitchenOrderRemakeHandler(OrderingDbContext db, OrderEventPu
 {
     public async Task HandleAsync(KitchenOrderRemakeIntegrationEvent @event, CancellationToken cancellationToken)
     {
-        var order = await OrderLookup.FindAsync(db, @event.TenantId, @event.OrderId, cancellationToken);
-        if (order is null)
-        {
-            return;
-        }
-
-        var before = order.RemakeCount;
-        order.ApplyRemake(@event.RemakeCount);
-        await db.SaveChangesAsync(cancellationToken);
-        if (order.RemakeCount != before)
-        {
-            await events.ChangedAsync(order, "Remake", cancellationToken);
-        }
+        var result = await KitchenOrderProjection.ApplyAsync(db, @event.TenantId, @event.OrderId, o => o.ApplyRemake(@event.RemakeCount), cancellationToken);
+        if (result.Order is not null && result.Changed)
+            await events.ChangedAsync(result.Order, "Remake", cancellationToken);
     }
 }

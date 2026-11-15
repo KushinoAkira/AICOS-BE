@@ -1,3 +1,5 @@
+using AICOS.Payments.Api.Features.SplitBilling;
+using AICOS.Payments.Api.Features.CashierShifts;
 using AICOS.Payments.Api.Features.SessionBilling;
 using AICOS.BuildingBlocks.Hosting;
 using AICOS.BuildingBlocks.Http;
@@ -35,6 +37,9 @@ builder.Services.AddIntegrationEventHandler<OrderCancelledIntegrationEvent, Paym
 // builder.Services.AddAicosServiceClient<IOtherClient, OtherClient>(builder.Configuration, "Other");   // sync REST call to another service
 
 builder.AddSessionBilling();
+builder.Services.AddHttpClient("collections");
+builder.Services.AddScoped<CollectionDispatcher>();
+builder.Services.AddHostedService<CollectionWorker>();
 
 var app = builder.Build();
 
@@ -49,6 +54,8 @@ api.MapMerchantSettingEndpoints();
 api.MapPaymentEndpoints();
 api.MapOrderSettlementEndpoints();
 app.MapSessionBilling(api);
+api.MapCashierShifts();
+api.MapSplitPlans();
 api.MapWebhookEndpoints();
 api.MapRefundEndpoints();
 api.MapReconciliationEndpoints();
