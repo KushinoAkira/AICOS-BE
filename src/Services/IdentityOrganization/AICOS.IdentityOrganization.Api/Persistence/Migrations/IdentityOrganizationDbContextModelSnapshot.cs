@@ -217,6 +217,11 @@ namespace AICOS.IdentityOrganization.Api.Persistence.Migrations
                         .HasColumnType("character varying(2000)")
                         .HasColumnName("message");
 
+                    b.Property<string>("Note")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("note");
+
                     b.Property<string>("Phone")
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)")
@@ -379,6 +384,10 @@ namespace AICOS.IdentityOrganization.Api.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("created_by");
 
+                    b.Property<DateTime?>("DeletedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at_utc");
+
                     b.Property<string>("Description")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)")
@@ -463,6 +472,15 @@ namespace AICOS.IdentityOrganization.Api.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("created_by");
 
+                    b.Property<string>("DeleteReason")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("delete_reason");
+
+                    b.Property<DateTime?>("DeletedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at_utc");
+
                     b.Property<string>("Description")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)")
@@ -479,10 +497,19 @@ namespace AICOS.IdentityOrganization.Api.Persistence.Migrations
                         .HasColumnType("character varying(200)")
                         .HasColumnName("name");
 
+                    b.Property<string>("PaymentClaimReference")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("payment_claim_reference");
+
                     b.Property<string>("PrimaryColor")
                         .HasMaxLength(7)
                         .HasColumnType("character varying(7)")
                         .HasColumnName("primary_color");
+
+                    b.Property<Guid?>("RequestedPlanId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("requested_plan_id");
 
                     b.Property<string>("ReviewNote")
                         .HasMaxLength(300)

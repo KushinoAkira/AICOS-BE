@@ -46,8 +46,19 @@ public sealed class ContactMessage : AuditableEntity<Guid>
 
     public Guid? HandledBy { get; private set; }
 
-    public void MarkHandled(Guid? by, DateTime now)
+    public const int NoteMaxLength = 500;
+
+    /// <summary>What the platform team agreed with the visitor when following up.</summary>
+    public string? Note { get; private set; }
+
+    /// <summary>Marks the message followed up; a later call only updates the note.</summary>
+    public void MarkHandled(Guid? by, DateTime now, string? note = null)
     {
+        if (!string.IsNullOrWhiteSpace(note))
+        {
+            Note = note.Trim();
+        }
+
         if (Status == ContactMessageStatus.Handled)
         {
             return;

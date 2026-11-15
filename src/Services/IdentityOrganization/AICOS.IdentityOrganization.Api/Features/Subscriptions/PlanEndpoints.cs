@@ -29,6 +29,7 @@ public static class PlanEndpoints
         plans.MapPost("/", CreateAsync);
         plans.MapPut("/{id:guid}", UpdateAsync);
         plans.MapPatch("/{id:guid}/status", ChangeStatusAsync);
+        plans.MapDelete("/{id:guid}", DeleteAsync);
     }
 
     private static async Task<PagedResponse<PlanResponse>> ListAsync(
@@ -39,7 +40,7 @@ public static class PlanEndpoints
 
         // Only the Super Admin sees retired plans and subscriber counts; everyone else gets the plans on sale, with the same response shape.
         var isPlatformAdmin = user.IsInRole(AicosRoles.SuperAdmin);
-        var query = db.SubscriptionPlans.AsNoTracking().Where(p => isPlatformAdmin || p.IsActive);
+        var query = db.SubscriptionPlans.AsNoTracking().Where(p => p.DeletedAtUtc == null && (isPlatformAdmin || p.IsActive));
         if (!string.IsNullOrWhiteSpace(search))
         {
             var term = search.Trim().ToLower();
@@ -59,7 +60,7 @@ public static class PlanEndpoints
     }
 
     private static async Task<List<PublicPlanResponse>> PublicListAsync(IdentityOrganizationDbContext db, CancellationToken ct) =>
-        await db.SubscriptionPlans.AsNoTracking().Where(p => p.IsActive).OrderBy(p => p.Fee).ThenBy(p => p.Name)
+        await db.SubscriptionPlans.AsNoTracking().Where(p => p.IsActive && p.DeletedAtUtc == null).OrderBy(p => p.Fee).ThenBy(p => p.Name)
             .Select(p => new PublicPlanResponse(p.Id, p.Name, p.Tier, p.Fee, p.BillingPeriod, p.MaxBranches, p.MaxStaffAccounts, p.Description, p.MaxTablesPerBranch))
             .ToListAsync(ct);
 
@@ -108,12 +109,33 @@ public static class PlanEndpoints
         }
 
         var plan = await FindAsync(db, id, ct);
+        if (plan.IsDeleted)
+        {
+            throw new ConflictException("This plan is deleted.", "plan.deleted");
+        }
+
         var before = Snapshot(plan);
         plan.SetActive(request.IsActive.Value);
         audit.Record(AuditScope.Platform, null, "plan.status_changed", "SubscriptionPlan", plan.Id, before, Snapshot(plan));
         await db.SaveChangesAsync(ct);
 
         return PlanResponse.From(plan, (await SubscriberCountsAsync(db, [id], ct)).GetValueOrDefault(id));
+    }
+
+    /// <summary>Soft delete of a plan. Brands on it keep their current subscription until they change plan. Audited.</summary>
+    private static async Task<IResult> DeleteAsync(Guid id, IdentityOrganizationDbContext db, AuditLogger audit, TimeProvider clock, CancellationToken ct)
+    {
+        var plan = await FindAsync(db, id, ct);
+        if (plan.IsDeleted)
+        {
+            throw new ConflictException("This plan is already deleted.", "plan.deleted");
+        }
+
+        var before = Snapshot(plan);
+        plan.SoftDelete(clock.GetUtcNow().UtcDateTime);
+        audit.Record(AuditScope.Platform, null, "plan.deleted", "SubscriptionPlan", plan.Id, before, Snapshot(plan));
+        await db.SaveChangesAsync(ct);
+        return Results.NoContent();
     }
 
     private static object Snapshot(SubscriptionPlan p) => new

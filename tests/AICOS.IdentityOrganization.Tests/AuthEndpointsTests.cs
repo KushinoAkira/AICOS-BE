@@ -253,6 +253,7 @@ public sealed class AuthEndpointsTests : IDisposable
         var second = await superAdmin.PostAsJsonAsync("/api/v1/identity/tenants", new { name = "Second Brand", code = "second-brand", firstAdmin = new { fullName = "Owner", email = "owner2@example.com", password = Password } }, Json);
         second.EnsureSuccessStatusCode();
         var secondId = (await second.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+        _factory.Open(secondId);
 
         var signedIn = await SignUpAsync(_anonymous, _factory, "lien@example.com");
         using var client = ClientWith(signedIn.AccessToken);
