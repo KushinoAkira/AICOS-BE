@@ -37,6 +37,24 @@ public sealed class LogoPictureTests : IDisposable
         (await admin.PutAsJsonAsync("/api/v1/identity/brand/profile", new BrandProfileRequest(null, "data:image/png;base64," + new string('A', 200_001), null, null), AuthEndpointsTests.Json))
             .StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
+
+    [Fact]
+    public async Task The_brand_admin_renames_the_brand_and_the_code_stays()
+    {
+        using var admin = _factory.CreateClientAs(AicosRoles.BrandAdmin);
+        var before = (await admin.GetFromJsonAsync<BrandProfileResponse>("/api/v1/identity/brand/profile", AuthEndpointsTests.Json))!;
+
+        var renamed = await admin.PutAsJsonAsync("/api/v1/identity/brand/profile", new BrandProfileRequest(null, null, null, null, "  Cà Phê Phố  "), AuthEndpointsTests.Json);
+        renamed.StatusCode.Should().Be(HttpStatusCode.OK);
+        var after = (await renamed.Content.ReadFromJsonAsync<BrandProfileResponse>(AuthEndpointsTests.Json))!;
+        (after.Name, after.Code).Should().Be(("Cà Phê Phố", before.Code));
+
+        (await admin.PutAsJsonAsync("/api/v1/identity/brand/profile", new BrandProfileRequest(null, null, null, null, "X"), AuthEndpointsTests.Json))
+            .StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await admin.PutAsJsonAsync("/api/v1/identity/brand/profile", new BrandProfileRequest("Mô tả", null, null, null), AuthEndpointsTests.Json))
+            .StatusCode.Should().Be(HttpStatusCode.OK);
+        (await admin.GetFromJsonAsync<BrandProfileResponse>("/api/v1/identity/brand/profile", AuthEndpointsTests.Json))!.Name.Should().Be("Cà Phê Phố"); // left out: kept
+    }
 }
 
 public sealed class BrandSelfServiceTests : IDisposable

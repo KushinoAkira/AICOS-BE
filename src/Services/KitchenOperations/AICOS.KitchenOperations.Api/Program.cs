@@ -1,3 +1,5 @@
+using AICOS.KitchenOperations.Api.Features.Barista;
+using AICOS.KitchenOperations.Api.Features.SessionBilling;
 using AICOS.BuildingBlocks.Hosting;
 using AICOS.BuildingBlocks.Messaging;
 using AICOS.BuildingBlocks.Persistence;
@@ -11,6 +13,7 @@ using AICOS.KitchenOperations.Api.Services;
 using AICOS.KitchenOperations.Api.Features.KitchenAdmission;
 
 var builder = WebApplication.CreateBuilder(args);
+if (BillingMachineAuth.Enabled(builder.Configuration)) _ = BillingMachineAuth.Key(builder.Configuration);
 
 builder.AddAicosServiceDefaults(KitchenOperationsService.Info);
 builder.AddAicosPostgres<KitchenOperationsDbContext>(KitchenOperationsService.Info);
@@ -39,16 +42,20 @@ builder.Services.AddIntegrationEventHandler<OrderCancelledIntegrationEvent, Kitc
 builder.Services.AddIntegrationEventHandler<OrderCompletedIntegrationEvent, KitchenOrderCompletedHandler>();
 builder.Services.AddIntegrationEventHandler<OrderDeliveredIntegrationEvent, KitchenOrderDeliveredHandler>();
 
+builder.AddBaristaWorkflow();
 var app = builder.Build();
 
 await app.MigrateDatabaseAsync<KitchenOperationsDbContext>();
 app.UseAicosServiceDefaults();
+app.MapKitchenBillPaid();
 app.MapKitchenAdmission();
+app.MapTableTransferReceiver();
 AICOS.KitchenOperations.Api.Features.CupServing.CupServingEndpoints.MapCupServing(app);
 
 app.MapHub<KitchenHub>("/hubs/kitchen");
 
 var api = app.MapAicosApiGroup();
 api.MapKitchenOperationsEndpoints();
+api.MapBaristaWorkflow();
 
 await app.RunAsync();

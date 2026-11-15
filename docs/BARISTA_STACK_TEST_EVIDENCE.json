@@ -1,0 +1,103 @@
+{
+  "cluster": "7707977845386215465",
+  "checks": [
+    {
+      "name": "SQL SHA256 matches reviewed manifests",
+      "status": "PASS"
+    },
+    {
+      "name": "Offline EF baseline export without service startup",
+      "status": "PASS"
+    },
+    {
+      "name": "Container/network/no-host-port/tmpfs/cluster guards",
+      "status": "PASS"
+    },
+    {
+      "name": "Barista migration checksum/preflight/expand/repeat refusal, column ACL, restore/empty rollback/reapply PASS",
+      "status": "PASS"
+    },
+    {
+      "name": "Synthetic fixtures only; no operating data/secrets copied",
+      "status": "PASS"
+    },
+    {
+      "name": "ordering: reviewed SQL, repeat safely refused, role login/deny, backup/restore and rollback/reapply PASS",
+      "status": "PASS"
+    },
+    {
+      "name": "payment: reviewed SQL, repeat safely refused, role login/deny, backup/restore and rollback/reapply PASS",
+      "status": "PASS"
+    },
+    {
+      "name": "Non-owner service roles have no superuser/role/DB creation/history update or cross-service CONNECT",
+      "status": "PASS"
+    },
+    {
+      "name": "All service tables/columns/nullability/types match EF relational models",
+      "status": "PASS"
+    },
+    {
+      "name": "Actual CHECK/PK/own FK and session/Bill/pending uniqueness definitions verified",
+      "status": "PASS"
+    },
+    {
+      "name": "Five new tables; no cross-service FK; existing session/bill uniqueness retained",
+      "status": "PASS"
+    },
+    {
+      "name": "Eight services live/ready/Swagger; Gateway metadata/live (ready/Swagger N/A by source)",
+      "status": "PASS"
+    },
+    {
+      "name": "Real admission and repeat detail GET create no print job",
+      "status": "PASS"
+    },
+    {
+      "name": "Two real Baristas: one acceptance, immutable owner/time and exactly one automatic MOCK slip; zero labels",
+      "status": "PASS"
+    },
+    {
+      "name": "Explicit labels print exactly selected copies; retry deduplicates, preview has no prices/ordinals",
+      "status": "PASS"
+    },
+    {
+      "name": "UNKNOWN print result survives Kitchen restart without automatic resend",
+      "status": "PASS"
+    },
+    {
+      "name": "Explicit slip reprint creates a separate auditable job",
+      "status": "PASS"
+    },
+    {
+      "name": "Real PostgreSQL completion timestamps, history, Vietnam-day statistics and table counts verified",
+      "status": "PASS"
+    },
+    {
+      "name": "Barista cannot serve, collect money or close sessions",
+      "status": "PASS"
+    },
+    {
+      "name": "Cashier serving and Bill/session close remain functional with Barista feature enabled",
+      "status": "PASS"
+    },
+    {
+      "name": "Nonempty Barista acceptance/print audit rollback refused",
+      "status": "PASS"
+    },
+    {
+      "name": "Nonempty financial rollback rejected; received money/audit retained",
+      "status": "PASS"
+    },
+    {
+      "name": "Paid ledger/attempts/audit and Ordering sessions/orders restored exactly into separate copies",
+      "status": "PASS"
+    },
+    {
+      "name": "All preexisting container IDs/images/start times/status/restart counts unchanged",
+      "status": "PASS"
+    }
+  ],
+  "operatingContainersUnchanged": true,
+  "qr": "Mock only; not bank verification"
+}

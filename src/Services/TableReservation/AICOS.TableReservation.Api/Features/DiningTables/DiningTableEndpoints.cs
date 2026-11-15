@@ -61,7 +61,7 @@ public static class DiningTableEndpoints
 
     private static async Task<List<DiningTableResponse>> ListAsync(
         TableReservationDbContext db, ICurrentUser user, IBranchDirectory directory, IConfiguration config,
-        Guid? branchId, Guid? areaId, TableStatus? status, CancellationToken ct)
+        Guid? branchId, Guid? areaId, TableStatus? status, TableOccupancyProjection occupancy, CancellationToken ct)
     {
         var tenantId = TenantScope.Require(user);
         var branch = await Scope.FilterAsync(user, directory, branchId, ct);
@@ -76,18 +76,19 @@ public static class DiningTableEndpoints
             query = query.Where(t => t.AreaId == areaId);
         }
 
-        if (status is not null)
+        if (status is not null && !AICOS.BuildingBlocks.Security.BillingMachineAuth.Enabled(config))
         {
             query = query.Where(t => t.Status == status);
         }
 
         var tables = await query.OrderBy(t => t.BranchId).ThenBy(t => t.TableCode).ToListAsync(ct);
         var areas = await AreaNamesAsync(db, tables.Select(t => t.AreaId), ct);
-        return tables.Select(t => Map(t, areas, config)).ToList();
+        var projected = await occupancy.ApplyAsync(tenantId, tables.Select(t => Map(t, areas, config)), ct);
+        return status is null ? projected : projected.Where(t => t.Status == status).ToList();
     }
 
     private static async Task<FloorPlanResponse> FloorPlanAsync(
-        TableReservationDbContext db, ICurrentUser user, IBranchDirectory directory, IConfiguration config, Guid? branchId, CancellationToken ct)
+        TableReservationDbContext db, ICurrentUser user, IBranchDirectory directory, IConfiguration config, Guid? branchId, TableOccupancyProjection occupancy, CancellationToken ct)
     {
         var tenantId = TenantScope.Require(user);
         var branch = await BranchScope.ResolveAsync(user, directory, branchId, requireActive: false, ct);
@@ -99,16 +100,17 @@ public static class DiningTableEndpoints
         var tables = await db.DiningTables.AsNoTracking().Where(t => t.TenantId == tenantId && t.BranchId == branch).OrderBy(t => t.TableCode).ToListAsync(ct);
         var names = areas.ToDictionary(a => a.Id, a => a.Name);
 
+        var projected = await occupancy.ApplyAsync(tenantId, tables.Select(t => Map(t, names, config)), ct);
         return new FloorPlanResponse(branch, areas
-            .Select(a => new FloorPlanArea(a.Id, a.Name, a.SortOrder, tables.Where(t => t.AreaId == a.Id).Select(t => Map(t, names, config)).ToList()))
+            .Select(a => new FloorPlanArea(a.Id, a.Name, a.SortOrder, projected.Where(t => t.AreaId == a.Id).ToList()))
             .ToList());
     }
 
     private static async Task<DiningTableResponse> GetAsync(
-        Guid id, TableReservationDbContext db, ICurrentUser user, IConfiguration config, CancellationToken ct)
+        Guid id, TableReservationDbContext db, ICurrentUser user, IConfiguration config, TableOccupancyProjection occupancy, CancellationToken ct)
     {
         var table = await FindAsync(db, user, id, ct);
-        return Map(table, await AreaNamesAsync(db, [table.AreaId], ct), config);
+        return (await occupancy.ApplyAsync(TenantScope.Require(user), [Map(table, await AreaNamesAsync(db, [table.AreaId], ct), config)], ct)).Single();
     }
 
     private static async Task<IResult> CreateAsync(

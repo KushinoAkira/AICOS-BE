@@ -1,0 +1,82 @@
+{
+  "cluster": "7708093778038202403",
+  "checks": [
+    {
+      "name": "Exact cluster/container, internal network, no host ports/volumes verified before every SQL",
+      "status": "PASS"
+    },
+    {
+      "name": "Current real EF schemas plus six additive proposal tables; repeated proposal refuses duplicate objects",
+      "status": "PASS"
+    },
+    {
+      "name": "Prototype rejects different-branch/closed destination and non-Pending or stale cup",
+      "status": "PASS"
+    },
+    {
+      "name": "Same-key/hash receipt guards and duplicate SQL commit retain one assignment",
+      "status": "PASS"
+    },
+    {
+      "name": "Source -50000 equals target +50000; one Cup has one current financial owner",
+      "status": "PASS"
+    },
+    {
+      "name": "Redis restart/lost-finalize-response simulation replays durable decision/receipt once",
+      "status": "PASS"
+    },
+    {
+      "name": "Actual EF fixtures and CupAdmissionWriter replay preserve original Order/item/ticket/cup/sticker; altered origin rejected",
+      "status": "PASS"
+    },
+    {
+      "name": "Unique Cup/ordinal prevents two Bill manifests charging one unit; amounts match synthetic snapshots",
+      "status": "PASS"
+    },
+    {
+      "name": "Proposed per-unit serving projection counts only current-session units, not the whole original Order",
+      "status": "PASS"
+    },
+    {
+      "name": "Concurrent reservation has one winner; old/timeout operations remain reserved and reconciliation-visible",
+      "status": "PASS"
+    },
+    {
+      "name": "Transaction failure rolls back unit mutation",
+      "status": "PASS"
+    },
+    {
+      "name": "Checkout/PAID fence blocks further transfer without changing synthetic financial state",
+      "status": "PASS"
+    },
+    {
+      "name": "Reviewed column ACL reads/allowed updates succeed; immutable identity/price UPDATE, DELETE/TRUNCATE denied",
+      "status": "PASS"
+    },
+    {
+      "name": "Empty-only rollback/reapply succeeds unused; nonempty assignment/receipt/unit audit rollback is refused",
+      "status": "PASS"
+    },
+    {
+      "name": "All preexisting container IDs/images/start/status/restart counts unchanged",
+      "status": "PASS"
+    },
+    {
+      "name": "Public transfer API/authorization and actual Barista reservation guard",
+      "status": "BLOCKED",
+      "reason": "Prototype only; current Cup UoW has no transfer reservation guard."
+    },
+    {
+      "name": "V2 quote/freeze/PAID ACK and per-session unit serving proof",
+      "status": "BLOCKED",
+      "reason": "Current APIs are Order-scoped; six proposal tables alone do not fix these contracts."
+    },
+    {
+      "name": "Process kill, HTTP lost ACK, Web/Mobile E2E, bank QR",
+      "status": "NOT RUN",
+      "reason": "SQL rollback/replay/Redis restart are not process-crash or HTTP/Identity E2E."
+    }
+  ],
+  "operatingContainersUnchanged": true,
+  "type": "Real PostgreSQL SQL design proof + EF/CupAdmissionWriter fixtures; NOT API E2E"
+}

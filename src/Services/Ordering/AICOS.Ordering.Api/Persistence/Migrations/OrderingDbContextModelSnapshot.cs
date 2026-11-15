@@ -585,6 +585,19 @@ namespace AICOS.Ordering.Api.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("rating");
 
+                    b.Property<DateTime?>("RepliedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("replied_at_utc");
+
+                    b.Property<Guid?>("RepliedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("replied_by_user_id");
+
+                    b.Property<string>("Reply")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("reply");
+
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid")
                         .HasColumnName("tenant_id");
@@ -1059,6 +1072,138 @@ namespace AICOS.Ordering.Api.Persistence.Migrations
                         .HasConstraintName("fk_order_basket_items_order_baskets_basket_id");
                 });
 
+            modelBuilder.Entity("AICOS.Ordering.Api.Features.Qr.TableTransferOperation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_id");
+
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("branch_id");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<string>("OrderIdsJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("order_ids_json");
+
+                    b.Property<string>("RequestHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("request_hash");
+
+                    b.Property<Guid>("SessionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("session_id");
+
+                    b.Property<Guid>("SourceTableId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("source_table_id");
+
+                    b.Property<DateTime?>("SyncedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("synced_at_utc");
+
+                    b.Property<string>("TargetCode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("target_code");
+
+                    b.Property<Guid>("TargetTableId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("target_table_id");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<long>("Version")
+                        .HasColumnType("bigint")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id")
+                        .HasName("pk_table_transfer_operations");
+
+                    b.HasIndex("CreatedAtUtc")
+                        .HasDatabaseName("ix_table_transfer_operations_created_at_utc")
+                        .HasFilter("synced_at_utc IS NULL");
+
+                    b.HasIndex("SessionId")
+                        .HasDatabaseName("ix_table_transfer_operations_session_id");
+
+                    b.HasIndex("TenantId", "SessionId", "Version")
+                        .IsUnique()
+                        .HasDatabaseName("ix_table_transfer_operations_tenant_id_session_id_version");
+
+                    b.ToTable("table_transfer_operations", "ordering");
+                });
+
+            modelBuilder.Entity("AICOS.Ordering.Api.Features.SessionBilling.SessionCheckout", b =>
+                {
+                    b.Property<Guid>("SessionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("session_id");
+
+                    b.Property<Guid>("BillId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("bill_id");
+
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("branch_id");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<string>("Fingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("fingerprint");
+
+                    b.Property<Guid?>("PaymentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("payment_id");
+
+                    b.Property<string>("QuoteJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("quote_json");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("state");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.HasKey("SessionId")
+                        .HasName("pk_session_checkouts");
+
+                    b.HasIndex("TenantId", "BillId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_session_checkouts_tenant_id_bill_id");
+
+                    b.ToTable("session_checkouts", "ordering", t =>
+                        {
+                            t.HasCheckConstraint("ck_session_checkout_state", "state IN ('Frozen','Paid','Closed')");
+                        });
+
+
             modelBuilder.Entity("AICOS.Ordering.Api.Domain.Entities.OrderItem", b =>
                 {
                     b.HasOne("AICOS.Ordering.Api.Domain.Entities.Order", null)
@@ -1097,6 +1242,16 @@ namespace AICOS.Ordering.Api.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_order_fulfillment_projection_orders_order_id");
+                });
+
+            modelBuilder.Entity("AICOS.Ordering.Api.Features.Qr.TableTransferOperation", b =>
+                {
+                    b.HasOne("AICOS.Ordering.Api.Domain.TableSession", null)
+                        .WithMany()
+                        .HasForeignKey("SessionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_table_transfer_operations_table_sessions_session_id");
                 });
 
             modelBuilder.Entity("AICOS.Ordering.Api.Domain.Entities.Order", b =>

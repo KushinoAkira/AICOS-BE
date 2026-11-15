@@ -1,3 +1,4 @@
+using AICOS.KitchenOperations.Api.Features.Barista;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -20,7 +21,7 @@ public sealed record CupEffect(Guid OperationId, bool Replayed, CupTask Cup, Cup
 /// Lease duration is a trusted server policy argument, never a request field.
 /// </summary>
 public sealed class CupServingUnitOfWork(KitchenOperationsDbContext db, ICurrentUser user,
-    TimeProvider clock, TimeSpan leaseDuration)
+    TimeProvider clock, TimeSpan leaseDuration, IConfiguration? configuration = null)
 {
     private static readonly JsonSerializerOptions Json = new() { Converters = { new JsonStringEnumConverter() } };
 
@@ -66,6 +67,7 @@ public sealed class CupServingUnitOfWork(KitchenOperationsDbContext db, ICurrent
                     throw new ConflictException("Operation key was used with another request.", "operation.key_reused");
                 return new CupEffect(previous.Id, true, cup, claim, previous.ResultJson, now, ticket.RecoveryHoldReason);
             }
+            if(command.Action is CupAction.Start or CupAction.Ready)await BaristaOperations.RequireAcceptedAsync(db,ticket,configuration,ct);
             ticket.RequireRecoveryClear();
             if (!ticket.IsEligibleForBar || ticket.Status is Domain.Enums.KitchenTicketStatus.Cancelled or Domain.Enums.KitchenTicketStatus.Completed)
                 throw new ConflictException("Ticket is not available for cup operations.", "serving.ticket_unavailable");
@@ -105,6 +107,7 @@ public sealed class CupServingUnitOfWork(KitchenOperationsDbContext db, ICurrent
             if (manifest is null || manifest.Length != 32)
                 throw new ConflictException("V2 admission proof is required.", "serving.admission_not_ready");
             ticket.RecordCupProgress(cups, now);
+            await BaristaOperations.CompleteAsync(db,ticket,actor,now,configuration,ct);
             var version = ticket.AdvanceFulfillmentVersion();
             var snapshot = new FulfillmentSnapshot(Guid.NewGuid(), tenant, ticket.BranchId, cup.OrderId, ticket.Id,
                 version, Convert.ToHexString(manifest), cups.Count,

@@ -35,7 +35,9 @@ public sealed record ShiftAssignmentResponse(
     DateTime? AdjustedCheckInAtUtc,
     DateTime? AdjustedCheckOutAtUtc,
     string? ReviewNote,
-    double WorkedHours);
+    double WorkedHours,
+    string? ManagerStatus = null,
+    string? ManagerNote = null);
 
 /// <summary>
 /// UC-28 Schedule Staff Shifts, UC-47 View Schedule. Routes: /api/v1/workforce/shift-assignments.
@@ -280,6 +282,6 @@ public static class ScheduleEndpoints
             a.Id, a.BranchId, a.EmployeeId, names.GetValueOrDefault(a.EmployeeId, string.Empty), a.WorkShiftId,
             a.WorkShiftId is { } sid ? shifts.GetValueOrDefault(sid, "Shift") : "Replacement shift",
             a.WorkDate, a.StartTime, a.EndTime, a.Status, a.DeclineReason, a.IsReplacement, a.CheckInAtUtc, a.CheckOutAtUtc, a.ReviewStatus, a.IsAbsent,
-            a.AdjustedCheckInAtUtc, a.AdjustedCheckOutAtUtc, a.ReviewNote, a.WorkedHours)).ToList();
+            a.AdjustedCheckInAtUtc, a.AdjustedCheckOutAtUtc, a.ReviewNote, a.WorkedHours, a.ManagerStatus, a.ManagerNote)).ToList();
     }
 }

@@ -111,6 +111,9 @@ public sealed class Payment : AuditableEntity<Guid>
 
     public bool IsCash => Method == CashMethod;
 
+    /// <summary>A local expiry/cancel is not evidence that the provider cannot receive money.</summary>
+    public bool RequiresReconciliation => !IsCash && !IsPaid && ProviderState != ProviderState.Failed;
+
     public bool IsFinal => Status is not PaymentStatus.Pending;
 
     public bool IsPaid => Status is PaymentStatus.Succeeded or PaymentStatus.PartiallyRefunded or PaymentStatus.Refunded;

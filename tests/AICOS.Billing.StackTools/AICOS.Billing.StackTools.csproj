@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+<PropertyGroup>
+<OutputType>Exe</OutputType>
+<UserSecretsId>
+</UserSecretsId>
+<ErrorOnDuplicatePublishOutputFiles>false</ErrorOnDuplicatePublishOutputFiles>
+</PropertyGroup>
+<ItemGroup>
+<ProjectReference Include="../../src/Services/IdentityOrganization/AICOS.IdentityOrganization.Api/AICOS.IdentityOrganization.Api.csproj" />
+<ProjectReference Include="../../src/Services/MenuCatalog/AICOS.MenuCatalog.Api/AICOS.MenuCatalog.Api.csproj" />
+<ProjectReference Include="../../src/Services/TableReservation/AICOS.TableReservation.Api/AICOS.TableReservation.Api.csproj" />
+<ProjectReference Include="../../src/Services/Ordering/AICOS.Ordering.Api/AICOS.Ordering.Api.csproj" />
+<ProjectReference Include="../../src/Services/KitchenOperations/AICOS.KitchenOperations.Api/AICOS.KitchenOperations.Api.csproj" />
+<ProjectReference Include="../../src/Services/Payments/AICOS.Payments.Api/AICOS.Payments.Api.csproj" />
+<ProjectReference Include="../../src/Services/ReportingAnalytics/AICOS.ReportingAnalytics.Api/AICOS.ReportingAnalytics.Api.csproj" />
+<ProjectReference Include="../../src/Services/WorkforceScheduling/AICOS.WorkforceScheduling.Api/AICOS.WorkforceScheduling.Api.csproj" />
+</ItemGroup>
+</Project>

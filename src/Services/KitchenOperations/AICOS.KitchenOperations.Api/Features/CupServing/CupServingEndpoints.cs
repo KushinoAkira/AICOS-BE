@@ -25,7 +25,7 @@ public static class CupServingEndpoints
         builder.Services.AddHostedService<FulfillmentWorker>();
         builder.Services.AddScoped(sp => new CupServingUnitOfWork(sp.GetRequiredService<KitchenOperationsDbContext>(),
             sp.GetRequiredService<ICurrentUser>(), sp.GetRequiredService<TimeProvider>(),
-            LeaseApproved(builder.Configuration) ? TimeSpan.FromSeconds(builder.Configuration.GetValue<int>("CupServing:LeaseSeconds")) : TimeSpan.Zero));
+            LeaseApproved(builder.Configuration) ? TimeSpan.FromSeconds(builder.Configuration.GetValue<int>("CupServing:LeaseSeconds")) : TimeSpan.Zero, builder.Configuration));
         if (builder.Configuration.GetValue<bool>("CupServing:AdmissionEnabled"))
             builder.Services.AddAdmissionMachineAuthentication(builder.Configuration);
     }

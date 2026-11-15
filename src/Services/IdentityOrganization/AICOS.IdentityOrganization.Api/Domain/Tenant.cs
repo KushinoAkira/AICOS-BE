@@ -101,6 +101,9 @@ public sealed class Tenant : AuditableEntity<Guid>
         ReviewNote = reason.Trim();
     }
 
+    /// <summary>The display name shown to customers and staff. The code (subdomain, links, QR codes) stays the same.</summary>
+    public void Rename(string name) => Name = name.Trim();
+
     public void UpdateProfile(string? description, string? logoUrl, string? primaryColor, string? secondaryColor)
     {
         Description = Clean(description);

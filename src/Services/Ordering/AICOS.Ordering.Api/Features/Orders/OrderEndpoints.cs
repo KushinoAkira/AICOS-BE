@@ -31,7 +31,7 @@ public static class OrderEndpoints
 
         group.MapPost("/", CreateAsync).RequireAuthorization(b => b.RequireRole(OrderAccess.CounterRoles));
         group.MapGet("/", ListAsync).RequireAuthorization(AicosPolicies.Staff);
-        group.MapGet("/staff/capabilities", () => new { CounterIdempotency = true, CounterTableSessions = true, TableOrderFilter = true, CounterTableTransfer = true, ExpectedTableSession = true })
+        group.MapGet("/staff/capabilities", (IConfiguration config) => new { CounterIdempotency = true, CounterTableSessions = true, TableOrderFilter = true, CounterTableTransfer = true, DurableTableTransfer = config.GetValue<bool>("TableTransfer:Enabled"), ExpectedTableSession = true })
             .RequireAuthorization(AicosPolicies.Staff);
         group.MapGet("/mine", MineAsync).RequireAuthorization(b => b.RequireRole(AicosRoles.Customer));
         group.MapGet("/exceptions", ExceptionsAsync).RequireAuthorization(AicosPolicies.Management);
@@ -307,7 +307,6 @@ public static class OrderEndpoints
 
         order.CancelOrder(r.Reason ?? string.Empty, clock.UtcNow);
         await db.SaveChangesAsync(ct);
-        await Qr.TableSessions.CloseIfSettledAsync(db, order.TableSessionId, clock.UtcNow, events, ct);
         await events.CancelledAsync(order, wasPaid: false, ct);
         return OrderResponse.From(order);
     }
@@ -378,7 +377,6 @@ public static class OrderEndpoints
 
         order.MarkNoShow(reason, now, refundRequested);
         await db.SaveChangesAsync(ct);
-        await Qr.TableSessions.CloseIfSettledAsync(db, order.TableSessionId, now, events, ct);
         await events.CancelledAsync(order, order.IsPaid, ct);
         return OrderResponse.From(order);
     }
@@ -405,7 +403,6 @@ public static class OrderEndpoints
         var now = clock.UtcNow;
         order.MarkUnfulfillable(reason, now, refundRequested);
         await db.SaveChangesAsync(ct);
-        await Qr.TableSessions.CloseIfSettledAsync(db, order.TableSessionId, now, events, ct);
         await events.CancelledAsync(order, order.IsPaid, ct);
         return OrderResponse.From(order);
     }

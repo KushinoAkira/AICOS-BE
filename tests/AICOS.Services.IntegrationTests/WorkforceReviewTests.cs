@@ -187,6 +187,32 @@ public sealed class WorkforceReviewTests : WorkforceTestBase
     }
 
     [Fact]
+    public async Task The_manager_sets_a_status_with_a_note_and_can_go_back_to_automatic()
+    {
+        var shift = await NewShiftAsync("Sáng", "07:00", "12:00");
+        var (userId, employee) = await NewEmployeeAsync("An");
+        var id = await AssignAsync(employee, shift, Monday);
+        await Manager.Post($"{Attendance}/{id}/status", new { status = "Late" }).ShouldBe(422, "attendance.shift_not_over");   // not started yet
+
+        SetLocal(Monday, 8, 0);
+        await Manager.Post($"{Attendance}/{id}/status", new { status = "Holiday" }).ShouldBe(400);
+        var excused = await Manager.PostOk($"{Attendance}/{id}/status", new { status = "ExcusedAbsence", note = "Ốm, có báo trước" });
+        (excused.GetProperty("isAbsent").GetBoolean(), excused.GetProperty("managerStatus").GetString(), excused.GetProperty("managerNote").GetString())
+            .Should().Be((true, "ExcusedAbsence", "Ốm, có báo trước"));
+        excused.GetProperty("reviewStatus").GetString().Should().Be("Approved");
+
+        var auto = await Manager.PostOk($"{Attendance}/{id}/status", new { status = "" });                 // back to automatic
+        (auto.GetProperty("isAbsent").GetBoolean(), auto.GetProperty("reviewStatus").GetString()).Should().Be((false, "Unreviewed"));
+        auto.GetProperty("managerStatus").ValueKind.Should().Be(JsonValueKind.Null);
+
+        await Staff(userId).PostOk($"{Attendance}/check-in", new { assignmentId = id });
+        await Manager.Post($"{Attendance}/{id}/status", new { status = "UnexcusedAbsence" }).ShouldBe(422, "attendance.checked_in");
+        var late = await Manager.PostOk($"{Attendance}/{id}/status", new { status = "Late", note = "Kẹt xe" });
+        (late.GetProperty("managerStatus").GetString(), late.GetProperty("managerNote").GetString(), late.GetProperty("isAbsent").GetBoolean()).Should().Be(("Late", "Kẹt xe", false));
+        await Staff(userId).Post($"{Attendance}/{id}/status", new { status = "Other" }).ShouldBe(403);
+    }
+
+    [Fact]
     public async Task An_employee_marked_absent_can_no_longer_check_in_to_that_shift()
     {
         var shift = await NewShiftAsync("Sáng", "07:00", "12:00");

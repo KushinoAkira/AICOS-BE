@@ -1,3 +1,5 @@
+using AICOS.Payments.Api.Features.CashierShifts;
+using AICOS.Payments.Api.Features.SessionBilling;
 using AICOS.BuildingBlocks.Persistence;
 using AICOS.Payments.Api.Domain;
 using Microsoft.EntityFrameworkCore;
@@ -5,8 +7,18 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace AICOS.Payments.Api.Persistence;
 
-public sealed class PaymentsDbContext(DbContextOptions<PaymentsDbContext> options) : AicosDbContext(options)
+public sealed class PaymentsDbContext(DbContextOptions<PaymentsDbContext> options, IConfiguration? configuration = null) : AicosDbContext(options)
 {
+    public bool CashierEnabled => configuration?.GetValue<bool>("CashierShifts:Enabled") == true;
+    public DbSet<CashierShift> CashierShifts => Set<CashierShift>();
+    public DbSet<CollectionOutbox> Collections => Set<CollectionOutbox>();
+    public DbSet<AICOS.Payments.Api.Features.SplitBilling.SplitPlan> SplitPlans => Set<AICOS.Payments.Api.Features.SplitBilling.SplitPlan>();
+    public DbSet<AICOS.Payments.Api.Features.SplitBilling.SplitPlanOperation> SplitOperations => Set<AICOS.Payments.Api.Features.SplitBilling.SplitPlanOperation>();
+    internal bool BillEnabled => configuration?.GetValue<bool>("SessionBilling:Enabled") == true;
+    public DbSet<SessionBill> SessionBills => Set<SessionBill>();
+    public DbSet<SessionBillOrder> SessionBillOrders => Set<SessionBillOrder>();
+    public DbSet<BillAttempt> BillAttempts => Set<BillAttempt>();
+    public DbSet<BillJournal> BillJournal => Set<BillJournal>();
     protected override string Schema => PaymentsService.Info.Schema;
 
     public DbSet<PaymentProvider> PaymentProviders => Set<PaymentProvider>();
@@ -45,6 +57,7 @@ internal sealed class PaymentConfiguration : IEntityTypeConfiguration<Payment>
         builder.Property(p => p.FailureReason).HasMaxLength(300);
         builder.Ignore(p => p.IsCash);
         builder.Ignore(p => p.IsFinal);
+        builder.Ignore(p => p.RequiresReconciliation);
         builder.Ignore(p => p.IsPaid);
         builder.Ignore(p => p.Refundable);
 

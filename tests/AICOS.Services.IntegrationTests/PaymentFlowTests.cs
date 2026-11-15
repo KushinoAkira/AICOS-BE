@@ -179,7 +179,7 @@ public sealed class PaymentFlowTests : PaymentTestBase
     }
 
     [Fact]
-    public async Task Pressing_pay_twice_returns_the_same_payment_and_another_method_replaces_the_old_attempt()
+    public async Task Pressing_pay_twice_returns_the_same_payment_and_another_method_cannot_replace_it()
     {
         var order = Guid.NewGuid();
         var first = await PayOnlineAsync(order, 50_000);
@@ -189,9 +189,9 @@ public sealed class PaymentFlowTests : PaymentTestBase
         (await again.Body()).Id().Should().Be(first.Id());
 
         await EnableVietQrAsync();
-        var changed = await PayOnlineAsync(order, 50_000, provider: "VietQR");
-        changed.Id().Should().NotBe(first.Id());
-        (await GetAsync(Customer, $"{Tx}/{first.Id()}")).GetProperty("status").GetString().Should().Be("Cancelled");
+        await Customer.Post(Tx, new { orderId = order, branchId = B1, amount = 50_000, providerCode = "VietQR" }).ShouldBe(409, "payment.online_pending");
+        (await GetAsync(Customer, $"{Tx}/{first.Id()}")).GetProperty("status").GetString().Should().Be("Pending");
+        (await Customer.GetFromJsonAsync<JsonElement>($"{Tx}?orderId={order}")).GetArrayLength().Should().Be(1);
     }
 
     [Fact]
@@ -367,7 +367,8 @@ public sealed class PaymentFlowTests : PaymentTestBase
         var expired = await GetAsync(Customer, $"{Tx}/{payment.Id()}");
 
         expired.GetProperty("status").GetString().Should().Be("Expired");
-        F.Events.Published.OfType<PaymentFailedEvent>().Should().ContainSingle();
+        F.Events.Published.OfType<PaymentFailedEvent>().Should().BeEmpty();
+        expired.GetProperty("requiresReconciliation").GetBoolean().Should().BeTrue();
 
         var late = await WebhookAsync("Mock", "late-1", payment.GetProperty("transactionRef").GetString()!, "success", 70_000);
 
@@ -397,7 +398,7 @@ public sealed class PaymentFlowTests : PaymentTestBase
         }
 
         (await GetAsync(Customer, $"{Tx}/{late.Id()}")).GetProperty("status").GetString().Should().Be("Pending");
-        F.Events.Published.OfType<PaymentFailedEvent>().Should().HaveCount(3);
+        F.Events.Published.OfType<PaymentFailedEvent>().Should().BeEmpty("a local deadline cannot declare provider failure or cancel the orders");
     }
 
     [Fact]

@@ -1,3 +1,4 @@
+using AICOS.KitchenOperations.Api.Features.Barista;
 using AICOS.BuildingBlocks.Persistence;
 using AICOS.KitchenOperations.Api.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -9,6 +10,8 @@ namespace AICOS.KitchenOperations.Api.Persistence;
 
 public sealed class KitchenOperationsDbContext(DbContextOptions<KitchenOperationsDbContext> options) : AicosDbContext(options)
 {
+    public DbSet<BaristaAcceptance> BaristaAcceptances => Set<BaristaAcceptance>();
+    public DbSet<KitchenPrintJob> PrintJobs => Set<KitchenPrintJob>();
     protected override string Schema => KitchenOperationsService.Info.Schema;
 
     public DbSet<KitchenTicket> Tickets => Set<KitchenTicket>();

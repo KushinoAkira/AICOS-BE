@@ -300,6 +300,24 @@ public sealed class CustomerTests : IDisposable
     }
 
     [Fact]
+    public async Task The_brand_admin_deletes_an_unused_voucher_but_a_used_code_stays()
+    {
+        var unused = await _admin.PostOk(Vouchers, new { code = "DELME", type = "Voucher", discountType = "FixedAmount", value = 10000, expiresAt = _f.Clock.Now.AddDays(30) });
+        var used = await _admin.PostOk(Vouchers, new { code = "USEDONE", type = "Voucher", discountType = "FixedAmount", value = 10000, expiresAt = _f.Clock.Now.AddDays(30) });
+        await _cashier.PostOk($"{Vouchers}/redeem", new { code = "USEDONE", orderAmount = 60000, orderReference = "ORD-9" });
+
+        await _manager.DeleteAsync($"{Vouchers}/{unused.Id()}").ShouldBe(403);
+        await _otherAdmin.DeleteAsync($"{Vouchers}/{unused.Id()}").ShouldBe(404);
+        await _admin.DeleteAsync($"{Vouchers}/{unused.Id()}").ShouldBe(204);
+        await _admin.GetAsync($"{Vouchers}/{unused.Id()}").ShouldBe(404);
+        await _cashier.Post($"{Vouchers}/validate", new { code = "DELME", orderAmount = 60000 }).ShouldBe(404);
+
+        await _admin.DeleteAsync($"{Vouchers}/{used.Id()}").ShouldBe(409);
+        await _admin.GetAsync($"{Vouchers}/{used.Id()}").ShouldBe(200);
+        await _admin.PostOk(Vouchers, new { code = "DELME", type = "Voucher", discountType = "FixedAmount", value = 5000, expiresAt = _f.Clock.Now.AddDays(30) });   // the code is free again
+    }
+
+    [Fact]
     public async Task Only_the_brand_admin_issues_and_revokes_vouchers()
     {
         var voucher = await _admin.PostOk(Vouchers, new { code = "WELCOME", type = "Voucher", discountType = "FixedAmount", value = 10000, expiresAt = _f.Clock.Now.AddDays(30) });
