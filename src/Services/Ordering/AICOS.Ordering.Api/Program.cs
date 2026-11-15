@@ -7,6 +7,7 @@ using AICOS.BuildingBlocks.Security;
 using AICOS.Contracts.Events;
 using AICOS.Ordering.Api;
 using AICOS.Ordering.Api.Features;
+using AICOS.Ordering.Api.Features.Analytics;
 using AICOS.Ordering.Api.Features.Orders;
 using AICOS.Ordering.Api.Features.PickupSlots;
 using AICOS.Ordering.Api.Features.Qr;
@@ -37,6 +38,11 @@ builder.Services.AddScoped<IOrderNotifier, SignalROrderNotifier>();
 builder.Services.AddHostedService<PickupOrderExpiryWorker>();
 builder.Services.AddHostedService<TableSessionExpiryWorker>();
 
+builder.Services.Configure<AprioriOptions>(builder.Configuration.GetSection(AprioriOptions.SectionName));
+builder.Services.AddHttpClient<IAprioriClient, HttpAprioriClient>();
+builder.Services.AddScoped<AprioriMiner>();
+builder.Services.AddHostedService<AprioriMineJob>();
+
 // QR table ordering: the shared cart lives in Redis, sessions and orders in Postgres.
 builder.Services.AddAicosCache();
 builder.Services.AddSingleton<GuestSessionTokens>();
@@ -65,6 +71,7 @@ api.MapPickupOrderEndpoints();
 api.MapOrderingEndpoints();
 api.MapTableTransferEndpoints();
 api.MapQrOrderEndpoints();
+api.MapAprioriEndpoints();
 
 app.MapHub<OrderTrackingHub>("/hubs/orders");
 

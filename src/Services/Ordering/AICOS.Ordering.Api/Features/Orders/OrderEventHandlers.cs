@@ -2,6 +2,7 @@ using AICOS.BuildingBlocks.Messaging;
 using AICOS.Contracts.Events;
 using AICOS.Ordering.Api.Domain.Entities;
 using AICOS.Ordering.Api.Domain.Enums;
+using AICOS.Ordering.Api.Features.Analytics;
 using AICOS.Ordering.Api.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -31,6 +32,7 @@ public sealed class PaymentSucceededHandler(OrderingDbContext db, OrderEventPubl
         var wasCompleted = order.Status == OrderStatus.Completed;
         order.MarkAsPaid(OrderAccess.MethodOf(@event.Method), @event.Method, @event.PaymentId, @event.PaidAtUtc);
         await db.SaveChangesAsync(cancellationToken);
+        await BasketUpsert.FromOrderAsync(db, order, cancellationToken);
         await Qr.TableSessions.CloseIfSettledAsync(db, order.TableSessionId, clock.GetUtcNow().UtcDateTime, events, cancellationToken);   // all rounds of a QR table paid: the sitting ends
 
         if (!order.IsVoided)

@@ -58,11 +58,6 @@ public sealed class OrderPaidHandler(CustomerEngagementDbContext db, LoyaltyRule
             return;
         }
 
-        if (await db.LoyaltyTransactions.AnyAsync(t => t.OrderId == @event.OrderId && t.Type == LoyaltyTransactionType.Earn, cancellationToken))
-        {
-            return;
-        }
-
         var customer = await LoyaltyLookup.CustomerAsync(db, @event.TenantId, @event.CustomerId.Value, cancellationToken);
         if (customer is null)
         {
@@ -70,15 +65,19 @@ public sealed class OrderPaidHandler(CustomerEngagementDbContext db, LoyaltyRule
             return;
         }
 
-        var rule = await rules.ForTenantAsync(customer.TenantId, cancellationToken); // the brand rules (BR-44, BR-47)
-        var points = rule.IsActive ? (int)Math.Floor(@event.Amount / rule.AmountPerPoint) : 0;
-        if (points <= 0)
+        customer.RecordPaidAt(@event.PaidAtUtc);
+
+        if (!await db.LoyaltyTransactions.AnyAsync(t => t.OrderId == @event.OrderId && t.Type == LoyaltyTransactionType.Earn, cancellationToken))
         {
-            return;
+            var rule = await rules.ForTenantAsync(customer.TenantId, cancellationToken); // the brand rules (BR-44, BR-47)
+            var points = rule.IsActive ? (int)Math.Floor(@event.Amount / rule.AmountPerPoint) : 0;
+            if (points > 0)
+            {
+                customer.Earn(points, rule.Thresholds);
+                db.LoyaltyTransactions.Add(new LoyaltyTransaction(customer.Id, @event.OrderId, points, LoyaltyTransactionType.Earn, $"Order {@event.OrderCode}: paid {@event.Amount:0.##}"));
+            }
         }
 
-        customer.Earn(points, rule.Thresholds);
-        db.LoyaltyTransactions.Add(new LoyaltyTransaction(customer.Id, @event.OrderId, points, LoyaltyTransactionType.Earn, $"Order {@event.OrderCode}: paid {@event.Amount:0.##}"));
         await db.SaveChangesAsync(cancellationToken);
     }
 }
