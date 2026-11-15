@@ -1,5 +1,5 @@
 {
-  "cluster": "7708113109921173545",
+  "cluster": "7708345966499213353",
   "checks": [
     {
       "name": "SQL SHA256 matches reviewed manifests",
@@ -167,25 +167,41 @@
       "status": "PASS"
     },
     {
+      "name": "Flutter actual shift OPEN UI: explicit count confirmation, persisted own branch/actor, reload without duplicate",
+      "status": "PASS"
+    },
+    {
+      "name": "Real PostgreSQL stale shift version returns 409 before closing; accepted Cash invalidates old count snapshot",
+      "status": "PASS"
+    },
+    {
+      "name": "Flutter actual shift CLOSE UI: explicit count confirmation, persisted own branch/actor, reload without duplicate",
+      "status": "PASS"
+    },
+    {
+      "name": "Flutter actual Cash UI: tender 50000, change 15000, explicit received confirmation, one PAID Bill and own shift receipt",
+      "status": "PASS"
+    },
+    {
       "name": "Real Cash vs close concurrency preserves committed closed drawer sums",
       "status": "PASS"
     },
     {
-      "name": "Flutter real HTTP Dashboard REPORTING_OFFLINE at 360/393/430px: Cash 175000, QR 70000, shift CLOSED",
+      "name": "Flutter real HTTP Dashboard REPORTING_OFFLINE at 360/393/430px: Cash 210000, QR 70000, shift CLOSED",
       "status": "PASS"
     },
     {
-      "name": "Flutter real HTTP Dashboard RECOVERED at 360/393/430px: Cash 175000, QR 70000, shift CLOSED",
+      "name": "Flutter real HTTP Dashboard RECOVERED at 360/393/430px: Cash 210000, QR 70000, shift CLOSED",
       "status": "PASS"
     },
     {
       "name": "Payment = Reporting = Dashboard reconciliation figures",
       "status": "PASS",
       "evidence": {
-        "cash": 175000,
+        "cash": 210000,
         "qr": 70000,
-        "total": 245000,
-        "receipts": 5,
+        "total": 280000,
+        "receipts": 6,
         "hasMore": false,
         "metric": "CONFIRMED_COLLECTIONS_NOT_NET_SALES"
       }

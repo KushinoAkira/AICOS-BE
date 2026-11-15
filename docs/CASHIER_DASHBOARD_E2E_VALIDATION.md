@@ -14,6 +14,8 @@ Trước mỗi SQL kiểm tra container ID, nhãn mục đích, network, no-host
 
 ## Kết quả thực tế
 
+Cập nhật tiếp theo: [Cashier Shift UI E2E](CASHIER_SHIFT_UI_E2E.md) đã nâng lượt ON lên **53 nhóm PASS, 3 BLOCKED**, cluster `7708345966499213353`, gồm OPEN/CLOSE UI và stale version 409. Flutter hiện **347 PASS, 6 SKIP**; các số bên dưới ghi lịch sử lượt Dashboard đầu tiên. JSON ON trong Backend đã cập nhật sang lượt mới, đối soát 280.000đ/6 receipt.
+
 | Bộ kiểm tra | Kết quả |
 | --- | --- |
 | Backend Services integration regression | 564 PASS, 51 SKIP, 0 FAIL |
