@@ -283,6 +283,10 @@ public sealed class PaymentRefundTests : PaymentTestBase
         (await GetAsync(Manager1, $"{Refunds}?status=PendingApproval")).GetArrayLength().Should().Be(1);
         (await GetAsync(Admin, Refunds)).GetArrayLength().Should().Be(2);
         (await GetAsync(Admin, $"{Refunds}?paymentId={p1.Id()}")).GetArrayLength().Should().Be(1);
+        var today = DateOnly.FromDateTime(F.Clock.Now.UtcDateTime.AddHours(7));                                                     // shop days (Vietnam)
+        (await GetAsync(Admin, $"{Refunds}?from={today.AddDays(-3):yyyy-MM-dd}&to={today:yyyy-MM-dd}")).GetArrayLength().Should().Be(2);   // the refund history of a period
+        (await GetAsync(Admin, $"{Refunds}?from={today.AddDays(-9):yyyy-MM-dd}&to={today.AddDays(-1):yyyy-MM-dd}")).GetArrayLength().Should().Be(0);
+        await Admin.GetAsync($"{Refunds}?from={today:yyyy-MM-dd}&to={today.AddDays(-1):yyyy-MM-dd}").ShouldBe(400);
         (await GetAsync(F.As(AicosRoles.BranchManager, B2), Refunds)).GetArrayLength().Should().Be(0);
         (await GetAsync(OtherAdmin, Refunds)).GetArrayLength().Should().Be(0);
         await Manager1.GetAsync($"{Refunds}?branchId={B2}").ShouldBe(403, "branch.forbidden");

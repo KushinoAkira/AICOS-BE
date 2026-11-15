@@ -8,6 +8,7 @@ using AICOS.Payments.Api.Features.Policies;
 using AICOS.Payments.Api.Infrastructure;
 using AICOS.Payments.Api.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace AICOS.Payments.Api.Features.Payments;
 
@@ -159,8 +160,13 @@ public static partial class RefundEndpoints
         return Results.Created($"/api/v1/payments/refunds/{refund.Id}", RefundResponse.From(refund));
     }
 
+    /// <summary>
+    /// The refunds of the caller's brand (a branch manager: their branch). <c>from</c>/<c>to</c> (shop-local days) keep the ones asked for in that
+    /// period, for the refund history of the reconciliation page.
+    /// </summary>
     private static async Task<List<RefundResponse>> ListAsync(
-        PaymentsDbContext db, ICurrentUser user, RefundStatus? status, Guid? branchId, Guid? paymentId, int? limit, CancellationToken ct)
+        PaymentsDbContext db, ICurrentUser user, RefundStatus? status, Guid? branchId, Guid? paymentId, int? limit,
+        IOptions<PaymentOptions> options, TimeProvider clock, DateOnly? from, DateOnly? to, CancellationToken ct)
     {
         var tenantId = TenantScope.Require(user);
         var query = db.PaymentRefunds.AsNoTracking().Where(x => x.TenantId == tenantId);
@@ -178,6 +184,12 @@ public static partial class RefundEndpoints
         if (paymentId is not null)
         {
             query = query.Where(x => x.PaymentId == paymentId);
+        }
+
+        if (from is not null || to is not null)
+        {
+            var (_, _, startUtc, endUtc) = ReconciliationEndpoints.Range(options.Value, clock, from, to);
+            query = query.Where(x => x.CreatedAtUtc >= startUtc && x.CreatedAtUtc < endUtc);
         }
 
         var rows = await query.OrderByDescending(x => x.CreatedAtUtc).Take(Math.Clamp(limit ?? 50, 1, 200)).ToListAsync(ct);
