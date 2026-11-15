@@ -92,6 +92,14 @@ public sealed class ZaloPayTests : PaymentTestBase
     }
 
     [Fact]
+    public async Task The_test_page_is_closed_unless_it_is_switched_on()
+    {
+        var payment = await StartAsync(amount: 74_000);
+
+        await Customer.GetAsync($"/api/v1/payments/zalopay/test-page/{payment.GetProperty("transactionRef").GetString()}").ShouldBe(403, "payment.zalopay_test_page_off");
+    }
+
+    [Fact]
     public async Task When_ZaloPay_refuses_the_order_the_customer_is_told()
     {
         Api.Answer = _ => new { return_code = 2, return_message = "Giao dịch thất bại", sub_return_code = -401, sub_return_message = "Dữ liệu yêu cầu không hợp lệ" };
@@ -255,4 +263,129 @@ public sealed class ZaloPaySimulatedFailureTests : PaymentTestBase
     [InlineData("other", "ZaloPay (giả lập): Giao dịch thất bại (-1).")]
     public void The_simulated_reason_follows_the_setting(string? setting, string? reason) =>
         ZaloPay.SimulatedFailure(setting).Should().Be(reason);
+}
+
+/// <summary>The test payment page (testing and demos only): each of ZaloPay's test cards does what ZaloPay's docs say, nothing reaches ZaloPay.</summary>
+public sealed class ZaloPayTestPageTests : PaymentTestBase
+{
+    private const string Page = "/api/v1/payments/zalopay/test-page";
+    private static readonly FakeZaloPayApi Api = new();
+
+    public ZaloPayTestPageTests()
+        : base(services =>
+        {
+            services.PostConfigure<ZaloPayOptions>(o => { o.Live = true; o.TestPage = true; });
+            services.AddHttpClient(ZaloPayGateway.HttpClientName).ConfigurePrimaryHttpMessageHandler(() => Api);
+        })
+    {
+        Api.Calls.Clear();
+        Super.PostOk(Providers, new { code = "ZaloPay", displayName = "ZaloPay", mode = "Sandbox", merchantId = "2554", apiKey = "k1_test_page_123456", secretKey = "k2_test_page_123456" }).GetAwaiter().GetResult();
+        SetProviderEnabledAsync("ZaloPay", true).GetAwaiter().GetResult();
+        Admin.Put(Merchants, new { providerCode = "ZaloPay", isEnabled = true, merchantCode = "ZALOPAY" }).ShouldBe(201).GetAwaiter().GetResult();
+    }
+
+    private static string RefOf(JsonElement payment) => payment.GetProperty("transactionRef").GetString()!;
+
+    private static object Atm(string number, string holder = "NGUYEN VAN A", string date = "10/18") => new { kind = "atm", cardNumber = number, holder, date };
+
+    private static Dictionary<string, string> ResultOf(JsonElement answer) =>
+        QueryHelpers.ParseQuery(new Uri(answer.GetProperty("resultUrl").GetString()!).Query).ToDictionary(kv => kv.Key, kv => kv.Value.ToString());
+
+    [Fact]
+    public async Task The_customer_is_sent_to_the_test_page_and_nothing_reaches_ZaloPay()
+    {
+        var payment = await PayOnlineAsync(amount: 74_000, provider: "ZaloPay");
+
+        payment.GetProperty("checkoutUrl").GetString().Should().Be($"http://localhost:8443/thanh-toan/zalopay-thu?ref={RefOf(payment)}");
+        var page = await GetAsync(Customer, $"{Page}/{RefOf(payment)}");
+        (page.GetProperty("amount").GetDecimal(), page.GetProperty("status").GetString(), page.GetProperty("paymentId").GetGuid()).Should().Be((74_000m, "Pending", payment.Id()));
+        Api.Calls.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData("9704540000000062")]
+    [InlineData("9704 5410 0000 0094")]
+    public async Task A_valid_ATM_card_pays_the_order(string card)
+    {
+        var order = Guid.NewGuid();
+        var payment = await PayOnlineAsync(order, 74_000, provider: "ZaloPay");
+
+        var answer = await Customer.PostOk($"{Page}/{RefOf(payment)}/pay", Atm(card, holder: "nguyen  van a"));
+
+        answer.GetProperty("status").GetString().Should().Be("paid");
+        var result = ResultOf(answer);
+        (result["status"], result["paymentId"], result["orderId"]).Should().Be(("paid", payment.Id().ToString(), order.ToString()));
+        (await GetAsync(Customer, $"{Tx}/{payment.Id()}")).GetProperty("status").GetString().Should().Be("Succeeded");
+        F.Events.Published.OfType<PaymentSucceededEvent>().Single().OrderId.Should().Be(order);
+    }
+
+    [Fact]
+    public async Task The_test_credit_card_pays_and_its_wrong_cvv_is_refused_first()
+    {
+        var payment = await PayOnlineAsync(amount: 74_000, provider: "ZaloPay");
+
+        await Customer.Post($"{Page}/{RefOf(payment)}/pay", new { kind = "credit", cardNumber = "4111111111111111", holder = "NGUYEN VAN A", date = "01/25", cvv = "999" }).ShouldBe(422, "zalopay_test.cvv_wrong");
+        var answer = await Customer.PostOk($"{Page}/{RefOf(payment)}/pay", new { kind = "credit", cardNumber = "4111 1111 1111 1111", holder = "NGUYEN VAN A", date = "01/25", cvv = "123" });
+
+        answer.GetProperty("status").GetString().Should().Be("paid");
+    }
+
+    [Theory]
+    [InlineData("9704540000000013", "ZaloPay (trang thử): Thẻ bị mất hoặc bị khóa.")]
+    [InlineData("9704540000000047", "ZaloPay (trang thử): Số dư tài khoản không đủ.")]
+    [InlineData("9704540000000039", "ZaloPay (trang thử): Giao dịch quá thời gian chờ ngân hàng.")]
+    public async Task A_refused_card_fails_the_payment_for_its_reason_and_the_order_can_be_paid_again(string card, string reason)
+    {
+        var order = Guid.NewGuid();
+        var payment = await PayOnlineAsync(order, 74_000, provider: "ZaloPay");
+
+        var answer = await Customer.PostOk($"{Page}/{RefOf(payment)}/pay", Atm(card));
+
+        (answer.GetProperty("status").GetString(), answer.GetProperty("reason").GetString()).Should().Be(("failed", reason));
+        var result = ResultOf(answer);
+        (result["status"], result["reason"]).Should().Be(("failed", reason));
+        (await GetAsync(Customer, $"{Tx}/{payment.Id()}")).GetProperty("status").GetString().Should().Be("Failed");
+        F.Events.Published.OfType<PaymentSucceededEvent>().Should().BeEmpty();
+
+        var again = await PayOnlineAsync(order, 74_000, provider: "ZaloPay");
+        (await Customer.PostOk($"{Page}/{RefOf(again)}/pay", Atm("9704540000000062"))).GetProperty("status").GetString().Should().Be("paid");
+    }
+
+    [Theory]
+    [InlineData("9704540000000999", "NGUYEN VAN A", "10/18", "zalopay_test.card_unknown")]
+    [InlineData("9704540000000062", "TRAN VAN B", "10/18", "zalopay_test.holder_wrong")]
+    [InlineData("9704540000000062", "NGUYEN VAN A", "11/19", "zalopay_test.date_wrong")]
+    public async Task Wrong_card_details_are_refused_and_the_payment_keeps_waiting(string card, string holder, string date, string error)
+    {
+        var payment = await PayOnlineAsync(amount: 74_000, provider: "ZaloPay");
+
+        await Customer.Post($"{Page}/{RefOf(payment)}/pay", Atm(card, holder, date)).ShouldBe(422, error);
+
+        (await GetAsync(Customer, $"{Tx}/{payment.Id()}")).GetProperty("status").GetString().Should().Be("Pending");
+    }
+
+    [Fact]
+    public async Task Cancelling_on_the_test_page_fails_the_payment_and_it_cannot_be_paid_after()
+    {
+        var payment = await PayOnlineAsync(amount: 74_000, provider: "ZaloPay");
+
+        var answer = await Customer.PostOk($"{Page}/{RefOf(payment)}/pay", new { cancel = true });
+
+        (answer.GetProperty("status").GetString(), answer.GetProperty("reason").GetString()).Should().Be(("failed", "ZaloPay (trang thử): Khách đã hủy giao dịch."));
+        await Customer.Post($"{Page}/{RefOf(payment)}/pay", Atm("9704540000000062")).ShouldBe(409, "payment.not_pending");
+        (await GetAsync(Customer, $"{Tx}/{payment.Id()}")).GetProperty("status").GetString().Should().Be("Failed");
+    }
+
+    [Fact]
+    public async Task A_test_page_payment_is_refunded_inside_AICOS()
+    {
+        var payment = await PayOnlineAsync(amount: 74_000, provider: "ZaloPay");
+        await Customer.PostOk($"{Page}/{RefOf(payment)}/pay", Atm("9704540000000062"));
+
+        var refund = await Cashier1.PostOk($"{Tx}/{payment.Id()}/refunds", new { kind = "Cancellation", reason = "Khách hủy" });
+
+        refund.GetProperty("status").GetString().Should().Be("Succeeded");
+        (await GetAsync(Customer, $"{Tx}/{payment.Id()}")).GetProperty("status").GetString().Should().Be("Refunded");
+        Api.Calls.Should().BeEmpty();
+    }
 }

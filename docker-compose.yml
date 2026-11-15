@@ -259,6 +259,9 @@ services:
       Payments__ZaloPay__ResultPageUrl: ${APP_URL:-http://localhost:8443}/thanh-toan/ket-qua
       # Testing only: lost | no_money | timeout. Every payment ZaloPay reports paid is taken as refused for that reason.
       Payments__ZaloPay__SimulateFailure: ${ZALOPAY_SIMULATE_FAILURE:-}
+      # Testing only: true sends the customer to the test payment page of the web app (ZaloPay's test cards), not to ZaloPay.
+      Payments__ZaloPay__TestPage: ${ZALOPAY_TEST_PAGE:-false}
+      Payments__ZaloPay__TestPageUrl: ${APP_URL:-http://localhost:8443}/thanh-toan/zalopay-thu
     ports: ["5105:8080"]
 
   # ------------------------------------------------------------------ OPERATIONS

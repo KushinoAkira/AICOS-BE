@@ -1,6 +1,8 @@
 using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using AICOS.BuildingBlocks.Exceptions;
+using AICOS.BuildingBlocks.Security;
 using AICOS.Payments.Api.Domain;
 using AICOS.Payments.Api.Infrastructure;
 using AICOS.Payments.Api.Persistence;
@@ -11,6 +13,15 @@ using Microsoft.Extensions.Options;
 namespace AICOS.Payments.Api.Features.Payments;
 
 /// <summary>ZaloPay's answer to a callback: 1 handled, 2 seen already, -1 refused (bad mac or not configured).</summary>
+/// <summary>The payment shown on the test payment page.</summary>
+public sealed record ZaloPayTestPayment(string TransactionRef, Guid PaymentId, Guid OrderId, decimal Amount, string Status, string Description, DateTime? ExpiresAtUtc, string? ResultUrl);
+
+/// <summary>What the customer did on the test payment page: paid with a card (<c>Kind</c> atm or credit), or cancelled.</summary>
+public sealed record ZaloPayTestPayRequest(string? Kind, string? CardNumber, string? Holder, string? Date, string? Cvv, bool? Cancel);
+
+/// <summary>The result of the test page: where to send the browser (the result page of the web app).</summary>
+public sealed record ZaloPayTestPayResponse(string Status, string? Reason, string ResultUrl);
+
 public sealed record ZaloPayCallbackResponse([property: JsonPropertyName("return_code")] int ReturnCode, [property: JsonPropertyName("return_message")] string ReturnMessage);
 
 /// <summary>
@@ -30,6 +41,97 @@ public static class ZaloPayEndpoints
         var group = api.MapGroup("/zalopay").WithTags("ZaloPay").AllowAnonymous();
         group.MapPost("/callback", CallbackAsync);
         group.MapGet("/return", ReturnAsync);
+
+        // The test payment page (ZALOPAY_TEST_PAGE, testing and demos only): the signed-in customer pays with one of ZaloPay's test cards.
+        var test = api.MapGroup("/zalopay/test-page").WithTags("ZaloPay").RequireAuthorization();
+        test.MapGet("/{transactionRef}", TestPageAsync);
+        test.MapPost("/{transactionRef}/pay", TestPayAsync);
+    }
+
+    private static async Task<Payment> LoadTestPaymentAsync(
+        string transactionRef, PaymentsDbContext db, ICurrentUser user, IOptions<ZaloPayOptions> options, CancellationToken ct)
+    {
+        if (!options.Value.TestPage)
+        {
+            throw new ForbiddenException("The ZaloPay test page is off (ZALOPAY_TEST_PAGE).", "payment.zalopay_test_page_off");
+        }
+
+        var tenantId = TenantScope.Require(user);
+        var payment = await db.Payments.FirstOrDefaultAsync(p => p.TenantId == tenantId && p.Method == ZaloPay.Code && p.TransactionRef == transactionRef, ct)
+            ?? throw new NotFoundException("Payment", transactionRef);
+        PaymentAccess.Ensure(user, payment);
+        return payment;
+    }
+
+    private static async Task<ZaloPayTestPayment> TestPageAsync(
+        string transactionRef, PaymentsDbContext db, PaymentProcessor processor, ICurrentUser user, IOptions<ZaloPayOptions> options, CancellationToken ct)
+    {
+        var payment = await LoadTestPaymentAsync(transactionRef, db, user, options, ct);
+        if (payment.Status == PaymentStatus.Pending)
+        {
+            await processor.ExpireIfDueAsync(payment, ct);
+        }
+
+        var result = payment.Status == PaymentStatus.Pending ? null : ResultUrl(options.Value, payment);
+        return new ZaloPayTestPayment(payment.TransactionRef, payment.Id, payment.OrderId, payment.Amount, payment.Status.ToString(), payment.Description, payment.ExpiresAtUtc, result);
+    }
+
+    private static async Task<ZaloPayTestPayResponse> TestPayAsync(
+        string transactionRef, ZaloPayTestPayRequest r, PaymentsDbContext db, PaymentProcessor processor, ICurrentUser user, IOptions<ZaloPayOptions> options,
+        CancellationToken ct)
+    {
+        var payment = await LoadTestPaymentAsync(transactionRef, db, user, options, ct);
+        if (payment.Status == PaymentStatus.Pending)
+        {
+            await processor.ExpireIfDueAsync(payment, ct);
+        }
+
+        if (payment.Status != PaymentStatus.Pending)
+        {
+            throw new ConflictException("This payment is no longer waiting to be paid.", "payment.not_pending");
+        }
+
+        if (r.Cancel == true)
+        {
+            await processor.ApplyFailureAsync(payment, ZaloPayTestCards.CancelledReason, ct);
+        }
+        else
+        {
+            var (outcome, error) = ZaloPayTestCards.Check(r.Kind, r.CardNumber, r.Holder, r.Date, r.Cvv);
+            if (error is not null)
+            {
+                throw new BusinessRuleException(error, "The card details do not match one of ZaloPay's test cards.");
+            }
+
+            if (outcome == ZaloPayTestCards.Outcome.Paid)
+            {
+                await processor.ApplySuccessAsync(payment, ZaloPayTestCards.ReferenceOf(payment.TransactionRef), ct);
+            }
+            else
+            {
+                await processor.ApplyFailureAsync(payment, ZaloPayTestCards.ReasonOf(outcome!.Value)!, ct);
+            }
+        }
+
+        var url = ResultUrl(options.Value, payment);
+        return new ZaloPayTestPayResponse(payment.IsPaid ? "paid" : "failed", payment.IsPaid ? null : payment.FailureReason, url);
+    }
+
+    /// <summary>The result page of the web app for a payment, as the browser return redirects to it.</summary>
+    private static string ResultUrl(ZaloPayOptions options, Payment payment)
+    {
+        var query = new Dictionary<string, string?>
+        {
+            ["status"] = payment.IsPaid ? "paid" : payment.Status == PaymentStatus.Pending ? "pending" : "failed",
+            ["paymentId"] = payment.Id.ToString(),
+            ["orderId"] = payment.OrderId.ToString(),
+        };
+        if (query["status"] == "failed")
+        {
+            query["reason"] = payment.FailureReason;
+        }
+
+        return QueryHelpers.AddQueryString(options.ResultPageUrl, query);
     }
 
     private static async Task<ZaloPayCallbackResponse> CallbackAsync(
@@ -109,14 +211,6 @@ public static class ZaloPayEndpoints
             }
         }
 
-        query["status"] = payment.IsPaid ? "paid" : payment.Status == PaymentStatus.Pending ? "pending" : "failed";
-        query["paymentId"] = payment.Id.ToString();
-        query["orderId"] = payment.OrderId.ToString();
-        if (query["status"] == "failed")
-        {
-            query["reason"] = payment.FailureReason;
-        }
-
-        return Results.Redirect(QueryHelpers.AddQueryString(options.Value.ResultPageUrl, query));
+        return Results.Redirect(ResultUrl(options.Value, payment));
     }
 }

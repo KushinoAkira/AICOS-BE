@@ -5,6 +5,7 @@ using System.Text.Json;
 using AICOS.BuildingBlocks.Exceptions;
 using AICOS.Payments.Api.Domain;
 using AICOS.Payments.Api.Persistence;
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
@@ -48,6 +49,76 @@ public sealed class ZaloPayOptions
     /// reports as paid is taken as refused for that reason instead. Empty (the default): ZaloPay's answer is taken as it is.
     /// </summary>
     public string SimulateFailure { get; set; } = string.Empty;
+
+    /// <summary>
+    /// For testing and demos only. ZaloPay's public sandbox apps let every test card through, so the customer is sent to a test payment
+    /// page of the web app instead (<see cref="TestPageUrl"/>), where the result follows ZaloPay's list of test cards (valid, lost, out of
+    /// money, timeout). Nothing is sent to ZaloPay while it is on. Payments made on that page are refunded inside AICOS.
+    /// </summary>
+    public bool TestPage { get; set; }
+
+    public string TestPageUrl { get; set; } = "http://localhost:8443/thanh-toan/zalopay-thu";
+}
+
+/// <summary>
+/// ZaloPay's published test cards (https://docs.zalopay.vn/docs/developer-tools/test-instructions/testing) and what each one does, for
+/// the test payment page. ATM cards: holder NGUYEN VAN A, issued 10/18. Credit card: NGUYEN VAN A, valid thru 01/25, CVV 123.
+/// </summary>
+public static class ZaloPayTestCards
+{
+    public const string Holder = "NGUYEN VAN A";
+    public const string AtmIssued = "10/18";
+    public const string CreditCard = "4111111111111111";
+    public const string CreditValidThru = "01/25";
+    public const string CreditCvv = "123";
+
+    public enum Outcome { Paid, Lost, Timeout, NoMoney }
+
+    private static readonly Dictionary<string, Outcome> Atm = new()
+    {
+        ["9704540000000062"] = Outcome.Paid, ["9704540000000070"] = Outcome.Paid, ["9704540000000088"] = Outcome.Paid,
+        ["9704540000000096"] = Outcome.Paid, ["9704541000000094"] = Outcome.Paid, ["9704541000000078"] = Outcome.Paid,
+        ["9704540000000013"] = Outcome.Lost, ["9704540000000021"] = Outcome.Lost, ["9704541000000029"] = Outcome.Lost,
+        ["9704541000000052"] = Outcome.Lost, ["9704541000000060"] = Outcome.Lost, ["9704541000000086"] = Outcome.Lost,
+        ["9704540000000039"] = Outcome.Timeout, ["9704541000000037"] = Outcome.Timeout, ["9704540000000054"] = Outcome.Timeout,
+        ["9704540000000047"] = Outcome.NoMoney, ["9704541000000011"] = Outcome.NoMoney, ["9704541000000045"] = Outcome.NoMoney,
+    };
+
+    /// <summary>What the card does, or the error code of the field that is wrong (the payment is left as it is then).</summary>
+    public static (Outcome? Outcome, string? Error) Check(string? kind, string? number, string? holder, string? date, string? cvv)
+    {
+        var digits = new string((number ?? string.Empty).Where(char.IsAsciiDigit).ToArray());
+        var name = string.Join(' ', (holder ?? string.Empty).Split(' ', StringSplitOptions.RemoveEmptyEntries)).ToUpperInvariant();
+        var when = (date ?? string.Empty).Replace(" ", string.Empty, StringComparison.Ordinal);
+        if (string.Equals(kind, "credit", StringComparison.OrdinalIgnoreCase))
+        {
+            return digits != CreditCard ? (null, "zalopay_test.card_unknown")
+                : name != Holder ? (null, "zalopay_test.holder_wrong")
+                : when != CreditValidThru ? (null, "zalopay_test.date_wrong")
+                : cvv?.Trim() != CreditCvv ? (null, "zalopay_test.cvv_wrong")
+                : (Outcome.Paid, null);
+        }
+
+        return !Atm.TryGetValue(digits, out var outcome) ? (null, "zalopay_test.card_unknown")
+            : name != Holder ? (null, "zalopay_test.holder_wrong")
+            : when != AtmIssued ? (null, "zalopay_test.date_wrong")
+            : (outcome, null);
+    }
+
+    public static string? ReasonOf(Outcome outcome) => outcome switch
+    {
+        Outcome.Lost => "ZaloPay (trang thử): Thẻ bị mất hoặc bị khóa.",
+        Outcome.Timeout => "ZaloPay (trang thử): Giao dịch quá thời gian chờ ngân hàng.",
+        Outcome.NoMoney => "ZaloPay (trang thử): Số dư tài khoản không đủ.",
+        _ => null,
+    };
+
+    public const string CancelledReason = "ZaloPay (trang thử): Khách đã hủy giao dịch.";
+
+    /// <summary>The provider reference of a payment made on the test page; such payments are refunded inside AICOS.</summary>
+    public static string ReferenceOf(string transactionRef) => $"ZPTEST-{transactionRef}";
+
+    public static bool IsTestPayment(Payment payment) => payment.ProviderReference?.StartsWith("ZPTEST-", StringComparison.Ordinal) == true;
 }
 
 /// <summary>The keys of the platform's ZaloPay merchant app: key1 signs the requests, key2 the callbacks.</summary>
@@ -152,6 +223,11 @@ public sealed class ZaloPayGateway(
 
     public async Task<GatewayCheckout> CreatePaymentAsync(GatewayPaymentRequest r, CancellationToken ct)
     {
+        if (options.Value.TestPage)
+        {
+            return new GatewayCheckout(QueryHelpers.AddQueryString(options.Value.TestPageUrl, "ref", r.TransactionRef));
+        }
+
         if (!options.Value.Live)
         {
             return await _simulated.CreatePaymentAsync(r, ct);
@@ -197,7 +273,7 @@ public sealed class ZaloPayGateway(
     /// <summary>Asks ZaloPay about the order. 1 paid, 2 failed, 3 still processing; anything unclear is Pending.</summary>
     public async Task<GatewayStatus> QueryAsync(Payment payment, CancellationToken ct)
     {
-        if (!options.Value.Live)
+        if (!options.Value.Live || options.Value.TestPage)
         {
             return await _simulated.QueryAsync(payment, ct);
         }
@@ -239,7 +315,7 @@ public sealed class ZaloPayGateway(
     /// <summary>Refunds through ZaloPay against the ZaloPay transaction of the payment (its provider reference).</summary>
     public async Task<GatewayRefundResult> RefundAsync(Payment payment, decimal amount, string reason, CancellationToken ct)
     {
-        if (!options.Value.Live)
+        if (!options.Value.Live || ZaloPayTestCards.IsTestPayment(payment))
         {
             return await _simulated.RefundAsync(payment, amount, reason, ct);
         }
