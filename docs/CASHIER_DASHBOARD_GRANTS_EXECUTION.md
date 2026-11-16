@@ -51,3 +51,8 @@ Next: prepare/check the intended Backend revision, Compose overrides, credential
 Operating password authentication and HTTP/API smoke tests are **NOT RUN** here. SET ROLE checks verify PostgreSQL authorization, not authentication with service passwords. Earlier isolated E2E/regression counts are historical; no business regression suite ran against the operating databases. Existing broad ownership on legacy tables/history was preserved, not hardened; do not claim whole-system least privilege or production readiness. Never rollback schema/data to undo a GRANT; ACL recovery must compare private snapshots and revoke only explicitly approved additions under separate approval.
 
 Evidence: [CASHIER_DASHBOARD_GRANTS_EXECUTION_RESULT.json](CASHIER_DASHBOARD_GRANTS_EXECUTION_RESULT.json).
+
+
+## Runtime preparation follow-up
+
+See [CASHIER_DASHBOARD_RUNTIME_READINESS.md](CASHIER_DASHBOARD_RUNTIME_READINESS.md): 11/11 candidate image builds PASS, nine actual PostgreSQL role logins PASS, Backend 856 PASS / 51 SKIP. Operational expiry switch defaults true; smoke overlay disables expiry and all financial/recovery workers/features. No runtime deployment/activation performed. Two historic payments lack collection receipts; financial keys/reconciliation need separate review.

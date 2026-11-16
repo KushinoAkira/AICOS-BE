@@ -1,0 +1,86 @@
+{
+  "revision": "396b7e8596bb1d993272d6fe7c0620b6c62db7c4",
+  "operatingContainersChanged": false,
+  "existingLocalImageTagsChanged": false,
+  "images": [
+    {
+      "service": "identity",
+      "tag": "aicos-main/identity:dashboard-396b7e8596bb1d993272d6fe7c0620b6c62db7c4",
+      "id": "sha256:ce1044c56e5a70aae1e1e5bf26702693104d8ea0659b1dee47b39167fa75aa45",
+      "revisionLabel": "396b7e8596bb1d993272d6fe7c0620b6c62db7c4",
+      "status": "PASS"
+    },
+    {
+      "service": "menu",
+      "tag": "aicos-main/menu:dashboard-396b7e8596bb1d993272d6fe7c0620b6c62db7c4",
+      "id": "sha256:3db673d47a920d3718cce34feeb90d49786418471d69d528c019076bfe60e164",
+      "revisionLabel": "396b7e8596bb1d993272d6fe7c0620b6c62db7c4",
+      "status": "PASS"
+    },
+    {
+      "service": "table",
+      "tag": "aicos-main/table:dashboard-396b7e8596bb1d993272d6fe7c0620b6c62db7c4",
+      "id": "sha256:bd55e3f904134e05ae2c8cdd061855c5e8bccb38d4c020ee742d1c39202959dd",
+      "revisionLabel": "396b7e8596bb1d993272d6fe7c0620b6c62db7c4",
+      "status": "PASS"
+    },
+    {
+      "service": "order",
+      "tag": "aicos-main/order:dashboard-396b7e8596bb1d993272d6fe7c0620b6c62db7c4",
+      "id": "sha256:1eb134f5d0c1f9fb49088cf51c6dd9dddb1f3bf06b4905d16662c3a88d60d503",
+      "revisionLabel": "396b7e8596bb1d993272d6fe7c0620b6c62db7c4",
+      "status": "PASS"
+    },
+    {
+      "service": "payment",
+      "tag": "aicos-main/payment:dashboard-396b7e8596bb1d993272d6fe7c0620b6c62db7c4",
+      "id": "sha256:97a20b743bc2c4ffccef8ece325d3a877cffff6daefb2ff1e84ac84462b0d5b0",
+      "revisionLabel": "396b7e8596bb1d993272d6fe7c0620b6c62db7c4",
+      "status": "PASS"
+    },
+    {
+      "service": "kitchen",
+      "tag": "aicos-main/kitchen:dashboard-396b7e8596bb1d993272d6fe7c0620b6c62db7c4",
+      "id": "sha256:65a2fed2f0a501899734415359cd48158e238f9b434af76449eea996b3930970",
+      "revisionLabel": "396b7e8596bb1d993272d6fe7c0620b6c62db7c4",
+      "status": "PASS"
+    },
+    {
+      "service": "workforce",
+      "tag": "aicos-main/workforce:dashboard-396b7e8596bb1d993272d6fe7c0620b6c62db7c4",
+      "id": "sha256:0c9a6605afc15e36dc8380883de6da0e99e041af2e217408b72e7535ca995eac",
+      "revisionLabel": "396b7e8596bb1d993272d6fe7c0620b6c62db7c4",
+      "status": "PASS"
+    },
+    {
+      "service": "reporting",
+      "tag": "aicos-main/reporting:dashboard-396b7e8596bb1d993272d6fe7c0620b6c62db7c4",
+      "id": "sha256:bfe46dc9e00d2ac200f8eded9ee29019c7c12bf51f29d06281c213d323768c7b",
+      "revisionLabel": "396b7e8596bb1d993272d6fe7c0620b6c62db7c4",
+      "status": "PASS"
+    },
+    {
+      "service": "customer",
+      "tag": "aicos-main/customer:dashboard-396b7e8596bb1d993272d6fe7c0620b6c62db7c4",
+      "id": "sha256:aefac0e57e47a0b99a768d91c6e5bc4b21d405d134fcb27fc00648c8cb60bf5d",
+      "revisionLabel": "396b7e8596bb1d993272d6fe7c0620b6c62db7c4",
+      "status": "PASS"
+    },
+    {
+      "service": "gateway",
+      "tag": "aicos-main/gateway:dashboard-396b7e8596bb1d993272d6fe7c0620b6c62db7c4",
+      "id": "sha256:751b6fef27dbb3515dc11589dccf3293ffa848a48e352e4ca01d16428962c4c3",
+      "revisionLabel": "396b7e8596bb1d993272d6fe7c0620b6c62db7c4",
+      "status": "PASS"
+    },
+    {
+      "service": "ai",
+      "tag": "aicos-main/ai:dashboard-396b7e8596bb1d993272d6fe7c0620b6c62db7c4",
+      "id": "sha256:890bc08a9ac921ea0d7a5c6ed5112d802bacb011b4ca03938489d484ba93d65b",
+      "revisionLabel": "396b7e8596bb1d993272d6fe7c0620b6c62db7c4",
+      "status": "PASS"
+    }
+  ],
+  "status": "PASS",
+  "servicesStarted": false
+}

@@ -1,0 +1,197 @@
+{
+  "date": "2026-11-16",
+  "status": "PASS",
+  "checks": [
+    {
+      "name": "Existing .env outside review checkout is Git-ignored; no secret copied/generated",
+      "status": "PASS"
+    },
+    {
+      "name": "Merged Compose valid; all DB targets/roles, JWT/encryption/Redis credentials preserved; migration/workers/features OFF",
+      "status": "PASS"
+    },
+    {
+      "name": "Nine existing service credentials authenticate to exact database/schema via real PostgreSQL READ ONLY; worker impact counted without mutation",
+      "status": "PASS"
+    }
+  ],
+  "services": [
+    {
+      "service": "identity",
+      "database": "aicos_identity",
+      "schema": "identity",
+      "role": "identity_svc",
+      "credentialsMatchExisting": true,
+      "migrateOnStartup": false,
+      "expiryWorkers": false,
+      "passwordAuthentication": "PASS"
+    },
+    {
+      "service": "menu",
+      "database": "aicos_menu",
+      "schema": "menu",
+      "role": "menu_svc",
+      "credentialsMatchExisting": true,
+      "migrateOnStartup": false,
+      "expiryWorkers": false,
+      "passwordAuthentication": "PASS"
+    },
+    {
+      "service": "table",
+      "database": "aicos_table_reservation",
+      "schema": "table_reservation",
+      "role": "table_reservation_svc",
+      "credentialsMatchExisting": true,
+      "migrateOnStartup": false,
+      "expiryWorkers": false,
+      "passwordAuthentication": "PASS"
+    },
+    {
+      "service": "order",
+      "database": "aicos_ordering",
+      "schema": "ordering",
+      "role": "ordering_svc",
+      "credentialsMatchExisting": true,
+      "migrateOnStartup": false,
+      "expiryWorkers": false,
+      "passwordAuthentication": "PASS"
+    },
+    {
+      "service": "payment",
+      "database": "aicos_payment",
+      "schema": "payment",
+      "role": "payment_svc",
+      "credentialsMatchExisting": true,
+      "migrateOnStartup": false,
+      "expiryWorkers": false,
+      "passwordAuthentication": "PASS"
+    },
+    {
+      "service": "kitchen",
+      "database": "aicos_kitchen",
+      "schema": "kitchen",
+      "role": "kitchen_svc",
+      "credentialsMatchExisting": true,
+      "migrateOnStartup": false,
+      "expiryWorkers": false,
+      "passwordAuthentication": "PASS"
+    },
+    {
+      "service": "workforce",
+      "database": "aicos_workforce",
+      "schema": "workforce",
+      "role": "workforce_svc",
+      "credentialsMatchExisting": true,
+      "migrateOnStartup": false,
+      "expiryWorkers": false,
+      "passwordAuthentication": "PASS"
+    },
+    {
+      "service": "reporting",
+      "database": "aicos_reporting",
+      "schema": "reporting",
+      "role": "reporting_svc",
+      "credentialsMatchExisting": true,
+      "migrateOnStartup": false,
+      "expiryWorkers": false,
+      "passwordAuthentication": "PASS"
+    },
+    {
+      "service": "customer",
+      "database": "aicos_customer",
+      "schema": "customer",
+      "role": "customer_svc",
+      "credentialsMatchExisting": true,
+      "migrateOnStartup": false,
+      "expiryWorkers": false,
+      "passwordAuthentication": "PASS"
+    }
+  ],
+  "startupPerformed": false,
+  "featureActivation": false,
+  "secretsPrinted": false,
+  "jwt": {
+    "allKeysConsistent": true,
+    "issuerAudienceConsistent": true,
+    "existingKeyPreserved": true
+  },
+  "redis": {
+    "credentialsMatchExisting": true,
+    "liveAuthentication": "NOT RUN (existing container remains stopped)"
+  },
+  "gateway": {
+    "port": 8081,
+    "bind": "127.0.0.1",
+    "currentOldBind": [
+      "0.0.0.0"
+    ],
+    "readinessSwagger": "N/A by source"
+  },
+  "futureFeatureKeys": {
+    "SessionBilling__MachineKey": {
+      "presentIn": [],
+      "neededForFeatureActivationOnly": true,
+      "presentInExistingContainers": []
+    },
+    "CashierShifts__MachineKey": {
+      "presentIn": [],
+      "neededForFeatureActivationOnly": true,
+      "presentInExistingContainers": []
+    },
+    "KitchenAdmission__MachineKey": {
+      "presentIn": [],
+      "neededForFeatureActivationOnly": true,
+      "presentInExistingContainers": []
+    },
+    "CupServing__MachineKey": {
+      "presentIn": [],
+      "neededForFeatureActivationOnly": true,
+      "presentInExistingContainers": []
+    }
+  },
+  "cluster": "7703616372368646182",
+  "startupImpact": {
+    "duePendingPayments": 0,
+    "historicPaymentsMissingCollections": 2,
+    "pendingBillEvents": 0,
+    "ordering": {
+      "overdueUnpaidOrders": 0,
+      "idleEmptySessions": 0,
+      "admissionOutbox": 0
+    }
+  },
+  "blockers": [
+    "Operating runtime/image/feature activation not approved",
+    "Redis live authentication/Docker service DNS/HTTP smoke not run until startup gate",
+    "Future financial feature keys and historical reconciliation need separate activation review"
+  ],
+  "postgresReturnedToStopped": true,
+  "otherContainersUnchanged": true,
+  "ai": {
+    "databaseRedisConfigPreserved": true,
+    "businessImplementation": "placeholder; database password authentication N/A by source"
+  },
+  "privateRollbackConfig": {
+    "dpapiProtected": true,
+    "windowsAclRestricted": true,
+    "roundtripVerified": true,
+    "containerConfigs": 13
+  },
+  "candidateImages": {
+    "count": 11,
+    "status": "PASS",
+    "revision": "396b7e8596bb1d993272d6fe7c0620b6c62db7c4",
+    "operatingContainersUnchanged": true,
+    "existingLocalTagsUnchanged": true
+  },
+  "tests": {
+    "backendPassed": 856,
+    "backendSkipped": 51,
+    "backendFailed": 0,
+    "expiryConfigurationPassed": 6,
+    "postgresRoleLogins": 9,
+    "flutter": "NOT RUN (no Dart/UI changes)",
+    "operatingHttpSmoke": "NOT RUN (startup approval required)"
+  },
+  "readiness": "READY FOR FEATURES-OFF RUNTIME SMOKE APPROVAL; FINANCIAL ACTIVATION BLOCKED"
+}

@@ -51,3 +51,8 @@ See [CASHIER_DASHBOARD_PERMISSIONS_REVIEW.md](CASHIER_DASHBOARD_PERMISSIONS_REVI
 ## Approved three-GRANT execution follow-up
 
 Ordering, revised Payments and Reporting GRANT files have now committed and verified 3/3 PASS. Kitchen skipped; 15 new tables accessible, 58 UPDATE columns checked, six DB data/schema/history and roles unchanged. PostgreSQL returned to stopped; no application/feature rollout. Earlier NOT APPLIED notes describe the preparation checkpoint. See [CASHIER_DASHBOARD_GRANTS_EXECUTION.md](CASHIER_DASHBOARD_GRANTS_EXECUTION.md).
+
+
+## Runtime preparation follow-up
+
+See [CASHIER_DASHBOARD_RUNTIME_READINESS.md](CASHIER_DASHBOARD_RUNTIME_READINESS.md): 11/11 candidate image builds PASS, nine actual PostgreSQL role logins PASS, Backend 856 PASS / 51 SKIP. Operational expiry switch defaults true; smoke overlay disables expiry and all financial/recovery workers/features. No runtime deployment/activation performed. Two historic payments lack collection receipts; financial keys/reconciliation need separate review.
