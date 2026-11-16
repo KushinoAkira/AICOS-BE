@@ -1,0 +1,13 @@
+{
+  "status": "AWAITING_GATE_B",
+  "database": "aicos_payment",
+  "cluster": "7703616372368646182",
+  "sourceCount": 2,
+  "total": 258000,
+  "method": "Cash",
+  "planSHA256": "91bd27b47249a772c3071acb32f07ccbc1e8b4de22098b896ebf2dd825a858b9",
+  "privateSourceIdsPublished": false,
+  "operatingRecoveryExecuted": false,
+  "source": "Read-only reviewed private preview; fresh execution preflight still mandatory",
+  "timestampPrecision": "Original microseconds preserved; no JavaScript Date conversion"
+}

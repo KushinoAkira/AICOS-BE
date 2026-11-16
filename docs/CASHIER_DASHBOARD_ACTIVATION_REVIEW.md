@@ -56,3 +56,7 @@ CashierShiftTests and CashPrecheckTests: **18 PASS, 0 FAIL, 0 SKIP**, from the n
 ## Gate A executed — 2026-11-16
 
 User separately approved configuration only. Payments/Reporting CashierShifts enabled with one separate DPAPI-stored machine key; dispatcher OFF and optional shift policy preserved. Both service recreations/health/routes/401 PASS, all other containers and DB schema/data/ACL unchanged; outbox/facts/shifts remain zero, legacy Cash still 258.000đ. See CASHIER_DASHBOARD_GATE_A_EXECUTION.md and CASHIER_DASHBOARD_GATE_A_RESULT.json. Historical recovery, authenticated Mobile tests and SessionBilling remain unapproved/not run. Earlier preparation/flags-absent sections are historical evidence, not current config.
+
+## Gate B tooling prepared — 2026-11-16
+
+One-shot test tooling and private exact plan now prepared, PostgreSQL/real HTTP 19 groups PASS plus 18 in-memory related regressions PASS. No service business source/API or operating feature changed. See CASHIER_COLLECTION_RECOVERY_READINESS.md and CASHIER_COLLECTION_RECOVERY_PLAN.json. Historical recovery remains unexecuted and requires separate approval; earlier statements that no one-shot mode existed describe the initial audit.

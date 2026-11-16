@@ -1,0 +1,95 @@
+{
+  "startedAtUtc": "2026-11-16T15:52:11.566Z",
+  "status": "PASS",
+  "checks": [
+    {
+      "name": "Isolated internal/tmpfs PostgreSQL, no published port or operating connection",
+      "status": "PASS"
+    },
+    {
+      "name": "Fresh test schemas and restricted service-role auth; real production receiver on Kestrel",
+      "status": "PASS"
+    },
+    {
+      "name": "Missing approval, changed plan fingerprint and administrator role refused before writes",
+      "status": "PASS"
+    },
+    {
+      "name": "Wrong cluster or main-database plan refused without operating connection",
+      "status": "PASS"
+    },
+    {
+      "name": "Approved source amount drift rejected with zero receipts",
+      "status": "PASS"
+    },
+    {
+      "name": "Third unapproved eligible payment stops the entire batch before writes",
+      "status": "PASS"
+    },
+    {
+      "name": "Two original Cash proofs recovered through real HTTP, stable ACKs, original dates/actors, no Bill/shift/source mutation",
+      "status": "PASS"
+    },
+    {
+      "name": "Full retry is idempotent with exactly two inbox/outbox rows and unchanged facts",
+      "status": "PASS"
+    },
+    {
+      "name": "Two concurrent processes recover/deliver the same batch without duplicate receipts or revenue",
+      "status": "PASS"
+    },
+    {
+      "name": "Real process exit after capture commit resumes from durable outbox without source/identity reset",
+      "status": "PASS"
+    },
+    {
+      "name": "Lost HTTP ACK after receiver commit retains pending proof; receiver restart/retry delivers exactly once",
+      "status": "PASS"
+    },
+    {
+      "name": "Wrong EventId ACK retains pending proof; receiver restart/retry delivers exactly once",
+      "status": "PASS"
+    },
+    {
+      "name": "HTTP 202 is not a committed-contract ACK retains pending proof; receiver restart/retry delivers exactly once",
+      "status": "PASS"
+    },
+    {
+      "name": "Wrong machine key never ACKs or creates inbox; pending source proof retries safely with correct key",
+      "status": "PASS"
+    },
+    {
+      "name": "Non-recovered, shift-linked, QR/Mock or duplicate-ID plans refuse before financial writes",
+      "status": "PASS"
+    },
+    {
+      "name": "Changed existing receipt payload stops replay instead of overwriting audit identity",
+      "status": "PASS"
+    },
+    {
+      "name": "Real service role cannot DELETE outbox or UPDATE original monetary amount",
+      "status": "PASS"
+    },
+    {
+      "name": "New refund/source-status drift refuses the batch without changing source money",
+      "status": "PASS"
+    },
+    {
+      "name": "All original container IDs/images/state/start/restart counts unchanged; zero operating DB connections",
+      "status": "PASS"
+    }
+  ],
+  "operatingConnections": 0,
+  "operatingContainersChanged": false,
+  "redis": "N/A (durable HTTP outbox/inbox has no Redis dependency)",
+  "transport": "Real Kestrel HTTP, PostgreSQL, actual production collection receiver; synthetic fixtures/keys only",
+  "testCluster": "7708797709997105198",
+  "finishedAtUtc": "2026-11-16T15:54:22.359Z",
+  "operatingContainersUnchanged": true,
+  "relatedRegression": {
+    "passed": 18,
+    "failed": 0,
+    "skipped": 0,
+    "type": "CashierShiftTests/CashPrecheckTests; in-process HTTP, EF in-memory and explicit doubles; not PostgreSQL E2E"
+  }
+}

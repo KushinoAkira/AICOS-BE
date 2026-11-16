@@ -22,6 +22,8 @@ using AICOS.WorkforceScheduling.Api.Persistence;
 
 static DbContextOptions<T> Options<T>(string schema,string connection) where T:DbContext => new DbContextOptionsBuilder<T>().UseNpgsql(connection,p=>p.MigrationsHistoryTable("__ef_migrations_history",schema)).UseSnakeCaseNamingConvention().Options;
 if (await ItemTransferDesignProbe.TryRunAsync(args)) return;
+if (await AICOS.Billing.StackTools.ApprovedCollectionRecovery.TryRunAsync(args)) return;
+if (await AICOS.Billing.StackTools.CollectionRecoveryProbe.TryRunAsync(args)) return;
 const string offline="Host=127.0.0.1;Port=1;Database=offline;Username=offline;Timeout=1";
 static object[] MigrationColumns(DbContext db,string id)
 {
