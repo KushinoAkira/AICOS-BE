@@ -67,3 +67,7 @@ Expected approved delta: two payment.collection_outbox rows, two reporting.colle
 Tooling **READY FOR REVIEW**, not production-ready. Operating recovery **NOT RUN / awaiting Gate B**. User must approve legacy OrderId-based historical collection treatment and the exact plan/write delta. Normal worker stays OFF, SessionBilling/expiry/recovery/print flags retain prior state, and no new operating payment/shift/UI test is part of Gate B unless separately approved. No source integration code is left masquerading as an executed financial operation.
 
 Evidence: CASHIER_COLLECTION_RECOVERY_TEST_RESULT.json, CASHIER_COLLECTION_RECOVERY_PLAN.json. Existing partial V2 code in the original Backend/Mobile remains untouched.
+
+## Gate B executed — 2026-11-16
+
+Separately approved exact two Cash historical sources/258.000đ synchronized once: 2 outbox, 2 Reporting facts, 2 stable ACKs, ShiftId=null, original Payment/Order/Bill/session data unchanged. Fresh two-DB backup/restore 5/5 PASS. See CASHIER_COLLECTION_RECOVERY_EXECUTION.md and result JSON. Only four required dependencies started after the entire stack had been found stopped; nine other containers including Gateway remain stopped. Normal dispatcher and SessionBilling remain OFF; Mobile/authenticated business E2E not run. Earlier awaiting-approval sections describe preparation, superseded by this execution record.

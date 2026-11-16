@@ -1,0 +1,37 @@
+{
+  "startedAtUtc": "2026-11-16T16:13:24.221Z",
+  "reason": "All preexisting main containers stopped cleanly before Gate B; start only required dependencies for approved operation",
+  "services": [
+    {
+      "service": "postgres",
+      "id": "c014190eed2dd5a00374c4a7e45678a7ca6bb7c897dea75c0c952d82eb3043d1",
+      "image": "sha256:00ba258a66dac104fd5171074a0084462a64a1369d8513f3d0a634e2f24d15bc",
+      "status": "PASS",
+      "recreated": false
+    },
+    {
+      "service": "redis",
+      "id": "8044508b8e2a82601016ddf1a8ddf719ca210bc6d34531c0c23f6d5d2f35bfdd",
+      "image": "sha256:d9436322172a5b482c187bf1f363d3c4fea086fcca6b9c8a94de8f0f39ed3193",
+      "status": "PASS",
+      "recreated": false
+    },
+    {
+      "service": "reporting",
+      "id": "21c83457571a707f9f879ebacc9e8c120d480509aec29645ed06671a7c9ce7c1",
+      "image": "sha256:bfe46dc9e00d2ac200f8eded9ee29019c7c12bf51f29d06281c213d323768c7b",
+      "status": "PASS",
+      "recreated": false
+    },
+    {
+      "service": "payment",
+      "id": "27a5ede286eb66ac60b929c75a93b2c102f5aca127d71fd4fd39299952f6a3ad",
+      "image": "sha256:97a20b743bc2c4ffccef8ece325d3a877cffff6daefb2ff1e84ac84462b0d5b0",
+      "status": "PASS",
+      "recreated": false
+    }
+  ],
+  "otherContainersUnchanged": true,
+  "status": "PASS",
+  "finishedAtUtc": "2026-11-16T16:13:27.763Z"
+}

@@ -60,3 +60,7 @@ User separately approved configuration only. Payments/Reporting CashierShifts en
 ## Gate B tooling prepared — 2026-11-16
 
 One-shot test tooling and private exact plan now prepared, PostgreSQL/real HTTP 19 groups PASS plus 18 in-memory related regressions PASS. No service business source/API or operating feature changed. See CASHIER_COLLECTION_RECOVERY_READINESS.md and CASHIER_COLLECTION_RECOVERY_PLAN.json. Historical recovery remains unexecuted and requires separate approval; earlier statements that no one-shot mode existed describe the initial audit.
+
+## Gate B executed — 2026-11-16
+
+Separately approved exact two Cash historical sources/258.000đ synchronized once: 2 outbox, 2 Reporting facts, 2 stable ACKs, ShiftId=null, original Payment/Order/Bill/session data unchanged. Fresh two-DB backup/restore 5/5 PASS. See CASHIER_COLLECTION_RECOVERY_EXECUTION.md and result JSON. Only four required dependencies started after the entire stack had been found stopped; nine other containers including Gateway remain stopped. Normal dispatcher and SessionBilling remain OFF; Mobile/authenticated business E2E not run. Earlier awaiting-approval sections describe preparation, superseded by this execution record.
