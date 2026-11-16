@@ -61,3 +61,7 @@ One-shot test tooling and private exact plan now prepared, PostgreSQL/real HTTP 
 ## Gate B executed — 2026-11-16
 
 Separately approved exact two Cash historical sources/258.000đ synchronized once: 2 outbox, 2 Reporting facts, 2 stable ACKs, ShiftId=null, original Payment/Order/Bill/session data unchanged. Fresh two-DB backup/restore 5/5 PASS. See CASHIER_COLLECTION_RECOVERY_EXECUTION.md and result JSON. Only four required dependencies started after the entire stack had been found stopped; nine other containers including Gateway remain stopped. Normal dispatcher and SessionBilling remain OFF; Mobile/authenticated business E2E not run. Earlier awaiting-approval sections describe preparation, superseded by this execution record.
+
+## Full existing runtime restored — 2026-11-16
+
+Nine stopped containers started with original IDs/images/config, four Gate B dependencies not restarted: all 13 now running. Gateway metadata/public GET and nine 401 pairs PASS; all nine DB schema/data/ACL/history baselines unchanged, Gate B 2/258.000đ receipts retained. See CASHIER_DASHBOARD_RUNTIME_RESTORED.md and result JSON. User chose Backend only; authenticated Dashboard/Mobile tests deferred. Dispatcher/SessionBilling and previously OFF workers remain OFF.

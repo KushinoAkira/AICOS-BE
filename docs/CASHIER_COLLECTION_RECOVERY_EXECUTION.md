@@ -53,3 +53,7 @@ Next scopes: controlled restoration of remaining runtime and authenticated read-
 Private before/after financial snapshots, source IDs/full payload, backup manifests and encrypted key remain outside Git. Retain committed proof; never delete ledger rows, restore old DBs, run destructive Down or modify original money to undo a gate.
 
 Evidence: CASHIER_COLLECTION_RECOVERY_EXECUTION_RESULT.json, CASHIER_COLLECTION_RECOVERY_BACKUP_RESTORE_RESULT.json, CASHIER_COLLECTION_RECOVERY_DEPENDENCIES.json. Private plan bytes/hash were not changed after approval.
+
+## Full existing runtime restored — 2026-11-16
+
+Nine stopped containers started with original IDs/images/config, four Gate B dependencies not restarted: all 13 now running. Gateway metadata/public GET and nine 401 pairs PASS; all nine DB schema/data/ACL/history baselines unchanged, Gate B 2/258.000đ receipts retained. See CASHIER_DASHBOARD_RUNTIME_RESTORED.md and result JSON. User chose Backend only; authenticated Dashboard/Mobile tests deferred. Dispatcher/SessionBilling and previously OFF workers remain OFF.
