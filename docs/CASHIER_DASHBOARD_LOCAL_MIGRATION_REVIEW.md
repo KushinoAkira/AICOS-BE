@@ -106,3 +106,8 @@ Fresh full backups including Identity/Workforce and isolated restore completed 9
 ## Approved seven-file execution
 
 Migration-only execution now PASS; see [CASHIER_DASHBOARD_SEVEN_SQL_EXECUTION.md](CASHIER_DASHBOARD_SEVEN_SQL_EXECUTION.md). The stack is still stopped; no GRANT/runtime/feature activation. Do not run the original Payments GRANT proposal unchanged: the new upstream history must be included in a separately reviewed proposal first.
+
+
+## Post-migration permissions review
+
+See [CASHIER_DASHBOARD_PERMISSIONS_REVIEW.md](CASHIER_DASHBOARD_PERMISSIONS_REVIEW.md): revised Payments history-only guard, isolated PostgreSQL ACL 26 PASS / 1 N/A. Local GRANT remains unexecuted; recommend Ordering/Payments/Reporting only, skip Kitchen already sufficient. The original Payments GRANT must not be used unchanged.

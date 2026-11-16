@@ -1,0 +1,839 @@
+{
+  "date": "2026-11-16",
+  "cluster": "7703616372368646182",
+  "readOnly": true,
+  "grantsExecuted": false,
+  "services": [
+    {
+      "schema": "ordering",
+      "role": {
+        "role": "ordering_svc",
+        "login": true,
+        "superuser": false,
+        "createDb": false,
+        "createRole": false,
+        "bypassRls": false,
+        "connect": true,
+        "schemaUsage": true
+      },
+      "grantFile": "docs/proposals/cashier-dashboard-local/10_ordering_grants.PROPOSAL.sql",
+      "historyMatches": true,
+      "tables": [
+        {
+          "table": "__ef_migrations_history",
+          "owner": "ordering_svc",
+          "select": true,
+          "insert": true,
+          "update": true,
+          "delete": true,
+          "truncate": true
+        },
+        {
+          "table": "fulfillment_receipts",
+          "owner": "aicos_admin",
+          "select": false,
+          "insert": false,
+          "update": false,
+          "delete": false,
+          "truncate": false
+        },
+        {
+          "table": "kitchen_admission_outbox",
+          "owner": "aicos_admin",
+          "select": false,
+          "insert": false,
+          "update": false,
+          "delete": false,
+          "truncate": false
+        },
+        {
+          "table": "kitchen_admission_reconcile_state",
+          "owner": "aicos_admin",
+          "select": false,
+          "insert": false,
+          "update": false,
+          "delete": false,
+          "truncate": false
+        },
+        {
+          "table": "order_feedbacks",
+          "owner": "ordering_svc",
+          "select": true,
+          "insert": true,
+          "update": true,
+          "delete": true,
+          "truncate": true
+        },
+        {
+          "table": "order_fulfillment_projection",
+          "owner": "aicos_admin",
+          "select": false,
+          "insert": false,
+          "update": false,
+          "delete": false,
+          "truncate": false
+        },
+        {
+          "table": "order_item_options",
+          "owner": "ordering_svc",
+          "select": true,
+          "insert": true,
+          "update": true,
+          "delete": true,
+          "truncate": true
+        },
+        {
+          "table": "order_items",
+          "owner": "ordering_svc",
+          "select": true,
+          "insert": true,
+          "update": true,
+          "delete": true,
+          "truncate": true
+        },
+        {
+          "table": "orders",
+          "owner": "ordering_svc",
+          "select": true,
+          "insert": true,
+          "update": true,
+          "delete": true,
+          "truncate": true
+        },
+        {
+          "table": "pickup_slot_settings",
+          "owner": "ordering_svc",
+          "select": true,
+          "insert": true,
+          "update": true,
+          "delete": true,
+          "truncate": true
+        },
+        {
+          "table": "session_checkouts",
+          "owner": "aicos_admin",
+          "select": false,
+          "insert": false,
+          "update": false,
+          "delete": false,
+          "truncate": false
+        },
+        {
+          "table": "table_sessions",
+          "owner": "ordering_svc",
+          "select": true,
+          "insert": true,
+          "update": true,
+          "delete": true,
+          "truncate": true
+        },
+        {
+          "table": "table_transfer_operations",
+          "owner": "aicos_admin",
+          "select": false,
+          "insert": false,
+          "update": false,
+          "delete": false,
+          "truncate": false
+        }
+      ],
+      "requiredUpdates": [
+        {
+          "table": "ordering.kitchen_admission_outbox",
+          "column": "state",
+          "allowed": false
+        },
+        {
+          "table": "ordering.kitchen_admission_outbox",
+          "column": "next_attempt_at_utc",
+          "allowed": false
+        },
+        {
+          "table": "ordering.kitchen_admission_outbox",
+          "column": "attempt_count",
+          "allowed": false
+        },
+        {
+          "table": "ordering.kitchen_admission_outbox",
+          "column": "lease_token",
+          "allowed": false
+        },
+        {
+          "table": "ordering.kitchen_admission_outbox",
+          "column": "lease_until_utc",
+          "allowed": false
+        },
+        {
+          "table": "ordering.kitchen_admission_outbox",
+          "column": "acknowledged_at_utc",
+          "allowed": false
+        },
+        {
+          "table": "ordering.kitchen_admission_outbox",
+          "column": "acknowledged_ticket_id",
+          "allowed": false
+        },
+        {
+          "table": "ordering.kitchen_admission_outbox",
+          "column": "last_error_code",
+          "allowed": false
+        },
+        {
+          "table": "ordering.kitchen_admission_reconcile_state",
+          "column": "cycle_id",
+          "allowed": false
+        },
+        {
+          "table": "ordering.kitchen_admission_reconcile_state",
+          "column": "upper_order_id",
+          "allowed": false
+        },
+        {
+          "table": "ordering.kitchen_admission_reconcile_state",
+          "column": "last_order_id",
+          "allowed": false
+        },
+        {
+          "table": "ordering.kitchen_admission_reconcile_state",
+          "column": "cycle_started_at_utc",
+          "allowed": false
+        },
+        {
+          "table": "ordering.kitchen_admission_reconcile_state",
+          "column": "last_completed_at_utc",
+          "allowed": false
+        },
+        {
+          "table": "ordering.kitchen_admission_reconcile_state",
+          "column": "lease_token",
+          "allowed": false
+        },
+        {
+          "table": "ordering.kitchen_admission_reconcile_state",
+          "column": "lease_until_utc",
+          "allowed": false
+        },
+        {
+          "table": "ordering.order_fulfillment_projection",
+          "column": "source_version",
+          "allowed": false
+        },
+        {
+          "table": "ordering.order_fulfillment_projection",
+          "column": "snapshot_hash",
+          "allowed": false
+        },
+        {
+          "table": "ordering.order_fulfillment_projection",
+          "column": "total",
+          "allowed": false
+        },
+        {
+          "table": "ordering.order_fulfillment_projection",
+          "column": "served",
+          "allowed": false
+        },
+        {
+          "table": "ordering.order_fulfillment_projection",
+          "column": "review",
+          "allowed": false
+        },
+        {
+          "table": "ordering.order_fulfillment_projection",
+          "column": "snapshot_json",
+          "allowed": false
+        },
+        {
+          "table": "ordering.order_fulfillment_projection",
+          "column": "fulfilled_at_utc",
+          "allowed": false
+        },
+        {
+          "table": "ordering.order_fulfillment_projection",
+          "column": "last_verified_at_utc",
+          "allowed": false
+        },
+        {
+          "table": "ordering.session_checkouts",
+          "column": "state",
+          "allowed": false
+        },
+        {
+          "table": "ordering.session_checkouts",
+          "column": "payment_id",
+          "allowed": false
+        },
+        {
+          "table": "ordering.table_transfer_operations",
+          "column": "synced_at_utc",
+          "allowed": false
+        },
+        {
+          "table": "ordering.orders",
+          "column": "fulfillment_mode",
+          "allowed": true
+        },
+        {
+          "table": "ordering.order_feedbacks",
+          "column": "replied_at_utc",
+          "allowed": true
+        },
+        {
+          "table": "ordering.order_feedbacks",
+          "column": "replied_by_user_id",
+          "allowed": true
+        },
+        {
+          "table": "ordering.order_feedbacks",
+          "column": "reply",
+          "allowed": true
+        }
+      ],
+      "newTablesEmpty": true,
+      "newTableCount": 6
+    },
+    {
+      "schema": "kitchen",
+      "role": {
+        "role": "kitchen_svc",
+        "login": true,
+        "superuser": false,
+        "createDb": false,
+        "createRole": false,
+        "bypassRls": false,
+        "connect": true,
+        "schemaUsage": true
+      },
+      "grantFile": "docs/proposals/cashier-dashboard-local/11_kitchen_grants.PROPOSAL.sql",
+      "historyMatches": true,
+      "tables": [
+        {
+          "table": "__ef_migrations_history",
+          "owner": "kitchen_svc",
+          "select": true,
+          "insert": true,
+          "update": true,
+          "delete": true,
+          "truncate": true
+        },
+        {
+          "table": "barista_acceptances",
+          "owner": "aicos_admin",
+          "select": true,
+          "insert": true,
+          "update": false,
+          "delete": false,
+          "truncate": false
+        },
+        {
+          "table": "cup_claims",
+          "owner": "aicos_admin",
+          "select": false,
+          "insert": false,
+          "update": false,
+          "delete": false,
+          "truncate": false
+        },
+        {
+          "table": "cup_operations",
+          "owner": "aicos_admin",
+          "select": false,
+          "insert": false,
+          "update": false,
+          "delete": false,
+          "truncate": false
+        },
+        {
+          "table": "cup_stickers",
+          "owner": "kitchen_svc",
+          "select": true,
+          "insert": true,
+          "update": true,
+          "delete": true,
+          "truncate": true
+        },
+        {
+          "table": "cup_tasks",
+          "owner": "aicos_admin",
+          "select": true,
+          "insert": false,
+          "update": false,
+          "delete": false,
+          "truncate": false
+        },
+        {
+          "table": "early_payments",
+          "owner": "aicos_admin",
+          "select": true,
+          "insert": true,
+          "update": false,
+          "delete": true,
+          "truncate": false
+        },
+        {
+          "table": "fulfillment_outbox",
+          "owner": "aicos_admin",
+          "select": false,
+          "insert": false,
+          "update": false,
+          "delete": false,
+          "truncate": false
+        },
+        {
+          "table": "kitchen_print_jobs",
+          "owner": "aicos_admin",
+          "select": true,
+          "insert": true,
+          "update": false,
+          "delete": false,
+          "truncate": false
+        },
+        {
+          "table": "kitchen_ticket_items",
+          "owner": "kitchen_svc",
+          "select": true,
+          "insert": true,
+          "update": true,
+          "delete": true,
+          "truncate": true
+        },
+        {
+          "table": "kitchen_tickets",
+          "owner": "kitchen_svc",
+          "select": true,
+          "insert": true,
+          "update": true,
+          "delete": true,
+          "truncate": true
+        },
+        {
+          "table": "order_admission_receipts",
+          "owner": "aicos_admin",
+          "select": false,
+          "insert": false,
+          "update": false,
+          "delete": false,
+          "truncate": false
+        }
+      ],
+      "requiredUpdates": [
+        {
+          "table": "kitchen.kitchen_tickets",
+          "column": "table_transfer_version",
+          "allowed": true
+        }
+      ],
+      "newTablesEmpty": true,
+      "newTableCount": 0
+    },
+    {
+      "schema": "payment",
+      "role": {
+        "role": "payment_svc",
+        "login": true,
+        "superuser": false,
+        "createDb": false,
+        "createRole": false,
+        "bypassRls": false,
+        "connect": true,
+        "schemaUsage": true
+      },
+      "grantFile": "docs/proposals/cashier-dashboard-permissions/12_payment_grants.PROPOSAL.sql",
+      "historyMatches": true,
+      "tables": [
+        {
+          "table": "__ef_migrations_history",
+          "owner": "payment_svc",
+          "select": true,
+          "insert": true,
+          "update": true,
+          "delete": true,
+          "truncate": true
+        },
+        {
+          "table": "bill_split_operations",
+          "owner": "aicos_admin",
+          "select": false,
+          "insert": false,
+          "update": false,
+          "delete": false,
+          "truncate": false
+        },
+        {
+          "table": "bill_split_plans",
+          "owner": "aicos_admin",
+          "select": false,
+          "insert": false,
+          "update": false,
+          "delete": false,
+          "truncate": false
+        },
+        {
+          "table": "cancellation_policies",
+          "owner": "payment_svc",
+          "select": true,
+          "insert": true,
+          "update": true,
+          "delete": true,
+          "truncate": true
+        },
+        {
+          "table": "cashier_shifts",
+          "owner": "aicos_admin",
+          "select": false,
+          "insert": false,
+          "update": false,
+          "delete": false,
+          "truncate": false
+        },
+        {
+          "table": "collection_outbox",
+          "owner": "aicos_admin",
+          "select": false,
+          "insert": false,
+          "update": false,
+          "delete": false,
+          "truncate": false
+        },
+        {
+          "table": "merchant_settings",
+          "owner": "payment_svc",
+          "select": true,
+          "insert": true,
+          "update": true,
+          "delete": true,
+          "truncate": true
+        },
+        {
+          "table": "payment_providers",
+          "owner": "payment_svc",
+          "select": true,
+          "insert": true,
+          "update": true,
+          "delete": true,
+          "truncate": true
+        },
+        {
+          "table": "payment_refunds",
+          "owner": "payment_svc",
+          "select": true,
+          "insert": true,
+          "update": true,
+          "delete": true,
+          "truncate": true
+        },
+        {
+          "table": "payment_webhook_events",
+          "owner": "payment_svc",
+          "select": true,
+          "insert": true,
+          "update": true,
+          "delete": true,
+          "truncate": true
+        },
+        {
+          "table": "payments",
+          "owner": "payment_svc",
+          "select": true,
+          "insert": true,
+          "update": true,
+          "delete": true,
+          "truncate": true
+        },
+        {
+          "table": "session_bill_attempts",
+          "owner": "aicos_admin",
+          "select": false,
+          "insert": false,
+          "update": false,
+          "delete": false,
+          "truncate": false
+        },
+        {
+          "table": "session_bill_events",
+          "owner": "aicos_admin",
+          "select": false,
+          "insert": false,
+          "update": false,
+          "delete": false,
+          "truncate": false
+        },
+        {
+          "table": "session_bill_orders",
+          "owner": "aicos_admin",
+          "select": false,
+          "insert": false,
+          "update": false,
+          "delete": false,
+          "truncate": false
+        },
+        {
+          "table": "session_bills",
+          "owner": "aicos_admin",
+          "select": false,
+          "insert": false,
+          "update": false,
+          "delete": false,
+          "truncate": false
+        }
+      ],
+      "requiredUpdates": [
+        {
+          "table": "payment.session_bills",
+          "column": "status",
+          "allowed": false
+        },
+        {
+          "table": "payment.session_bills",
+          "column": "version",
+          "allowed": false
+        },
+        {
+          "table": "payment.session_bills",
+          "column": "paid_payment_id",
+          "allowed": false
+        },
+        {
+          "table": "payment.session_bills",
+          "column": "paid_at_utc",
+          "allowed": false
+        },
+        {
+          "table": "payment.session_bills",
+          "column": "closed_at_utc",
+          "allowed": false
+        },
+        {
+          "table": "payment.session_bills",
+          "column": "ordering_acknowledged",
+          "allowed": false
+        },
+        {
+          "table": "payment.session_bills",
+          "column": "needs_reconciliation",
+          "allowed": false
+        },
+        {
+          "table": "payment.session_bill_attempts",
+          "column": "status",
+          "allowed": false
+        },
+        {
+          "table": "payment.session_bill_attempts",
+          "column": "provider_reference",
+          "allowed": false
+        },
+        {
+          "table": "payment.session_bill_attempts",
+          "column": "checkout_url",
+          "allowed": false
+        },
+        {
+          "table": "payment.session_bill_attempts",
+          "column": "paid_at_utc",
+          "allowed": false
+        },
+        {
+          "table": "payment.session_bill_events",
+          "column": "delivered_at_utc",
+          "allowed": false
+        },
+        {
+          "table": "payment.session_bill_events",
+          "column": "next_attempt_at_utc",
+          "allowed": false
+        },
+        {
+          "table": "payment.session_bill_events",
+          "column": "lease_owner",
+          "allowed": false
+        },
+        {
+          "table": "payment.session_bill_events",
+          "column": "lease_until_utc",
+          "allowed": false
+        },
+        {
+          "table": "payment.session_bill_events",
+          "column": "fence",
+          "allowed": false
+        },
+        {
+          "table": "payment.cashier_shifts",
+          "column": "closed_at_utc",
+          "allowed": false
+        },
+        {
+          "table": "payment.cashier_shifts",
+          "column": "counted_cash",
+          "allowed": false
+        },
+        {
+          "table": "payment.cashier_shifts",
+          "column": "expected_cash",
+          "allowed": false
+        },
+        {
+          "table": "payment.cashier_shifts",
+          "column": "closing_note",
+          "allowed": false
+        },
+        {
+          "table": "payment.cashier_shifts",
+          "column": "version",
+          "allowed": false
+        },
+        {
+          "table": "payment.collection_outbox",
+          "column": "delivered_at_utc",
+          "allowed": false
+        },
+        {
+          "table": "payment.bill_split_plans",
+          "column": "version",
+          "allowed": false
+        },
+        {
+          "table": "payment.bill_split_plans",
+          "column": "fingerprint",
+          "allowed": false
+        },
+        {
+          "table": "payment.bill_split_plans",
+          "column": "quote_json",
+          "allowed": false
+        },
+        {
+          "table": "payment.bill_split_plans",
+          "column": "groups_json",
+          "allowed": false
+        },
+        {
+          "table": "payment.bill_split_plans",
+          "column": "updated_by",
+          "allowed": false
+        },
+        {
+          "table": "payment.bill_split_plans",
+          "column": "updated_at_utc",
+          "allowed": false
+        }
+      ],
+      "newTablesEmpty": true,
+      "newTableCount": 8
+    },
+    {
+      "schema": "reporting",
+      "role": {
+        "role": "reporting_svc",
+        "login": true,
+        "superuser": false,
+        "createDb": false,
+        "createRole": false,
+        "bypassRls": false,
+        "connect": true,
+        "schemaUsage": true
+      },
+      "grantFile": "docs/proposals/cashier-dashboard-local/13_reporting_grants.PROPOSAL.sql",
+      "historyMatches": true,
+      "tables": [
+        {
+          "table": "__ef_migrations_history",
+          "owner": "reporting_svc",
+          "select": true,
+          "insert": true,
+          "update": true,
+          "delete": true,
+          "truncate": true
+        },
+        {
+          "table": "collection_facts",
+          "owner": "aicos_admin",
+          "select": false,
+          "insert": false,
+          "update": false,
+          "delete": false,
+          "truncate": false
+        },
+        {
+          "table": "order_facts",
+          "owner": "reporting_svc",
+          "select": true,
+          "insert": true,
+          "update": true,
+          "delete": true,
+          "truncate": true
+        }
+      ],
+      "requiredUpdates": [],
+      "newTablesEmpty": true,
+      "newTableCount": 1
+    },
+    {
+      "schema": "identity",
+      "role": "identity_svc",
+      "tables": [
+        {
+          "table": "contact_messages",
+          "owner": "identity_svc",
+          "select": true,
+          "insert": true,
+          "update": true
+        },
+        {
+          "table": "subscription_plans",
+          "owner": "identity_svc",
+          "select": true,
+          "insert": true,
+          "update": true
+        },
+        {
+          "table": "tenants",
+          "owner": "identity_svc",
+          "select": true,
+          "insert": true,
+          "update": true
+        }
+      ],
+      "existingTablePrivilegesCoverNewColumns": true
+    },
+    {
+      "schema": "workforce",
+      "role": "workforce_svc",
+      "tables": [
+        {
+          "table": "cash_closings",
+          "owner": "workforce_svc",
+          "select": true,
+          "insert": true,
+          "update": true
+        },
+        {
+          "table": "cash_transactions",
+          "owner": "workforce_svc",
+          "select": true,
+          "insert": true,
+          "update": true
+        },
+        {
+          "table": "employee_shifts",
+          "owner": "workforce_svc",
+          "select": true,
+          "insert": true,
+          "update": true
+        },
+        {
+          "table": "work_shifts",
+          "owner": "workforce_svc",
+          "select": true,
+          "insert": true,
+          "update": true
+        }
+      ],
+      "existingTablePrivilegesCoverNewColumns": true
+    }
+  ],
+  "status": "PASS",
+  "postgresReturnedToStopped": true,
+  "otherContainersUnchanged": true
+}

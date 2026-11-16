@@ -29,6 +29,17 @@ static object[] MigrationColumns(DbContext db,string id)
     var model=db.GetService<IModelRuntimeInitializer>().Initialize(migration.TargetModel,designTime:true);
     return model.GetRelationalModel().Tables.SelectMany(t=>t.Columns.Select(c=>(object)new{table=t.Name,name=c.Name,type=c.StoreType,nullable=c.IsNullable})).ToArray();
 }
+if(args is ["dashboard-permissions-scripts",var permissionsPath])
+{
+    Directory.CreateDirectory(permissionsPath);
+    using var order=new OrderingDbContext(Options<OrderingDbContext>("ordering",offline));
+    using var kitchen=new KitchenOperationsDbContext(Options<KitchenOperationsDbContext>("kitchen",offline));
+    using var payment=new PaymentsDbContext(Options<PaymentsDbContext>("payment",offline));
+    using var reporting=new ReportingAnalyticsDbContext(Options<ReportingAnalyticsDbContext>("reporting",offline));
+    foreach(var (schema,db,to) in new (string,DbContext,string)[]{("ordering",order,"20261114164841_DurableTableTransfer"),("kitchen",kitchen,"20261114164849_TableTransferRoutingVersion"),("payment",payment,"20261115093913_RefundToBankAccount"),("reporting",reporting,"20261114125038_ConfirmedCollectionInbox")})
+        File.WriteAllText(Path.Combine(permissionsPath,schema+".sql"),db.GetService<IMigrator>().GenerateScript("0",to));
+    Console.WriteLine("Four reviewed ACL test baselines exported offline; no database connection.");return;
+}
 if(args is ["dashboard-upstream-scripts",var auditPath,var upstreamPath])
 {
     Directory.CreateDirectory(upstreamPath);

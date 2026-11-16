@@ -41,3 +41,8 @@ Workforce cash handover (cash_closings/payroll) and Payments cashier drawer rema
 ## Approved migration execution follow-up
 
 The seven approved SQL files have now committed and verified PASS on Docker local: 49 -> 64 tables, 626 -> 807 columns; old data preserved, new business tables empty, Identity UPDATE 0. See [CASHIER_DASHBOARD_SEVEN_SQL_EXECUTION.md](CASHIER_DASHBOARD_SEVEN_SQL_EXECUTION.md). Earlier NOT RUN/pre-approval notes are historical for migration only. GRANT/runtime/features remain unexecuted; Payments GRANT history guard must be revised and rehearsed before its separate approval.
+
+
+## Post-migration permissions review
+
+See [CASHIER_DASHBOARD_PERMISSIONS_REVIEW.md](CASHIER_DASHBOARD_PERMISSIONS_REVIEW.md): revised Payments history-only guard, isolated PostgreSQL ACL 26 PASS / 1 N/A. Local GRANT remains unexecuted; recommend Ordering/Payments/Reporting only, skip Kitchen already sufficient. The original Payments GRANT must not be used unchanged.

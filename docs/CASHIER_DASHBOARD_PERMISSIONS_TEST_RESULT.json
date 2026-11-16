@@ -1,0 +1,152 @@
+{
+  "date": "2026-11-16",
+  "operatingConnections": 0,
+  "grantsOnOperatingDatabase": false,
+  "checks": [
+    {
+      "name": "17 SQL checksums and unchanged Payments GRANT body verified; only history guard revised",
+      "status": "PASS"
+    },
+    {
+      "name": "Fresh isolated PostgreSQL, internal/tmpfs/no host port, different cluster and independent test credentials",
+      "status": "PASS"
+    },
+    {
+      "name": "ordering: actual password login, non-owner non-superuser service role",
+      "status": "PASS"
+    },
+    {
+      "name": "ordering: missing approval/wrong cluster/schema/history refuse without ACL mutation",
+      "status": "PASS"
+    },
+    {
+      "name": "ordering: reviewed GRANT and idempotent repeat preserve exact ACL",
+      "status": "PASS"
+    },
+    {
+      "name": "ordering: SELECT/zero-row INSERT allowed; DELETE/TRUNCATE/DDL denied on new tables",
+      "status": "PASS"
+    },
+    {
+      "name": "ordering: every granted UPDATE column works; immutable columns and migration history writes denied",
+      "status": "PASS"
+    },
+    {
+      "name": "ordering: cross-service database connection denied",
+      "status": "PASS"
+    },
+    {
+      "name": "kitchen: actual password login, non-owner non-superuser service role",
+      "status": "PASS"
+    },
+    {
+      "name": "kitchen: missing approval/wrong cluster/schema/history refuse without ACL mutation",
+      "status": "PASS"
+    },
+    {
+      "name": "kitchen: reviewed GRANT and idempotent repeat preserve exact ACL",
+      "status": "PASS"
+    },
+    {
+      "name": "kitchen: new-table DML/DDL checks (existing-column-only proposal)",
+      "status": "N/A"
+    },
+    {
+      "name": "kitchen: every granted UPDATE column works; immutable columns and migration history writes denied",
+      "status": "PASS"
+    },
+    {
+      "name": "kitchen: cross-service database connection denied",
+      "status": "PASS"
+    },
+    {
+      "name": "payment: actual password login, non-owner non-superuser service role",
+      "status": "PASS"
+    },
+    {
+      "name": "payment: missing approval/wrong cluster/schema/history refuse without ACL mutation",
+      "status": "PASS"
+    },
+    {
+      "name": "payment: reviewed GRANT and idempotent repeat preserve exact ACL",
+      "status": "PASS"
+    },
+    {
+      "name": "payment: SELECT/zero-row INSERT allowed; DELETE/TRUNCATE/DDL denied on new tables",
+      "status": "PASS"
+    },
+    {
+      "name": "payment: every granted UPDATE column works; immutable columns and migration history writes denied",
+      "status": "PASS"
+    },
+    {
+      "name": "payment: cross-service database connection denied",
+      "status": "PASS"
+    },
+    {
+      "name": "reporting: actual password login, non-owner non-superuser service role",
+      "status": "PASS"
+    },
+    {
+      "name": "reporting: missing approval/wrong cluster/schema/history refuse without ACL mutation",
+      "status": "PASS"
+    },
+    {
+      "name": "reporting: reviewed GRANT and idempotent repeat preserve exact ACL",
+      "status": "PASS"
+    },
+    {
+      "name": "reporting: SELECT/zero-row INSERT allowed; DELETE/TRUNCATE/DDL denied on new tables",
+      "status": "PASS"
+    },
+    {
+      "name": "reporting: every granted UPDATE column works; immutable columns and migration history writes denied",
+      "status": "PASS"
+    },
+    {
+      "name": "reporting: cross-service database connection denied",
+      "status": "PASS"
+    },
+    {
+      "name": "All existing containers unchanged; zero operating database connection, no production secrets or data copied",
+      "status": "PASS"
+    }
+  ],
+  "schemas": [
+    {
+      "schema": "ordering",
+      "role": "ordering_svc",
+      "grantFile": "docs/proposals/cashier-dashboard-local/10_ordering_grants.PROPOSAL.sql",
+      "newTableCount": 6,
+      "updateColumns": 30,
+      "testDataRows": 0
+    },
+    {
+      "schema": "kitchen",
+      "role": "kitchen_svc",
+      "grantFile": "docs/proposals/cashier-dashboard-local/11_kitchen_grants.PROPOSAL.sql",
+      "newTableCount": 0,
+      "updateColumns": 1,
+      "testDataRows": 0
+    },
+    {
+      "schema": "payment",
+      "role": "payment_svc",
+      "grantFile": "docs/proposals/cashier-dashboard-permissions/12_payment_grants.PROPOSAL.sql",
+      "newTableCount": 8,
+      "updateColumns": 28,
+      "testDataRows": 0
+    },
+    {
+      "schema": "reporting",
+      "role": "reporting_svc",
+      "grantFile": "docs/proposals/cashier-dashboard-local/13_reporting_grants.PROPOSAL.sql",
+      "newTableCount": 1,
+      "updateColumns": 0,
+      "testDataRows": 0
+    }
+  ],
+  "testCluster": "7708616596042285097",
+  "preexistingContainersUnchanged": true,
+  "status": "PASS"
+}
