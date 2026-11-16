@@ -571,8 +571,13 @@ public sealed class CashClosing : AuditableEntity<Guid>, IBranchScoped
     {
     }
 
-    public CashClosing(Guid tenantId, Guid branchId, Guid assignmentId, Guid employeeId, decimal expectedAmount, decimal countedAmount, string? note, DateTime nowUtc)
+    public CashClosing(
+        Guid tenantId, Guid branchId, Guid assignmentId, Guid employeeId, decimal expectedAmount, decimal countedAmount, string? note, DateTime nowUtc,
+        decimal openingAmount = 0, DateTime? sinceUtc = null, Guid? previousClosingId = null)
     {
+        OpeningAmount = openingAmount;
+        SinceUtc = sinceUtc;
+        PreviousClosingId = previousClosingId;
         Id = Guid.NewGuid();
         TenantId = tenantId;
         BranchId = branchId;
@@ -595,6 +600,14 @@ public sealed class CashClosing : AuditableEntity<Guid>, IBranchScoped
     public Guid EmployeeId { get; private set; }
 
     public decimal ExpectedAmount { get; private set; }
+
+    /// <summary>What the previous handover of the branch counted (0 for the first handover of the day): the cash the drawer started from.</summary>
+    public decimal OpeningAmount { get; private set; }
+
+    /// <summary>Cash that moved at the branch after this moment (the previous handover, or the start of the shop day) is in the expected amount.</summary>
+    public DateTime? SinceUtc { get; private set; }
+
+    public Guid? PreviousClosingId { get; private set; }
 
     public decimal CountedAmount { get; private set; }
 

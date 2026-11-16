@@ -184,15 +184,16 @@ public sealed class StaffNotificationHandler(CustomerEngagementDbContext db, Tim
     public Task HandleAsync(CashClosingSubmittedEvent e, CancellationToken ct)
     {
         var difference = e.CountedAmount - e.ExpectedAmount;
-        return AddAsync(e.TenantId, e.BranchId, AicosRoles.BranchManager, "CashClosing", $"closing:{e.ClosingId}", $"{e.EmployeeName} đã gửi chốt két",
+        return AddAsync(e.TenantId, e.BranchId, AicosRoles.BranchManager, "CashClosing", $"closing:{e.ClosingId}", $"{e.EmployeeName} đã nhận két đầu ca",
             difference == 0 ? $"Đếm được {Money(e.CountedAmount)}, khớp với hệ thống." : $"Đếm được {Money(e.CountedAmount)}, lệch {Money(Math.Abs(difference))} so với hệ thống.", ct);
     }
 
     public async Task HandleAsync(ReplacementShiftOpenedEvent e, CancellationToken ct)
     {
-        var body = $"Ca {e.StartTime:HH\\:mm}-{e.EndTime:HH\\:mm} ngày {e.WorkDate:dd/MM/yyyy} đang cần người.";
-        await AddAsync(e.TenantId, e.BranchId, AicosRoles.Cashier, "ReplacementOpened", $"replacement:{e.ReplacementId}", "Có ca cần người làm thay", body, ct);
-        await AddAsync(e.TenantId, e.BranchId, AicosRoles.Barista, "ReplacementOpened", $"replacement:{e.ReplacementId}", "Có ca cần người làm thay", body, ct);
+        var body = $"Ca {e.StartTime:HH\\:mm}-{e.EndTime:HH\\:mm} ngày {e.WorkDate:dd/MM/yyyy} cần người thay. Vào Ca thay để xếp người.";
+
+        // Staff no longer pick up each other's shifts: the manager arranges who replaces the employee.
+        await AddAsync(e.TenantId, e.BranchId, AicosRoles.BranchManager, "ReplacementOpened", $"replacement:{e.ReplacementId}", "Có ca cần xếp người thay", body, ct);
     }
 
     public Task HandleAsync(ReplacementRegisteredEvent e, CancellationToken ct) =>

@@ -222,6 +222,23 @@ public sealed class PaymentRefund : AuditableEntity<Guid>
 
     public string? ProviderReference { get; private set; }
 
+    /// <summary>The bank the customer asked the money to be sent back to (a customer cancellation); null when the money goes back the way it came.</summary>
+    public string? BankName { get; private set; }
+
+    public string? BankAccountNumber { get; private set; }
+
+    public string? BankAccountHolder { get; private set; }
+
+    /// <summary>The money goes back by a bank transfer the brand admin makes by hand, after approving.</summary>
+    public bool ToBankAccount => BankAccountNumber is not null;
+
+    public void SendToBankAccount(string bankName, string accountNumber, string accountHolder)
+    {
+        BankName = bankName.Trim();
+        BankAccountNumber = accountNumber.Trim();
+        BankAccountHolder = accountHolder.Trim().ToUpperInvariant();
+    }
+
     public void Succeed(string? providerReference, Guid? decidedBy, DateTime now)
     {
         Status = RefundStatus.Succeeded;

@@ -22,6 +22,32 @@ using AICOS.WorkforceScheduling.Api.Persistence;
 static DbContextOptions<T> Options<T>(string schema,string connection) where T:DbContext => new DbContextOptionsBuilder<T>().UseNpgsql(connection,p=>p.MigrationsHistoryTable("__ef_migrations_history",schema)).UseSnakeCaseNamingConvention().Options;
 if (await ItemTransferDesignProbe.TryRunAsync(args)) return;
 const string offline="Host=127.0.0.1;Port=1;Database=offline;Username=offline;Timeout=1";
+static object[] MigrationColumns(DbContext db,string id)
+{
+    var assembly=db.GetService<IMigrationsAssembly>();
+    var migration=assembly.CreateMigration(assembly.Migrations[id],db.Database.ProviderName!);
+    var model=db.GetService<IModelRuntimeInitializer>().Initialize(migration.TargetModel,designTime:true);
+    return model.GetRelationalModel().Tables.SelectMany(t=>t.Columns.Select(c=>(object)new{table=t.Name,name=c.Name,type=c.StoreType,nullable=c.IsNullable})).ToArray();
+}
+if(args is ["dashboard-upstream-scripts",var auditPath,var upstreamPath])
+{
+    Directory.CreateDirectory(upstreamPath);
+    var audit=JsonSerializer.Deserialize<JsonElement>(File.ReadAllText(auditPath));
+    var result=new List<object>();
+    using var identity=new IdentityOrganizationDbContext(Options<IdentityOrganizationDbContext>("identity",offline));
+    using var payment=new PaymentsDbContext(Options<PaymentsDbContext>("payment",offline));
+    using var workforce=new WorkforceSchedulingDbContext(Options<WorkforceSchedulingDbContext>("workforce",offline));
+    foreach(var (schema,db,to) in new (string,DbContext,string)[]{("identity",identity,"20261115110405_TenantPaymentAndSoftDelete"),("payment",payment,"20261115093913_RefundToBankAccount"),("workforce",workforce,"20261115162626_CashHandoverAtShiftStart")})
+    {
+        var target=audit.GetProperty("Targets").EnumerateArray().Single(x=>x.GetProperty("schema").GetString()==schema);
+        var from=schema=="payment"?"20261114164856_BillSplitPlans":target.GetProperty("history").EnumerateArray().Last().GetString()!;
+        File.WriteAllText(Path.Combine(upstreamPath,schema+".baseline.sql"),db.GetService<IMigrator>().GenerateScript("0",from));
+        File.WriteAllText(Path.Combine(upstreamPath,schema+".up.sql"),db.GetService<IMigrator>().GenerateScript(from,to,MigrationsSqlGenerationOptions.NoTransactions));
+        // Upstream refund snapshot predates local Dashboard tables; retain both model column sets.
+        result.Add(new{schema,from,to,baseline=db.Database.GetMigrations().Where(x=>string.CompareOrdinal(x,from)<=0).ToArray(),pending=db.Database.GetMigrations().Where(x=>string.CompareOrdinal(x,from)>0&&string.CompareOrdinal(x,to)<=0).ToArray(),columns=MigrationColumns(db,from).Concat(MigrationColumns(db,to)).GroupBy(c=>{var json=JsonSerializer.SerializeToElement(c);return (json.GetProperty("table").GetString(),json.GetProperty("name").GetString());}).Select(g=>g.Last()).ToArray()});
+    }
+    File.WriteAllText(Path.Combine(upstreamPath,"targets.json"),JsonSerializer.Serialize(result));Console.WriteLine("Upstream deltas exported offline; no database connection.");return;
+}
 if(args is ["local-dashboard-scripts",var dashboardPath])
 {
     Directory.CreateDirectory(dashboardPath);
@@ -32,7 +58,6 @@ if(args is ["local-dashboard-scripts",var dashboardPath])
         ("payment",new PaymentsDbContext(Options<PaymentsDbContext>("payment",offline)),"20261021102642_ConstraintsAndIndexes","20261114164856_BillSplitPlans"),
         ("reporting",new ReportingAnalyticsDbContext(Options<ReportingAnalyticsDbContext>("reporting",offline)),"20261021151155_OrderFacts","20261114125038_ConfirmedCollectionInbox")
     };
-    var excluded = new HashSet<string>{"item_transfer_operations","unit_session_allocations","unit_settlement_receipts","cup_transfer_receipts","cup_delivery_routes","session_bill_units"};
     var description = new List<object>();
     foreach(var (schema,db,from,to) in targets)
     using(db)
@@ -40,7 +65,7 @@ if(args is ["local-dashboard-scripts",var dashboardPath])
         var migrator=db.GetService<IMigrator>();
         File.WriteAllText(Path.Combine(dashboardPath,schema+".up.sql"),migrator.GenerateScript(from,to,MigrationsSqlGenerationOptions.NoTransactions));
         File.WriteAllText(Path.Combine(dashboardPath,schema+".down.sql"),migrator.GenerateScript(to,from,MigrationsSqlGenerationOptions.NoTransactions));
-        description.Add(new{schema,from,to,baseline=db.Database.GetMigrations().Where(x=>string.CompareOrdinal(x,from)<=0).ToArray(),pending=db.Database.GetMigrations().Where(x=>string.CompareOrdinal(x,from)>0&&string.CompareOrdinal(x,to)<=0).ToArray(),columns=db.Model.GetRelationalModel().Tables.Where(t=>!excluded.Contains(t.Name)).SelectMany(t=>t.Columns.Select(c=>new{table=t.Name,name=c.Name,type=c.StoreType,nullable=c.IsNullable})).ToArray()});
+        description.Add(new{schema,from,to,baseline=db.Database.GetMigrations().Where(x=>string.CompareOrdinal(x,from)<=0).ToArray(),pending=db.Database.GetMigrations().Where(x=>string.CompareOrdinal(x,from)>0&&string.CompareOrdinal(x,to)<=0).ToArray(),columns=MigrationColumns(db,to)});
     }
     File.WriteAllText(Path.Combine(dashboardPath,"targets.json"),JsonSerializer.Serialize(description));
     Console.WriteLine("Four offline Dashboard deltas exported; no DB connection or V2 migration.");return;

@@ -1,5 +1,5 @@
 {
-  "cluster": "7708345966499213353",
+  "cluster": "7708604138493382697",
   "checks": [
     {
       "name": "SQL SHA256 matches reviewed manifests",
@@ -55,6 +55,10 @@
     },
     {
       "name": "Eight services live/ready/Swagger; Gateway metadata/live (ready/Swagger N/A by source)",
+      "status": "PASS"
+    },
+    {
+      "name": "Synthetic tenant stays closed until plan payment is recorded through real Identity API",
       "status": "PASS"
     },
     {

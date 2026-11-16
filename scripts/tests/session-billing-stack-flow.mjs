@@ -17,9 +17,12 @@ export async function runFlow(c){
  const superToken=await login('admin@billstack.invalid');
  const stamp=crypto.randomBytes(4).toString('hex');
  const tenant=(await request('POST','/api/v1/identity/tenants',superToken,{name:'Isolated Bill '+stamp,code:'billtest-'+stamp,firstAdmin:{fullName:'Test Owner',email:'owner@billstack.invalid',password:userPassword}},null,201)).data;
- const owner=await login('owner@billstack.invalid');
+ await request('POST','/api/v1/identity/auth/login',null,{login:'owner@billstack.invalid',password:userPassword},null,403);
  const plan=(await request('POST','/api/v1/identity/subscription-plans',superToken,{name:'Isolated Bill Plan',tier:'Basic',fee:500000,billingPeriod:'Monthly',maxBranches:5,maxStaffAccounts:20},null,201)).data;
  await request('POST','/api/v1/identity/tenants/'+tenant.id+'/subscription',superToken,{planId:plan.id},null,201);
+ await request('POST','/api/v1/identity/tenants/'+tenant.id+'/subscription/payments',superToken,{amount:500000,method:'BankTransfer',reference:'TEST-PLAN-'+stamp},null,201);
+ const owner=await login('owner@billstack.invalid');
+ report('Synthetic tenant stays closed until plan payment is recorded through real Identity API');
  const branch=(await request('POST','/api/v1/identity/branches',owner,{name:'Test Branch',address:'Test only',phone:'0900000001',openingTime:'00:00:00',closingTime:'23:59:00'},null,201)).data;
  for(const [name,role] of [['cashier','Cashier'],['cashier2','Cashier'],['barista','Barista']])await request('POST','/api/v1/identity/users',owner,{fullName:'Test '+name,email:name+'@billstack.invalid',username:name,password:userPassword,role,branchId:branch.id},null,201);
  const staffPassword=userPassword+'-Changed1!';

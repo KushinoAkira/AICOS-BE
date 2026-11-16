@@ -1,0 +1,45 @@
+{
+  "cluster": "7708607808943444015",
+  "mainConnections": 0,
+  "checks": [
+    {
+      "name": "Fresh internal tmpfs PostgreSQL, no host port; different cluster; no operating database connection",
+      "status": "PASS"
+    },
+    {
+      "name": "identity: exact EF columns/history, target/approval/repeat refusal and empty-data SELECT role access",
+      "status": "PASS"
+    },
+    {
+      "name": "identity: separate dump/restore clone retains migration history and PK/FK/CHECK definitions",
+      "status": "PASS"
+    },
+    {
+      "name": "payment: exact EF columns/history, target/approval/repeat refusal and empty-data SELECT role access",
+      "status": "PASS"
+    },
+    {
+      "name": "payment: separate dump/restore clone retains migration history and PK/FK/CHECK definitions",
+      "status": "PASS"
+    },
+    {
+      "name": "workforce: exact EF columns/history, target/approval/repeat refusal and empty-data SELECT role access",
+      "status": "PASS"
+    },
+    {
+      "name": "workforce: separate dump/restore clone retains migration history and PK/FK/CHECK definitions",
+      "status": "PASS"
+    },
+    {
+      "name": "All existing containers unchanged; no migration or grant on operating cluster",
+      "status": "PASS"
+    }
+  ],
+  "notTested": [
+    "Operating Identity/Workforce full backup and restore",
+    "Nonzero existing tenant status transition (guard refuses)",
+    "Operating service-role ACL changes",
+    "Rollback after new business writes"
+  ],
+  "rollback": "Keep services stopped; restore approved backup into a separate clone; repair forward after business writes"
+}

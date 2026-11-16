@@ -173,7 +173,9 @@ public sealed class BrandSelfServiceTests : IDisposable
         var approved = await _superAdmin.PostAsJsonAsync($"{Base}/tenants/{tenant.Id}/approve", new { });
 
         approved.StatusCode.Should().Be(HttpStatusCode.OK);
-        (await approved.Content.ReadFromJsonAsync<TenantResponse>(Json))!.Status.Should().Be(TenantStatus.Active);
+        (await approved.Content.ReadFromJsonAsync<TenantResponse>(Json))!.Status.Should().Be(TenantStatus.AwaitingPayment);
+        (await LoginAsync("owner@cafesaigon.vn")).StatusCode.Should().Be(HttpStatusCode.Forbidden);       // waits for its payment
+        _factory.Open(tenant.Id);
         (await LoginAsync("owner@cafesaigon.vn")).StatusCode.Should().Be(HttpStatusCode.OK);              // now the owner can sign in
         (await _anonymous.GetAsync($"{Base}/public/brands/cafe-sai-gon")).StatusCode.Should().Be(HttpStatusCode.OK);
         _factory.Emails.Sent.Last().Subject.Should().Contain("đã được duyệt");
@@ -222,11 +224,33 @@ public sealed class BrandSelfServiceTests : IDisposable
         (await StatusInDatabaseAsync("cafe-sai-gon")).Should().Be(TenantStatus.Pending);
     }
 
+    [Fact]
+    public async Task A_brand_registered_from_the_pricing_page_gets_its_plan_on_approval_and_opens_when_the_payment_is_recorded()
+    {
+        var plan = await (await _superAdmin.PostAsJsonAsync($"{Base}/subscription-plans", new PlanRequest("Gói Quán", "Basic", 490_000, BillingPeriod.Monthly, 1, 10, null), Json)).Content.ReadFromJsonAsync<PlanResponse>(Json);
+        (await _anonymous.PostAsJsonAsync($"{Base}/auth/register-brand",
+            new RegisterBrandRequest("Quán X", "quan-x", "Chủ", "x@example.com", null, "Brand1234", "Brand1234", null, Guid.NewGuid(), "SIM-1"), Json)).StatusCode.Should().Be(HttpStatusCode.BadRequest);   // unknown plan
+        (await _anonymous.PostAsJsonAsync($"{Base}/auth/register-brand",
+            new RegisterBrandRequest("Quán X", "quan-x", "Chủ", "x@example.com", null, "Brand1234", "Brand1234", null, plan!.Id, "SIM-ABC123"), Json)).StatusCode.Should().Be(HttpStatusCode.Created);
+        var tenant = (await _superAdmin.GetFromJsonAsync<PagedResponse<TenantResponse>>($"{Base}/tenants?status=Pending", Json))!.Items.Single(t => t.Code == "quan-x");
+        (tenant.RequestedPlanId, tenant.PaymentClaimReference).Should().Be((plan.Id, "SIM-ABC123"));
+
+        var approved = (await (await _superAdmin.PostAsJsonAsync($"{Base}/tenants/{tenant.Id}/approve", new { })).Content.ReadFromJsonAsync<TenantResponse>(Json))!;
+        (approved.Status, approved.PlanName).Should().Be((TenantStatus.AwaitingPayment, "Gói Quán"));
+        (await LoginAsync("x@example.com")).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+
+        (await _superAdmin.PostAsJsonAsync($"{Base}/tenants/{tenant.Id}/subscription/payments", new { amount = 490_000, method = "BankTransfer", reference = "SIM-ABC123" }, Json)).EnsureSuccessStatusCode();
+
+        (await _superAdmin.GetFromJsonAsync<TenantResponse>($"{Base}/tenants/{tenant.Id}", Json))!.Status.Should().Be(TenantStatus.Active);
+        (await LoginAsync("x@example.com")).StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
     // ------------------------------------------------------------------ the profile and the public page
     private async Task<HttpClient> ApprovedBrandAdminAsync()
     {
         var tenant = await RegisterOkAsync();
         (await _superAdmin.PostAsJsonAsync($"{Base}/tenants/{tenant.Id}/approve", new { })).EnsureSuccessStatusCode();
+        _factory.Open(tenant.Id);
         return _factory.CreateClientAs(AicosRoles.BrandAdmin, tenantId: tenant.Id);
     }
 
@@ -319,8 +343,9 @@ public sealed class BrandSelfServiceTests : IDisposable
         var list = await _superAdmin.GetFromJsonAsync<JsonElement>($"{Base}/contact-messages?status=New");
         list.GetProperty("totalCount").GetInt32().Should().Be(1);
         var id = list.GetProperty("items")[0].GetProperty("id").GetGuid();
-        var handled = await (await _superAdmin.PostAsync($"{Base}/contact-messages/{id}/handled", null)).Content.ReadFromJsonAsync<JsonElement>();
-        handled.GetProperty("status").GetString().Should().Be("Handled");
+        var handled = await (await _superAdmin.PostAsJsonAsync($"{Base}/contact-messages/{id}/handled", new { note = "Đã gọi, hẹn demo thứ Hai" })).Content.ReadFromJsonAsync<JsonElement>();
+        (handled.GetProperty("status").GetString(), handled.GetProperty("note").GetString()).Should().Be(("Handled", "Đã gọi, hẹn demo thứ Hai"));
+        (await _superAdmin.PostAsJsonAsync($"{Base}/contact-messages/{id}/handled", new { note = new string('x', 501) })).StatusCode.Should().Be(HttpStatusCode.BadRequest);
         (await _superAdmin.GetFromJsonAsync<JsonElement>($"{Base}/contact-messages?status=New")).GetProperty("totalCount").GetInt32().Should().Be(0);
         (await _superAdmin.GetFromJsonAsync<JsonElement>($"{Base}/contact-messages?status=Handled")).GetProperty("totalCount").GetInt32().Should().Be(1);
         (await _superAdmin.PostAsync($"{Base}/contact-messages/{Guid.NewGuid()}/handled", null)).StatusCode.Should().Be(HttpStatusCode.NotFound);

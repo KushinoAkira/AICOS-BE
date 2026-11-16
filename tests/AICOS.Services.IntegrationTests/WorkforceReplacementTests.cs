@@ -253,6 +253,31 @@ public sealed class WorkforceReplacementTests : WorkforceTestBase
     }
 
     [Fact]
+    public async Task A_staff_member_tells_the_manager_they_are_busy_and_the_manager_puts_a_colleague_of_the_branch_on_the_shift()
+    {
+        var shift = await NewShiftAsync("Chiều", "13:00", "18:00");
+        var (ownerUser, owner) = await NewEmployeeAsync("Chi Bận");
+        var assignment = await AssignAsync(owner, shift, Monday.AddDays(1));
+        var opened = await Staff(ownerUser).PostOk(Replacements, new { assignmentId = assignment, reason = "Em có lịch thi" });
+        F.Events.Published.OfType<ReplacementShiftOpenedEvent>().Should().ContainSingle(e => e.ReplacementId == opened.Id());   // the manager is told
+        var (_, colleague) = await NewEmployeeAsync("Dũng Rảnh", AicosRoles.Cashier, "FullTime");
+        var (_, elsewhere) = await NewEmployeeAsync("Ở Quận Khác", branch: B2);
+        var url = $"{Replacements}/{opened.Id()}/approve";
+
+        await Manager.Post(url, new { employeeId = colleague, applicationId = Guid.NewGuid() }).ShouldBe(400);
+        await Manager.Post(url, new { employeeId = Guid.NewGuid() }).ShouldBe(404);
+        await Manager.Post(url, new { employeeId = elsewhere }).ShouldBe(422, "replacement.other_branch");
+        await Manager.Post(url, new { employeeId = owner }).ShouldBe(422, "replacement.same_employee");
+        await Staff(ownerUser).Post(url, new { employeeId = colleague }).ShouldBe(403);
+
+        var filled = await Manager.PostOk(url, new { employeeId = colleague, note = "Dũng làm thay" });
+
+        (filled.GetProperty("status").GetString(), filled.GetProperty("approvedEmployeeName").GetString()).Should().Be(("Filled", "Dũng Rảnh"));
+        (await GetAssignmentAsync(filled.GetProperty("approvedAssignmentId").GetGuid())).GetProperty("employeeId").GetGuid().Should().Be(colleague);
+        (await GetAssignmentAsync(assignment)).GetProperty("status").GetString().Should().Be("Replaced");
+    }
+
+    [Fact]
     public async Task The_requester_takes_back_their_own_request_while_nobody_is_approved_and_nobody_else_can()
     {
         var shift = await NewShiftAsync("Trưa", "10:00", "14:00");

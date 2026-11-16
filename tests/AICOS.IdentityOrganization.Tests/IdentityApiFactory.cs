@@ -104,6 +104,15 @@ public sealed class IdentityApiFactory : WebApplicationFactory<IdentityOrganizat
         db.SaveChanges();
     }
 
+    /// <summary>Opens a brand that waits for its payment, as if its plan had been paid (tests that are not about payment).</summary>
+    public void Open(Guid tenantId)
+    {
+        using var scope = Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<IdentityOrganizationDbContext>();
+        db.Tenants.Single(t => t.Id == tenantId).ActivateAfterPayment();
+        db.SaveChanges();
+    }
+
     /// <summary>A client carrying a /dev/token-style JWT (random user id, no account behind it).</summary>
     public HttpClient CreateClientAs(string role, Guid? branchId = null, Guid? userId = null, Guid? tenantId = null)
     {

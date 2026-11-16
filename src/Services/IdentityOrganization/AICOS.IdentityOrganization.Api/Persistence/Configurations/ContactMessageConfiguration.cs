@@ -17,6 +17,7 @@ internal sealed class ContactMessageConfiguration : IEntityTypeConfiguration<Con
         builder.Property(m => m.Subject).HasMaxLength(ContactMessage.SubjectMaxLength);
         builder.Property(m => m.Message).HasMaxLength(ContactMessage.MessageMaxLength).IsRequired();
         builder.Property(m => m.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
+        builder.Property(m => m.Note).HasMaxLength(ContactMessage.NoteMaxLength);
         builder.HasIndex(m => new { m.Status, m.CreatedAtUtc });
     }
 }

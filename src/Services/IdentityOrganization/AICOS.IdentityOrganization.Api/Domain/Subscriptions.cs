@@ -70,6 +70,17 @@ public sealed class SubscriptionPlan : AuditableEntity<Guid>
     }
 
     public void SetActive(bool isActive) => IsActive = isActive;
+
+    /// <summary>Soft delete: no longer sold or listed; brands already on it keep their subscription (it copies the name and fee).</summary>
+    public DateTime? DeletedAtUtc { get; private set; }
+
+    public bool IsDeleted => DeletedAtUtc is not null;
+
+    public void SoftDelete(DateTime now)
+    {
+        IsActive = false;
+        DeletedAtUtc = now;
+    }
 }
 
 public enum SubscriptionStatus

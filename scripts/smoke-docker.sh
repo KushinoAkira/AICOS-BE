@@ -83,19 +83,24 @@ r=$(call POST /api/v1/identity/tenants "$SUPER" "{\"name\":\"Smoke $STAMP\",\"co
 check "tenant created with its first brand admin" 201 "$(status_of "$r")"
 TENANT=$(body_of "$r" | json_field id)
 
-r=$(call POST /api/v1/identity/auth/login "" "{\"login\":\"owner-$STAMP@example.com\",\"password\":\"$BRAND_PASSWORD\"}")
-check "brand admin signs in" 200 "$(status_of "$r")"
-BRAND=$(body_of "$r" | json_field accessToken)
-
-r=$(call GET /api/v1/identity/subscription "$BRAND")
-check "a brand without a plan has no subscription yet" 404 "$(status_of "$r")"
-r=$(call POST /api/v1/identity/branches "$BRAND" '{"name":"Truoc khi co goi"}')
-check "a brand without a plan cannot add a branch" 422 "$(status_of "$r")"
+# A brand opens only once its plan is paid: until the Super Admin records the payment, its admin cannot sign in.
+r=$(login_call "owner-$STAMP@example.com" "$BRAND_PASSWORD")
+check "a brand waiting for its plan payment cannot sign in" 403 "$(status_of "$r")"
+case "$(body_of "$r")" in *tenant.awaiting_payment*) check "the refusal says the plan is not paid yet" yes yes ;; *) check "the refusal says the plan is not paid yet" yes no ;; esac
 r=$(call POST /api/v1/identity/subscription-plans "$SUPER" "{\"name\":\"Smoke $STAMP\",\"tier\":\"Basic\",\"fee\":500000,\"billingPeriod\":\"Monthly\",\"maxBranches\":5,\"maxStaffAccounts\":50}")
 check "plan created" 201 "$(status_of "$r")"
 PLAN=$(body_of "$r" | json_field id)
 r=$(call POST "/api/v1/identity/tenants/$TENANT/subscription" "$SUPER" "{\"planId\":\"$PLAN\"}")
 check "plan assigned to the brand" 201 "$(status_of "$r")"
+r=$(login_call "owner-$STAMP@example.com" "$BRAND_PASSWORD")
+check "a plan that is not paid yet keeps the brand closed" 403 "$(status_of "$r")"
+r=$(call POST "/api/v1/identity/tenants/$TENANT/subscription/payments" "$SUPER" "{\"amount\":500000,\"method\":\"BankTransfer\",\"reference\":\"SMOKE-$STAMP\"}")
+check "the Super Admin records the plan payment" 201 "$(status_of "$r")"
+r=$(login_call "owner-$STAMP@example.com" "$BRAND_PASSWORD")
+check "brand admin signs in once the plan is paid" 200 "$(status_of "$r")"
+BRAND=$(body_of "$r" | json_field accessToken)
+r=$(call GET /api/v1/identity/subscription "$BRAND")
+check "the brand sees its paid subscription" 200 "$(status_of "$r")"
 r=$(call POST /api/v1/identity/branches "$BRAND" '{"name":"Quan 1","address":"1 Le Loi","phone":"0900000001","openingTime":"07:00:00","closingTime":"22:00:00"}')
 check "branch created" 201 "$(status_of "$r")"
 BRANCH=$(body_of "$r" | json_field id)
@@ -217,8 +222,8 @@ echo
 echo "== subscription and loyalty"
 r=$(call GET /api/v1/identity/subscription "$BRAND")
 check "brand admin sees the subscription" 200 "$(status_of "$r")"
-r=$(call POST /api/v1/identity/subscription/renew "$BRAND" '{}')
-check "simulated payment of the period" 200 "$(status_of "$r")"
+# The first period was paid when the Super Admin opened the brand, so the brand cannot pay it a second time.
+case "$(body_of "$r")" in *'"canRenew":false'*) check "the period paid at opening is not offered again" yes yes ;; *) check "the period paid at opening is not offered again" yes no ;; esac
 r=$(call POST /api/v1/identity/subscription/renew "$BRAND" '{}')
 check "renewing a paid period too early is refused" 422 "$(status_of "$r")"
 
@@ -340,8 +345,17 @@ PAY_C=$(body_of "$r" | json_field id)
 r=$(call POST "/api/v1/payments/transactions/$PAY_C/simulate" "$MEMBER" '{"outcome":"success"}')
 if [ "$(status_of "$r")" != "403" ]; then
   wait_until "the third pickup order is paid" "call GET /api/v1/orders/$PICKUP_C/payment \"\$MEMBER\" | sed 's/ [0-9]*\$//' | field_of paymentStatus" Paid
+  # A paid order is cancelled with a reason and the bank account the money goes back to; the branch manager transfers it and approves.
   r=$(call POST "/api/v1/orders/$PICKUP_C/cancel" "$MEMBER" '{"reason":"changed my mind"}')
+  check "cancelling a paid order needs the bank account for the refund" 400 "$(status_of "$r")"
+  r=$(call POST "/api/v1/orders/$PICKUP_C/cancel" "$MEMBER" '{"reason":"changed my mind","bankName":"Vietcombank","bankAccountNumber":"0123456789","bankAccountHolder":"Smoke Member"}')
   check "the member cancels a paid order before the slot is locked" 200 "$(status_of "$r")"
+  wait_until "the refund to the member's bank account waits for the branch manager" "call GET '/api/v1/payments/refunds?status=PendingApproval' \"\$MANAGER\" | sed 's/ [0-9]*\$//' | grep -c -- '$PICKUP_C'" 1
+  REFUND_C=$(call GET '/api/v1/payments/refunds?status=PendingApproval' "$MANAGER" | sed 's/ [0-9]*$//' | grep -o "\"id\":\"[^\"]*\",\"paymentId\":\"[^\"]*\",\"branchId\":\"[^\"]*\",\"orderId\":\"$PICKUP_C\"" | head -1 | json_field id)
+  r=$(call POST "/api/v1/payments/refunds/$REFUND_C/approve" "$MANAGER" '{}')
+  check "the transfer reference is required to approve a bank refund" 400 "$(status_of "$r")"
+  r=$(call POST "/api/v1/payments/refunds/$REFUND_C/approve" "$MANAGER" "{\"reference\":\"FT-SMOKE-$STAMP\"}")
+  check "the branch manager records the transfer and approves" 200 "$(status_of "$r")"
   wait_until "the refund by the brand policy is paid back" "call GET /api/v1/orders/$PICKUP_C \"\$MANAGER\" | sed 's/ [0-9]*\$//' | field_of refundStatus" Refunded
 fi
 
@@ -430,13 +444,18 @@ wait_until "the bar queue shows the table order once it is paid" "call GET /api/
 wait_until "the session stays open while a round is unpaid" "call GET /api/v1/orders/qr/sessions \"\$CASHIER\" | sed 's/ [0-9]*\$//' | grep -c A1" 1
 r=$(call POST /api/v1/payments/transactions/cash "$CASHIER" "{\"orderId\":\"$QORDER2\",\"amount\":35000}")
 check "round 2 is paid at the counter" 201 "$(status_of "$r")"
-wait_until "the session closes when everything is paid" "call GET /api/v1/orders/qr/sessions \"\$CASHIER\" | sed 's/ [0-9]*\$//' | grep -c A1" 0
-r=$(qr POST /api/v1/orders/qr/cart/items "{\"productId\":\"$PRODUCT\",\"quantity\":1}")
-check "a closed session takes no more orders" 409 "$(status_of "$r")"
+# Paying every round one by one does not close the table any more: the session closes only when the cashier closes it,
+# once the session bill is settled and every drink is served (SessionBillCloser). Never inferred from per-order payments.
+sleep 2
+r=$(call GET /api/v1/orders/qr/sessions "$CASHIER")
+case "$(body_of "$r")" in *'"tableCode":"A1"'*) check "the session stays open once every round is paid (the cashier closes it)" yes yes ;; *) check "the session stays open once every round is paid (the cashier closes it)" yes no ;; esac
+r=$(call POST "/api/v1/orders/qr/sessions/$SESSION/close" "$CASHIER" '{}')
+check "the cashier cannot close the table before the session bill is settled and served" 409 "$(status_of "$r")"
 r=$(qr GET /api/v1/orders/qr/session/bill)
-check "the closed session bill can still be read" 200 "$(status_of "$r")"
+check "the session bill can still be read" 200 "$(status_of "$r")"
+case "$(body_of "$r")" in *'"due":0'*) check "nothing is left to pay on the bill" yes yes ;; *) check "nothing is left to pay on the bill" yes no ;; esac
 r=$(call POST /api/v1/orders/qr/scan "" "{\"qrToken\":\"$QRTOKEN\"}")
-[ "$(body_of "$r" | json_field sessionId)" != "$SESSION" ] && check "a new scan opens a new session" yes yes || check "a new scan opens a new session" yes no
+[ "$(body_of "$r" | json_field sessionId)" = "$SESSION" ] && check "a new scan joins the session still open" yes yes || check "a new scan joins the session still open" yes no
 
 
 # ------------------------------------------------------------------ remake, unfulfillable and no-show
@@ -543,10 +562,17 @@ r=$(call POST "/api/v1/identity/tenants/$REG_ID/approve" "$BRAND" '{}')
 check "a brand admin cannot approve" 403 "$(status_of "$r")"
 r=$(call POST "/api/v1/identity/tenants/$REG_ID/approve" "$SUPER" '{}')
 check "the Super Admin approves the registration" 200 "$(status_of "$r")"
+case "$(body_of "$r")" in *'"status":"AwaitingPayment"'*) check "an approved brand waits for its plan payment" yes yes ;; *) check "an approved brand waits for its plan payment" yes no ;; esac
 r=$(call POST "/api/v1/identity/tenants/$REG_ID/approve" "$SUPER" '{}')
 check "a registration is decided once" 409 "$(status_of "$r")"
-r=$(call POST /api/v1/identity/auth/login "" "{\"login\":\"$REG_EMAIL\",\"password\":\"$BRAND_PASSWORD\"}")
-check "the owner signs in after approval" 200 "$(status_of "$r")"
+r=$(login_call "$REG_EMAIL" "$BRAND_PASSWORD")
+check "the owner cannot sign in before the plan is paid" 403 "$(status_of "$r")"
+r=$(call POST "/api/v1/identity/tenants/$REG_ID/subscription" "$SUPER" "{\"planId\":\"$PLAN\"}")
+check "a plan is assigned to the registered brand" 201 "$(status_of "$r")"
+r=$(call POST "/api/v1/identity/tenants/$REG_ID/subscription/payments" "$SUPER" "{\"amount\":500000,\"method\":\"BankTransfer\",\"reference\":\"SMOKE-REG-$STAMP\"}")
+check "the plan payment of the registered brand is recorded" 201 "$(status_of "$r")"
+r=$(login_call "$REG_EMAIL" "$BRAND_PASSWORD")
+check "the owner signs in once approved and paid" 200 "$(status_of "$r")"
 REG_TOKEN=$(body_of "$r" | json_field accessToken)
 r=$(call PUT /api/v1/identity/brand/profile "$REG_TOKEN" '{"description":"Ca phe rang xay","logoUrl":"https://cdn.example.com/logo.png","primaryColor":"#6F4E37","secondaryColor":"#FFF8E7"}')
 check "the brand admin edits the public profile" 200 "$(status_of "$r")"

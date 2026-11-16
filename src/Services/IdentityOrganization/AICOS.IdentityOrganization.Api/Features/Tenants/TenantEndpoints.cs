@@ -27,6 +27,7 @@ public static class TenantEndpoints
         tenants.MapPost("/", CreateAsync);
         tenants.MapPut("/{id:guid}", UpdateAsync);
         tenants.MapPatch("/{id:guid}/status", ChangeStatusAsync);
+        tenants.MapDelete("/{id:guid}", DeleteAsync);
     }
 
     private static async Task<PagedResponse<TenantResponse>> ListAsync(
@@ -42,10 +43,8 @@ public static class TenantEndpoints
             query = query.Where(t => t.Name.ToLower().Contains(term) || t.Code.Contains(term));
         }
 
-        if (status is not null)
-        {
-            query = query.Where(t => t.Status == status);
-        }
+        // A deleted brand only shows when asked for by its status.
+        query = status is not null ? query.Where(t => t.Status == status) : query.Where(t => t.Status != TenantStatus.Deleted);
 
         var total = await query.CountAsync(ct);
         var items = await query.OrderBy(t => t.Name).Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
@@ -70,6 +69,7 @@ public static class TenantEndpoints
         await AccountRules.EnsureUniqueAsync(db, admin.Email!, username: null, excludeUserId: null, ct);
 
         var tenant = new Tenant(request.Name!, code);
+        tenant.AwaitPayment();   // opens once the plan is paid
         var brandAdmin = new User(admin.FullName!, admin.Email!, username: null, admin.Phone, AicosRoles.BrandAdmin, branchId: null, tenant.Id);
         brandAdmin.SetPassword(passwords.Hash(brandAdmin, admin.Password!), mustChangePassword: true);
 
@@ -79,7 +79,8 @@ public static class TenantEndpoints
 
         if (request.PlanId is not null)
         {
-            await TenantSubscriptionEndpoints.AssignPlanAsync(db, audit, tenant, request.PlanId.Value, startDate: null, clock, ct);
+            var sub = await TenantSubscriptionEndpoints.AssignPlanAsync(db, audit, tenant, request.PlanId.Value, startDate: null, clock, ct);
+            SubscriptionRules.OpenWhenPaid(tenant, sub);   // a free plan opens at once
         }
 
         await db.SaveChangesAsync(ct);
@@ -108,15 +109,25 @@ public static class TenantEndpoints
             throw new ValidationFailedException(nameof(request.Status), "Status is required (Active or Suspended).");
         }
 
-        if (request.Status is TenantStatus.Pending or TenantStatus.Rejected)
+        if (request.Status is not (TenantStatus.Active or TenantStatus.Suspended))
         {
-            throw new ValidationFailedException(nameof(request.Status), "Use approve or reject for a registration; the status here is Active or Suspended.");
+            throw new ValidationFailedException(nameof(request.Status), "Use approve or reject for a registration, record the payment to open a brand, and delete to remove one; the status here is Active or Suspended.");
         }
 
         var tenant = await FindAsync(db, id, ct);
         if (tenant.Status is TenantStatus.Pending or TenantStatus.Rejected)
         {
             throw new ConflictException("A registration is decided with approve or reject.", "tenant.use_review");
+        }
+
+        if (tenant.Status == TenantStatus.Deleted)
+        {
+            throw new ConflictException("This brand is deleted.", "tenant.deleted");
+        }
+
+        if (tenant.Status == TenantStatus.AwaitingPayment && request.Status == TenantStatus.Active)
+        {
+            throw new BusinessRuleException("tenant.awaiting_payment", "This brand opens once its plan is paid: record the payment first.");
         }
 
         var before = AuditSnapshots.Of(tenant);
@@ -134,6 +145,29 @@ public static class TenantEndpoints
 
         await db.SaveChangesAsync(ct);
         return await TenantResponse.FromAsync(tenant, db, ct);
+    }
+
+    /// <summary>
+    /// Soft delete: the brand disappears from lists and pickers, every session of its users ends and nobody can sign in again. Its data, its code
+    /// and its history stay. Audited.
+    /// </summary>
+    private static async Task<IResult> DeleteAsync(
+        Guid id, string? reason, IdentityOrganizationDbContext db, AuditLogger audit, TimeProvider clock, CancellationToken ct)
+    {
+        if (reason is { Length: > Tenant.ReviewNoteMaxLength })
+        {
+            throw new ValidationFailedException(nameof(reason), $"The reason has at most {Tenant.ReviewNoteMaxLength} characters.");
+        }
+
+        var tenant = await FindAsync(db, id, ct);
+        var before = AuditSnapshots.Of(tenant);
+        var now = clock.GetUtcNow().UtcDateTime;
+        tenant.SoftDelete(reason, now);
+        var sessions = await db.UserSessions.Where(s => s.RevokedAtUtc == null && s.User!.TenantId == id).ToListAsync(ct);
+        sessions.ForEach(s => s.Revoke(now));
+        audit.Record(AuditScope.Platform, tenant.Id, "tenant.deleted", "Tenant", tenant.Id, before, AuditSnapshots.Of(tenant));
+        await db.SaveChangesAsync(ct);
+        return Results.NoContent();
     }
 
     private static async Task<Tenant> FindAsync(IdentityOrganizationDbContext db, Guid id, CancellationToken ct) =>

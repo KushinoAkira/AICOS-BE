@@ -16,8 +16,10 @@ using Microsoft.Extensions.Options;
 namespace AICOS.IdentityOrganization.Api.Features.Tenants;
 
 /// <summary>POST /auth/register-brand. The owner picks the brand code (the identifier of the brand) and the password of the first Brand Admin.</summary>
+/// <summary><c>PlanId</c>/<c>PaymentReference</c>: the plan picked on the pricing page and the reference of its (simulated) payment, both optional.</summary>
 public sealed record RegisterBrandRequest(
-    string? BrandName, string? Code, string? OwnerFullName, string? Email, string? Phone, string? Password, string? ConfirmPassword, string? Description);
+    string? BrandName, string? Code, string? OwnerFullName, string? Email, string? Phone, string? Password, string? ConfirmPassword, string? Description,
+    Guid? PlanId = null, string? PaymentReference = null);
 
 public sealed record RegisterBrandResponse(Guid TenantId, string Code, TenantStatus Status, string Message);
 
@@ -43,10 +45,15 @@ public sealed record PublicBrandCardResponse(Guid Id, string Code, string Name, 
 /// <summary>POST /public/contact. <c>Website</c> is a hidden field of the form: a person leaves it empty, a bot fills it.</summary>
 public sealed record ContactRequest(string? FullName, string? Email, string? Phone, string? Subject, string? Message, string? Website = null);
 
-public sealed record ContactMessageResponse(Guid Id, string FullName, string Email, string? Phone, string? Subject, string Message, ContactMessageStatus Status, DateTime CreatedAtUtc, DateTime? HandledAtUtc)
+public sealed record ContactMessageResponse(
+    Guid Id, string FullName, string Email, string? Phone, string? Subject, string Message, ContactMessageStatus Status, DateTime CreatedAtUtc, DateTime? HandledAtUtc,
+    string? Note = null)
 {
-    public static ContactMessageResponse From(ContactMessage m) => new(m.Id, m.FullName, m.Email, m.Phone, m.Subject, m.Message, m.Status, m.CreatedAtUtc, m.HandledAtUtc);
+    public static ContactMessageResponse From(ContactMessage m) => new(m.Id, m.FullName, m.Email, m.Phone, m.Subject, m.Message, m.Status, m.CreatedAtUtc, m.HandledAtUtc, m.Note);
 }
+
+/// <summary>POST /contact-messages/{id}/handled: what was agreed with the visitor (optional).</summary>
+public sealed record ContactHandledRequest(string? Note);
 
 /// <summary>
 /// Self-service brands: a brand owner registers (Pending), the Super Admin approves or rejects, the Brand Admin edits the public profile, and
@@ -91,7 +98,12 @@ public static partial class BrandSelfServiceEndpoints
         CommonRules.Phone(errors, nameof(r.Phone), r.Phone);
         CommonRules.MaxLength(errors, nameof(r.Description), r.Description, "Description", Tenant.DescriptionMaxLength);
         InputRules.NewPassword(errors, nameof(r.Password), r.Password, nameof(r.ConfirmPassword), r.ConfirmPassword);
+        CommonRules.MaxLength(errors, nameof(r.PaymentReference), r.PaymentReference, "Payment reference", 80);
         errors.ThrowIfAny();
+        if (r.PlanId is not null && !await db.SubscriptionPlans.AnyAsync(p => p.Id == r.PlanId && p.IsActive && p.DeletedAtUtc == null, ct))
+        {
+            throw new ValidationFailedException(nameof(r.PlanId), "That plan is not on sale.");
+        }
 
         var code = Tenant.NormalizeCode(r.Code!);
         if (await db.Tenants.AnyAsync(t => t.Code == code, ct))
@@ -102,6 +114,7 @@ public static partial class BrandSelfServiceEndpoints
         await AccountRules.EnsureUniqueAsync(db, r.Email!, username: null, excludeUserId: null, ct);
 
         var tenant = Tenant.Register(r.BrandName!, code, r.Description);
+        tenant.RequestPlan(r.PlanId, r.PaymentReference);
         var owner = new User(r.OwnerFullName!, r.Email!, username: null, r.Phone, AicosRoles.BrandAdmin, branchId: null, tenant.Id);
         owner.SetPassword(passwords.Hash(owner, r.Password!), mustChangePassword: false);
         db.Tenants.Add(tenant);
@@ -112,7 +125,7 @@ public static partial class BrandSelfServiceEndpoints
         await bus.PublishAsync(new BrandRegisteredEvent(tenant.Id, tenant.Name, tenant.Code, owner.Email), ct);
         await SafeMailAsync(email, loggers, EmailTemplates.BrandRegistrationReceived(owner.Email, owner.FullName, tenant.Name), ct);
         return Results.Created($"/api/v1/identity/public/brands/{code}", new RegisterBrandResponse(
-            tenant.Id, tenant.Code, tenant.Status, "Registration received. You can sign in once the platform team approves it."));
+            tenant.Id, tenant.Code, tenant.Status, "Registration received. You can sign in once the platform team approves it and confirms the payment."));
     }
 
     private static async Task<TenantResponse> ApproveAsync(
@@ -120,7 +133,13 @@ public static partial class BrandSelfServiceEndpoints
     {
         var tenant = await FindAsync(db, id, ct);
         var before = AuditSnapshots.Of(tenant);
-        tenant.Approve(user.UserId, clock.GetUtcNow().UtcDateTime);
+        tenant.Approve(user.UserId, clock.GetUtcNow().UtcDateTime);   // waits for its payment
+        if (tenant.RequestedPlanId is { } planId && await db.SubscriptionPlans.AnyAsync(p => p.Id == planId && p.IsActive, ct))
+        {
+            var sub = await Subscriptions.TenantSubscriptionEndpoints.AssignPlanAsync(db, audit, tenant, planId, startDate: null, clock, ct);
+            Subscriptions.SubscriptionRules.OpenWhenPaid(tenant, sub);
+        }
+
         audit.Record(AuditScope.Platform, tenant.Id, "tenant.approved", "Tenant", tenant.Id, before, AuditSnapshots.Of(tenant));
         await db.SaveChangesAsync(ct);
         await NotifyOwnerAsync(db, tenant, email, loggers, owner => EmailTemplates.BrandApproved(owner.Email, owner.FullName, tenant.Name, mail.Value.AppUrl), ct);
@@ -283,10 +302,16 @@ public static partial class BrandSelfServiceEndpoints
         return await query.OrderByDescending(m => m.CreatedAtUtc).ToPagedAsync(Math.Max(page, 1), Math.Clamp(pageSize, 1, 100), ContactMessageResponse.From, ct);
     }
 
-    private static async Task<ContactMessageResponse> HandledAsync(Guid id, IdentityOrganizationDbContext db, ICurrentUser user, TimeProvider clock, CancellationToken ct)
+    private static async Task<ContactMessageResponse> HandledAsync(
+        Guid id, ContactHandledRequest? r, IdentityOrganizationDbContext db, ICurrentUser user, TimeProvider clock, CancellationToken ct)
     {
+        if (r?.Note is { Length: > ContactMessage.NoteMaxLength })
+        {
+            throw new ValidationFailedException("Note", $"The note has at most {ContactMessage.NoteMaxLength} characters.");
+        }
+
         var message = await db.ContactMessages.FirstOrDefaultAsync(m => m.Id == id, ct) ?? throw new NotFoundException("Contact message", id);
-        message.MarkHandled(user.UserId, clock.GetUtcNow().UtcDateTime);
+        message.MarkHandled(user.UserId, clock.GetUtcNow().UtcDateTime, r?.Note);
         await db.SaveChangesAsync(ct);
         return ContactMessageResponse.From(message);
     }

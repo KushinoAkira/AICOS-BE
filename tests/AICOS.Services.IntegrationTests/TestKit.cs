@@ -298,8 +298,8 @@ public sealed class FakeOrderDirectory : AICOS.Payments.Api.Infrastructure.IOrde
 
     public int Lookups { get; private set; }
 
-    public void Set(Guid id, Guid branchId, decimal amount, string status = "Pending", string paymentStatus = "Unpaid") =>
-        _orders[id] = new AICOS.Payments.Api.Infrastructure.OrderInfo(id, branchId, amount, status, paymentStatus);
+    public void Set(Guid id, Guid branchId, decimal amount, string status = "Pending", string paymentStatus = "Unpaid", Guid? customerId = null) =>
+        _orders[id] = new AICOS.Payments.Api.Infrastructure.OrderInfo(id, branchId, amount, status, paymentStatus, CustomerId: customerId);
 
     public bool Knows(Guid id) => _orders.ContainsKey(id);
 

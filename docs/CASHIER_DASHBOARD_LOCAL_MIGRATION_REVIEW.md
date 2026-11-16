@@ -91,3 +91,8 @@ Restore sang cluster internal/tmpfs mới, backup bind read-only: 7/7 nhóm PASS
 Lượt đầu backup lỗi quoting SQL trên Windows đã dừng và resume Backend trong finally; sửa sang stdin rồi backup thành công. Checker ban đầu báo khác CHECK/index do parser/deparser biểu diễn ngoặc/cast khác nhau; chuẩn hóa bằng parser PostgreSQL trên TEMP table trong test, giữ nguyên uniqueness/predicate và constraint, rồi chạy lại PASS. Không tính các lượt FAIL là PASS.
 
 Full restore dùng --no-owner/--no-acl; không chứng nhận quyền vận hành đã cấp. Gói SQL vẫn chờ duyệt và cần đối chiếu với origin/main mới trước rollout; chưa merge main. Các phần NOT RUN trong báo cáo ban đầu là checkpoint trước bước được duyệt này.
+
+
+## Upstream review — 2026-11-16
+
+See [DASHBOARD_MAIN_SYNC_RESULT.md](DASHBOARD_MAIN_SYNC_RESULT.md) and the separate [upstream supplement](proposals/cashier-dashboard-upstream/README.md). The original package remains frozen; five upstream migrations and Identity/Workforce full backup requirements must be reviewed before local rollout.
