@@ -1,0 +1,113 @@
+{
+  "generatedAtUtc": "2026-11-16T12:14:24.950Z",
+  "status": "PREVIEW_ONLY",
+  "cluster": "7703616372368646182",
+  "readOnly": true,
+  "secretCreated": false,
+  "featuresEnabled": false,
+  "historicalRecoveryRun": false,
+  "schemaDataAclUnchanged": true,
+  "containersUnchanged": true,
+  "flags": {
+    "payment": {
+      "enabled": false,
+      "dispatcher": false,
+      "requiresOpenForCash": false,
+      "machineKeyPresent": false,
+      "migrateOnStartup": false,
+      "expiryEnabled": false
+    },
+    "reporting": {
+      "enabled": false,
+      "dispatcher": false,
+      "requiresOpenForCash": false,
+      "machineKeyPresent": false,
+      "migrateOnStartup": false,
+      "expiryEnabled": false
+    }
+  },
+  "keysMatch": false,
+  "candidateCount": 2,
+  "candidateTotal": 258000,
+  "byMethod": [
+    {
+      "method": "Cash",
+      "count": 2,
+      "amount": 258000
+    }
+  ],
+  "receipts": {
+    "outboxRows": 0,
+    "pendingDelivery": 0,
+    "billSources": 0,
+    "openShifts": 0
+  },
+  "reportingRows": 0,
+  "candidates": [
+    {
+      "alias": "legacy-1",
+      "method": "Cash",
+      "status": "Succeeded",
+      "amount": 208000,
+      "paidAtUtc": "2026-11-04T16:38:21.213153+00:00",
+      "branchAlias": "branch-1",
+      "referenceValid": true,
+      "hasCashier": true,
+      "orderLinked": true,
+      "orderProjectionConsistent": true,
+      "sessionLinked": true,
+      "providerMode": null,
+      "hasProviderReference": false,
+      "matchingAppliedWebhooks": 0,
+      "reportingAlreadyPresent": false,
+      "reasons": [
+        "LEGACY_DINE_IN_REQUIRES_REVIEW"
+      ],
+      "orderTotal": 208000,
+      "amountMatchesOrder": true,
+      "sessionStatus": "Open",
+      "sessionCloseReason": null,
+      "sessionOrderCount": 3,
+      "sessionBillExists": false,
+      "cashierScopeMatches": true
+    },
+    {
+      "alias": "legacy-2",
+      "method": "Cash",
+      "status": "Succeeded",
+      "amount": 50000,
+      "paidAtUtc": "2026-11-06T16:25:22.245221+00:00",
+      "branchAlias": "branch-1",
+      "referenceValid": true,
+      "hasCashier": true,
+      "orderLinked": true,
+      "orderProjectionConsistent": true,
+      "sessionLinked": true,
+      "providerMode": null,
+      "hasProviderReference": false,
+      "matchingAppliedWebhooks": 0,
+      "reportingAlreadyPresent": false,
+      "reasons": [
+        "LEGACY_DINE_IN_REQUIRES_REVIEW"
+      ],
+      "orderTotal": 50000,
+      "amountMatchesOrder": true,
+      "sessionStatus": "Closed",
+      "sessionCloseReason": "Paid",
+      "sessionOrderCount": 1,
+      "sessionBillExists": false,
+      "cashierScopeMatches": true
+    }
+  ],
+  "legacyPolicy": "APPROVAL_REQUIRED: preserve original OrderId collection proof, no synthetic Session Bill, no charge/close/reopen, no shift reassignment",
+  "regression": {
+    "newRun": true,
+    "filter": "CashierShiftTests | CashPrecheckTests",
+    "passed": 18,
+    "failed": 0,
+    "skipped": 0,
+    "backend": "HTTP harness with in-memory EF and explicit client/token/event doubles",
+    "realPostgreSqlE2e": false,
+    "flutterRun": false
+  }
+}

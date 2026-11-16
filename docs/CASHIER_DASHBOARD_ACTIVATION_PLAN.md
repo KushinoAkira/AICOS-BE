@@ -1,6 +1,6 @@
 # Cashier Dashboard activation follow-up — design only
 
-Date: 2026-11-16. No activation, secret creation, historical collection or runtime startup performed in this document task. Runtime smoke requires the separate confirmation already requested; financial activation remains a later gate.
+Date: 2026-11-16. No activation, secret creation, historical collection or runtime startup performed in this document task. Runtime smoke has since passed under its separate approval; financial activation remains a later gate. See CASHIER_DASHBOARD_ACTIVATION_REVIEW.md for the current read-only preview and proposed gates.
 
 ## Existing contracts to reuse
 
@@ -46,4 +46,6 @@ On failure: pause dispatcher/activation, keep receipts/audit and original paymen
 
 ## Current evidence and limits
 
-Prepared runtime: 11 candidate images, nine real READ ONLY DB role logins, Backend 856 PASS / 51 SKIP, six expiry-config tests PASS. These are prior checkpoints; this follow-up changed documentation only. The source audit counted two missing historical receipts but did not inspect/publish their detailed proof or modify them. Runtime smoke confirmation is pending; no operating HTTP smoke, secret generation or collection recovery has occurred.
+Features-OFF runtime is now PASS: 11/11 apps, existing PostgreSQL/Redis healthy, all ten DB baselines unchanged during smoke. Separately approved Menu/Customer/GRANT committed and verified. These operations are recorded in their execution reports; they do not authorize financial activation.
+
+Read-only historical preview: exactly **two Cash receipts, 258.000đ**, matching original Order amounts/projections and cashier scope, no outbox/inbox yet. One belongs to an OPEN legacy session with three Orders, the other to a CLOSED legacy session; no synthetic Bill or collection created. Review CASHIER_DASHBOARD_ACTIVATION_REVIEW.md before requesting configuration/recovery approval. Machine keys remain absent, feature/worker flags OFF; no new valid-JWT business or Flutter E2E.
