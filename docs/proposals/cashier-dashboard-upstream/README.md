@@ -36,4 +36,4 @@ Run from the Backend review checkout:
 
 The exporter opens no database. The runner creates only a fresh internal/tmpfs PostgreSQL container, no host port, different cluster, synthetic empty baseline and role, with no operating database connection. Generated baselines stay outside Git. It checks target/approval/repeat refusal, all EF columns, history, SELECT access, clone restore/PK/FK/CHECK and the Workforce partial unique index. It removes only its own container/network.
 
-Evidence: `../../DASHBOARD_UPSTREAM_REHEARSAL_RESULT.json`. Full-data Identity/Workforce restore, existing nonzero-tenant transition and operating ACL verification remain NOT TESTED/BLOCKED until approved. This package is not production-ready or permission to deploy.
+Evidence: `../../DASHBOARD_UPSTREAM_REHEARSAL_RESULT.json`. Full-data six-database restore including Identity/Workforce subsequently passed 9/9 groups: see `../../CASHIER_DASHBOARD_SIX_DB_BACKUP_REVIEW.md`. Existing nonzero-tenant transition and operating ACL changes remain NOT TESTED/BLOCKED until separately approved. This package is not production-ready or permission to deploy.

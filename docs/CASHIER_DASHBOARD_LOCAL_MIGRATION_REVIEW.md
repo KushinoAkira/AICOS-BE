@@ -96,3 +96,8 @@ Full restore dùng --no-owner/--no-acl; không chứng nhận quyền vận hàn
 ## Upstream review — 2026-11-16
 
 See [DASHBOARD_MAIN_SYNC_RESULT.md](DASHBOARD_MAIN_SYNC_RESULT.md) and the separate [upstream supplement](proposals/cashier-dashboard-upstream/README.md). The original package remains frozen; five upstream migrations and Identity/Workforce full backup requirements must be reviewed before local rollout.
+
+
+## Six-database backup/restore follow-up
+
+Fresh full backups including Identity/Workforce and isolated restore completed 9/9 PASS, no migration/GRANT/runtime activation. See [CASHIER_DASHBOARD_SIX_DB_BACKUP_REVIEW.md](CASHIER_DASHBOARD_SIX_DB_BACKUP_REVIEW.md). This supersedes earlier NOT RUN notes for full backup/restore only; SQL and runtime approval gates remain.

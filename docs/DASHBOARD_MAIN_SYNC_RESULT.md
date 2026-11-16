@@ -22,7 +22,7 @@ No operating database migration/GRANT, feature activation, runtime image deploym
 | Mobile targeted Identity + Dashboard | 25 PASS | HTTP mock/widget tests, separate from E2E |
 | Mobile full regression / analyzer | 362 PASS, 7 SKIP / 0 issues | Demo/API fixture tests; live HTTP counted separately |
 | Upstream migration/restore rehearsal | 8 groups PASS, 0 FAIL | Fresh synthetic empty baseline; zero operating connections |
-| Earlier four-DB full restore | 7/7 PASS | Does not cover Identity/Workforce |
+| Full six-DB backup/restore (follow-up) | 9/9 PASS | Includes Identity/Workforce; see CASHIER_DASHBOARD_SIX_DB_BACKUP_REVIEW.md |
 | Operating migration/ACL/image/feature rollout | NOT RUN | Needs approval |
 
 E2E covers Cash vs shift-close, concurrent Cashiers/AddOrder, missing/closed-shift refusal, retry/lost ACK/restarts, confirmed ledger-to-Reporting totals, recovery while Reporting offline, real Flutter OPEN/CLOSE/Cash forms and Dashboard at 360/393/430px. Final Cash 210000 VND, QR 70000 VND, total 280000 VND; QR remains branch-only, excluded from Cash drawer. Existing container IDs/images/start/status/restart counts unchanged. Test containers removed.
@@ -33,6 +33,6 @@ Three E2E blockers remain: gross/net/refund allocation policy; actual Identity c
 
 Dashboard code is validated on the merged test stack, **not enabled in the operating local stack**. Existing local containers remain stopped; Gateway is not running. A brief read-only audit started only existing PostgreSQL and returned it to stopped; no application started. Read-only audit/result and E2E snapshots are different checkpoints, not claims of continuous uptime.
 
-Five extra upstream migrations mean the old four-DB approval package alone is insufficient. Review `proposals/cashier-dashboard-upstream/README.md` alongside the old proposal; approve fresh full backups including Identity/Workforce and restore drill first. Then approve exact SQL/ACL stages separately, then runtime and feature activation.
+Five extra upstream migrations mean the old four-DB approval package alone is insufficient. Fresh full backup/restore including Identity/Workforce is now 9/9 PASS; see `CASHIER_DASHBOARD_SIX_DB_BACKUP_REVIEW.md`. Review the upstream supplement alongside the old proposal, then approve exact SQL/ACL stages separately, then runtime and feature activation. Recheck backup freshness and history immediately before any approved execution.
 
 Workforce cash handover (cash_closings/payroll) and Payments cashier drawer remain distinct domains. This merge does not infer that their events, opening balances or QR attribution should be combined. No changes to financial allocation without policy approval. New refund bank fields remain nullable and additive.

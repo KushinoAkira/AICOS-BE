@@ -1,9 +1,12 @@
 [CmdletBinding()]
-param([switch]$Run)
+param([switch]$Run,[switch]$IncludeUpstream)
 $ErrorActionPreference='Stop'
-$databases=@('aicos_ordering','aicos_kitchen','aicos_payment','aicos_reporting')
+$schemas=[ordered]@{aicos_ordering='ordering';aicos_kitchen='kitchen';aicos_payment='payment';aicos_reporting='reporting'}
+if($IncludeUpstream){$schemas.Add('aicos_identity','identity');$schemas.Add('aicos_workforce','workforce')}
+$databases=@($schemas.Keys)
+$databaseList=($databases|ForEach-Object {"'$_'"})-join','
 if(-not$Run){
-    Write-Output 'PLAN ONLY: after separate maintenance approval, require main application containers stopped, verify cluster, then back up four service databases to a private LOCALAPPDATA folder. No database, container or file changed.'
+    Write-Output 'PLAN ONLY: after separate maintenance approval, require main application containers stopped, verify cluster, then back up the selected four service databases (six with -IncludeUpstream) to a private LOCALAPPDATA folder. No database, container or file changed.'
     return
 }
 $inspection=docker inspect aicos-main-postgres | ConvertFrom-Json
@@ -17,7 +20,7 @@ foreach($service in $writers){
 $admin=(@($pg.Config.Env|Where-Object {$_-match'^POSTGRES_USER='})-replace'^POSTGRES_USER=','')|Select-Object -First 1
 if(-not$admin){$admin='postgres'}
 if($admin-notmatch'^[A-Za-z_][A-Za-z0-9_]*$'){throw 'Unexpected administrator name'}
-$identity=docker exec $pg.Id psql -XqAt -v ON_ERROR_STOP=1 -U $admin -d postgres -c "BEGIN READ ONLY; SELECT system_identifier::text FROM pg_control_system(); SELECT count(*) FROM pg_stat_activity WHERE datname IN ('aicos_ordering','aicos_kitchen','aicos_payment','aicos_reporting') AND pid<>pg_backend_pid() AND backend_type='client backend'; COMMIT;"
+$identity=docker exec $pg.Id psql -XqAt -v ON_ERROR_STOP=1 -U $admin -d postgres -c "BEGIN READ ONLY; SELECT system_identifier::text FROM pg_control_system(); SELECT count(*) FROM pg_stat_activity WHERE datname IN ($databaseList) AND pid<>pg_backend_pid() AND backend_type='client backend'; COMMIT;"
 if($LASTEXITCODE-ne0-or$identity[0]-ne'7703616372368646182'-or$identity[1]-ne'0'){throw 'Cluster mismatch or remaining database connections; backup stopped'}
 $base=[IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA 'AICOS\backups'))
 if(Test-Path $base){if((Get-Item -LiteralPath $base).Attributes-band[IO.FileAttributes]::ReparsePoint){throw 'Backup root must not be a reparse point'}}
@@ -50,7 +53,7 @@ function Read-BackupSnapshot([string]$Database,[string]$Schema){
 }
 $manifest=@()
 foreach($database in $databases){
-    $schema=@{aicos_ordering='ordering';aicos_kitchen='kitchen';aicos_payment='payment';aicos_reporting='reporting'}[$database]
+    $schema=$schemas[$database]
     $snapshot=Read-BackupSnapshot -Database $database -Schema $schema
     $file=Join-Path $backupPath ($database+'.dump')
     $start=New-Object Diagnostics.ProcessStartInfo

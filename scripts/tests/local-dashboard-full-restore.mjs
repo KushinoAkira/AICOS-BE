@@ -12,6 +12,8 @@ assert.ok(!(await fs.lstat(backup)).isSymbolicLink(),'Refusing backup symlink');
 const manifest=JSON.parse(await fs.readFile(path.join(backup,'MANIFEST.json'),'utf8'));
 assert.equal(manifest.Cluster,mainCluster);assert.ok(manifest.Container.startsWith('c014190eed2d'));
 const schemas={aicos_ordering:'ordering',aicos_kitchen:'kitchen',aicos_payment:'payment',aicos_reporting:'reporting'};
+const includeUpstream=manifest.Databases.length===6;
+if(includeUpstream)Object.assign(schemas,{aicos_identity:'identity',aicos_workforce:'workforce'});
 assert.deepEqual(manifest.Databases.map(d=>d.Database),Object.keys(schemas));
 const purpose='dashboard-full-restore',network='aicos-dashboard-full-'+crypto.randomBytes(5).toString('hex');
 const result={date:'2026-11-16',sourceCluster:mainCluster,backupFilesVerified:false,checks:[],databases:[],operatingConnectionUsed:false,migrationApplied:false};
@@ -49,7 +51,7 @@ try{
   const file=path.join(backup,entry.File);assert.ok(!(await fs.lstat(file)).isSymbolicLink());
   const data=await fs.readFile(file);assert.equal(data.length,entry.Bytes);assert.equal(data.subarray(0,5).toString(),'PGDMP');
   assert.equal(crypto.createHash('sha256').update(data).digest('hex'),entry.SHA256);assert.ok(entry.Snapshot?.Columns.length>0);
- }result.backupFilesVerified=true;pass('Four private PGDMP backups match manifest size/SHA256; no data or credentials printed');
+ }result.backupFilesVerified=true;pass(manifest.Databases.length+' private PGDMP backups match manifest size/SHA256; no data or credentials printed');
  networkId=docker(['network','create','--internal','--label','aicos.purpose='+purpose,network]);
  const password=crypto.randomBytes(32).toString('hex');
  pg=docker(['run','-d','--name',network+'-postgres','--network',network,'--label','aicos.purpose='+purpose,'--tmpfs','/var/lib/postgresql/data:rw','--mount','type=bind,source='+backup+',target=/backup,readonly','-e','POSTGRES_USER=restore_admin','-e','POSTGRES_DB=postgres','-e','POSTGRES_PASSWORD','postgres:16-alpine'],{env:{POSTGRES_PASSWORD:password}});
@@ -117,6 +119,6 @@ try{
  if(pg){const c=inspect(pg);assert.equal(c.Id,pg);assert.equal(c.Config.Labels['aicos.purpose'],purpose);assert.deepEqual(Object.keys(c.NetworkSettings.Networks),[network]);docker(['rm','-f',pg]);}
  if(networkId){const n=JSON.parse(docker(['network','inspect',networkId]))[0];assert.equal(n.Labels['aicos.purpose'],purpose);assert.equal(Object.keys(n.Containers).length,0);docker(['network','rm',networkId]);}
  await fs.writeFile(path.join(backup,'RESTORE_RESULT.json'),JSON.stringify(result,null,2)+'\n');
- await fs.writeFile(path.resolve('docs/CASHIER_DASHBOARD_FULL_RESTORE_RESULT.json'),JSON.stringify(result,null,2)+'\n');
+ await fs.writeFile(path.resolve(includeUpstream?'docs/CASHIER_DASHBOARD_SIX_DB_RESTORE_RESULT.json':'docs/CASHIER_DASHBOARD_FULL_RESTORE_RESULT.json'),JSON.stringify(result,null,2)+'\n');
  console.log('RESULT '+result.checks.filter(c=>c.status==='PASS').length+' PASS; '+result.checks.filter(c=>c.status==='FAIL').length+' FAIL; only owned restore container/network removed.');
 }
