@@ -51,3 +51,8 @@ Rollback is not automatic: compare the captured ACL before/after, propose REVOKE
 Runtime/image deployment and Dashboard feature activation remain a separate gate. Stack remains stopped. Permission rehearsal PASS is not operating Dashboard availability, business E2E, production readiness or bank QR verification.
 
 Evidence: CASHIER_DASHBOARD_PERMISSIONS_AUDIT.json and CASHIER_DASHBOARD_PERMISSIONS_TEST_RESULT.json.
+
+
+## Approved three-GRANT execution follow-up
+
+Ordering, revised Payments and Reporting GRANT files have now committed and verified 3/3 PASS. Kitchen skipped; 15 new tables accessible, 58 UPDATE columns checked, six DB data/schema/history and roles unchanged. PostgreSQL returned to stopped; no application/feature rollout. Earlier NOT APPLIED notes describe the preparation checkpoint. See [CASHIER_DASHBOARD_GRANTS_EXECUTION.md](CASHIER_DASHBOARD_GRANTS_EXECUTION.md).

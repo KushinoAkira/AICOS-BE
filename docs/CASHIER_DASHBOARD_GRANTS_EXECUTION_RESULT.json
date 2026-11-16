@@ -1,0 +1,79 @@
+{
+  "startedAtUtc": "2026-11-16T10:24:48.652Z",
+  "status": "PASS",
+  "cluster": "7703616372368646182",
+  "stages": [
+    {
+      "file": "docs/proposals/cashier-dashboard-local/10_ordering_grants.PROPOSAL.sql",
+      "database": "aicos_ordering",
+      "role": "ordering_svc",
+      "status": "PASS",
+      "sha256": "e3e87562bfbf54fedeea3f383a70cdcc570a5fadb7851577698c16bd77e6e6b7",
+      "committed": true,
+      "exitCode": 0,
+      "addedAclEntries": 46,
+      "tableCount": 6,
+      "updateColumns": 30,
+      "roleScopedReads": true,
+      "insertUpdateVerifiedByCatalog": true
+    },
+    {
+      "file": "docs/proposals/cashier-dashboard-permissions/12_payment_grants.PROPOSAL.sql",
+      "database": "aicos_payment",
+      "role": "payment_svc",
+      "status": "PASS",
+      "sha256": "6537eae4b696184203691b9934804d098422557ea99559c2936e816e60a1eabd",
+      "committed": true,
+      "exitCode": 0,
+      "addedAclEntries": 44,
+      "tableCount": 8,
+      "updateColumns": 28,
+      "roleScopedReads": true,
+      "insertUpdateVerifiedByCatalog": true
+    },
+    {
+      "file": "docs/proposals/cashier-dashboard-local/13_reporting_grants.PROPOSAL.sql",
+      "database": "aicos_reporting",
+      "role": "reporting_svc",
+      "status": "PASS",
+      "sha256": "db2b6453c0faa0c677dead78041de097b4f1523344371161e1e247bfdcb94fca",
+      "committed": true,
+      "exitCode": 0,
+      "addedAclEntries": 2,
+      "tableCount": 1,
+      "updateColumns": 0,
+      "roleScopedReads": true,
+      "insertUpdateVerifiedByCatalog": true
+    }
+  ],
+  "preflight": [
+    {
+      "name": "Approved proposals backed by isolated PostgreSQL 26 PASS / 1 N/A",
+      "status": "PASS"
+    },
+    {
+      "name": "17 checksums match; exact three files allow only reviewed GRANT statements",
+      "status": "PASS"
+    },
+    {
+      "name": "Exact histories, existing ACL and Kitchen sufficiency verified; full raw ACL/owners/grantors and data hashes saved privately",
+      "status": "PASS"
+    }
+  ],
+  "kitchenSkipped": true,
+  "runtimeStarted": false,
+  "credentialChanges": false,
+  "automaticRevoke": false,
+  "allSixDatabaseStatesUnchanged": true,
+  "rolesUnchanged": true,
+  "unapprovedServicesAclUnchanged": true,
+  "totals": {
+    "tables": 64,
+    "columns": 807,
+    "newTablesAccessible": 15,
+    "explicitUpdateColumnsChecked": 58
+  },
+  "postgresReturnedToStopped": true,
+  "otherContainersUnchanged": true,
+  "finishedAtUtc": "2026-11-16T10:25:48.064Z"
+}

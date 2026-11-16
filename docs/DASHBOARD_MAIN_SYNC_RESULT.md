@@ -46,3 +46,8 @@ The seven approved SQL files have now committed and verified PASS on Docker loca
 ## Post-migration permissions review
 
 See [CASHIER_DASHBOARD_PERMISSIONS_REVIEW.md](CASHIER_DASHBOARD_PERMISSIONS_REVIEW.md): revised Payments history-only guard, isolated PostgreSQL ACL 26 PASS / 1 N/A. Local GRANT remains unexecuted; recommend Ordering/Payments/Reporting only, skip Kitchen already sufficient. The original Payments GRANT must not be used unchanged.
+
+
+## Approved three-GRANT execution follow-up
+
+Ordering, revised Payments and Reporting GRANT files have now committed and verified 3/3 PASS. Kitchen skipped; 15 new tables accessible, 58 UPDATE columns checked, six DB data/schema/history and roles unchanged. PostgreSQL returned to stopped; no application/feature rollout. Earlier NOT APPLIED notes describe the preparation checkpoint. See [CASHIER_DASHBOARD_GRANTS_EXECUTION.md](CASHIER_DASHBOARD_GRANTS_EXECUTION.md).
