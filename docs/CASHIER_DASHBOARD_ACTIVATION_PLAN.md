@@ -1,6 +1,6 @@
-# Cashier Dashboard activation follow-up — design only
+# Cashier Dashboard activation — staged execution
 
-Date: 2026-11-16. No activation, secret creation, historical collection or runtime startup performed in this document task. Runtime smoke has since passed under its separate approval; financial activation remains a later gate. See CASHIER_DASHBOARD_ACTIVATION_REVIEW.md for the current read-only preview and proposed gates.
+Date: 2026-11-16. Initial document was design only; separately approved Gate A configuration has now passed. Runtime smoke has since passed under its separate approval; financial activation remains a later gate. See CASHIER_DASHBOARD_ACTIVATION_REVIEW.md for the current read-only preview and proposed gates.
 
 ## Existing contracts to reuse
 
@@ -49,3 +49,7 @@ On failure: pause dispatcher/activation, keep receipts/audit and original paymen
 Features-OFF runtime is now PASS: 11/11 apps, existing PostgreSQL/Redis healthy, all ten DB baselines unchanged during smoke. Separately approved Menu/Customer/GRANT committed and verified. These operations are recorded in their execution reports; they do not authorize financial activation.
 
 Read-only historical preview: exactly **two Cash receipts, 258.000đ**, matching original Order amounts/projections and cashier scope, no outbox/inbox yet. One belongs to an OPEN legacy session with three Orders, the other to a CLOSED legacy session; no synthetic Bill or collection created. Review CASHIER_DASHBOARD_ACTIVATION_REVIEW.md before requesting configuration/recovery approval. Machine keys remain absent, feature/worker flags OFF; no new valid-JWT business or Flutter E2E.
+
+## Gate A executed — 2026-11-16
+
+User separately approved configuration only. Payments/Reporting CashierShifts enabled with one separate DPAPI-stored machine key; dispatcher OFF and optional shift policy preserved. Both service recreations/health/routes/401 PASS, all other containers and DB schema/data/ACL unchanged; outbox/facts/shifts remain zero, legacy Cash still 258.000đ. See CASHIER_DASHBOARD_GATE_A_EXECUTION.md and CASHIER_DASHBOARD_GATE_A_RESULT.json. Historical recovery, authenticated Mobile tests and SessionBilling remain unapproved/not run. Earlier preparation/flags-absent sections are historical evidence, not current config.

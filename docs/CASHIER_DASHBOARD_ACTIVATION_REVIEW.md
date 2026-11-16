@@ -52,3 +52,7 @@ Only after separate review of legacy treatment and write approval: recover exact
 ## Regression actually run
 
 CashierShiftTests and CashPrecheckTests: **18 PASS, 0 FAIL, 0 SKIP**, from the new TRX result. These exercise real in-process HTTP handlers with EF in-memory storage and explicit test JWT/client/event doubles, including old receipt recovery and timeout behavior. They are not PostgreSQL/Redis full-stack E2E and do not validate operating financial writes. No Flutter run or operating app login was performed.
+
+## Gate A executed — 2026-11-16
+
+User separately approved configuration only. Payments/Reporting CashierShifts enabled with one separate DPAPI-stored machine key; dispatcher OFF and optional shift policy preserved. Both service recreations/health/routes/401 PASS, all other containers and DB schema/data/ACL unchanged; outbox/facts/shifts remain zero, legacy Cash still 258.000đ. See CASHIER_DASHBOARD_GATE_A_EXECUTION.md and CASHIER_DASHBOARD_GATE_A_RESULT.json. Historical recovery, authenticated Mobile tests and SessionBilling remain unapproved/not run. Earlier preparation/flags-absent sections are historical evidence, not current config.

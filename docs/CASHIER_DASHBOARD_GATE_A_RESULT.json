@@ -1,0 +1,55 @@
+{
+  "startedAtUtc": "2026-11-16T12:24:49.865Z",
+  "status": "PASS",
+  "cluster": "7703616372368646182",
+  "stages": [
+    {
+      "service": "reporting",
+      "status": "PASS",
+      "id": "21c83457571a707f9f879ebacc9e8c120d480509aec29645ed06671a7c9ce7c1",
+      "image": "sha256:bfe46dc9e00d2ac200f8eded9ee29019c7c12bf51f29d06281c213d323768c7b",
+      "live": "PASS",
+      "ready": "PASS",
+      "swagger": "PASS",
+      "gatewayMetadata": "PASS",
+      "missingInvalidToken": "401/401",
+      "schemaDataAclUnchanged": true
+    },
+    {
+      "service": "payment",
+      "status": "PASS",
+      "id": "27a5ede286eb66ac60b929c75a93b2c102f5aca127d71fd4fd39299952f6a3ad",
+      "image": "sha256:97a20b743bc2c4ffccef8ece325d3a877cffff6daefb2ff1e84ac84462b0d5b0",
+      "live": "PASS",
+      "ready": "PASS",
+      "swagger": "PASS",
+      "gatewayMetadata": "PASS",
+      "missingInvalidToken": "401/401",
+      "schemaDataAclUnchanged": true
+    }
+  ],
+  "dispatcherEnabled": false,
+  "historicalRecoveryRun": false,
+  "businessApiWrites": false,
+  "loginOrJwtCreated": false,
+  "imagesAndExistingRuntime": "PASS",
+  "legacyCandidates": {
+    "count": 2,
+    "total": 258000
+  },
+  "schemaDataAclSnapshot": "Private nine service DB baseline saved",
+  "recentGatewayBusinessWrites": 0,
+  "finishedAtUtc": "2026-11-16T12:27:55.117Z",
+  "dpapiStorage": "PASS (private current-user encrypted key/config backups; roundtrip checked by wrapper)",
+  "machineKeyMatch": true,
+  "dispatcherOffQuietWindowSeconds": 12,
+  "schemaDataAclUnchanged": true,
+  "roleMetadataUnchanged": true,
+  "otherContainersUnchanged": true,
+  "collectionsAfter": 0,
+  "reportingFactsAfter": 0,
+  "shiftsAfter": 0,
+  "authenticatedBusinessApi": "NOT TESTED (no login/JWT)",
+  "sessionBilling": "OFF",
+  "newPaymentCapture": "Enabled by approved CashierShifts flag; no operating payment executed"
+}

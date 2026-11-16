@@ -65,3 +65,7 @@ Infrastructure healthy, applications 0/11 NOT RUN: full model preflight found pe
 ## Runtime gate completed — 2026-11-16
 
 Separate Menu/Customer expansion and Customer GRANT approval executed: 3/3 PASS, legacy data unchanged, backfill 0. Features-OFF runtime smoke: 11/11 apps PASS, existing PostgreSQL/Redis healthy; 10 downstream metadata/DNS/TCP checks and 9 protected GET auth checks PASS. All ten DB schema/ACL/data/history baselines unchanged during smoke. See CASHIER_DASHBOARD_RUNTIME_SMOKE_EXECUTION.md and RUNTIME_COMPATIBILITY_EXECUTION.md. This supersedes the earlier schema-blocked attempt. Financial activation/history reconciliation and valid-token business/Mobile E2E remain OFF/NOT TESTED; no implied approval.
+
+## Gate A executed — 2026-11-16
+
+User separately approved configuration only. Payments/Reporting CashierShifts enabled with one separate DPAPI-stored machine key; dispatcher OFF and optional shift policy preserved. Both service recreations/health/routes/401 PASS, all other containers and DB schema/data/ACL unchanged; outbox/facts/shifts remain zero, legacy Cash still 258.000đ. See CASHIER_DASHBOARD_GATE_A_EXECUTION.md and CASHIER_DASHBOARD_GATE_A_RESULT.json. Historical recovery, authenticated Mobile tests and SessionBilling remain unapproved/not run. Earlier preparation/flags-absent sections are historical evidence, not current config.
