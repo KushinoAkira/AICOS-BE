@@ -1,0 +1,73 @@
+{
+  "date": "2026-11-16",
+  "sourceCluster": "7703616372368646182",
+  "backupFilesVerified": true,
+  "checks": [
+    {
+      "name": "Four private PGDMP backups match manifest size/SHA256; no data or credentials printed",
+      "status": "PASS"
+    },
+    {
+      "name": "Fresh internal-only/tmpfs/no-host-port cluster differs from main; backup bind is read-only",
+      "status": "PASS"
+    },
+    {
+      "name": "aicos_ordering: full data, columns, PK/FK/CHECK/indexes and migration history restored exactly",
+      "status": "PASS"
+    },
+    {
+      "name": "aicos_kitchen: full data, columns, PK/FK/CHECK/indexes and migration history restored exactly",
+      "status": "PASS"
+    },
+    {
+      "name": "aicos_payment: full data, columns, PK/FK/CHECK/indexes and migration history restored exactly",
+      "status": "PASS"
+    },
+    {
+      "name": "aicos_reporting: full data, columns, PK/FK/CHECK/indexes and migration history restored exactly",
+      "status": "PASS"
+    },
+    {
+      "name": "All preexisting container IDs/images/state/start/restarts unchanged during isolated restore",
+      "status": "PASS"
+    }
+  ],
+  "databases": [
+    {
+      "database": "aicos_ordering",
+      "tables": 7,
+      "columns": 94,
+      "rows": 111,
+      "columnsConstraintsIndexesMatch": true,
+      "allRowCountsAndFingerprintsMatch": true
+    },
+    {
+      "database": "aicos_kitchen",
+      "tables": 12,
+      "columns": 160,
+      "rows": 84,
+      "columnsConstraintsIndexesMatch": true,
+      "allRowCountsAndFingerprintsMatch": true
+    },
+    {
+      "database": "aicos_payment",
+      "tables": 7,
+      "columns": 92,
+      "rows": 6,
+      "columnsConstraintsIndexesMatch": true,
+      "allRowCountsAndFingerprintsMatch": true
+    },
+    {
+      "database": "aicos_reporting",
+      "tables": 2,
+      "columns": 18,
+      "rows": 16,
+      "columnsConstraintsIndexesMatch": true,
+      "allRowCountsAndFingerprintsMatch": true
+    }
+  ],
+  "operatingConnectionUsed": false,
+  "migrationApplied": false,
+  "testCluster": "7708600686520561705",
+  "preexistingContainersUnchanged": true
+}

@@ -81,3 +81,13 @@ Gói SQL ở báo cáo này được kiểm thử với baseline local 7f24e10, 
 Người dùng đã duyệt riêng backup/restore full, chưa migration. Việc chuẩn bị/kiểm chứng backup không được xem là phê duyệt các migration mới trên remote hoặc kích hoạt financial workers.
 
 Commit preflight: đã build và rehearsal đúng snapshot Git index không V2: build 0 warning/error, 16 nhóm PASS. Chuẩn hóa LF trong bộ sinh trước khi hash; checksum được kiểm tra lại theo bytes Git index để không hỏng sau checkout Windows.
+
+## 16/11/2026 — Backup/restore full đã được duyệt và hoàn tất
+
+Bốn dump đầy đủ đã tạo ngoài Git, ACL chỉ current user/SYSTEM; kiểm tra size/SHA256/header PGDMP PASS. Backend được tạm dừng theo phê duyệt rồi khôi phục đúng IDs/images cũ; Gateway HTTP 200. Không chạy migration/GRANT hoặc bật feature.
+
+Restore sang cluster internal/tmpfs mới, backup bind read-only: 7/7 nhóm PASS, mọi bảng/data fingerprint/schema/PK/FK/CHECK/index/history khớp. Xem CASHIER_DASHBOARD_FULL_RESTORE_RESULT.json. Không copy dump hoặc manifest chứa inventory vào Git. Chỉ role names NOLOGIN tạo trong test; không khởi động provider/API worker trên dữ liệu restore.
+
+Lượt đầu backup lỗi quoting SQL trên Windows đã dừng và resume Backend trong finally; sửa sang stdin rồi backup thành công. Checker ban đầu báo khác CHECK/index do parser/deparser biểu diễn ngoặc/cast khác nhau; chuẩn hóa bằng parser PostgreSQL trên TEMP table trong test, giữ nguyên uniqueness/predicate và constraint, rồi chạy lại PASS. Không tính các lượt FAIL là PASS.
+
+Full restore dùng --no-owner/--no-acl; không chứng nhận quyền vận hành đã cấp. Gói SQL vẫn chờ duyệt và cần đối chiếu với origin/main mới trước rollout; chưa merge main. Các phần NOT RUN trong báo cáo ban đầu là checkpoint trước bước được duyệt này.

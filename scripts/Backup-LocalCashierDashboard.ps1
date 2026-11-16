@@ -31,8 +31,27 @@ foreach($sid in @([Security.Principal.WindowsIdentity]::GetCurrent().User,(New-O
     $security.AddAccessRule($rule)
 }
 Set-Acl -LiteralPath $backupPath -AclObject $security
+function Read-BackupSnapshot([string]$Database,[string]$Schema){
+    $guard="DO " + '$$' + " BEGIN IF current_database()<>'$Database' OR (SELECT system_identifier::text FROM pg_control_system())<>'7703616372368646182' THEN RAISE EXCEPTION 'Backup target changed'; END IF; END " + '$$' + ";"
+    function Read-Query([string]$Query){
+        $lines=("BEGIN READ ONLY; SET LOCAL timezone='UTC'; "+$guard+$Query+" COMMIT;") | docker exec -i $pg.Id psql -XqAt -v ON_ERROR_STOP=1 -U $admin -d $Database
+        if($LASTEXITCODE-ne0){throw 'Backup inventory query failed; no raw error persisted'}
+        return (($lines-join [char]10)|ConvertFrom-Json)
+    }
+    $columns=Read-Query "SELECT json_agg(json_build_object('table',c.relname,'name',a.attname,'type',format_type(a.atttypid,a.atttypmod),'nullable',NOT a.attnotnull) ORDER BY c.relname,a.attnum) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace JOIN pg_attribute a ON a.attrelid=c.oid AND a.attnum>0 AND NOT a.attisdropped WHERE n.nspname='$Schema' AND c.relkind='r';"
+    $constraints=Read-Query "SELECT json_agg(json_build_object('table',c.relname,'name',k.conname,'definition',pg_get_constraintdef(k.oid),'validated',k.convalidated) ORDER BY c.relname,k.conname) FROM pg_constraint k JOIN pg_class c ON c.oid=k.conrelid JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='$Schema';"
+    $indexes=Read-Query "SELECT json_agg(json_build_object('table',tablename,'name',indexname,'definition',indexdef) ORDER BY tablename,indexname) FROM pg_indexes WHERE schemaname='$Schema';"
+    $fingerprints=@{}
+    foreach($table in @($columns.table|Sort-Object -Unique)){
+        if($table-notmatch'^[a-z_][a-z0-9_]*$'){throw 'Unexpected table identifier'}
+        $fingerprints[$table]=Read-Query ("SELECT json_build_object('rows',count(*),'hash',md5(COALESCE(string_agg(row_to_json(t)::text,chr(10) ORDER BY row_to_json(t)::text COLLATE ""C""),''))) FROM $Schema.$table t;")
+    }
+    return [pscustomobject]@{Columns=@($columns);Constraints=@($constraints);Indexes=@($indexes);Fingerprints=$fingerprints}
+}
 $manifest=@()
 foreach($database in $databases){
+    $schema=@{aicos_ordering='ordering';aicos_kitchen='kitchen';aicos_payment='payment';aicos_reporting='reporting'}[$database]
+    $snapshot=Read-BackupSnapshot -Database $database -Schema $schema
     $file=Join-Path $backupPath ($database+'.dump')
     $start=New-Object Diagnostics.ProcessStartInfo
     $start.FileName=(Get-Command docker -ErrorAction Stop).Source
@@ -46,8 +65,8 @@ foreach($database in $databases){
     if($process.ExitCode-ne0){throw 'Backup failed; private partial artifact retained. Never use it for restore.'}
     $header=[IO.File]::OpenRead($file)
     try{$bytes=New-Object byte[] 5;$null=$header.Read($bytes,0,5);if([Text.Encoding]::ASCII.GetString($bytes)-ne'PGDMP'){throw 'Invalid custom-format backup header'}}finally{$header.Dispose()}
-    $manifest+=[pscustomobject]@{Database=$database;File=[IO.Path]::GetFileName($file);SHA256=(Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant();Bytes=(Get-Item -LiteralPath $file).Length}
+    $manifest+=[pscustomobject]@{Database=$database;File=[IO.Path]::GetFileName($file);SHA256=(Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant();Bytes=(Get-Item -LiteralPath $file).Length;Schema=$schema;Snapshot=$snapshot}
 }
 $record=[pscustomobject]@{Cluster='7703616372368646182';CreatedAtUtc=[DateTime]::UtcNow.ToString('o');Container=$pg.Id;Databases=$manifest;RestoreVerified=$false}
-[IO.File]::WriteAllText((Join-Path $backupPath 'MANIFEST.json'),($record|ConvertTo-Json -Depth 5),[Text.UTF8Encoding]::new($false))
+[IO.File]::WriteAllText((Join-Path $backupPath 'MANIFEST.json'),($record|ConvertTo-Json -Depth 12),[Text.UTF8Encoding]::new($false))
 Write-Output ('Backup files stored privately at '+$backupPath+'. Restore drill still required; do not apply migration yet.')
