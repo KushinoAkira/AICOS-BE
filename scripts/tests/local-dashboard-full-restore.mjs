@@ -12,8 +12,10 @@ assert.ok(!(await fs.lstat(backup)).isSymbolicLink(),'Refusing backup symlink');
 const manifest=JSON.parse(await fs.readFile(path.join(backup,'MANIFEST.json'),'utf8'));
 assert.equal(manifest.Cluster,mainCluster);assert.ok(manifest.Container.startsWith('c014190eed2d'));
 const schemas={aicos_ordering:'ordering',aicos_kitchen:'kitchen',aicos_payment:'payment',aicos_reporting:'reporting'};
-const includeUpstream=manifest.Databases.length===6;
+const includeRuntimeCompatibility=manifest.Databases.length===8;
+const includeUpstream=manifest.Databases.length===6||includeRuntimeCompatibility;
 if(includeUpstream)Object.assign(schemas,{aicos_identity:'identity',aicos_workforce:'workforce'});
+if(includeRuntimeCompatibility)Object.assign(schemas,{aicos_menu:'menu',aicos_customer:'customer'});
 assert.deepEqual(manifest.Databases.map(d=>d.Database),Object.keys(schemas));
 const purpose='dashboard-full-restore',network='aicos-dashboard-full-'+crypto.randomBytes(5).toString('hex');
 const result={date:'2026-11-16',sourceCluster:mainCluster,backupFilesVerified:false,checks:[],databases:[],operatingConnectionUsed:false,migrationApplied:false};
@@ -119,6 +121,6 @@ try{
  if(pg){const c=inspect(pg);assert.equal(c.Id,pg);assert.equal(c.Config.Labels['aicos.purpose'],purpose);assert.deepEqual(Object.keys(c.NetworkSettings.Networks),[network]);docker(['rm','-f',pg]);}
  if(networkId){const n=JSON.parse(docker(['network','inspect',networkId]))[0];assert.equal(n.Labels['aicos.purpose'],purpose);assert.equal(Object.keys(n.Containers).length,0);docker(['network','rm',networkId]);}
  await fs.writeFile(path.join(backup,'RESTORE_RESULT.json'),JSON.stringify(result,null,2)+'\n');
- await fs.writeFile(path.resolve(includeUpstream?'docs/CASHIER_DASHBOARD_SIX_DB_RESTORE_RESULT.json':'docs/CASHIER_DASHBOARD_FULL_RESTORE_RESULT.json'),JSON.stringify(result,null,2)+'\n');
+ await fs.writeFile(path.resolve(includeRuntimeCompatibility?'docs/RUNTIME_COMPATIBILITY_EIGHT_DB_RESTORE_RESULT.json':includeUpstream?'docs/CASHIER_DASHBOARD_SIX_DB_RESTORE_RESULT.json':'docs/CASHIER_DASHBOARD_FULL_RESTORE_RESULT.json'),JSON.stringify(result,null,2)+'\n');
  console.log('RESULT '+result.checks.filter(c=>c.status==='PASS').length+' PASS; '+result.checks.filter(c=>c.status==='FAIL').length+' FAIL; only owned restore container/network removed.');
 }

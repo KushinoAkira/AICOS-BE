@@ -1,3 +1,4 @@
+using AICOS.CustomerEngagement.Api.Persistence;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -28,6 +29,23 @@ static object[] MigrationColumns(DbContext db,string id)
     var migration=assembly.CreateMigration(assembly.Migrations[id],db.Database.ProviderName!);
     var model=db.GetService<IModelRuntimeInitializer>().Initialize(migration.TargetModel,designTime:true);
     return model.GetRelationalModel().Tables.SelectMany(t=>t.Columns.Select(c=>(object)new{table=t.Name,name=c.Name,type=c.StoreType,nullable=c.IsNullable})).ToArray();
+}
+if(args is ["runtime-compatibility-scripts",var compatibilityPath])
+{
+    Directory.CreateDirectory(compatibilityPath);
+    using var menu=new MenuCatalogDbContext(Options<MenuCatalogDbContext>("menu",offline));
+    using var customer=new CustomerEngagementDbContext(Options<CustomerEngagementDbContext>("customer",offline));
+    var targets=new List<object>();
+    foreach(var (schema,db,from,to) in new (string,DbContext,string,string)[]{("menu",menu,"20261021102711_ConstraintsAndIndexes","20261113170918_ProductPictureUpload"),("customer",customer,"20261101183341_StaffNotifications","20261113175515_HuntVouchers")})
+    {
+        var migrator=db.GetService<IMigrator>();
+        File.WriteAllText(Path.Combine(compatibilityPath,schema+".baseline.sql"),migrator.GenerateScript("0",from));
+        File.WriteAllText(Path.Combine(compatibilityPath,schema+".up.sql"),migrator.GenerateScript(from,to,MigrationsSqlGenerationOptions.NoTransactions));
+        File.WriteAllText(Path.Combine(compatibilityPath,schema+".down.sql"),migrator.GenerateScript(to,from,MigrationsSqlGenerationOptions.NoTransactions));
+        targets.Add(new{schema,from,to,baseline=db.Database.GetMigrations().Where(x=>string.CompareOrdinal(x,from)<=0).ToArray(),pending=db.Database.GetMigrations().Where(x=>string.CompareOrdinal(x,from)>0&&string.CompareOrdinal(x,to)<=0).ToArray(),columns=MigrationColumns(db,to)});
+    }
+    File.WriteAllText(Path.Combine(compatibilityPath,"targets.json"),JsonSerializer.Serialize(targets));
+    Console.WriteLine("Menu/Customer compatibility deltas exported offline; existing migrations unchanged.");return;
 }
 if(args is ["dashboard-permissions-scripts",var permissionsPath])
 {
@@ -92,8 +110,9 @@ if(args is ["scripts",var path])
     using var payment=new PaymentsDbContext(Options<PaymentsDbContext>("payment",offline));
     using var reporting=new ReportingAnalyticsDbContext(Options<ReportingAnalyticsDbContext>("reporting",offline));
     using var workforce=new WorkforceSchedulingDbContext(Options<WorkforceSchedulingDbContext>("workforce",offline));
+    using var customer=new CustomerEngagementDbContext(Options<CustomerEngagementDbContext>("customer",offline));
     var models=new Dictionary<string,object>();
-    foreach(var (name,db,to) in new (string,DbContext,string?)[]{("reporting",reporting,null),("workforce",workforce,null),("identity",identity,null),("menu",menu,null),("table_reservation",table,null),("ordering",order,"20261106183340_OrderingCupFulfillmentFoundation"),("kitchen",kitchen,null),("payment",payment,"20261021102642_ConstraintsAndIndexes")})
+    foreach(var (name,db,to) in new (string,DbContext,string?)[]{("reporting",reporting,null),("workforce",workforce,null),("identity",identity,null),("customer",customer,null),("menu",menu,null),("table_reservation",table,null),("ordering",order,"20261106183340_OrderingCupFulfillmentFoundation"),("kitchen",kitchen,null),("payment",payment,"20261021102642_ConstraintsAndIndexes")})
     {
         File.WriteAllText(Path.Combine(path,name+".sql"),db.GetService<IMigrator>().GenerateScript("0",to));
         if (name is "ordering" or "payment")

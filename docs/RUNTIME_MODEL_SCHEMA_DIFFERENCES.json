@@ -1,0 +1,125 @@
+{
+  "readOnly": true,
+  "cluster": "7703616372368646182",
+  "mismatches": [
+    {
+      "schema": "menu",
+      "actualCount": 47,
+      "expectedCount": 47,
+      "actualOnly": [
+        {
+          "table": "products",
+          "name": "image_url",
+          "type": "character varying(1000)",
+          "nullable": true
+        }
+      ],
+      "expectedOnly": [
+        {
+          "table": "products",
+          "name": "image_url",
+          "type": "character varying(400000)",
+          "nullable": true
+        }
+      ]
+    },
+    {
+      "schema": "customer",
+      "actualCount": 89,
+      "expectedCount": 104,
+      "actualOnly": [],
+      "expectedOnly": [
+        {
+          "table": "member_orders",
+          "name": "id",
+          "type": "uuid",
+          "nullable": false
+        },
+        {
+          "table": "member_orders",
+          "name": "amount",
+          "type": "numeric(14,2)",
+          "nullable": false
+        },
+        {
+          "table": "member_orders",
+          "name": "created_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": false
+        },
+        {
+          "table": "member_orders",
+          "name": "created_by",
+          "type": "uuid",
+          "nullable": true
+        },
+        {
+          "table": "member_orders",
+          "name": "customer_id",
+          "type": "uuid",
+          "nullable": false
+        },
+        {
+          "table": "member_orders",
+          "name": "is_cancelled",
+          "type": "boolean",
+          "nullable": false
+        },
+        {
+          "table": "member_orders",
+          "name": "order_id",
+          "type": "uuid",
+          "nullable": false
+        },
+        {
+          "table": "member_orders",
+          "name": "paid_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": false
+        },
+        {
+          "table": "member_orders",
+          "name": "tenant_id",
+          "type": "uuid",
+          "nullable": false
+        },
+        {
+          "table": "member_orders",
+          "name": "updated_at_utc",
+          "type": "timestamp with time zone",
+          "nullable": true
+        },
+        {
+          "table": "member_orders",
+          "name": "updated_by",
+          "type": "uuid",
+          "nullable": true
+        },
+        {
+          "table": "vouchers",
+          "name": "campaign_id",
+          "type": "uuid",
+          "nullable": true
+        },
+        {
+          "table": "vouchers",
+          "name": "count_orders_from_utc",
+          "type": "timestamp with time zone",
+          "nullable": true
+        },
+        {
+          "table": "vouchers",
+          "name": "required_order_amount",
+          "type": "numeric(14,2)",
+          "nullable": true
+        },
+        {
+          "table": "vouchers",
+          "name": "required_orders",
+          "type": "integer",
+          "nullable": true
+        }
+      ]
+    }
+  ]
+}

@@ -1,12 +1,13 @@
 [CmdletBinding()]
-param([switch]$Run,[switch]$IncludeUpstream)
+param([switch]$Run,[switch]$IncludeUpstream,[switch]$IncludeRuntimeCompatibility)
 $ErrorActionPreference='Stop'
 $schemas=[ordered]@{aicos_ordering='ordering';aicos_kitchen='kitchen';aicos_payment='payment';aicos_reporting='reporting'}
-if($IncludeUpstream){$schemas.Add('aicos_identity','identity');$schemas.Add('aicos_workforce','workforce')}
+if($IncludeUpstream-or$IncludeRuntimeCompatibility){$schemas.Add('aicos_identity','identity');$schemas.Add('aicos_workforce','workforce')}
+if($IncludeRuntimeCompatibility){$schemas.Add('aicos_menu','menu');$schemas.Add('aicos_customer','customer')}
 $databases=@($schemas.Keys)
 $databaseList=($databases|ForEach-Object {"'$_'"})-join','
 if(-not$Run){
-    Write-Output 'PLAN ONLY: after separate maintenance approval, require main application containers stopped, verify cluster, then back up the selected four service databases (six with -IncludeUpstream) to a private LOCALAPPDATA folder. No database, container or file changed.'
+    Write-Output 'PLAN ONLY: after separate maintenance approval, require main application containers stopped, verify cluster, then back up the selected four service databases (six with -IncludeUpstream, eight with -IncludeRuntimeCompatibility) to a private LOCALAPPDATA folder. No database, container or file changed.'
     return
 }
 $inspection=docker inspect aicos-main-postgres | ConvertFrom-Json

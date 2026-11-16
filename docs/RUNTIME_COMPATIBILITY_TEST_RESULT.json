@@ -1,0 +1,61 @@
+{
+  "operatingConnections": 0,
+  "operatingMigrations": false,
+  "checks": [
+    {
+      "name": "Five proposal checksums verified; existing EF migrations unchanged",
+      "status": "PASS"
+    },
+    {
+      "name": "Fresh isolated PostgreSQL, internal/tmpfs/no host port, no operating DB connection",
+      "status": "PASS"
+    },
+    {
+      "name": "menu: missing approval/wrong target/cluster refused",
+      "status": "PASS"
+    },
+    {
+      "name": "menu: additive expansion, exact EF columns/validated constraints, repeat refused",
+      "status": "PASS"
+    },
+    {
+      "name": "Menu long images preserved; narrowing rollback refused without truncation",
+      "status": "PASS"
+    },
+    {
+      "name": "menu: unused rollback and reapply preserve legacy rows/schema",
+      "status": "PASS"
+    },
+    {
+      "name": "customer: missing approval/wrong target/cluster refused",
+      "status": "PASS"
+    },
+    {
+      "name": "Customer nonzero note-derived backfill refused before DDL/history changes",
+      "status": "PASS"
+    },
+    {
+      "name": "customer: additive expansion, exact EF columns/validated constraints, repeat refused",
+      "status": "PASS"
+    },
+    {
+      "name": "Customer actual role INSERT, unique OrderId and own-service CASCADE FK verified",
+      "status": "PASS"
+    },
+    {
+      "name": "Customer real service-role auth/update audit fields; amount/DELETE denied; nonempty rollback refused",
+      "status": "PASS"
+    },
+    {
+      "name": "customer: unused rollback and reapply preserve legacy rows/schema",
+      "status": "PASS"
+    },
+    {
+      "name": "Operating infra/apps and unrelated containers unchanged; only scratch SQL executed",
+      "status": "PASS"
+    }
+  ],
+  "status": "PASS",
+  "testCluster": "7708734852737859625",
+  "preexistingContainersUnchanged": true
+}

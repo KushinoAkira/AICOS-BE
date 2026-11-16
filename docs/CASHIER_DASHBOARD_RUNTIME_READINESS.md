@@ -73,3 +73,7 @@ On service failure: stop that candidate app and pause rollout; keep DB schema/AC
 Smoke PASS requires approved services healthy, correct route behavior/flags, existing credentials valid, and no unexpected business data/schema changes. Only then propose separate machine-key/feature activation, historical collection reconciliation and real Cashier/Staff/API tests. Keep unrelated CupV2, refund/split/group collection and real bank/printer integrations outside this step.
 
 Evidence: `CASHIER_DASHBOARD_RUNTIME_READINESS_RESULT.json`, `CASHIER_DASHBOARD_CANDIDATE_IMAGES.json`. Flutter UI/code unchanged; no Flutter test rerun in this Backend operational task. No operating Backend service has been started by this preparation.
+
+## Approved smoke attempt: schema blocker
+
+Infrastructure healthy, applications 0/11 NOT RUN: full model preflight found pending Menu ProductPictureUpload and Customer HuntVouchers. See [CASHIER_DASHBOARD_RUNTIME_SMOKE_EXECUTION.md](CASHIER_DASHBOARD_RUNTIME_SMOKE_EXECUTION.md). Separate guarded compatibility proposals tested 13/13 PASS; eight-DB full restore 11/11 PASS. No local extra migration/GRANT. Runtime approval remains valid after the separately reviewed schema/ACL blockers are resolved.

@@ -1,0 +1,121 @@
+{
+  "date": "2026-11-16",
+  "sourceCluster": "7703616372368646182",
+  "backupFilesVerified": true,
+  "checks": [
+    {
+      "name": "8 private PGDMP backups match manifest size/SHA256; no data or credentials printed",
+      "status": "PASS"
+    },
+    {
+      "name": "Fresh internal-only/tmpfs/no-host-port cluster differs from main; backup bind is read-only",
+      "status": "PASS"
+    },
+    {
+      "name": "aicos_ordering: full data, columns, PK/FK/CHECK/indexes and migration history restored exactly",
+      "status": "PASS"
+    },
+    {
+      "name": "aicos_kitchen: full data, columns, PK/FK/CHECK/indexes and migration history restored exactly",
+      "status": "PASS"
+    },
+    {
+      "name": "aicos_payment: full data, columns, PK/FK/CHECK/indexes and migration history restored exactly",
+      "status": "PASS"
+    },
+    {
+      "name": "aicos_reporting: full data, columns, PK/FK/CHECK/indexes and migration history restored exactly",
+      "status": "PASS"
+    },
+    {
+      "name": "aicos_identity: full data, columns, PK/FK/CHECK/indexes and migration history restored exactly",
+      "status": "PASS"
+    },
+    {
+      "name": "aicos_workforce: full data, columns, PK/FK/CHECK/indexes and migration history restored exactly",
+      "status": "PASS"
+    },
+    {
+      "name": "aicos_menu: full data, columns, PK/FK/CHECK/indexes and migration history restored exactly",
+      "status": "PASS"
+    },
+    {
+      "name": "aicos_customer: full data, columns, PK/FK/CHECK/indexes and migration history restored exactly",
+      "status": "PASS"
+    },
+    {
+      "name": "All preexisting container IDs/images/state/start/restarts unchanged during isolated restore",
+      "status": "PASS"
+    }
+  ],
+  "databases": [
+    {
+      "database": "aicos_ordering",
+      "tables": 13,
+      "columns": 167,
+      "rows": 116,
+      "columnsConstraintsIndexesMatch": true,
+      "allRowCountsAndFingerprintsMatch": true
+    },
+    {
+      "database": "aicos_kitchen",
+      "tables": 12,
+      "columns": 161,
+      "rows": 85,
+      "columnsConstraintsIndexesMatch": true,
+      "allRowCountsAndFingerprintsMatch": true
+    },
+    {
+      "database": "aicos_payment",
+      "tables": 15,
+      "columns": 180,
+      "rows": 10,
+      "columnsConstraintsIndexesMatch": true,
+      "allRowCountsAndFingerprintsMatch": true
+    },
+    {
+      "database": "aicos_reporting",
+      "tables": 3,
+      "columns": 25,
+      "rows": 17,
+      "columnsConstraintsIndexesMatch": true,
+      "allRowCountsAndFingerprintsMatch": true
+    },
+    {
+      "database": "aicos_identity",
+      "tables": 11,
+      "columns": 140,
+      "rows": 149,
+      "columnsConstraintsIndexesMatch": true,
+      "allRowCountsAndFingerprintsMatch": true
+    },
+    {
+      "database": "aicos_workforce",
+      "tables": 10,
+      "columns": 134,
+      "rows": 9,
+      "columnsConstraintsIndexesMatch": true,
+      "allRowCountsAndFingerprintsMatch": true
+    },
+    {
+      "database": "aicos_menu",
+      "tables": 6,
+      "columns": 49,
+      "rows": 887,
+      "columnsConstraintsIndexesMatch": true,
+      "allRowCountsAndFingerprintsMatch": true
+    },
+    {
+      "database": "aicos_customer",
+      "tables": 8,
+      "columns": 91,
+      "rows": 30,
+      "columnsConstraintsIndexesMatch": true,
+      "allRowCountsAndFingerprintsMatch": true
+    }
+  ],
+  "operatingConnectionUsed": false,
+  "migrationApplied": false,
+  "testCluster": "7708733029075730473",
+  "preexistingContainersUnchanged": true
+}

@@ -56,3 +56,8 @@ Ordering, revised Payments and Reporting GRANT files have now committed and veri
 ## Runtime preparation follow-up
 
 See [CASHIER_DASHBOARD_RUNTIME_READINESS.md](CASHIER_DASHBOARD_RUNTIME_READINESS.md): 11/11 candidate image builds PASS, nine actual PostgreSQL role logins PASS, Backend 856 PASS / 51 SKIP. Operational expiry switch defaults true; smoke overlay disables expiry and all financial/recovery workers/features. No runtime deployment/activation performed. Two historic payments lack collection receipts; financial keys/reconciliation need separate review.
+
+
+## Approved smoke attempt: schema blocker
+
+Infrastructure healthy, applications 0/11 NOT RUN: full model preflight found pending Menu ProductPictureUpload and Customer HuntVouchers. See [CASHIER_DASHBOARD_RUNTIME_SMOKE_EXECUTION.md](CASHIER_DASHBOARD_RUNTIME_SMOKE_EXECUTION.md). Separate guarded compatibility proposals tested 13/13 PASS; eight-DB full restore 11/11 PASS. No local extra migration/GRANT. Runtime approval remains valid after the separately reviewed schema/ACL blockers are resolved.

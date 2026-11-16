@@ -1,0 +1,144 @@
+{
+  "startedAtUtc": "2026-11-16T11:33:42.204Z",
+  "revision": "396b7e8596bb1d993272d6fe7c0620b6c62db7c4",
+  "status": "STOPPED",
+  "infra": [
+    {
+      "service": "postgres",
+      "id": "c014190eed2dd5a00374c4a7e45678a7ca6bb7c897dea75c0c952d82eb3043d1",
+      "status": "PASS",
+      "recreated": false
+    },
+    {
+      "service": "redis",
+      "id": "8044508b8e2a82601016ddf1a8ddf719ca210bc6d34531c0c23f6d5d2f35bfdd",
+      "status": "PASS",
+      "recreated": false
+    }
+  ],
+  "services": [],
+  "routes": [],
+  "preflight": [
+    {
+      "name": "Exact 11 candidate IDs/labels, features/workers OFF, unchanged secrets, 17 checksums and rollback backup verified",
+      "status": "PASS"
+    },
+    {
+      "name": "Pinned PostgreSQL cluster and real Redis authentication PASS; no app writers before snapshot",
+      "status": "PASS"
+    }
+  ],
+  "migrationRun": false,
+  "grantsRun": false,
+  "featuresEnabled": false,
+  "businessApiWrites": false,
+  "userLogin": false,
+  "financialReconciliation": false,
+  "currentModelCheck": "menu",
+  "failedService": "preflight-or-final-verification",
+  "failureType": "AssertionError",
+  "failureMessage": "Readiness/contract/data verification failed; inspect local service before continuing",
+  "finishedAtUtc": "2026-11-16T11:33:48.998Z",
+  "currentStates": {
+    "postgres": {
+      "id": "c014190eed2dd5a00374c4a7e45678a7ca6bb7c897dea75c0c952d82eb3043d1",
+      "image": "sha256:00ba258a66dac104fd5171074a0084462a64a1369d8513f3d0a634e2f24d15bc",
+      "running": true,
+      "restarts": 0
+    },
+    "redis": {
+      "id": "8044508b8e2a82601016ddf1a8ddf719ca210bc6d34531c0c23f6d5d2f35bfdd",
+      "image": "sha256:d9436322172a5b482c187bf1f363d3c4fea086fcca6b9c8a94de8f0f39ed3193",
+      "running": true,
+      "restarts": 0
+    },
+    "identity": {
+      "id": "a3ae40e36b623067d09e3a7ed66f30c37ee989fc079f1ab18cd7cc66d872de06",
+      "image": "sha256:9700bd691ae79f36617e4e0d564181939ece4d7feea6b9d5bc97212895d8ec87",
+      "running": false,
+      "restarts": 0
+    },
+    "menu": {
+      "id": "2a107c1fec8bea7212e5b34865ee53e623fc209ffcbd67674c0021320f8753e7",
+      "image": "sha256:ff1adc8f38f06acab9f91ce9f2933ae135258c53866d62e3c424fa6f75a7a0f3",
+      "running": false,
+      "restarts": 0
+    },
+    "table": {
+      "id": "345ddd6a94407db5728474606853f51e073fd1d38afd55134ab6be9c0fd991c9",
+      "image": "sha256:4fe8f7297704326eb78a625accfc3082782fbb4887405cb97aae75b88a5c3afd",
+      "running": false,
+      "restarts": 0
+    },
+    "order": {
+      "id": "238f33cf6d67583428371e4e5277d9a5594049b81e1155c494d3cb492343d8e3",
+      "image": "sha256:fe56d97051e15a1747bca08946b98770a60034bac39b0a1d86c6156db762e888",
+      "running": false,
+      "restarts": 0
+    },
+    "kitchen": {
+      "id": "bdd90f8b81ed24c15ae39c4285db8fd0ea68fe45152ea6824da142008d16d821",
+      "image": "sha256:5209449f4c6a59495bc233f30e6fc6c9c77ac96ba5e4d6adaac56e7939b96cad",
+      "running": false,
+      "restarts": 0
+    },
+    "payment": {
+      "id": "e63ea5c2b10609bdf7c1d35ca99e215c0d2e19b7472672f685099c903367df90",
+      "image": "sha256:bcb58e0483b96b5f43d624210d764ab68ff6166839c982183aac33585f4eea72",
+      "running": false,
+      "restarts": 0
+    },
+    "reporting": {
+      "id": "8b0b1f7deb88ff8dbc0e69f3f8f8df1045f0750a857157ba9b98e998da562365",
+      "image": "sha256:47888fdf073760ab43e05f3cba81b6c12647056026518b288b9b189e936ad94e",
+      "running": false,
+      "restarts": 0
+    },
+    "workforce": {
+      "id": "cec13b9560866ba2bffc4ce1ca61d77353cbd4f68d423c2a1566fcaafbec0feb",
+      "image": "sha256:fe7ee9705615cfa082c6bfcdaefa3d617c10f0b23b7085dbdad71ce204beffa5",
+      "running": false,
+      "restarts": 0
+    },
+    "customer": {
+      "id": "84d1a944a39fa7ff5c5a7ac86ba3756d369b8cfea89fb6adb41ddf2ef25bac7f",
+      "image": "sha256:44dc32d9020290c42b537016cf840223aeb997a55a6d2d7943d23576385c99da",
+      "running": false,
+      "restarts": 0
+    },
+    "ai": {
+      "id": "2ad6ce9f43ac04871f14a269f026e455c6b4c644710548b1cc738346c0dc30e1",
+      "image": "sha256:72f9429c6b80d4c755a8f0f9802fb6289489198726e5f0b232b652e084530c69",
+      "running": false,
+      "restarts": 0
+    },
+    "gateway": {
+      "id": "2a8e97f7ce20a6743d9b43d77a9f08bca1d1167198e08d3ac11a6c55d6e01c16",
+      "image": "sha256:e9cd5dbd469e28aba9e933e4942778aa01d259b24a77261207e6352738663519",
+      "running": false,
+      "restarts": 0
+    }
+  },
+  "outcome": "BLOCKED_SCHEMA_BEFORE_APP_START",
+  "blockers": [
+    {
+      "schema": "menu",
+      "actualColumnCount": 47,
+      "expectedColumnCount": 47,
+      "detailsFile": "RUNTIME_MODEL_SCHEMA_DIFFERENCES.json"
+    },
+    {
+      "schema": "customer",
+      "actualColumnCount": 89,
+      "expectedColumnCount": 104,
+      "detailsFile": "RUNTIME_MODEL_SCHEMA_DIFFERENCES.json"
+    }
+  ],
+  "compatibilityProposal": {
+    "localExecution": false,
+    "isolatedTestGroups": 13,
+    "fullBackupRestoreGroups": 11,
+    "backfillCandidates": 0,
+    "requiresSeparateApproval": true
+  }
+}
