@@ -1,0 +1,159 @@
+{
+  "startedAtUtc": "2026-11-16T03:52:40.042Z",
+  "status": "PASS",
+  "sourceCluster": "7703616372368646182",
+  "backupCreatedAtUtc": "2026-11-16T03:42:20.4427816Z",
+  "preflight": [
+    {
+      "name": "Six private backups fresh, PGDMP size/SHA256 match; separate restore 9/9 PASS",
+      "status": "PASS"
+    },
+    {
+      "name": "All 16 SQL checksums unchanged; only seven approved files selected; no role/GRANT/REVOKE/delete/drop-table SQL",
+      "status": "PASS"
+    },
+    {
+      "name": "Exact existing Docker cluster/database verified, all applications stopped, zero peer clients",
+      "status": "PASS"
+    },
+    {
+      "name": "All six exact migration histories, baseline columns and existing row fingerprints match verified backup",
+      "status": "PASS"
+    },
+    {
+      "name": "Identity tenant transition affects exactly zero rows",
+      "status": "PASS"
+    },
+    {
+      "name": "Reviewed read-only 00_preflight SQL PASS on four service databases",
+      "status": "PASS"
+    }
+  ],
+  "stages": [
+    {
+      "file": "docs/proposals/cashier-dashboard-local/01_ordering_expand.sql",
+      "database": "aicos_ordering",
+      "status": "PASS",
+      "exitCode": 0,
+      "committed": true,
+      "tablesAfter": 13,
+      "columnsAfter": 167
+    },
+    {
+      "file": "docs/proposals/cashier-dashboard-local/02_kitchen_expand.sql",
+      "database": "aicos_kitchen",
+      "status": "PASS",
+      "exitCode": 0,
+      "committed": true,
+      "tablesAfter": 12,
+      "columnsAfter": 161
+    },
+    {
+      "file": "docs/proposals/cashier-dashboard-local/03_payments_expand.sql",
+      "database": "aicos_payment",
+      "status": "PASS",
+      "exitCode": 0,
+      "committed": true,
+      "tablesAfter": 15,
+      "columnsAfter": 177
+    },
+    {
+      "file": "docs/proposals/cashier-dashboard-local/04_reporting_expand.sql",
+      "database": "aicos_reporting",
+      "status": "PASS",
+      "exitCode": 0,
+      "committed": true,
+      "tablesAfter": 3,
+      "columnsAfter": 25
+    },
+    {
+      "file": "docs/proposals/cashier-dashboard-upstream/01_identity.PROPOSAL.sql",
+      "database": "aicos_identity",
+      "status": "PASS",
+      "exitCode": 0,
+      "committed": true,
+      "tenantRowsUpdated": 0,
+      "tablesAfter": 11,
+      "columnsAfter": 140
+    },
+    {
+      "file": "docs/proposals/cashier-dashboard-upstream/02_payment.PROPOSAL.sql",
+      "database": "aicos_payment",
+      "status": "PASS",
+      "exitCode": 0,
+      "committed": true,
+      "tablesAfter": 15,
+      "columnsAfter": 180
+    },
+    {
+      "file": "docs/proposals/cashier-dashboard-upstream/03_workforce.PROPOSAL.sql",
+      "database": "aicos_workforce",
+      "status": "PASS",
+      "exitCode": 0,
+      "committed": true,
+      "tablesAfter": 10,
+      "columnsAfter": 134
+    }
+  ],
+  "migrationOnly": true,
+  "grantsExecuted": false,
+  "runtimeStarted": false,
+  "automaticRollback": false,
+  "before": {
+    "ordering": {
+      "tables": 7,
+      "columns": 94
+    },
+    "kitchen": {
+      "tables": 12,
+      "columns": 160
+    },
+    "payment": {
+      "tables": 7,
+      "columns": 92
+    },
+    "reporting": {
+      "tables": 2,
+      "columns": 18
+    },
+    "identity": {
+      "tables": 11,
+      "columns": 134
+    },
+    "workforce": {
+      "tables": 10,
+      "columns": 128
+    }
+  },
+  "after": {
+    "ordering": {
+      "tables": 13,
+      "columns": 167
+    },
+    "kitchen": {
+      "tables": 12,
+      "columns": 161
+    },
+    "payment": {
+      "tables": 15,
+      "columns": 180
+    },
+    "reporting": {
+      "tables": 3,
+      "columns": 25
+    },
+    "identity": {
+      "tables": 11,
+      "columns": 140
+    },
+    "workforce": {
+      "tables": 10,
+      "columns": 134
+    }
+  },
+  "existingRowsAndOldHistoryPreserved": true,
+  "newBusinessTablesEmpty": true,
+  "postgresReturnedToStopped": true,
+  "otherContainersUnchanged": true,
+  "finishedAtUtc": "2026-11-16T03:53:56.426Z"
+}

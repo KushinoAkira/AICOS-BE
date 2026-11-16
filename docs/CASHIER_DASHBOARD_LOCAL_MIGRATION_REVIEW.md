@@ -101,3 +101,8 @@ See [DASHBOARD_MAIN_SYNC_RESULT.md](DASHBOARD_MAIN_SYNC_RESULT.md) and the separ
 ## Six-database backup/restore follow-up
 
 Fresh full backups including Identity/Workforce and isolated restore completed 9/9 PASS, no migration/GRANT/runtime activation. See [CASHIER_DASHBOARD_SIX_DB_BACKUP_REVIEW.md](CASHIER_DASHBOARD_SIX_DB_BACKUP_REVIEW.md). This supersedes earlier NOT RUN notes for full backup/restore only; SQL and runtime approval gates remain.
+
+
+## Approved seven-file execution
+
+Migration-only execution now PASS; see [CASHIER_DASHBOARD_SEVEN_SQL_EXECUTION.md](CASHIER_DASHBOARD_SEVEN_SQL_EXECUTION.md). The stack is still stopped; no GRANT/runtime/feature activation. Do not run the original Payments GRANT proposal unchanged: the new upstream history must be included in a separately reviewed proposal first.

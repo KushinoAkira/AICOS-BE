@@ -23,7 +23,8 @@ No operating database migration/GRANT, feature activation, runtime image deploym
 | Mobile full regression / analyzer | 362 PASS, 7 SKIP / 0 issues | Demo/API fixture tests; live HTTP counted separately |
 | Upstream migration/restore rehearsal | 8 groups PASS, 0 FAIL | Fresh synthetic empty baseline; zero operating connections |
 | Full six-DB backup/restore (follow-up) | 9/9 PASS | Includes Identity/Workforce; see CASHIER_DASHBOARD_SIX_DB_BACKUP_REVIEW.md |
-| Operating migration/ACL/image/feature rollout | NOT RUN | Needs approval |
+| Operating migration (follow-up) | 7/7 SQL PASS | See CASHIER_DASHBOARD_SEVEN_SQL_EXECUTION.md |
+| Operating ACL/image/feature rollout | NOT RUN | Requires separate approval; Payments GRANT history guard needs revision |
 
 E2E covers Cash vs shift-close, concurrent Cashiers/AddOrder, missing/closed-shift refusal, retry/lost ACK/restarts, confirmed ledger-to-Reporting totals, recovery while Reporting offline, real Flutter OPEN/CLOSE/Cash forms and Dashboard at 360/393/430px. Final Cash 210000 VND, QR 70000 VND, total 280000 VND; QR remains branch-only, excluded from Cash drawer. Existing container IDs/images/start/status/restart counts unchanged. Test containers removed.
 
@@ -36,3 +37,7 @@ Dashboard code is validated on the merged test stack, **not enabled in the opera
 Five extra upstream migrations mean the old four-DB approval package alone is insufficient. Fresh full backup/restore including Identity/Workforce is now 9/9 PASS; see `CASHIER_DASHBOARD_SIX_DB_BACKUP_REVIEW.md`. Review the upstream supplement alongside the old proposal, then approve exact SQL/ACL stages separately, then runtime and feature activation. Recheck backup freshness and history immediately before any approved execution.
 
 Workforce cash handover (cash_closings/payroll) and Payments cashier drawer remain distinct domains. This merge does not infer that their events, opening balances or QR attribution should be combined. No changes to financial allocation without policy approval. New refund bank fields remain nullable and additive.
+
+## Approved migration execution follow-up
+
+The seven approved SQL files have now committed and verified PASS on Docker local: 49 -> 64 tables, 626 -> 807 columns; old data preserved, new business tables empty, Identity UPDATE 0. See [CASHIER_DASHBOARD_SEVEN_SQL_EXECUTION.md](CASHIER_DASHBOARD_SEVEN_SQL_EXECUTION.md). Earlier NOT RUN/pre-approval notes are historical for migration only. GRANT/runtime/features remain unexecuted; Payments GRANT history guard must be revised and rehearsed before its separate approval.
