@@ -344,10 +344,12 @@ public readonly record struct PickupHours(TimeOnly Open, TimeOnly Close)
 }
 
 /// <summary>Releases pickup orders nobody paid in time: the slot is freed and the voucher goes back (through the cancelled event).</summary>
-public sealed class PickupOrderExpiryWorker(IServiceScopeFactory scopes, TimeProvider clock, ILogger<PickupOrderExpiryWorker> logger) : BackgroundService
+public sealed class PickupOrderExpiryWorker(IServiceScopeFactory scopes, TimeProvider clock, IConfiguration configuration, ILogger<PickupOrderExpiryWorker> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        if (!configuration.GetValue("BackgroundJobs:ExpiryEnabled", true)) return;
+
         using var timer = new PeriodicTimer(TimeSpan.FromSeconds(60));
         do
         {

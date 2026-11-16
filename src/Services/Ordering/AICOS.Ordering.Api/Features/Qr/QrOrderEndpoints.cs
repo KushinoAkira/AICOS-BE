@@ -460,6 +460,8 @@ public sealed class TableSessionExpiryWorker(IServiceScopeFactory scopes, TimePr
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        if (!configuration.GetValue("BackgroundJobs:ExpiryEnabled", true)) return;
+
         using var timer = new PeriodicTimer(TimeSpan.FromMinutes(5));
         do
         {

@@ -89,10 +89,12 @@ public sealed class PaymentProcessor(PaymentsDbContext db, IEventBus bus, TimePr
 }
 
 /// <summary>Marks local payment deadlines without releasing collection or declaring provider failure.</summary>
-public sealed class PaymentExpiryJob(IServiceScopeFactory scopes, Microsoft.Extensions.Options.IOptions<PaymentOptions> options, ILogger<PaymentExpiryJob> logger) : BackgroundService
+public sealed class PaymentExpiryJob(IServiceScopeFactory scopes, Microsoft.Extensions.Options.IOptions<PaymentOptions> options, IConfiguration configuration, ILogger<PaymentExpiryJob> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        if (!configuration.GetValue("BackgroundJobs:ExpiryEnabled", true)) return;
+
         var interval = TimeSpan.FromSeconds(Math.Max(5, options.Value.ExpirySweepSeconds));
         using var timer = new PeriodicTimer(interval);
         while (await WaitAsync(timer, stoppingToken))

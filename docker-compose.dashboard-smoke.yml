@@ -1,0 +1,105 @@
+# Candidate smoke overlay ONLY. No automatic startup or feature activation.
+# Requires the base Compose and main-runtime overlay; use existing ignored .env.
+x-dashboard-smoke: &dashboard-smoke
+  Database__MigrateOnStartup: "false"
+  Seed__DemoPlans: "false"
+  Subscriptions__ReminderIntervalMinutes: "0"
+  BackgroundJobs__ExpiryEnabled: "false"
+  Payments__AllowSimulation: "false"
+  SessionBilling__Enabled: "false"
+  SessionBilling__DispatcherEnabled: "false"
+  SessionBilling__AllowTestProviders: "false"
+  CashierShifts__Enabled: "false"
+  CashierShifts__DispatcherEnabled: "false"
+  CashierShifts__RequireOpenForCash: "false"
+  KitchenAdmission__CaptureEnabled: "false"
+  KitchenAdmission__DispatcherEnabled: "false"
+  KitchenAdmission__ReconciliationEnabled: "false"
+  KitchenAdmission__ReceiverEnabled: "false"
+  CupServing__AdmissionEnabled: "false"
+  CupServing__ApiEnabled: "false"
+  CupServing__DispatcherEnabled: "false"
+  CupServing__AdmissionDispatchEnabled: "false"
+  CupServing__AdmissionReconciliationEnabled: "false"
+  TableTransfer__Enabled: "false"
+  TableTransfer__DispatcherEnabled: "false"
+  SplitBill__Enabled: "false"
+  BaristaWorkflow__Enabled: "false"
+  BaristaWorkflow__WorkerEnabled: "false"
+
+services:
+  identity:
+    image: aicos-main/identity:dashboard-${AICOS_RUNTIME_REVISION:?Set the reviewed revision}
+    build:
+      labels:
+        org.opencontainers.image.revision: ${AICOS_RUNTIME_REVISION:?Set the reviewed revision}
+    environment:
+      <<: *dashboard-smoke
+  menu:
+    image: aicos-main/menu:dashboard-${AICOS_RUNTIME_REVISION:?Set the reviewed revision}
+    build:
+      labels:
+        org.opencontainers.image.revision: ${AICOS_RUNTIME_REVISION:?Set the reviewed revision}
+    environment:
+      <<: *dashboard-smoke
+  table:
+    image: aicos-main/table:dashboard-${AICOS_RUNTIME_REVISION:?Set the reviewed revision}
+    build:
+      labels:
+        org.opencontainers.image.revision: ${AICOS_RUNTIME_REVISION:?Set the reviewed revision}
+    environment:
+      <<: *dashboard-smoke
+  order:
+    image: aicos-main/order:dashboard-${AICOS_RUNTIME_REVISION:?Set the reviewed revision}
+    build:
+      labels:
+        org.opencontainers.image.revision: ${AICOS_RUNTIME_REVISION:?Set the reviewed revision}
+    environment:
+      <<: *dashboard-smoke
+  payment:
+    image: aicos-main/payment:dashboard-${AICOS_RUNTIME_REVISION:?Set the reviewed revision}
+    build:
+      labels:
+        org.opencontainers.image.revision: ${AICOS_RUNTIME_REVISION:?Set the reviewed revision}
+    environment:
+      <<: *dashboard-smoke
+  kitchen:
+    image: aicos-main/kitchen:dashboard-${AICOS_RUNTIME_REVISION:?Set the reviewed revision}
+    build:
+      labels:
+        org.opencontainers.image.revision: ${AICOS_RUNTIME_REVISION:?Set the reviewed revision}
+    environment:
+      <<: *dashboard-smoke
+  workforce:
+    image: aicos-main/workforce:dashboard-${AICOS_RUNTIME_REVISION:?Set the reviewed revision}
+    build:
+      labels:
+        org.opencontainers.image.revision: ${AICOS_RUNTIME_REVISION:?Set the reviewed revision}
+    environment:
+      <<: *dashboard-smoke
+  reporting:
+    image: aicos-main/reporting:dashboard-${AICOS_RUNTIME_REVISION:?Set the reviewed revision}
+    build:
+      labels:
+        org.opencontainers.image.revision: ${AICOS_RUNTIME_REVISION:?Set the reviewed revision}
+    environment:
+      <<: *dashboard-smoke
+  customer:
+    image: aicos-main/customer:dashboard-${AICOS_RUNTIME_REVISION:?Set the reviewed revision}
+    build:
+      labels:
+        org.opencontainers.image.revision: ${AICOS_RUNTIME_REVISION:?Set the reviewed revision}
+    environment:
+      <<: *dashboard-smoke
+  gateway:
+    image: aicos-main/gateway:dashboard-${AICOS_RUNTIME_REVISION:?Set the reviewed revision}
+    build:
+      labels:
+        org.opencontainers.image.revision: ${AICOS_RUNTIME_REVISION:?Set the reviewed revision}
+    environment:
+      <<: *dashboard-smoke
+  ai:
+    image: aicos-main/ai:dashboard-${AICOS_RUNTIME_REVISION:?Set the reviewed revision}
+    build:
+      labels:
+        org.opencontainers.image.revision: ${AICOS_RUNTIME_REVISION:?Set the reviewed revision}
