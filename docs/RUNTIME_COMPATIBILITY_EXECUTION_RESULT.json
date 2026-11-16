@@ -1,0 +1,80 @@
+{
+  "startedAtUtc": "2026-11-16T12:02:23.088Z",
+  "status": "PASS",
+  "cluster": "7703616372368646182",
+  "preflight": [
+    {
+      "name": "Fresh eight-DB backup checksums and isolated restore 11/11 verified",
+      "status": "PASS"
+    },
+    {
+      "name": "All 22 reviewed SQL checksums unchanged",
+      "status": "PASS"
+    },
+    {
+      "name": "Exact Docker cluster, 11 apps stopped, no clients/writers, Customer backfill zero",
+      "status": "PASS"
+    },
+    {
+      "name": "Exact pending histories and private schema/ACL/data baseline saved",
+      "status": "PASS"
+    }
+  ],
+  "stages": [
+    {
+      "file": "01_menu_expand.PROPOSAL.sql",
+      "status": "PASS",
+      "committed": true,
+      "columnsBefore": 49,
+      "columnsAfter": 49,
+      "tablesBefore": 6,
+      "tablesAfter": 6
+    },
+    {
+      "file": "02_customer_expand.PROPOSAL.sql",
+      "status": "PASS",
+      "committed": true,
+      "backfillRows": 0,
+      "columnsBefore": 91,
+      "columnsAfter": 106,
+      "tablesBefore": 8,
+      "tablesAfter": 9
+    },
+    {
+      "file": "10_customer_grants.PROPOSAL.sql",
+      "status": "PASS",
+      "committed": true,
+      "permissions": {
+        "select": true,
+        "insert": true,
+        "delete": false,
+        "truncate": false,
+        "updates": [
+          "is_cancelled",
+          "updated_at_utc",
+          "updated_by"
+        ]
+      },
+      "actualSelect": "PASS",
+      "actualWrite": "NOT RUN (no business writes)",
+      "schemaAcl": "Equivalent to original owner-default ACL",
+      "columnsBefore": 91,
+      "columnsAfter": 106,
+      "tablesBefore": 8,
+      "tablesAfter": 9
+    }
+  ],
+  "runtimeStarted": false,
+  "rollbackRun": false,
+  "finishedAtUtc": "2026-11-16T12:02:57.383Z",
+  "validationStop": {
+    "type": "AssertionError",
+    "message": "Verification mismatch; no later stage or automatic rollback run",
+    "rootCause": "Verifier compared raw schema ACL: owner GRANT USAGE materialized NULL to the exact owner-default ACL; no effective schema privilege expansion.",
+    "recovery": "Read-only full verification, no SQL re-execution or rollback"
+  },
+  "oldDataUnchanged": true,
+  "rolesUnchanged": true,
+  "containersUnchanged": true,
+  "verifiedAtUtc": "2026-11-16T12:04:15.169Z"
+}

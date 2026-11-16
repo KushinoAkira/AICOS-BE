@@ -61,3 +61,7 @@ See [CASHIER_DASHBOARD_RUNTIME_READINESS.md](CASHIER_DASHBOARD_RUNTIME_READINESS
 ## Approved smoke attempt: schema blocker
 
 Infrastructure healthy, applications 0/11 NOT RUN: full model preflight found pending Menu ProductPictureUpload and Customer HuntVouchers. See [CASHIER_DASHBOARD_RUNTIME_SMOKE_EXECUTION.md](CASHIER_DASHBOARD_RUNTIME_SMOKE_EXECUTION.md). Separate guarded compatibility proposals tested 13/13 PASS; eight-DB full restore 11/11 PASS. No local extra migration/GRANT. Runtime approval remains valid after the separately reviewed schema/ACL blockers are resolved.
+
+## Runtime gate completed — 2026-11-16
+
+Separate Menu/Customer expansion and Customer GRANT approval executed: 3/3 PASS, legacy data unchanged, backfill 0. Features-OFF runtime smoke: 11/11 apps PASS, existing PostgreSQL/Redis healthy; 10 downstream metadata/DNS/TCP checks and 9 protected GET auth checks PASS. All ten DB schema/ACL/data/history baselines unchanged during smoke. See CASHIER_DASHBOARD_RUNTIME_SMOKE_EXECUTION.md and RUNTIME_COMPATIBILITY_EXECUTION.md. This supersedes the earlier schema-blocked attempt. Financial activation/history reconciliation and valid-token business/Mobile E2E remain OFF/NOT TESTED; no implied approval.

@@ -1,6 +1,6 @@
-# Runtime compatibility blockers ? proposal only
+# Runtime compatibility package
 
-See ../../CASHIER_DASHBOARD_RUNTIME_SMOKE_EXECUTION.md. Actual smoke stopped before any app start: Menu image_url width and missing Customer HuntVouchers schema. Infrastructure only is healthy; no local migration/GRANT from this package has been executed.
+See ../../CASHIER_DASHBOARD_RUNTIME_SMOKE_EXECUTION.md. Actual smoke stopped before any app start: Menu image_url width and missing Customer HuntVouchers schema. Historical first attempt: infrastructure only was healthy. After separate approval, all three files executed and verified PASS; see ../../RUNTIME_COMPATIBILITY_EXECUTION.md. This package is not to be replayed: exact predecessor history guards now intentionally refuse repeat expansion.
 
 Approval scopes/files:
 

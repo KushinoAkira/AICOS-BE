@@ -1,7 +1,7 @@
 {
-  "startedAtUtc": "2026-11-16T11:33:42.204Z",
+  "startedAtUtc": "2026-11-16T12:04:34.784Z",
   "revision": "396b7e8596bb1d993272d6fe7c0620b6c62db7c4",
-  "status": "STOPPED",
+  "status": "PASS",
   "infra": [
     {
       "service": "postgres",
@@ -16,8 +16,292 @@
       "recreated": false
     }
   ],
-  "services": [],
-  "routes": [],
+  "services": [
+    {
+      "service": "identity",
+      "status": "PASS",
+      "live": "PASS",
+      "ready": "PASS",
+      "metadata": "PASS",
+      "swagger": "PASS",
+      "logErrors": 0,
+      "id": "fb4f176c1700978bf0ab3c5f741d448ba5c8a090450e37921e6c8277e0638d25",
+      "image": "sha256:ce1044c56e5a70aae1e1e5bf26702693104d8ea0659b1dee47b39167fa75aa45",
+      "restarts": 0,
+      "databaseStatesUnchanged": true
+    },
+    {
+      "service": "menu",
+      "status": "PASS",
+      "live": "PASS",
+      "ready": "PASS",
+      "metadata": "PASS",
+      "swagger": "PASS",
+      "logErrors": 0,
+      "id": "110757c180b2dc836ed9c338421a0ce297b326e8961a7a4095f8a552ee7cb389",
+      "image": "sha256:3db673d47a920d3718cce34feeb90d49786418471d69d528c019076bfe60e164",
+      "restarts": 0,
+      "databaseStatesUnchanged": true
+    },
+    {
+      "service": "table",
+      "status": "PASS",
+      "live": "PASS",
+      "ready": "PASS",
+      "metadata": "PASS",
+      "swagger": "PASS",
+      "logErrors": 0,
+      "id": "79e95b760230eea779464cdd28facb5644986fe5b2bde528874515a74986c285",
+      "image": "sha256:bd55e3f904134e05ae2c8cdd061855c5e8bccb38d4c020ee742d1c39202959dd",
+      "restarts": 0,
+      "databaseStatesUnchanged": true
+    },
+    {
+      "service": "order",
+      "status": "PASS",
+      "live": "PASS",
+      "ready": "PASS",
+      "metadata": "PASS",
+      "swagger": "PASS",
+      "logErrors": 0,
+      "id": "48c9ae6dc998d57c0b207908095a557e5014edfcd8439d5778c4bcdb8c09df6d",
+      "image": "sha256:1eb134f5d0c1f9fb49088cf51c6dd9dddb1f3bf06b4905d16662c3a88d60d503",
+      "restarts": 0,
+      "databaseStatesUnchanged": true
+    },
+    {
+      "service": "kitchen",
+      "status": "PASS",
+      "live": "PASS",
+      "ready": "PASS",
+      "metadata": "PASS",
+      "swagger": "PASS",
+      "logErrors": 0,
+      "id": "fb6d440422c1b9153fe468368191492e17aa045faf2c53be7b7a03f578cd411d",
+      "image": "sha256:65a2fed2f0a501899734415359cd48158e238f9b434af76449eea996b3930970",
+      "restarts": 0,
+      "databaseStatesUnchanged": true
+    },
+    {
+      "service": "payment",
+      "status": "PASS",
+      "live": "PASS",
+      "ready": "PASS",
+      "metadata": "PASS",
+      "swagger": "PASS",
+      "logErrors": 0,
+      "id": "fc9269ce8c0b71e69ae65643abbbb5eb749da1b6f278d5f4119cacc2f27bd8eb",
+      "image": "sha256:97a20b743bc2c4ffccef8ece325d3a877cffff6daefb2ff1e84ac84462b0d5b0",
+      "restarts": 0,
+      "databaseStatesUnchanged": true
+    },
+    {
+      "service": "reporting",
+      "status": "PASS",
+      "live": "PASS",
+      "ready": "PASS",
+      "metadata": "PASS",
+      "swagger": "PASS",
+      "logErrors": 0,
+      "id": "62a65740bfa7a227ee416f76486a1500f012c93aaecd9deb6f504887be1e47cb",
+      "image": "sha256:bfe46dc9e00d2ac200f8eded9ee29019c7c12bf51f29d06281c213d323768c7b",
+      "restarts": 0,
+      "databaseStatesUnchanged": true
+    },
+    {
+      "service": "workforce",
+      "status": "PASS",
+      "live": "PASS",
+      "ready": "PASS",
+      "metadata": "PASS",
+      "swagger": "PASS",
+      "logErrors": 0,
+      "id": "47ab842584c1236746b34b58d26770f6922261206d71e448c0b227cfb7e96fc5",
+      "image": "sha256:0c9a6605afc15e36dc8380883de6da0e99e041af2e217408b72e7535ca995eac",
+      "restarts": 0,
+      "databaseStatesUnchanged": true
+    },
+    {
+      "service": "customer",
+      "status": "PASS",
+      "live": "PASS",
+      "ready": "PASS",
+      "metadata": "PASS",
+      "swagger": "PASS",
+      "logErrors": 0,
+      "id": "1ed4c975cb0d3e50817255d6b88269e540dc05f1606f58a39861fe20089e51d5",
+      "image": "sha256:aefac0e57e47a0b99a768d91c6e5bc4b21d405d134fcb27fc00648c8cb60bf5d",
+      "restarts": 0,
+      "databaseStatesUnchanged": true
+    },
+    {
+      "service": "ai",
+      "status": "PASS",
+      "live": "PASS",
+      "ready": "PASS",
+      "metadata": "PASS",
+      "swagger": "PASS",
+      "logErrors": 0,
+      "id": "6c16e82399924bb97d16202358f48d4b5d69e535c7cc49688073310362d9c2eb",
+      "image": "sha256:890bc08a9ac921ea0d7a5c6ed5112d802bacb011b4ca03938489d484ba93d65b",
+      "restarts": 0,
+      "databaseStatesUnchanged": true
+    },
+    {
+      "service": "gateway",
+      "status": "PASS",
+      "live": "PASS",
+      "ready": "N/A (not mapped)",
+      "swagger": "N/A (not mapped)",
+      "logErrors": 0,
+      "id": "9807f41f5281495ff867f2c53cd356ff1f1dd3f879d1d43e960376b3c2cc14c8",
+      "image": "sha256:751b6fef27dbb3515dc11589dccf3293ffa848a48e352e4ca01d16428962c4c3",
+      "restarts": 0,
+      "databaseStatesUnchanged": true
+    }
+  ],
+  "routes": [
+    {
+      "service": "identity",
+      "method": "GET",
+      "path": "/api/v1/identity/_info",
+      "status": 200,
+      "result": "PASS"
+    },
+    {
+      "service": "menu",
+      "method": "GET",
+      "path": "/api/v1/menu/_info",
+      "status": 200,
+      "result": "PASS"
+    },
+    {
+      "service": "table",
+      "method": "GET",
+      "path": "/api/v1/tables/_info",
+      "status": 200,
+      "result": "PASS"
+    },
+    {
+      "service": "order",
+      "method": "GET",
+      "path": "/api/v1/orders/_info",
+      "status": 200,
+      "result": "PASS"
+    },
+    {
+      "service": "kitchen",
+      "method": "GET",
+      "path": "/api/v1/kitchen/_info",
+      "status": 200,
+      "result": "PASS"
+    },
+    {
+      "service": "payment",
+      "method": "GET",
+      "path": "/api/v1/payments/_info",
+      "status": 200,
+      "result": "PASS"
+    },
+    {
+      "service": "reporting",
+      "method": "GET",
+      "path": "/api/v1/reporting/_info",
+      "status": 200,
+      "result": "PASS"
+    },
+    {
+      "service": "workforce",
+      "method": "GET",
+      "path": "/api/v1/workforce/_info",
+      "status": 200,
+      "result": "PASS"
+    },
+    {
+      "service": "customer",
+      "method": "GET",
+      "path": "/api/v1/customers/_info",
+      "status": 200,
+      "result": "PASS"
+    },
+    {
+      "service": "ai",
+      "method": "GET",
+      "path": "/api/v1/ai/_info",
+      "status": 200,
+      "result": "PASS"
+    },
+    {
+      "service": "identity",
+      "method": "GET",
+      "path": "/api/v1/identity/public/subscription-plans",
+      "status": 200,
+      "result": "PASS"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/identity/auth/me",
+      "missingToken": 401,
+      "invalidToken": 401,
+      "result": "PASS"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/menu/categories",
+      "missingToken": 401,
+      "invalidToken": 401,
+      "result": "PASS"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/orders",
+      "missingToken": 401,
+      "invalidToken": 401,
+      "result": "PASS"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/kitchen/queue",
+      "missingToken": 401,
+      "invalidToken": 401,
+      "result": "PASS"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/payments/cashier-shifts",
+      "missingToken": 401,
+      "invalidToken": 401,
+      "result": "PASS"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/reporting/collections",
+      "missingToken": 401,
+      "invalidToken": 401,
+      "result": "PASS"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/customers/staff/notifications",
+      "missingToken": 401,
+      "invalidToken": 401,
+      "result": "PASS"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/tables/floor-plan",
+      "missingToken": 401,
+      "invalidToken": 401,
+      "result": "PASS"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/workforce/employees/me",
+      "missingToken": 401,
+      "invalidToken": 401,
+      "result": "PASS"
+    }
+  ],
   "preflight": [
     {
       "name": "Exact 11 candidate IDs/labels, features/workers OFF, unchanged secrets, 17 checksums and rollback backup verified",
@@ -25,6 +309,10 @@
     },
     {
       "name": "Pinned PostgreSQL cluster and real Redis authentication PASS; no app writers before snapshot",
+      "status": "PASS"
+    },
+    {
+      "name": "Nine EF schemas match actual models; ten database schema/ACL/data/history baselines saved privately",
       "status": "PASS"
     }
   ],
@@ -34,11 +322,15 @@
   "businessApiWrites": false,
   "userLogin": false,
   "financialReconciliation": false,
-  "currentModelCheck": "menu",
-  "failedService": "preflight-or-final-verification",
-  "failureType": "AssertionError",
-  "failureMessage": "Readiness/contract/data verification failed; inspect local service before continuing",
-  "finishedAtUtc": "2026-11-16T11:33:48.998Z",
+  "currentModelCheck": "customer",
+  "databaseStatesUnchanged": true,
+  "roleMetadataUnchanged": true,
+  "unrelatedContainersUnchanged": true,
+  "gatewayDnsTcp": "PASS (ten downstreams from gateway)",
+  "validJwtBusinessApi": "NOT TESTED (no login/JWT creation)",
+  "dashboardBusiness": "OFF / NOT TESTED",
+  "aiBusiness": "PLACEHOLDER / NOT TESTED",
+  "finishedAtUtc": "2026-11-16T12:06:39.024Z",
   "currentStates": {
     "postgres": {
       "id": "c014190eed2dd5a00374c4a7e45678a7ca6bb7c897dea75c0c952d82eb3043d1",
@@ -53,92 +345,70 @@
       "restarts": 0
     },
     "identity": {
-      "id": "a3ae40e36b623067d09e3a7ed66f30c37ee989fc079f1ab18cd7cc66d872de06",
-      "image": "sha256:9700bd691ae79f36617e4e0d564181939ece4d7feea6b9d5bc97212895d8ec87",
-      "running": false,
+      "id": "fb4f176c1700978bf0ab3c5f741d448ba5c8a090450e37921e6c8277e0638d25",
+      "image": "sha256:ce1044c56e5a70aae1e1e5bf26702693104d8ea0659b1dee47b39167fa75aa45",
+      "running": true,
       "restarts": 0
     },
     "menu": {
-      "id": "2a107c1fec8bea7212e5b34865ee53e623fc209ffcbd67674c0021320f8753e7",
-      "image": "sha256:ff1adc8f38f06acab9f91ce9f2933ae135258c53866d62e3c424fa6f75a7a0f3",
-      "running": false,
+      "id": "110757c180b2dc836ed9c338421a0ce297b326e8961a7a4095f8a552ee7cb389",
+      "image": "sha256:3db673d47a920d3718cce34feeb90d49786418471d69d528c019076bfe60e164",
+      "running": true,
       "restarts": 0
     },
     "table": {
-      "id": "345ddd6a94407db5728474606853f51e073fd1d38afd55134ab6be9c0fd991c9",
-      "image": "sha256:4fe8f7297704326eb78a625accfc3082782fbb4887405cb97aae75b88a5c3afd",
-      "running": false,
+      "id": "79e95b760230eea779464cdd28facb5644986fe5b2bde528874515a74986c285",
+      "image": "sha256:bd55e3f904134e05ae2c8cdd061855c5e8bccb38d4c020ee742d1c39202959dd",
+      "running": true,
       "restarts": 0
     },
     "order": {
-      "id": "238f33cf6d67583428371e4e5277d9a5594049b81e1155c494d3cb492343d8e3",
-      "image": "sha256:fe56d97051e15a1747bca08946b98770a60034bac39b0a1d86c6156db762e888",
-      "running": false,
+      "id": "48c9ae6dc998d57c0b207908095a557e5014edfcd8439d5778c4bcdb8c09df6d",
+      "image": "sha256:1eb134f5d0c1f9fb49088cf51c6dd9dddb1f3bf06b4905d16662c3a88d60d503",
+      "running": true,
       "restarts": 0
     },
     "kitchen": {
-      "id": "bdd90f8b81ed24c15ae39c4285db8fd0ea68fe45152ea6824da142008d16d821",
-      "image": "sha256:5209449f4c6a59495bc233f30e6fc6c9c77ac96ba5e4d6adaac56e7939b96cad",
-      "running": false,
+      "id": "fb6d440422c1b9153fe468368191492e17aa045faf2c53be7b7a03f578cd411d",
+      "image": "sha256:65a2fed2f0a501899734415359cd48158e238f9b434af76449eea996b3930970",
+      "running": true,
       "restarts": 0
     },
     "payment": {
-      "id": "e63ea5c2b10609bdf7c1d35ca99e215c0d2e19b7472672f685099c903367df90",
-      "image": "sha256:bcb58e0483b96b5f43d624210d764ab68ff6166839c982183aac33585f4eea72",
-      "running": false,
+      "id": "fc9269ce8c0b71e69ae65643abbbb5eb749da1b6f278d5f4119cacc2f27bd8eb",
+      "image": "sha256:97a20b743bc2c4ffccef8ece325d3a877cffff6daefb2ff1e84ac84462b0d5b0",
+      "running": true,
       "restarts": 0
     },
     "reporting": {
-      "id": "8b0b1f7deb88ff8dbc0e69f3f8f8df1045f0750a857157ba9b98e998da562365",
-      "image": "sha256:47888fdf073760ab43e05f3cba81b6c12647056026518b288b9b189e936ad94e",
-      "running": false,
+      "id": "62a65740bfa7a227ee416f76486a1500f012c93aaecd9deb6f504887be1e47cb",
+      "image": "sha256:bfe46dc9e00d2ac200f8eded9ee29019c7c12bf51f29d06281c213d323768c7b",
+      "running": true,
       "restarts": 0
     },
     "workforce": {
-      "id": "cec13b9560866ba2bffc4ce1ca61d77353cbd4f68d423c2a1566fcaafbec0feb",
-      "image": "sha256:fe7ee9705615cfa082c6bfcdaefa3d617c10f0b23b7085dbdad71ce204beffa5",
-      "running": false,
+      "id": "47ab842584c1236746b34b58d26770f6922261206d71e448c0b227cfb7e96fc5",
+      "image": "sha256:0c9a6605afc15e36dc8380883de6da0e99e041af2e217408b72e7535ca995eac",
+      "running": true,
       "restarts": 0
     },
     "customer": {
-      "id": "84d1a944a39fa7ff5c5a7ac86ba3756d369b8cfea89fb6adb41ddf2ef25bac7f",
-      "image": "sha256:44dc32d9020290c42b537016cf840223aeb997a55a6d2d7943d23576385c99da",
-      "running": false,
+      "id": "1ed4c975cb0d3e50817255d6b88269e540dc05f1606f58a39861fe20089e51d5",
+      "image": "sha256:aefac0e57e47a0b99a768d91c6e5bc4b21d405d134fcb27fc00648c8cb60bf5d",
+      "running": true,
       "restarts": 0
     },
     "ai": {
-      "id": "2ad6ce9f43ac04871f14a269f026e455c6b4c644710548b1cc738346c0dc30e1",
-      "image": "sha256:72f9429c6b80d4c755a8f0f9802fb6289489198726e5f0b232b652e084530c69",
-      "running": false,
+      "id": "6c16e82399924bb97d16202358f48d4b5d69e535c7cc49688073310362d9c2eb",
+      "image": "sha256:890bc08a9ac921ea0d7a5c6ed5112d802bacb011b4ca03938489d484ba93d65b",
+      "running": true,
       "restarts": 0
     },
     "gateway": {
-      "id": "2a8e97f7ce20a6743d9b43d77a9f08bca1d1167198e08d3ac11a6c55d6e01c16",
-      "image": "sha256:e9cd5dbd469e28aba9e933e4942778aa01d259b24a77261207e6352738663519",
-      "running": false,
+      "id": "9807f41f5281495ff867f2c53cd356ff1f1dd3f879d1d43e960376b3c2cc14c8",
+      "image": "sha256:751b6fef27dbb3515dc11589dccf3293ffa848a48e352e4ca01d16428962c4c3",
+      "running": true,
       "restarts": 0
     }
-  },
-  "outcome": "BLOCKED_SCHEMA_BEFORE_APP_START",
-  "blockers": [
-    {
-      "schema": "menu",
-      "actualColumnCount": 47,
-      "expectedColumnCount": 47,
-      "detailsFile": "RUNTIME_MODEL_SCHEMA_DIFFERENCES.json"
-    },
-    {
-      "schema": "customer",
-      "actualColumnCount": 89,
-      "expectedColumnCount": 104,
-      "detailsFile": "RUNTIME_MODEL_SCHEMA_DIFFERENCES.json"
-    }
-  ],
-  "compatibilityProposal": {
-    "localExecution": false,
-    "isolatedTestGroups": 13,
-    "fullBackupRestoreGroups": 11,
-    "backfillCandidates": 0,
-    "requiresSeparateApproval": true
   }
 }
