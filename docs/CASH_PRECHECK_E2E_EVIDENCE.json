@@ -1,5 +1,5 @@
 {
-  "cluster": "7708355191903195177",
+  "cluster": "7709090157328588841",
   "checks": [
     {
       "name": "SQL SHA256 matches reviewed manifests",
@@ -55,6 +55,10 @@
     },
     {
       "name": "Eight services live/ready/Swagger; Gateway metadata/live (ready/Swagger N/A by source)",
+      "status": "PASS"
+    },
+    {
+      "name": "Synthetic tenant stays closed until plan payment is recorded through real Identity API",
       "status": "PASS"
     },
     {
@@ -139,6 +143,10 @@
     },
     {
       "name": "Mock only: PENDING survives restart; signed duplicate callbacks apply once; bad signature 401",
+      "status": "PASS"
+    },
+    {
+      "name": "Flutter real QR UI creates one PENDING attempt, survives Payments restart, polls signed provider PAID; no Cash or auto-close",
       "status": "PASS"
     },
     {

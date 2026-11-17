@@ -1,3 +1,4 @@
+import {startSessionQrUi} from './session-qr-ui-flow.mjs';
 import {precheckContracts} from './cash-precheck-flow.mjs';
 import {dashboardSnapshot, dashboardFinalChecks} from './cashier-dashboard-flow.mjs';
 import {runOperationsFlow} from './table-transfer-split-flow.mjs';
@@ -89,7 +90,11 @@ export async function runFlow(c){
  const s4=await open('B04');await add(s4);await until(async()=>(await queue()).some(t=>t.tableNumber==='B04'),'admission before outage');
  await docker(['stop',serviceIds.kitchen]);const cash4=await collect(await bill(s4));assert.equal(cash4.status,200);assert.equal(cash4.data.status,'PAID');assert.equal(cash4.data.orderingAcknowledged,false);
  await docker(['restart',serviceIds.payment]);await docker(['restart',redis]);await docker(['start',serviceIds.kitchen]);await synced(s4);report('Durable PAID outbox retries after Kitchen outage and Payments/Redis restart');
- const s5=await open('B05');await add(s5);const qdraft=await bill(s5);const qr=(await request('POST','/api/v1/payments/bills/'+qdraft.id+'/payments/qr',cashier,{sessionId:s5.session,fingerprint:qdraft.fingerprint,providerCode:'Mock'},'qr-'+crypto.randomUUID(),200)).data;assert.equal(qr.status,'UNPAID');assert.equal(qr.payment.status,'PENDING');
+ const s5=await open('B05');await add(s5);const qdraft=await bill(s5);let qr,mobileQr;
+ if(process.env.AICOS_QR_UI_TEST==='true'){
+  const ui=await startSessionQrUi(c,{branch,session:s5,password:staffPassword,getBill:()=>bill(s5)});qr=ui.bill;mobileQr=ui.finish;
+ }else qr=(await request('POST','/api/v1/payments/bills/'+qdraft.id+'/payments/qr',cashier,{sessionId:s5.session,fingerprint:qdraft.fingerprint,providerCode:'Mock'},'qr-'+crypto.randomUUID(),200)).data;
+ assert.equal(qr.status,'UNPAID');assert.equal(qr.payment.status,'PENDING');
  await docker(['restart',serviceIds.payment]);await until(async()=>{const r=await request('GET','/api/v1/payments/bills?sessionId='+s5.session,cashier);return r.status===200;},'Payments restart');assert.equal((await bill(s5)).payment.id,qr.payment.id);
  if(c.dashboardMode)await dashboardSnapshot(c,{branch,cashier,staffPassword,shift:'OPEN',stage:'QR_PENDING'});
  const eventId='mock-'+crypto.randomUUID(),ref=qr.payment.transactionRef,amount=qr.quote.total;
@@ -97,7 +102,7 @@ export async function runFlow(c){
  const callback={eventId,transactionRef:ref,status:'success',amount,signature};
  await request('POST','/api/v1/payments/bills/webhooks/Mock',null,{...callback,signature:'invalid'},null,401);
  const receipts=await Promise.all(Array.from({length:5},()=>request('POST','/api/v1/payments/bills/webhooks/Mock',null,callback)));assert.ok(receipts.every(r=>r.status===200));const qpaid=await synced(s5);assert.equal(qpaid.status,'PAID');assert.equal(qpaid.providerIsTest,true);
- assert.equal(await sql(databases.payment,"SELECT count(*) FROM payment.session_bill_events WHERE bill_id='"+qr.id+"' AND kind='PROVIDER_RECEIPT';"),'1');report('Mock only: PENDING survives restart; signed duplicate callbacks apply once; bad signature 401');
+ assert.equal(await sql(databases.payment,"SELECT count(*) FROM payment.session_bill_events WHERE bill_id='"+qr.id+"' AND kind='PROVIDER_RECEIPT';"),'1');report('Mock only: PENDING survives restart; signed duplicate callbacks apply once; bad signature 401');if(mobileQr)await mobileQr();
  const reportView=(await request('GET','/api/v1/reporting/branch?branchId='+branch.id,owner,null,null,200)).data;
  const received=await sql(databases.payment,"SELECT COALESCE(sum(total),0) FROM payment.session_bills WHERE status IN ('PAID','CLOSED');");
  const drawer=await sql(databases.workforce,'SELECT COALESCE(sum(amount),0) FROM workforce.cash_transactions;');
