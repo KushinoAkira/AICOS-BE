@@ -1,0 +1,8 @@
+# Temporary CVE acceptances for Trivy (filesystem + image gates).
+# Format: one CVE / GHSA per line. Always include reason + expiry in a comment above.
+#
+# Example:
+# # CVE-2024-XXXX — base image openssl; waiting for distroless bump. Expires: 2026-12-31
+# CVE-2024-XXXX
+#
+# Do not add permanent silent ignores. Prefer upgrading the dependency or base image.

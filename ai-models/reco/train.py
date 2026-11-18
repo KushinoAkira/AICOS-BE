@@ -13,7 +13,7 @@ from pathlib import Path
 import numpy as np
 
 from common.menu import MENU
-from reco.simulate import simulate
+from reco.simulate import assert_orders_in_catalog, simulate
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "models/reco"
@@ -62,6 +62,8 @@ def matrix(orders, users):
     R = np.zeros((len(users), len(IDS)))
     for o in orders:
         for it in o["items"]:
+            if it not in IDX:
+                raise KeyError(f"product id {it!r} is not in the training catalog ({len(IDS)} items)")
             R[users[o["customer"]], IDX[it]] += 1
     return R
 
@@ -81,6 +83,7 @@ def metrics(rank_fn, users, R, test, k=5):
 
 def main() -> None:
     orders = simulate()
+    assert_orders_in_catalog(orders, MENU)
     train, test = split(orders)
     users = {c: n for n, c in enumerate(sorted(test))}
     R = matrix(train, users)
