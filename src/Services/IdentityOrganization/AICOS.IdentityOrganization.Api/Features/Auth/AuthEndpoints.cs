@@ -97,7 +97,11 @@ public static class AuthEndpoints
         var issued = tokens.StartSession(user, http);
         await db.SaveChangesAsync(ct);
 
-        return AuthResponse.From(issued, UserResponse.From(user));
+        // Staff/brand accounts already belong to one tenant — return its code so the FE can route without a brand picker.
+        var brandCode = user.TenantId is null
+            ? null
+            : await db.Tenants.AsNoTracking().Where(t => t.Id == user.TenantId).Select(t => t.Code).FirstOrDefaultAsync(ct);
+        return AuthResponse.From(issued, UserResponse.From(user), brandCode);
     }
 
     // ---------------------------------------------------------------- Refresh / Logout
@@ -138,7 +142,13 @@ public static class AuthEndpoints
         var issued = tokens.RotateSession(session, user);
         await db.SaveChangesAsync(ct);
 
-        return AuthResponse.From(issued, UserResponse.From(user), activeBrand?.Code);
+        // Prefer customer-selected brand; otherwise staff home tenant code for FE path routing.
+        var brandCode = activeBrand?.Code;
+        if (brandCode is null && user.TenantId is not null)
+        {
+            brandCode = await db.Tenants.AsNoTracking().Where(t => t.Id == user.TenantId).Select(t => t.Code).FirstOrDefaultAsync(ct);
+        }
+        return AuthResponse.From(issued, UserResponse.From(user), brandCode);
     }
 
     private static async Task<IResult> LogoutAsync(

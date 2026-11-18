@@ -10,7 +10,7 @@ from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse
 
 from app.config import get_settings
-from app.routers import attendance, chat, forecast, summary
+from app.routers import attendance, forecast, proxy, summary
 
 settings = get_settings()
 
@@ -76,5 +76,8 @@ async def info():
     }
 
 
-for module in (chat, attendance, forecast, summary):
+# Customer AI (chat / recommendations / feedback) is proxied to ai-models.
+# Forecast / attendance / summary stay stubs until those features land.
+app.include_router(proxy.router, prefix=settings.route_prefix)
+for module in (attendance, forecast, summary):
     app.include_router(module.router, prefix=settings.route_prefix)

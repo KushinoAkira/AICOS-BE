@@ -5,9 +5,11 @@ using AICOS.BuildingBlocks.Persistence;
 using AICOS.BuildingBlocks.Security;
 using AICOS.Contracts.Events;
 using AICOS.CustomerEngagement.Api;
+using AICOS.CustomerEngagement.Api.Features.Campaigns;
 using AICOS.CustomerEngagement.Api.Features.Customers;
 using AICOS.CustomerEngagement.Api.Features.Loyalty;
 using AICOS.CustomerEngagement.Api.Features.Vouchers;
+using AICOS.CustomerEngagement.Api.Infrastructure;
 using AICOS.CustomerEngagement.Api.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -15,17 +17,23 @@ var builder = WebApplication.CreateBuilder(args);
 builder.AddAicosServiceDefaults(CustomerEngagementService.Info);
 builder.AddAicosPostgres<CustomerEngagementDbContext>(CustomerEngagementService.Info);
 builder.AddAicosEventBus();
+builder.Services.AddAicosEmail(builder.Configuration);
 
 builder.Services.Configure<LoyaltyOptions>(builder.Configuration.GetSection("Loyalty"));
+builder.Services.Configure<CrmOptions>(builder.Configuration.GetSection(CrmOptions.SectionName));
 builder.Services.AddScoped<LoyaltyRulesService>();
+builder.Services.AddScoped<CrmCampaignRunner>();
+builder.Services.AddHostedService<CrmCampaignJob>();
 builder.Services.AddAicosBranchDirectory(builder.Configuration);   // asks Identity whether a branch belongs to the brand
 
 // Events from other services.
 builder.Services.AddIntegrationEventHandler<CustomerRegisteredEvent, CustomerRegisteredHandler>(); // Identity: new Customer account
 builder.Services.AddIntegrationEventHandler<OrderPaidIntegrationEvent, OrderPaidHandler>();                    // Order: BR-25 points after payment
+builder.Services.AddIntegrationEventHandler<OrderPaidIntegrationEvent, PaymentReceiptHandler>();               // payment confirmation email
 builder.Services.AddIntegrationEventHandler<OrderCancelledIntegrationEvent, OrderCancelledLoyaltyHandler>();      // Order: voucher back / points taken back
 builder.Services.AddIntegrationEventHandler<CustomerDataErasedEvent, CustomerDataErasedHandler>();   // Identity: UC-66 personal data deleted
 builder.Services.AddIntegrationEventHandler<UserProfileUpdatedEvent, UserProfileUpdatedHandler>();   // Identity: name/phone edited (UC-03)
+builder.Services.AddIntegrationEventHandler<AssociationRulePromotedEvent, AssociationRulePromoHandler>(); // Apriori → combo voucher
 builder.Services.AddIntegrationEventHandler<OrderCreatedIntegrationEvent, StaffNotificationHandler>();
 builder.Services.AddIntegrationEventHandler<OrderPaidIntegrationEvent, StaffNotificationHandler>();
 builder.Services.AddIntegrationEventHandler<KitchenOrderReadyIntegrationEvent, StaffNotificationHandler>();

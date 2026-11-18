@@ -65,6 +65,17 @@ public sealed class Customer : AuditableEntity<Guid>
 
     public LoyaltyTier Tier { get; private set; }
 
+    /// <summary>Last paid order time (from OrderPaid). Used for win-back CRM without cross-service queries.</summary>
+    public DateTime? LastPaidAtUtc { get; private set; }
+
+    public void RecordPaidAt(DateTime paidAtUtc)
+    {
+        if (LastPaidAtUtc is null || paidAtUtc > LastPaidAtUtc)
+        {
+            LastPaidAtUtc = paidAtUtc;
+        }
+    }
+
     public void UpdateProfile(string fullName, string? phone, DateOnly? birthday, bool marketingOptIn)
     {
         FullName = fullName.Trim();

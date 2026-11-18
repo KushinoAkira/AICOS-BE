@@ -65,6 +65,8 @@ public sealed class OrderPaidHandler(CustomerEngagementDbContext db, LoyaltyRule
             return;
         }
 
+        customer.RecordPaidAt(@event.PaidAtUtc);
+
         // Counted by hunt vouchers ("N orders of at least X"), whether or not the order earns points.
         if (!await db.MemberOrders.AnyAsync(o => o.OrderId == @event.OrderId, cancellationToken))
         {

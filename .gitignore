@@ -12,6 +12,7 @@ publish/
 ## Secrets / local config
 .env
 appsettings.Local.json
+docker-compose.override.yml
 
 ## Python (AI service)
 __pycache__/
@@ -23,3 +24,7 @@ __pycache__/
 ## OS
 .DS_Store
 Thumbs.db
+
+.codegraph/
+.cursor/
+tmp-chat*.json
