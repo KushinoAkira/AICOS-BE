@@ -50,7 +50,14 @@ jobs:
         if: matrix.language == 'csharp'
         with:
           dotnet-version: 8.0.x
-          cache: true
+      - name: Cache NuGet packages
+        if: matrix.language == 'csharp'
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.*proj', '**/Directory.Packages.props', '**/nuget.config', 'global.json') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
       - uses: github/codeql-action/init@v4
         with:
           languages: ${{ matrix.language }}
@@ -75,16 +82,24 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
-          cache: true
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.*proj', '**/Directory.Packages.props', '**/nuget.config', 'global.json') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
       - run: dotnet restore AICOS.sln
       - name: Fail on known vulnerabilities (direct and transitive)
         run: |
           dotnet list AICOS.sln package --vulnerable --include-transitive 2>&1 | tee audit.txt
           if grep -qE "^\s+>\s" audit.txt; then echo "::error::Vulnerable NuGet packages found"; exit 1; fi
 
+  # Requires Dependency graph (Settings → Code security). Soft-fail until enabled.
   dependency-review:
     name: Dependency review (PR)
     if: github.event_name == 'pull_request' && !github.event.repository.private
+    continue-on-error: true
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
