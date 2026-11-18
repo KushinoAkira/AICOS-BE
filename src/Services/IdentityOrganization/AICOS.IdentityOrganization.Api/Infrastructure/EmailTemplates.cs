@@ -98,31 +98,31 @@ public static class EmailTemplates
 
         var rows = string.Concat(e.Lines.Select(l =>
             "<tr>"
-            + $"<td style="padding:8px 0;border-bottom:1px solid #eee8df;vertical-align:top"><strong>{l.Quantity} × {Html(l.Name)}</strong>"
-            + (l.Options is null ? string.Empty : $"<br><span style="color:#777777;font-size:13px">{Html(l.Options)}</span>")
-            + (string.IsNullOrWhiteSpace(l.Note) ? string.Empty : $"<br><span style="color:#777777;font-size:13px">Ghi chú: {Html(l.Note)}</span>")
-            + $"<br><span style="color:#777777;font-size:13px">{Money(l.UnitPrice)} / ly</span></td>"
-            + $"<td align="right" style="padding:8px 0;border-bottom:1px solid #eee8df;vertical-align:top;white-space:nowrap">{Money(l.LineTotal)}</td>"
+            + $"<td style=\"padding:8px 0;border-bottom:1px solid #eee8df;vertical-align:top\"><strong>{l.Quantity} × {Html(l.Name)}</strong>"
+            + (l.Options is null ? string.Empty : $"<br><span style=\"color:#777777;font-size:13px\">{Html(l.Options)}</span>")
+            + (string.IsNullOrWhiteSpace(l.Note) ? string.Empty : $"<br><span style=\"color:#777777;font-size:13px\">Ghi chú: {Html(l.Note)}</span>")
+            + $"<br><span style=\"color:#777777;font-size:13px\">{Money(l.UnitPrice)} / ly</span></td>"
+            + $"<td align=\"right\" style=\"padding:8px 0;border-bottom:1px solid #eee8df;vertical-align:top;white-space:nowrap\">{Money(l.LineTotal)}</td>"
             + "</tr>"));
         var discount = e.Discount <= 0
             ? string.Empty
-            : $"<tr><td style="padding:4px 0">Giảm giá{(string.IsNullOrWhiteSpace(e.PromotionCode) ? string.Empty : $" ({Html(e.PromotionCode)})")}</td><td align="right" style="padding:4px 0;color:#2e7d32">-{Money(e.Discount)}</td></tr>";
+            : $"<tr><td style=\"padding:4px 0\">Giảm giá{(string.IsNullOrWhiteSpace(e.PromotionCode) ? string.Empty : $" ({Html(e.PromotionCode)})")}</td><td align=\"right\" style=\"padding:4px 0;color:#2e7d32\">-{Money(e.Discount)}</td></tr>";
         var html = Layout(
             $"Hóa đơn {e.OrderCode}",
             $"<p>{Html(Greeting(fullName))}</p><p>Cảm ơn bạn đã đặt hàng tại <strong>{Html(brandName)}</strong>. Đơn của bạn đã được thanh toán.</p>"
-            + "<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;margin:12px 0;color:#555555">"
-            + (where.Length == 0 ? string.Empty : $"<tr><td style="padding:2px 0">Cửa hàng</td><td align="right" style="padding:2px 0">{Html(where)}</td></tr>")
-            + $"<tr><td style="padding:2px 0">Mã đơn</td><td align="right" style="padding:2px 0"><strong>{Html(e.OrderCode)}</strong> · {Html(kind)}</td></tr>"
-            + $"<tr><td style="padding:2px 0">Thời gian</td><td align="right" style="padding:2px 0">{paidAt}</td></tr>"
+            + "<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"font-size:14px;margin:12px 0;color:#555555\">"
+            + (where.Length == 0 ? string.Empty : $"<tr><td style=\"padding:2px 0\">Cửa hàng</td><td align=\"right\" style=\"padding:2px 0\">{Html(where)}</td></tr>")
+            + $"<tr><td style=\"padding:2px 0\">Mã đơn</td><td align=\"right\" style=\"padding:2px 0\"><strong>{Html(e.OrderCode)}</strong> · {Html(kind)}</td></tr>"
+            + $"<tr><td style=\"padding:2px 0\">Thời gian</td><td align=\"right\" style=\"padding:2px 0\">{paidAt}</td></tr>"
             + "</table>"
-            + $"<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:15px;border-top:2px solid #6f4e37">{rows}</table>"
-            + "<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:15px;margin-top:8px">"
-            + $"<tr><td style="padding:4px 0">Tạm tính</td><td align="right" style="padding:4px 0">{Money(e.Subtotal)}</td></tr>"
+            + $"<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"font-size:15px;border-top:2px solid #6f4e37\">{rows}</table>"
+            + "<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"font-size:15px;margin-top:8px\">"
+            + $"<tr><td style=\"padding:4px 0\">Tạm tính</td><td align=\"right\" style=\"padding:4px 0\">{Money(e.Subtotal)}</td></tr>"
             + discount
-            + $"<tr><td style="padding:8px 0;font-size:17px;font-weight:700">Tổng thanh toán</td><td align="right" style="padding:8px 0;font-size:17px;font-weight:700;color:#6f4e37">{Money(e.Total)}</td></tr>"
-            + $"<tr><td style="padding:4px 0;color:#555555">Phương thức</td><td align="right" style="padding:4px 0;color:#555555">{Html(method)}</td></tr>"
+            + $"<tr><td style=\"padding:8px 0;font-size:17px;font-weight:700\">Tổng thanh toán</td><td align=\"right\" style=\"padding:8px 0;font-size:17px;font-weight:700;color:#6f4e37\">{Money(e.Total)}</td></tr>"
+            + $"<tr><td style=\"padding:4px 0;color:#555555\">Phương thức</td><td align=\"right\" style=\"padding:4px 0;color:#555555\">{Html(method)}</td></tr>"
             + "</table>"
-            + (string.IsNullOrWhiteSpace(branchPhone) ? string.Empty : $"<p style="color:#555555;font-size:13px">Cần hỗ trợ về đơn này, gọi cửa hàng: {Html(branchPhone)}</p>"));
+            + (string.IsNullOrWhiteSpace(branchPhone) ? string.Empty : $"<p style=\"color:#555555;font-size:13px\">Cần hỗ trợ về đơn này, gọi cửa hàng: {Html(branchPhone)}</p>"));
         return new EmailMessage(to, $"{brandName} - Hóa đơn đơn hàng {e.OrderCode}", text.ToString(), html);
     }
 
