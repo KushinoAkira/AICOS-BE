@@ -420,6 +420,28 @@ public sealed class OrderTests : IDisposable
     }
 
     [Fact]
+    public async Task A_member_who_pays_online_gets_the_receipt_mailed_once_and_cash_or_a_walk_in_does_not()
+    {
+        var online = await NewOrderAsync(customerId: _customerId);
+        var cash = await NewOrderAsync(customerId: _customerId);
+        var walkIn = await NewOrderAsync();
+        var paymentId = Guid.NewGuid();
+
+        await _f.HandleAsync(Paid(online, "PayOS", paymentId));
+        await _f.HandleAsync(Paid(online, "PayOS", paymentId));                                            // delivered twice: one receipt
+        await _f.HandleAsync(Paid(cash, "Cash"));
+        await _f.HandleAsync(Paid(walkIn, "PayOS"));
+
+        var receipt = _f.Events.Published.OfType<OrderReceiptRequestedIntegrationEvent>().Should().ContainSingle().Subject;
+        (receipt.OrderId, receipt.CustomerId, receipt.PaymentMethod, receipt.PaymentId).Should().Be((online.Id(), _customerId, "PayOS", paymentId));
+        receipt.OrderCode.Should().Be(online.GetProperty("orderCode").GetString());
+        receipt.Total.Should().Be(online.GetProperty("finalAmount").GetDecimal());
+        receipt.Lines.Should().HaveCount(2);
+        receipt.Lines.Sum(l => l.LineTotal).Should().Be(receipt.Subtotal);
+        receipt.Lines.Should().Contain(l => l.Note == "ít đá" && l.Quantity == 1);
+    }
+
+    [Fact]
     public async Task A_payment_of_another_brand_or_for_an_unknown_order_changes_nothing()
     {
         var order = await NewOrderAsync();
