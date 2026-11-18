@@ -19,11 +19,13 @@ public sealed record UpdateEmployeeRequest(string? FullName, string? Position, D
 
 public sealed record ChangeEmployeeStatusRequest(EmployeeStatus? Status);
 
+/// <summary>The bank fields are the salary account (see PUT /employees/{id}/bank-account).</summary>
 public sealed record EmployeeResponse(
-    Guid Id, Guid BranchId, Guid UserId, string FullName, string Role, string? Position, DateOnly? HireDate, ContractType ContractType, EmployeeStatus Status)
+    Guid Id, Guid BranchId, Guid UserId, string FullName, string Role, string? Position, DateOnly? HireDate, ContractType ContractType, EmployeeStatus Status,
+    string? BankName = null, string? BankAccountNumber = null, string? BankAccountName = null)
 {
     public static EmployeeResponse From(Employee e) =>
-        new(e.Id, e.BranchId, e.UserId, e.FullName, e.Role, e.Position, e.HireDate, e.ContractType, e.Status);
+        new(e.Id, e.BranchId, e.UserId, e.FullName, e.Role, e.Position, e.HireDate, e.ContractType, e.Status, e.BankName, e.BankAccountNumber, e.BankAccountName);
 }
 
 public sealed record WorkShiftRequest(Guid? BranchId, string? Name, TimeOnly? StartTime, TimeOnly? EndTime);
@@ -70,7 +72,8 @@ public static class EmployeeEndpoints
     {
         var tenantId = TenantScope.Require(user);
         var branch = await WorkforceScope.FilterAsync(user, directory, branchId, ct);
-        var query = db.Employees.AsNoTracking().Where(e => e.TenantId == tenantId);
+        // Branch managers' salary profiles are kept here too, but they are not staff of the branch (no shifts, no hourly pay).
+        var query = db.Employees.AsNoTracking().Where(e => e.TenantId == tenantId && e.Role != "BranchManager");
         if (branch is not null)
         {
             query = query.Where(e => e.BranchId == branch);

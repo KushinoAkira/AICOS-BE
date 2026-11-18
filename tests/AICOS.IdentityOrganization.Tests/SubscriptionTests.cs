@@ -627,7 +627,27 @@ public sealed class SubscriptionTests : IDisposable
         var response = await _superAdmin.PostAsJsonAsync(Tenants,
             new CreateTenantRequest($"Brand {code}", code, new FirstAdminRequest("Owner", $"owner@{code}.com", null, Password)), Json);
         response.EnsureSuccessStatusCode();
-        return (await response.Content.ReadFromJsonAsync<TenantResponse>(Json))!;
+        var tenant = (await response.Content.ReadFromJsonAsync<TenantResponse>(Json))!;
+        _factory.Open(tenant.Id);   // these tests are about the subscription, not about opening a brand
+        return tenant;
+    }
+
+    [Fact]
+    public async Task A_deleted_plan_is_no_longer_sold_or_listed_and_brands_on_it_keep_their_subscription()
+    {
+        var plan = await CreatePlanAsync("Gói thử", 50_000);
+        var tenant = await CreateTenantAsync("on-plan");
+        await AssignOkAsync(tenant.Id, plan.Id);
+
+        (await _superAdmin.DeleteAsync($"/api/v1/identity/subscription-plans/{plan.Id}")).StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+        (await _superAdmin.GetFromJsonAsync<PagedResponse<PlanResponse>>("/api/v1/identity/subscription-plans?pageSize=100", Json))!.Items.Should().NotContain(p => p.Id == plan.Id);
+        (await _factory.CreateClient().GetFromJsonAsync<List<JsonElement>>("/api/v1/identity/public/subscription-plans", Json))!.Should().NotContain(p => p.GetProperty("id").GetGuid() == plan.Id);
+        (await _superAdmin.GetFromJsonAsync<SubscriptionResponse>($"{Tenants}/{tenant.Id}/subscription", Json))!.PlanName.Should().Be("Gói thử");
+        var other = await CreateTenantAsync("new-one");
+        (await AssignAsync(other.Id, plan.Id)).StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        (await _superAdmin.DeleteAsync($"/api/v1/identity/subscription-plans/{plan.Id}")).StatusCode.Should().Be(HttpStatusCode.Conflict);
+        (await _factory.CreateClientAs(AicosRoles.BrandAdmin).DeleteAsync($"/api/v1/identity/subscription-plans/{plan.Id}")).StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 
     private Task<HttpResponseMessage> AssignAsync(Guid tenantId, Guid planId, DateTime? start = null) =>

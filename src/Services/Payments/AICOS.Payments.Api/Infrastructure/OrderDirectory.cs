@@ -12,7 +12,8 @@ using Microsoft.EntityFrameworkCore;
 namespace AICOS.Payments.Api.Infrastructure;
 
 /// <summary>What Payment needs to know about an order before taking money for it.</summary>
-public sealed record OrderInfo(Guid Id, Guid BranchId, decimal FinalAmount, string Status, string PaymentStatus, bool IsTableSession = false);
+/// <summary><c>CustomerId</c>: the account of the member who placed the order, null for a walk-in.</summary>
+public sealed record OrderInfo(Guid Id, Guid BranchId, decimal FinalAmount, string Status, string PaymentStatus, bool IsTableSession = false, Guid? CustomerId = null);
 
 /// <summary>
 /// Asks the Order service about orders, with the token of the caller (so the Order service applies its own brand, branch and customer rules).
@@ -50,7 +51,8 @@ internal sealed class HttpOrderDirectory(HttpClient http) : IOrderDirectory
         return new OrderInfo(
             orderId, body.GetProperty("branchId").GetGuid(), body.GetProperty("finalAmount").GetDecimal(),
             body.GetProperty("status").GetString() ?? string.Empty, body.GetProperty("paymentStatus").GetString() ?? string.Empty,
-            body.TryGetProperty("type", out var type) && type.GetString() == "DineIn");
+            body.TryGetProperty("type", out var type) && type.GetString() == "DineIn",
+            body.TryGetProperty("customerId", out var customer) && customer.ValueKind == JsonValueKind.String ? customer.GetGuid() : null);
     }
 
     public async Task<IReadOnlyList<OrderForReconciliation>> ListForReconciliationAsync(Guid? branchId, DateOnly from, DateOnly to, CancellationToken ct)

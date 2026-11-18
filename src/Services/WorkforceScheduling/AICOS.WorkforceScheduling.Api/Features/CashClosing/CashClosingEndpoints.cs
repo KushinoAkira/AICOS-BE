@@ -20,8 +20,21 @@ public sealed record SubmitCashClosingRequest(Guid? AssignmentId, decimal? Count
 /// </summary>
 public sealed record ConfirmCashClosingRequest(string? Note, bool? AcknowledgeExceptions = null);
 
-/// <summary>What the system expects in the drawer for a shift, shown to the cashier before counting (the counted amount is still typed in blind).</summary>
-public sealed record ExpectedCashResponse(Guid AssignmentId, decimal ExpectedAmount, decimal CashReceived, decimal CashRefunded, DateTime SinceUtc, DateTime AsOfUtc);
+/// <summary>
+/// What the drawer should hold when the cashier takes it over at the start of their shift: what the previous handover counted
+/// (<c>OpeningAmount</c>, with who counted it and when) plus the cash that moved at the branch since then.
+/// </summary>
+public sealed record ExpectedCashResponse(
+    Guid AssignmentId,
+    decimal ExpectedAmount,
+    decimal CashReceived,
+    decimal CashRefunded,
+    DateTime SinceUtc,
+    DateTime AsOfUtc,
+    decimal OpeningAmount = 0,
+    string? PreviousCashierName = null,
+    DateTime? PreviousHandoverAtUtc = null,
+    Guid? PreviousClosingId = null);
 
 public sealed record CashTransactionLine(Guid? OrderId, decimal Amount, DateTime OccurredAtUtc, bool IsRefund);
 
@@ -50,12 +63,16 @@ public sealed record CashClosingResponse(
     CashClosingStatus Status,
     string? ManagerNote,
     DateTime SubmittedAtUtc,
-    DateTime? ConfirmedAtUtc);
+    DateTime? ConfirmedAtUtc,
+    decimal OpeningAmount = 0,
+    DateTime? SinceUtc = null);
 
 /// <summary>
-/// UC-46 Reconcile End-of-Shift Cash (the Cashier counts the drawer) and UC-33 Confirm Shift Cash Closing (the Branch Manager reviews
-/// any difference and closes the shift). Routes: /api/v1/workforce/cash-closings. The expected amount is computed by the system from
-/// the cash recorded by that cashier during the shift (BR-55). A difference needs a note from the manager and is audited.
+/// UC-46 cash handover at the start of a shift (the incoming Cashier counts the drawer the previous shift left) and UC-33 Confirm Shift
+/// Cash Closing (the Branch Manager reviews any difference). Routes: /api/v1/workforce/cash-closings. The expected amount is what the
+/// previous handover of the branch counted plus the cash recorded at the branch since then (BR-55); the first handover of a shop day
+/// starts from an empty drawer and the cash taken earlier that day. A difference is reported to the manager, needs a note from the
+/// manager to be confirmed and is audited.
 /// </summary>
 public static class CashClosingEndpoints
 {
@@ -72,7 +89,7 @@ public static class CashClosingEndpoints
         group.MapPost("/{id:guid}/confirm", ConfirmAsync).RequireAuthorization(AicosPolicies.Management);
     }
 
-    /// <summary>The Cashier records what was counted. The shift must have been worked (checked in), and each shift is closed once.</summary>
+    /// <summary>The incoming Cashier records what the drawer holds. The shift must have been checked in, and each shift takes the drawer over once.</summary>
     private static async Task<IResult> SubmitAsync(
         SubmitCashClosingRequest r, WorkforceSchedulingDbContext db, ICurrentUser user, ShopClock shop, IEventBus bus, CancellationToken ct)
     {
@@ -103,9 +120,11 @@ public static class CashClosingEndpoints
         }
 
         var now = shop.UtcNow;
-        var expected = (await ExpectedCashAsync(db, user, assignment, now, ct)).ExpectedAmount;
+        var expected = await ExpectedCashAsync(db, shop, assignment, now, ct);
 
-        var closing = new Domain.CashClosing(assignment.TenantId, assignment.BranchId, assignment.Id, assignment.EmployeeId, expected, r.CountedAmount!.Value, r.Note, now);
+        var closing = new Domain.CashClosing(
+            assignment.TenantId, assignment.BranchId, assignment.Id, assignment.EmployeeId, expected.ExpectedAmount, r.CountedAmount!.Value, r.Note, now,
+            expected.OpeningAmount, expected.SinceUtc, expected.PreviousClosingId);
         db.CashClosings.Add(closing);
         await db.SaveChangesAsync(ct);
         var response = (await MapAsync(db, [closing], ct))[0];
@@ -140,20 +159,34 @@ public static class CashClosingEndpoints
             throw new ConflictException("The cash of this shift was already closed.", "cash_closing.duplicate");
         }
 
-        return await ExpectedCashAsync(db, user, assignment, shop.UtcNow, ct);
+        return await ExpectedCashAsync(db, shop, assignment, shop.UtcNow, ct);
     }
 
+    /// <summary>
+    /// The drawer of the branch: the last handover counted, plus every cash movement at the branch since (whoever took it). With no handover
+    /// earlier the same shop day, the drawer starts the day empty and holds the cash taken since midnight.
+    /// </summary>
     private static async Task<ExpectedCashResponse> ExpectedCashAsync(
-        WorkforceSchedulingDbContext db, ICurrentUser user, ShiftAssignment assignment, DateTime now, CancellationToken ct)
+        WorkforceSchedulingDbContext db, ShopClock shop, ShiftAssignment assignment, DateTime now, CancellationToken ct)
     {
-        var since = assignment.EffectiveCheckInUtc!.Value;
+        var dayStart = shop.ToUtc(DateOnly.FromDateTime(shop.ToLocal(now)), TimeOnly.MinValue);
+        var previous = await db.CashClosings.AsNoTracking()
+            .Where(c => c.TenantId == assignment.TenantId && c.BranchId == assignment.BranchId && c.SubmittedAtUtc >= dayStart && c.SubmittedAtUtc <= now)
+            .OrderByDescending(c => c.SubmittedAtUtc).FirstOrDefaultAsync(ct);
+        var since = previous?.SubmittedAtUtc ?? dayStart;
+        var exclusive = previous is not null;
         var amounts = await db.CashTransactions.AsNoTracking()
-            .Where(t => t.TenantId == assignment.TenantId && t.BranchId == assignment.BranchId && t.CashierUserId == user.UserId
-                        && t.OccurredAtUtc >= since && t.OccurredAtUtc <= now)
+            .Where(t => t.TenantId == assignment.TenantId && t.BranchId == assignment.BranchId
+                        && (exclusive ? t.OccurredAtUtc > since : t.OccurredAtUtc >= since) && t.OccurredAtUtc <= now)
             .Select(t => t.Amount).ToListAsync(ct);
+        var opening = previous?.CountedAmount ?? 0;
+        var previousName = previous is null
+            ? null
+            : await db.Employees.AsNoTracking().Where(e => e.Id == previous.EmployeeId).Select(e => e.FullName).FirstOrDefaultAsync(ct);
 
         return new ExpectedCashResponse(
-            assignment.Id, amounts.Sum(), amounts.Where(a => a > 0).Sum(), -amounts.Where(a => a < 0).Sum(), since, now);
+            assignment.Id, opening + amounts.Sum(), amounts.Where(a => a > 0).Sum(), -amounts.Where(a => a < 0).Sum(), since, now,
+            opening, previousName, previous?.SubmittedAtUtc, previous?.Id);
     }
 
     private static async Task<List<CashClosingResponse>> MineAsync(WorkforceSchedulingDbContext db, ICurrentUser user, CancellationToken ct)
@@ -227,8 +260,11 @@ public static class CashClosingEndpoints
         BranchAccess.EnsureCanAccess(user, closing.BranchId);
 
         var (since, until, cashierUserId) = await ShiftWindowAsync(db, closing, ct);
+        var handover = closing.SinceUtc is not null;
+        var exclusive = closing.PreviousClosingId is not null;
         var cash = await db.CashTransactions.AsNoTracking()
-            .Where(t => t.TenantId == closing.TenantId && t.BranchId == closing.BranchId && t.CashierUserId == cashierUserId && t.OccurredAtUtc >= since && t.OccurredAtUtc <= until)
+            .Where(t => t.TenantId == closing.TenantId && t.BranchId == closing.BranchId && (handover || t.CashierUserId == cashierUserId)
+                        && (exclusive ? t.OccurredAtUtc > since : t.OccurredAtUtc >= since) && t.OccurredAtUtc <= until)
             .OrderBy(t => t.OccurredAtUtc).ToListAsync(ct);
         var exceptions = await ExceptionsOfShiftAsync(orders, closing.BranchId, since, until, shop, ct);
 
@@ -241,11 +277,19 @@ public static class CashClosingEndpoints
             exceptions.Count(e => e.IsUnresolved));
     }
 
-    /// <summary>The window of a closing: from the check-in of the cashier to the moment the cash was counted.</summary>
+    /// <summary>
+    /// The window of a handover: from the previous handover (or the start of the shop day) to the moment the drawer was counted. Closings made
+    /// before handovers existed fall back to the check-in of the cashier and that cashier's own cash.
+    /// </summary>
     private static async Task<(DateTime Since, DateTime Until, Guid? CashierUserId)> ShiftWindowAsync(WorkforceSchedulingDbContext db, Domain.CashClosing closing, CancellationToken ct)
     {
-        var assignment = await db.ShiftAssignments.AsNoTracking().FirstAsync(a => a.Id == closing.AssignmentId, ct);
         var employee = await db.Employees.AsNoTracking().FirstAsync(e => e.Id == closing.EmployeeId, ct);
+        if (closing.SinceUtc is { } since)
+        {
+            return (since, closing.SubmittedAtUtc, employee.UserId);
+        }
+
+        var assignment = await db.ShiftAssignments.AsNoTracking().FirstAsync(a => a.Id == closing.AssignmentId, ct);
         return (assignment.EffectiveCheckInUtc ?? closing.SubmittedAtUtc, closing.SubmittedAtUtc, employee.UserId);
     }
 
@@ -316,7 +360,7 @@ public static class CashClosingEndpoints
         return items.Select(c => new CashClosingResponse(
             c.Id, c.BranchId, c.AssignmentId, c.EmployeeId, names.GetValueOrDefault(c.EmployeeId, string.Empty), assignments[c.AssignmentId].WorkDate,
             assignments[c.AssignmentId].StartTime, assignments[c.AssignmentId].EndTime, c.ExpectedAmount, c.CountedAmount, c.Difference, c.CashierNote,
-            c.Status, c.ManagerNote, c.SubmittedAtUtc, c.ConfirmedAtUtc)).ToList();
+            c.Status, c.ManagerNote, c.SubmittedAtUtc, c.ConfirmedAtUtc, c.OpeningAmount, c.SinceUtc)).ToList();
     }
 }
 

@@ -5,7 +5,7 @@ using AICOS.Contracts.Events;
 
 namespace AICOS.Services.IntegrationTests;
 
-/// <summary>UC-46 the cashier counts the drawer, UC-33 the branch manager reviews the difference and closes the shift (BR-55).</summary>
+/// <summary>UC-46 the incoming cashier counts the drawer the previous shift left, UC-33 the branch manager reviews the difference (BR-55).</summary>
 public sealed class WorkforceCashClosingTests : WorkforceTestBase
 {
     private const string Closings = $"{Api}/cash-closings";
@@ -13,43 +13,88 @@ public sealed class WorkforceCashClosingTests : WorkforceTestBase
     private Task CashAsync(Guid cashierUser, decimal amount, DateTime? at = null, Guid? branch = null, Guid? tenant = null, Guid? orderId = null) =>
         F.HandleAsync(new CashPaymentRecordedEvent(tenant ?? Tenant, branch ?? B1, cashierUser, orderId ?? Guid.NewGuid(), amount, at ?? F.Clock.Now.UtcDateTime));
 
-    /// <summary>A cashier with a 07:00-12:00 shift on Monday, checked in at 07:00.</summary>
-    private async Task<(Guid User, Guid Employee, Guid Assignment, HttpClient Client)> CashierOnShiftAsync(string name = "Thu Ngân")
+    /// <summary>A cashier with a shift on <paramref name="day"/> (Monday by default, 07:00-12:00), checked in when it starts.</summary>
+    private async Task<(Guid User, Guid Employee, Guid Assignment, HttpClient Client)> CashierOnShiftAsync(
+        string name = "Thu Ngân", string start = "07:00", string end = "12:00", DateOnly? day = null)
     {
-        var shift = await NewShiftAsync($"Ca {name}", "07:00", "12:00");
+        var shift = await NewShiftAsync($"Ca {name}", start, end);
         var (user, employee) = await NewEmployeeAsync(name, AicosRoles.Cashier);
-        var assignment = await AssignAsync(employee, shift, Monday);
+        var date = day ?? Monday;
+        var assignment = await AssignAsync(employee, shift, date);
         var client = Staff(user, AicosRoles.Cashier);
-        SetLocal(Monday, 7, 0);
+        var at = TimeOnly.Parse(start);
+        SetLocal(date, at.Hour, at.Minute);
         await client.PostOk($"{Api}/attendance/check-in", new { assignmentId = assignment });
         return (user, employee, assignment, client);
     }
 
-    // ------------------------------------------------------------------ the cash ledger
+    // ------------------------------------------------------------------ the drawer handed over
     [Fact]
-    public async Task The_expected_amount_is_the_cash_the_cashier_took_during_the_shift()
+    public async Task The_first_handover_of_the_day_expects_the_cash_taken_at_the_branch_since_midnight()
     {
-        var (user, _, assignment, cashier) = await CashierOnShiftAsync();
-        var otherCashier = NewAccount(AicosRoles.Cashier, B1, "Khác");
-        await CashAsync(user, 50_000, F.Clock.Now.UtcDateTime.AddHours(-1));                // before check-in: another shift
-        SetLocal(Monday, 8, 0);
-        await CashAsync(user, 120_000);
-        await CashAsync(user, 80_000);
-        await CashAsync(user, -30_000);                                                      // a cash refund
-        await CashAsync(otherCashier, 999_000);                                              // another cashier
-        await CashAsync(user, 777_000, branch: B2);                                          // another branch
-        await CashAsync(user, 555_000, tenant: OtherTenant);                                 // another brand
-        SetLocal(Monday, 12, 0);
+        var earlyCashier = NewAccount(AicosRoles.Cashier, B1, "Sớm");
+        SetLocal(Monday, 6, 0);
+        await CashAsync(earlyCashier, 999_000, F.Clock.Now.UtcDateTime.AddHours(-8));       // Sunday evening: another shop day
+        await CashAsync(earlyCashier, 120_000);                                              // earlier today, whoever took it
+        await CashAsync(earlyCashier, -20_000);                                              // a cash refund
+        await CashAsync(earlyCashier, 777_000, branch: B2);                                  // another branch
+        await CashAsync(earlyCashier, 555_000, tenant: OtherTenant);                         // another brand
+        var (_, _, assignment, cashier) = await CashierOnShiftAsync();
+        SetLocal(Monday, 7, 5);
 
-        var closing = await cashier.PostOk(Closings, new { assignmentId = assignment, countedAmount = 170_000, note = "Đủ" });
-        F.Events.Published.OfType<CashClosingSubmittedEvent>().Should().ContainSingle(e => e.ClosingId == closing.Id() && e.CountedAmount == 170_000);
+        var closing = await cashier.PostOk(Closings, new { assignmentId = assignment, countedAmount = 100_000, note = "Đủ" });
+        F.Events.Published.OfType<CashClosingSubmittedEvent>().Should().ContainSingle(e => e.ClosingId == closing.Id() && e.CountedAmount == 100_000);
 
-        closing.GetProperty("expectedAmount").GetDecimal().Should().Be(170_000);
-        closing.GetProperty("countedAmount").GetDecimal().Should().Be(170_000);
+        closing.GetProperty("expectedAmount").GetDecimal().Should().Be(100_000);
+        closing.GetProperty("openingAmount").GetDecimal().Should().Be(0);
+        closing.GetProperty("countedAmount").GetDecimal().Should().Be(100_000);
         closing.GetProperty("difference").GetDecimal().Should().Be(0);
         closing.GetProperty("status").GetString().Should().Be("PendingReview");
         closing.GetProperty("cashierNote").GetString().Should().Be("Đủ");
         closing.GetProperty("employeeName").GetString().Should().Be("Thu Ngân");
+    }
+
+    [Fact]
+    public async Task The_next_cashier_takes_over_what_the_previous_handover_counted_plus_the_cash_taken_since()
+    {
+        var morning = await CashierOnShiftAsync("Ca Sáng");
+        SetLocal(Monday, 7, 5);
+        await morning.Client.PostOk(Closings, new { assignmentId = morning.Assignment, countedAmount = 50_000, note = "Tiền lẻ quản lý để lại" });
+        SetLocal(Monday, 9, 0);
+        await CashAsync(morning.User, 120_000);
+        await CashAsync(morning.User, 80_000);
+        await CashAsync(morning.User, -30_000);
+        await CashAsync(morning.User, 777_000, branch: B2);
+
+        var afternoon = await CashierOnShiftAsync("Ca Chiều", "12:00", "17:00");
+        SetLocal(Monday, 12, 5);
+        var preview = await (await afternoon.Client.GetAsync($"{Closings}/expected?assignmentId={afternoon.Assignment}")).Body();
+
+        preview.GetProperty("openingAmount").GetDecimal().Should().Be(50_000);              // what the morning counted, not what it expected
+        preview.GetProperty("previousCashierName").GetString().Should().Be("Ca Sáng");
+        preview.GetProperty("cashReceived").GetDecimal().Should().Be(200_000);
+        preview.GetProperty("cashRefunded").GetDecimal().Should().Be(30_000);
+        preview.GetProperty("expectedAmount").GetDecimal().Should().Be(220_000);
+
+        var closing = await afternoon.Client.PostOk(Closings, new { assignmentId = afternoon.Assignment, countedAmount = 220_000 });
+        (closing.GetProperty("expectedAmount").GetDecimal(), closing.GetProperty("openingAmount").GetDecimal(), closing.GetProperty("difference").GetDecimal())
+            .Should().Be((220_000m, 50_000m, 0m));
+    }
+
+    [Fact]
+    public async Task A_new_shop_day_starts_from_an_empty_drawer()
+    {
+        var evening = await CashierOnShiftAsync("Ca Tối", "18:00", "22:00");
+        SetLocal(Monday, 18, 5);
+        await evening.Client.PostOk(Closings, new { assignmentId = evening.Assignment, countedAmount = 300_000, note = "Có tiền ca chiều" });
+
+        var tuesday = await CashierOnShiftAsync("Sáng Thứ Ba", day: Monday.AddDays(1));
+        SetLocal(Monday.AddDays(1), 7, 5);
+        var preview = await (await tuesday.Client.GetAsync($"{Closings}/expected?assignmentId={tuesday.Assignment}")).Body();
+
+        (preview.GetProperty("openingAmount").GetDecimal(), preview.GetProperty("expectedAmount").GetDecimal()).Should().Be((0m, 0m));
+        preview.TryGetProperty("previousCashierName", out var name).Should().BeTrue();
+        name.ValueKind.Should().Be(JsonValueKind.Null);
     }
 
     [Fact]
@@ -78,11 +123,9 @@ public sealed class WorkforceCashClosingTests : WorkforceTestBase
         var short1 = await cashier.PostOk(Closings, new { assignmentId = assignment, countedAmount = 150_000 });
         short1.GetProperty("difference").GetDecimal().Should().Be(-50_000);
 
-        var other = await CashierOnShiftAsync("Cashier Hai");
-        SetLocal(Monday, 9, 30);
-        await CashAsync(other.User, 100_000);
-        SetLocal(Monday, 12, 0);
-        (await other.Client.PostOk(Closings, new { assignmentId = other.Assignment, countedAmount = 130_000 })).GetProperty("difference").GetDecimal().Should().Be(30_000);
+        var other = await CashierOnShiftAsync("Cashier Hai", "12:00", "17:00");
+        SetLocal(Monday, 12, 10);
+        (await other.Client.PostOk(Closings, new { assignmentId = other.Assignment, countedAmount = 180_000 })).GetProperty("difference").GetDecimal().Should().Be(30_000);
     }
 
     // ------------------------------------------------------------------ the expected amount before counting
@@ -104,6 +147,7 @@ public sealed class WorkforceCashClosingTests : WorkforceTestBase
         preview.GetProperty("expectedAmount").GetDecimal().Should().Be(170_000);
         preview.GetProperty("cashReceived").GetDecimal().Should().Be(200_000);
         preview.GetProperty("cashRefunded").GetDecimal().Should().Be(30_000);
+        preview.GetProperty("openingAmount").GetDecimal().Should().Be(0);
 
         var closing = await cashier.PostOk(Closings, new { assignmentId = assignment, countedAmount = 170_000 });
         closing.GetProperty("expectedAmount").GetDecimal().Should().Be(preview.GetProperty("expectedAmount").GetDecimal());
@@ -203,13 +247,11 @@ public sealed class WorkforceCashClosingTests : WorkforceTestBase
     public async Task The_manager_lists_and_filters_closings_and_a_cashier_only_sees_their_own()
     {
         var first = await CashierOnShiftAsync("Thu Một");
-        var second = await CashierOnShiftAsync("Thu Hai");
-        SetLocal(Monday, 9, 0);
-        await CashAsync(first.User, 100_000);
-        await CashAsync(second.User, 100_000);
-        SetLocal(Monday, 12, 0);
-        var exact = await first.Client.PostOk(Closings, new { assignmentId = first.Assignment, countedAmount = 100_000 });
-        var off = await second.Client.PostOk(Closings, new { assignmentId = second.Assignment, countedAmount = 90_000 });
+        SetLocal(Monday, 7, 5);
+        var exact = await first.Client.PostOk(Closings, new { assignmentId = first.Assignment, countedAmount = 0 });
+        var second = await CashierOnShiftAsync("Thu Hai", "12:00", "17:00");
+        SetLocal(Monday, 12, 5);
+        var off = await second.Client.PostOk(Closings, new { assignmentId = second.Assignment, countedAmount = 10_000 });
         await Manager.PostOk($"{Closings}/{exact.Id()}/confirm", new { });
 
         (await Manager.GetFromJsonAsync<JsonElement>(Closings)).GetProperty("totalCount").GetInt32().Should().Be(2);
@@ -259,7 +301,7 @@ public sealed class WorkforceCashClosingTests : WorkforceTestBase
         await CashAsync(user, -30_000);
         OrderExceptions.Add("ORD-IN", 90_000, "RefundPending", F.Clock.Now.UtcDateTime.AddMinutes(30));
         OrderExceptions.Add("ORD-DONE", 40_000, "Refunded", F.Clock.Now.UtcDateTime.AddMinutes(40), refunded: 40_000);
-        OrderExceptions.Add("ORD-BEFORE", 10_000, "RefundPending", F.Clock.Now.UtcDateTime.AddHours(-3));               // another shift
+        OrderExceptions.Add("ORD-BEFORE", 10_000, "RefundPending", F.Clock.Now.UtcDateTime.AddHours(-9));               // another shop day
         OrderExceptions.Add("ORD-AFTER", 10_000, "RefundPending", F.Clock.Now.UtcDateTime.AddHours(8));
         SetLocal(Monday, 12, 0);
         var closing = await cashier.PostOk(Closings, new { assignmentId = assignment, countedAmount = 170_000 });

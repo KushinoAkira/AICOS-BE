@@ -58,6 +58,7 @@ public static class TenantSubscriptionEndpoints
 
         var tenant = await FindTenantAsync(db, tenantId, ct);
         var sub = await AssignPlanAsync(db, audit, tenant, request.PlanId.Value, request.StartDate, clock, ct);
+        SubscriptionRules.OpenWhenPaid(tenant, sub);
         await db.SaveChangesAsync(ct);
 
         return Results.Created($"/api/v1/identity/tenants/{tenantId}/subscription", await ToResponseAsync(db, tenant, sub, options.Value, clock, ct));
@@ -135,6 +136,13 @@ public static class TenantSubscriptionEndpoints
             sub.Id, tenantId, request.Amount.Value, paidAt, request.Method!, request.Reference, sub.PeriodStartUtc, currentUser.UserId);
         db.SubscriptionPayments.Add(payment);
         audit.Record(AuditScope.Platform, tenantId, "subscription.payment_recorded", "Subscription", sub.Id, before, Snapshot(sub));
+        var wasWaiting = tenant.Status == TenantStatus.AwaitingPayment;
+        SubscriptionRules.OpenWhenPaid(tenant, sub);   // the first payment opens a new brand
+        if (wasWaiting && tenant.Status == TenantStatus.Active)
+        {
+            audit.Record(AuditScope.Platform, tenantId, "tenant.opened_after_payment", "Tenant", tenantId, null, AuditSnapshots.Of(tenant));
+        }
+
         await db.SaveChangesAsync(ct);
 
         return Results.Created(

@@ -20,6 +20,18 @@ internal static class SubscriptionRules
 
     public static bool IsStaff(string role) => StaffRoles.Contains(role);
 
+    /// <summary>
+    /// A brand waiting for its payment opens once its current plan is paid (or costs nothing). <paramref name="current"/> is the subscription
+    /// the caller just changed, which may not be saved yet.
+    /// </summary>
+    public static void OpenWhenPaid(Tenant tenant, TenantSubscription? current)
+    {
+        if (tenant.Status == TenantStatus.AwaitingPayment && current is not null && (current.Fee <= 0 || current.PaymentStatus == SubscriptionPaymentStatus.Paid))
+        {
+            tenant.ActivateAfterPayment();
+        }
+    }
+
     public static async Task<TenantSubscription?> CurrentAsync(IdentityOrganizationDbContext db, Guid tenantId, CancellationToken ct) =>
         await db.TenantSubscriptions.FirstOrDefaultAsync(s => s.TenantId == tenantId && s.Status == SubscriptionStatus.Active, ct);
 

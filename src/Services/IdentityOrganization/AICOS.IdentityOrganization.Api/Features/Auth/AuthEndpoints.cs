@@ -399,6 +399,8 @@ public static class AuthEndpoints
     {
         TenantStatus.Pending => new ForbiddenException("The registration of your brand is waiting for approval. You can sign in once it is approved.", "tenant.pending_approval"),
         TenantStatus.Rejected => new ForbiddenException("The registration of your brand was refused. Contact the platform administrator.", "tenant.rejected"),
+        TenantStatus.AwaitingPayment => new ForbiddenException("Your brand opens once its plan is paid. The platform team confirms the payment, then you can sign in.", "tenant.awaiting_payment"),
+        TenantStatus.Deleted => new ForbiddenException("This brand was removed from the platform. Contact the platform administrator.", "tenant.deleted"),
         _ => new ForbiddenException("Your brand is suspended. Contact the platform administrator.", "tenant.suspended"),
     };
 

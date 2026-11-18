@@ -84,6 +84,9 @@ internal sealed class PaymentRefundConfiguration : IEntityTypeConfiguration<Paym
         builder.Property(r => r.Reason).HasMaxLength(300).IsRequired();
         builder.Property(r => r.DecisionNote).HasMaxLength(300);
         builder.Property(r => r.ProviderReference).HasMaxLength(100);
+        builder.Property(r => r.BankName).HasMaxLength(100);
+        builder.Property(r => r.BankAccountNumber).HasMaxLength(20);
+        builder.Property(r => r.BankAccountHolder).HasMaxLength(100);
 
         builder.HasIndex(r => r.PaymentId);
         builder.HasIndex(r => new { r.TenantId, r.OrderId });

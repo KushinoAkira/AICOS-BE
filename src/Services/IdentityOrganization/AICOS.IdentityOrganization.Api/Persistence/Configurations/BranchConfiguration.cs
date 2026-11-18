@@ -34,6 +34,8 @@ internal sealed class TenantConfiguration : IEntityTypeConfiguration<Tenant>
         builder.Property(t => t.Name).HasMaxLength(Tenant.NameMaxLength).IsRequired();
         builder.Property(t => t.Code).HasMaxLength(Tenant.CodeMaxLength).IsRequired();
         builder.Property(t => t.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
+        builder.Property(t => t.PaymentClaimReference).HasMaxLength(80);
+        builder.Property(t => t.DeleteReason).HasMaxLength(300);
 
         builder.Property(t => t.Description).HasMaxLength(Tenant.DescriptionMaxLength);
         builder.Property(t => t.LogoUrl).HasMaxLength(Tenant.LogoDataMaxLength);

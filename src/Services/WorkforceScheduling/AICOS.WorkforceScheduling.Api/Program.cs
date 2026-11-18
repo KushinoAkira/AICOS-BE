@@ -39,6 +39,8 @@ api.MapScheduleEndpoints();
 api.MapAttendanceEndpoints();
 api.MapReplacementEndpoints();
 api.MapPayrollEndpoints();
+api.MapPayrollPeriodEndpoints();
+api.MapManagerPayrollEndpoints();
 api.MapCashClosingEndpoints();
 
 await app.RunAsync();

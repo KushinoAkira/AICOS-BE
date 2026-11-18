@@ -84,6 +84,16 @@ public sealed class FakePayments : IPaymentClient
         WhileOpen?.Invoke().GetAwaiter().GetResult();
         return Task.FromResult(new RefundRequestResult("Succeeded"));
     }
+
+    /// <summary>The bank accounts customers gave when cancelling, by payment.</summary>
+    public List<(Guid PaymentId, string Bank, string Number, string Holder)> BankAccounts { get; } = [];
+
+    public async Task<RefundRequestResult> RequestRefundToBankAsync(Guid paymentId, string reason, string bankName, string accountNumber, string accountHolder, CancellationToken ct)
+    {
+        var result = await RequestRefundAsync(paymentId, "Cancellation", null, reason, ct);
+        BankAccounts.Add((paymentId, bankName, accountNumber, accountHolder));
+        return result with { Status = "PendingApproval" };
+    }
 }
 
 /// <summary>Counter orders: prices from the menu, tenant and branch rules, the events from Payment and Kitchen, delivery and the manager exception path.</summary>
@@ -407,6 +417,28 @@ public sealed class OrderTests : IDisposable
         read.GetProperty("paymentId").GetGuid().Should().Be(paymentId);
         var check = await _cashier.GetFromJsonAsync<JsonElement>($"{Orders}/{order.Id()}/payment");
         (check.GetProperty("isPaid").GetBoolean(), check.GetProperty("amountDue").GetDecimal()).Should().Be((true, 139_000m));
+    }
+
+    [Fact]
+    public async Task A_member_who_pays_online_gets_the_receipt_mailed_once_and_cash_or_a_walk_in_does_not()
+    {
+        var online = await NewOrderAsync(customerId: _customerId);
+        var cash = await NewOrderAsync(customerId: _customerId);
+        var walkIn = await NewOrderAsync();
+        var paymentId = Guid.NewGuid();
+
+        await _f.HandleAsync(Paid(online, "PayOS", paymentId));
+        await _f.HandleAsync(Paid(online, "PayOS", paymentId));                                            // delivered twice: one receipt
+        await _f.HandleAsync(Paid(cash, "Cash"));
+        await _f.HandleAsync(Paid(walkIn, "PayOS"));
+
+        var receipt = _f.Events.Published.OfType<OrderReceiptRequestedIntegrationEvent>().Should().ContainSingle().Subject;
+        (receipt.OrderId, receipt.CustomerId, receipt.PaymentMethod, receipt.PaymentId).Should().Be((online.Id(), _customerId, "PayOS", paymentId));
+        receipt.OrderCode.Should().Be(online.GetProperty("orderCode").GetString());
+        receipt.Total.Should().Be(online.GetProperty("finalAmount").GetDecimal());
+        receipt.Lines.Should().HaveCount(2);
+        receipt.Lines.Sum(l => l.LineTotal).Should().Be(receipt.Subtotal);
+        receipt.Lines.Should().Contain(l => l.Note == "ít đá" && l.Quantity == 1);
     }
 
     [Fact]

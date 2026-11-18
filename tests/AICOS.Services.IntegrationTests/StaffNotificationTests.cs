@@ -97,13 +97,14 @@ public sealed class StaffNotificationTests : IDisposable
     }
 
     [Fact]
-    public async Task A_replacement_shift_is_offered_to_the_staff_of_the_branch()
+    public async Task A_shift_that_needs_a_replacement_goes_to_the_manager_who_arranges_it()
     {
         await _f.HandleAsync(new ReplacementShiftOpenedEvent(_tenant, _b1, Guid.NewGuid(), new DateOnly(2026, 11, 5), new TimeOnly(7, 0), new TimeOnly(12, 0)));
 
-        var row = (await ListAsync(_f.As(AicosRoles.Barista, _b1))).Should().ContainSingle().Subject;
+        var row = (await ListAsync(_f.As(AicosRoles.BranchManager, _b1))).Should().ContainSingle().Subject;
         row.GetProperty("body").GetString().Should().Contain("07:00-12:00").And.Contain("05/11/2026");
-        (await ListAsync(_f.As(AicosRoles.Cashier, _b1))).Should().ContainSingle();
+        (await ListAsync(_f.As(AicosRoles.Barista, _b1))).Should().BeEmpty();
+        (await ListAsync(_f.As(AicosRoles.Cashier, _b1))).Should().BeEmpty();
     }
 
     [Fact]

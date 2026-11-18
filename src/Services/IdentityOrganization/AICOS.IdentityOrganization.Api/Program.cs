@@ -8,6 +8,7 @@ using AICOS.IdentityOrganization.Api.Features.Auth;
 using AICOS.IdentityOrganization.Api.Features.Branches;
 using AICOS.IdentityOrganization.Api.Features.Dev;
 using AICOS.IdentityOrganization.Api.Features.Platform;
+using AICOS.IdentityOrganization.Api.Features.Receipts;
 using AICOS.IdentityOrganization.Api.Features.Subscriptions;
 using AICOS.IdentityOrganization.Api.Features.Tenants;
 using AICOS.IdentityOrganization.Api.Features.Users;
@@ -34,6 +35,7 @@ builder.Services.AddOptions<SubscriptionOptions>()
 builder.Services.AddScoped<SubscriptionReminderJob>();
 builder.Services.AddHostedService<SubscriptionReminderService>();
 builder.Services.AddIntegrationEventHandler<AuditRecordedEvent, AuditRecordedHandler>(); // other services: sensitive changes for the audit history
+builder.Services.AddIntegrationEventHandler<OrderReceiptRequestedIntegrationEvent, OrderReceiptHandler>(); // Order service: mail the receipt of an order a member paid online
 // Mail: a real SMTP server when Email:Smtp:Host and Email:FromAddress are set (see .env.example), otherwise the mails are only logged.
 builder.Services.AddAicosEmail(builder.Configuration);
 // Sign in with Google: needs Google:ClientId (environment variable Google__ClientId); the ID token is checked against Google's public keys.

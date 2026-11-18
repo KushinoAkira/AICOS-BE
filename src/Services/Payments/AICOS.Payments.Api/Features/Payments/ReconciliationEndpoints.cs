@@ -103,7 +103,7 @@ public static class ReconciliationEndpoints
         }
 
         var pendingRefunds = await db.PaymentRefunds.CountAsync(
-            r => r.TenantId == tenantId && r.Status == RefundStatus.PendingApproval && (branch == null || r.BranchId == branch), ct);
+            r => r.TenantId == tenantId && (r.Status == RefundStatus.PendingApproval || r.Status == RefundStatus.AwaitingTransfer) && (branch == null || r.BranchId == branch), ct);
 
         return new ReconciliationReport(
             fromDate, toDate, branch, payments.Count, paid.Count, paid.Sum(p => p.Amount), paid.Sum(p => p.RefundedAmount), paid.Sum(p => p.Amount - p.RefundedAmount),
@@ -223,7 +223,8 @@ public static class ReconciliationEndpoints
         db.Payments.Where(p => p.TenantId == tenantId && (branch == null || p.BranchId == branch) && p.CreatedAtUtc >= startUtc && p.CreatedAtUtc < endUtc);
 
     /// <summary>Inclusive shop-day range (default today) turned into a UTC interval.</summary>
-    private static (DateOnly From, DateOnly To, DateTime StartUtc, DateTime EndUtc) Range(Infrastructure.PaymentOptions options, TimeProvider clock, DateOnly? from, DateOnly? to)
+    /// <summary>Shop-local days [from, to] as a UTC window; shared with the refund history.</summary>
+    internal static (DateOnly From, DateOnly To, DateTime StartUtc, DateTime EndUtc) Range(Infrastructure.PaymentOptions options, TimeProvider clock, DateOnly? from, DateOnly? to)
     {
         var zone = TimeZoneInfo.FindSystemTimeZoneById(options.TimeZone);
         var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(clock.GetUtcNow().UtcDateTime, zone));
