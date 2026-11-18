@@ -35,6 +35,7 @@ public sealed class PaymentSucceededHandler(OrderingDbContext db, OrderEventPubl
         if (!order.IsVoided)
         {
             await events.PaidAsync(order, cancellationToken);   // loyalty points are awarded from this; a late payment for a cancelled order earns nothing
+            await events.ReceiptAsync(order, @event.Method, cancellationToken);   // a member who paid online gets the receipt by mail
         }
 
         if (!wasCompleted && order.Status == OrderStatus.Completed)
