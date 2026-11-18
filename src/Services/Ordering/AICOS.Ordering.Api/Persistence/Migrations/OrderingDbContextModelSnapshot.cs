@@ -1202,7 +1202,7 @@ namespace AICOS.Ordering.Api.Persistence.Migrations
                         {
                             t.HasCheckConstraint("ck_session_checkout_state", "state IN ('Frozen','Paid','Closed')");
                         });
-
+                });
 
             modelBuilder.Entity("AICOS.Ordering.Api.Domain.Entities.OrderItem", b =>
                 {
