@@ -1,0 +1,9 @@
+# pip-audit --ignore-vuln IDs (one per line). transformers is capped at <5 in
+# requirements-serve.txt for API compatibility; listed advisories only ship fixes on 5.x.
+# Review before 2026-12-31 and either bump transformers major or refresh this list.
+PYSEC-2025-217
+PYSEC-2026-2288
+PYSEC-2026-2289
+PYSEC-2026-2290
+PYSEC-2026-3929
+PYSEC-2026-4174

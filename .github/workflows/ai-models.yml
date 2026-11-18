@@ -48,7 +48,13 @@ jobs:
           sys.exit(1 if bad else 0)
           PY
       - name: Dependency vulnerabilities (pip-audit)
-        run: pip-audit -r requirements-serve.txt --progress-spinner off
+        run: |
+          ignores=()
+          while IFS= read -r id || [ -n "$id" ]; do
+            case "$id" in ''|\#*) continue ;; esac
+            ignores+=(--ignore-vuln "$id")
+          done < pip-audit-ignores.txt
+          pip-audit -r requirements-serve.txt --progress-spinner off "${ignores[@]}"
 
   image:
     needs: test
