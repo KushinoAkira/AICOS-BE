@@ -46,6 +46,8 @@ internal sealed class EmployeeConfiguration : IEntityTypeConfiguration<Employee>
         builder.Property(e => e.BankName).HasMaxLength(Employee.BankNameMaxLength);
         builder.Property(e => e.BankAccountNumber).HasMaxLength(Employee.BankAccountNumberMaxLength);
         builder.Property(e => e.BankAccountName).HasMaxLength(Employee.BankAccountNameMaxLength);
+        builder.Property(e => e.MonthlySalary).HasPrecision(14, 2);
+        builder.Ignore(e => e.IsManager);
         builder.Ignore(e => e.HasBankAccount);
         builder.HasIndex(e => e.UserId).IsUnique();
         builder.HasIndex(e => new { e.TenantId, e.BranchId });
@@ -200,6 +202,7 @@ internal sealed class PayrollPeriodConfiguration : IEntityTypeConfiguration<Payr
         builder.HasKey(p => p.Id);
         builder.Property(p => p.Id).ValueGeneratedNever();
         builder.Property(p => p.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
+        builder.Property(p => p.Kind).HasConversion<string>().HasMaxLength(20).IsRequired();
         builder.Property(p => p.ReopenReason).HasMaxLength(PayrollPeriod.ReasonMaxLength);
         builder.Ignore(p => p.Locks);
         builder.Ignore(p => p.TotalNet);

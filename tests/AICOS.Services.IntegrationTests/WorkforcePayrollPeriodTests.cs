@@ -80,7 +80,7 @@ public sealed class WorkforcePayrollPeriodTests : WorkforceTestBase
         await Manager.Post(Periods, new { from = D(Monday), to = D(Sunday) }).ShouldBe(422, "payroll.unreviewed_records");
         await Manager.Post(Periods, new { from = D(Monday), to = D(Monday.AddDays(7)) }).ShouldBe(422, "payroll.period_not_over");
         await Manager.Post(Periods, new { from = D(Sunday), to = D(Monday) }).ShouldBe(400);
-        await Admin.Post(Periods, new { from = D(Monday), to = D(Sunday) }).ShouldBe(400);                       // a brand admin names the branch
+        await Admin.Post(Periods, new { from = D(Monday), to = D(Sunday), branchId = B1 }).ShouldBe(403, "payroll.manager_pays_staff");   // the manager pays the staff
 
         await ApproveWeekAsync();
         await FinalizeAsync();

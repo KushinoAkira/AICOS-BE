@@ -37,11 +37,11 @@ public sealed record PayrollPeriodLineResponse(
 }
 
 public sealed record PayrollPeriodResponse(
-    Guid Id, Guid BranchId, DateOnly From, DateOnly To, PayrollPeriodStatus Status, DateTime FinalizedAtUtc, Guid? FinalizedBy, DateTime? ReopenedAtUtc,
+    Guid Id, Guid BranchId, PayrollKind Kind, DateOnly From, DateOnly To, PayrollPeriodStatus Status, DateTime FinalizedAtUtc, Guid? FinalizedBy, DateTime? ReopenedAtUtc,
     string? ReopenReason, decimal TotalNet, decimal TotalPaid, int Employees, int Paid, IReadOnlyList<PayrollPeriodLineResponse>? Lines, IReadOnlyList<PayrollWarning> Warnings)
 {
     public static PayrollPeriodResponse Of(PayrollPeriod p, bool withLines = true) => new(
-        p.Id, p.BranchId, p.From, p.To, p.Status, p.FinalizedAtUtc, p.FinalizedBy, p.ReopenedAtUtc, p.ReopenReason, p.TotalNet,
+        p.Id, p.BranchId, p.Kind, p.From, p.To, p.Status, p.FinalizedAtUtc, p.FinalizedBy, p.ReopenedAtUtc, p.ReopenReason, p.TotalNet,
         p.Lines.Where(l => l.IsPaid).Sum(l => l.NetPay), p.Lines.Count, p.Lines.Count(l => l.IsPaid),
         withLines ? p.Lines.OrderBy(l => l.EmployeeName).Select(PayrollPeriodLineResponse.From).ToList() : null,
         p.Status == PayrollPeriodStatus.Reopened ? [] : WarningsOf(p));
@@ -67,7 +67,7 @@ public sealed record PayrollPeriodResponse(
 
 /// <summary>An employee's own pay for one finalized period.</summary>
 public sealed record PayslipResponse(
-    Guid PeriodId, Guid BranchId, DateOnly From, DateOnly To, PayrollPeriodStatus PeriodStatus, int WorkedDays, double RegularHours, double OvertimeHours,
+    Guid PeriodId, Guid BranchId, PayrollKind Kind, DateOnly From, DateOnly To, PayrollPeriodStatus PeriodStatus, int WorkedDays, double RegularHours, double OvertimeHours,
     double ReplacementHours, decimal BasePay, decimal OvertimePay, decimal ReplacementPay, decimal Adjustments, decimal GrossPay, decimal NetPay,
     string? BankName, string? BankAccountHint, bool IsPaid, DateTime? PaidAtUtc, PayoutMethod? PayoutMethod, string? PayoutReference);
 
@@ -111,6 +111,7 @@ public static class PayrollPeriodEndpoints
         }
 
         errors.ThrowIfAny();
+        EnsureManagerPaysStaff(user);
 
         if (r.To >= shop.Today)
         {
@@ -119,7 +120,7 @@ public static class PayrollPeriodEndpoints
 
         var tenantId = TenantScope.Require(user);
         var branch = await BranchScope.ResolveAsync(user, directory, r.BranchId, requireActive: false, ct);
-        if (await db.PayrollPeriods.AnyAsync(p => p.TenantId == tenantId && p.BranchId == branch && p.Status != PayrollPeriodStatus.Reopened && p.From <= r.To && p.To >= r.From, ct))
+        if (await db.PayrollPeriods.AnyAsync(p => p.TenantId == tenantId && p.Kind == PayrollKind.Staff && p.BranchId == branch && p.Status != PayrollPeriodStatus.Reopened && p.From <= r.To && p.To >= r.From, ct))
         {
             throw new ConflictException("Part of these days is already in a finalized payroll period of this branch.", "payroll.period_overlap");
         }
@@ -153,7 +154,7 @@ public static class PayrollPeriodEndpoints
     {
         var tenantId = TenantScope.Require(user);
         var branch = await WorkforceScope.FilterAsync(user, directory, branchId, ct);
-        var query = db.PayrollPeriods.AsNoTracking().Include(p => p.Lines).Where(p => p.TenantId == tenantId);
+        var query = db.PayrollPeriods.AsNoTracking().Include(p => p.Lines).Where(p => p.TenantId == tenantId && p.Kind == PayrollKind.Staff);
         if (branch is not null)
         {
             query = query.Where(p => p.BranchId == branch);
@@ -185,7 +186,7 @@ public static class PayrollPeriodEndpoints
 
         errors.ThrowIfAny();
 
-        var period = await FindAsync(db, user, id, ct);
+        var period = await FindAsync(db, user, id, ct, write: true);
         var before = Snapshot(period);
         period.MarkPaid(r.EmployeeIds!, r.Method!.Value, string.IsNullOrWhiteSpace(r.Reference) ? null : r.Reference.Trim(), user.UserId, shop.UtcNow);
         await db.SaveChangesAsync(ct);
@@ -200,7 +201,7 @@ public static class PayrollPeriodEndpoints
         CommonRules.Required(errors, "Reason", r.Reason, "Reason", PayrollPeriod.ReasonMaxLength);
         errors.ThrowIfAny();
 
-        var period = await FindAsync(db, user, id, ct);
+        var period = await FindAsync(db, user, id, ct, write: true);
         var before = Snapshot(period);
         period.Reopen(r.Reason!.Trim(), user.UserId, shop.UtcNow);
         await db.SaveChangesAsync(ct);
@@ -246,12 +247,12 @@ public static class PayrollPeriodEndpoints
                 join p in db.PayrollPeriods.AsNoTracking() on l.PeriodId equals p.Id
                 where l.EmployeeId == me.Id && p.Status != PayrollPeriodStatus.Reopened
                 orderby p.From descending
-                select new { Line = l, p.BranchId, p.From, p.To, p.Status })
+                select new { Line = l, p.BranchId, p.Kind, p.From, p.To, p.Status })
             .Take(24)
             .ToListAsync(ct);
 
         return rows.Select(x => new PayslipResponse(
-            x.Line.PeriodId, x.BranchId, x.From, x.To, x.Status, x.Line.WorkedDays, x.Line.RegularHours, x.Line.OvertimeHours, x.Line.ReplacementHours, x.Line.BasePay,
+            x.Line.PeriodId, x.BranchId, x.Kind, x.From, x.To, x.Status, x.Line.WorkedDays, x.Line.RegularHours, x.Line.OvertimeHours, x.Line.ReplacementHours, x.Line.BasePay,
             x.Line.OvertimePay, x.Line.ReplacementPay, x.Line.Adjustments, x.Line.GrossPay, x.Line.NetPay, x.Line.BankName,
             x.Line.BankAccountNumber is { Length: >= 4 } number ? $"••••{number[^4..]}" : null, x.Line.IsPaid, x.Line.PaidAtUtc, x.Line.PayoutMethod,
             x.Line.PayoutReference)).ToList();
@@ -291,21 +292,49 @@ public static class PayrollPeriodEndpoints
     }
 
     // ------------------------------------------------------------------ helpers
-    private static async Task<PayrollPeriod> FindAsync(WorkforceSchedulingDbContext db, ICurrentUser user, Guid id, CancellationToken ct)
+    /// <summary>
+    /// A period the caller may see: a staff period of their branch (any branch for the brand admin), or a managers period for the brand admin only.
+    /// <paramref name="write"/>: paying or reopening, which only the payer may do: the branch manager for staff, the brand admin for managers.
+    /// </summary>
+    internal static async Task<PayrollPeriod> FindAsync(WorkforceSchedulingDbContext db, ICurrentUser user, Guid id, CancellationToken ct, bool write = false)
     {
         var tenantId = TenantScope.Require(user);
         var period = await db.PayrollPeriods.Include(p => p.Lines).FirstOrDefaultAsync(p => p.Id == id && p.TenantId == tenantId, ct)
             ?? throw new NotFoundException("Payroll period", id);
+        if (period.Kind == PayrollKind.Managers)
+        {
+            if (!user.IsInRole(AicosRoles.BrandAdmin))
+            {
+                throw new NotFoundException("Payroll period", id);
+            }
+
+            return period;
+        }
+
         BranchAccess.EnsureCanAccess(user, period.BranchId);
+        if (write)
+        {
+            EnsureManagerPaysStaff(user);
+        }
+
         return period;
     }
 
-    private static object Snapshot(PayrollPeriod p) => new
+    /// <summary>Baristas and cashiers are paid by the manager of their branch; the brand admin only reads their payroll (and pays the managers).</summary>
+    internal static void EnsureManagerPaysStaff(ICurrentUser user)
     {
-        p.BranchId, p.From, p.To, Status = p.Status.ToString(), p.TotalNet, p.ReopenReason,
+        if (user.IsInRole(AicosRoles.BrandAdmin))
+        {
+            throw new ForbiddenException("Staff are paid by the manager of their branch; the brand admin pays the branch managers.", "payroll.manager_pays_staff");
+        }
+    }
+
+    internal static object Snapshot(PayrollPeriod p) => new
+    {
+        p.BranchId, Kind = p.Kind.ToString(), p.From, p.To, Status = p.Status.ToString(), p.TotalNet, p.ReopenReason,
         Paid = p.Lines.Where(l => l.IsPaid).Select(l => new { l.EmployeeId, l.NetPay, Method = l.PayoutMethod.ToString(), l.PayoutReference }).ToList(),
     };
 
-    private static Task Audit(IEventBus bus, ICurrentUser user, ILoggerFactory loggers, Guid tenantId, string action, PayrollPeriod period, object? before) =>
+    internal static Task Audit(IEventBus bus, ICurrentUser user, ILoggerFactory loggers, Guid tenantId, string action, PayrollPeriod period, object? before) =>
         AuditTrail.PublishAsync(bus, user, loggers.CreateLogger("AICOS.Workforce.Payroll"), tenantId, action, "PayrollPeriod", period.Id, before, Snapshot(period));
 }

@@ -14,6 +14,13 @@ public enum PayrollPeriodStatus
     Reopened,
 }
 
+/// <summary>Staff: the baristas and cashiers of a branch, paid by its manager. Managers: the branch managers of the brand, paid by the brand admin (a monthly salary).</summary>
+public enum PayrollKind
+{
+    Staff,
+    Managers,
+}
+
 public enum PayoutMethod
 {
     BankTransfer,
@@ -34,9 +41,10 @@ public sealed class PayrollPeriod : AuditableEntity<Guid>, IBranchScoped
     {
     }
 
-    public PayrollPeriod(Guid tenantId, Guid branchId, DateOnly from, DateOnly to, Guid? finalizedBy, DateTime now)
+    public PayrollPeriod(Guid tenantId, Guid branchId, DateOnly from, DateOnly to, Guid? finalizedBy, DateTime now, PayrollKind kind = PayrollKind.Staff)
     {
         Id = Guid.NewGuid();
+        Kind = kind;
         TenantId = tenantId;
         BranchId = branchId;
         From = from;
@@ -48,7 +56,10 @@ public sealed class PayrollPeriod : AuditableEntity<Guid>, IBranchScoped
 
     public Guid TenantId { get; private set; }
 
+    /// <summary>The branch of a staff payroll. A managers payroll covers the whole brand: <see cref="Guid.Empty"/>.</summary>
     public Guid BranchId { get; private set; }
+
+    public PayrollKind Kind { get; private set; }
 
     public DateOnly From { get; private set; }
 

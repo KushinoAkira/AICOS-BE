@@ -135,7 +135,8 @@ public sealed class WorkforcePayrollAdjustmentTests : WorkforceTestBase
         await Manager.Post(Adjustments, Adj(theirs, Monday)).ShouldBe(403, "branch.forbidden");
         await Manager2.Post(Adjustments, Adj(mine, Monday)).ShouldBe(403, "branch.forbidden");
         await OtherAdmin.Post(Adjustments, Adj(mine, Monday)).ShouldBe(404);
-        await Admin.Post(Adjustments, Adj(theirs, Monday)).ShouldBe(201);
+        await Admin.Post(Adjustments, Adj(theirs, Monday)).ShouldBe(403, "payroll.manager_pays_staff");          // the brand admin only reads the staff payroll
+        await Manager2.PostOk(Adjustments, Adj(theirs, Monday));
         var row = await Manager.PostOk(Adjustments, Adj(mine, Monday));
 
         await Manager2.DeleteAsync($"{Adjustments}/{row.Id()}").ShouldBe(403, "branch.forbidden");

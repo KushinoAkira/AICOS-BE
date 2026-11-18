@@ -46,7 +46,7 @@ public sealed class Employee : AuditableEntity<Guid>, IBranchScoped
 
     public string FullName { get; private set; } = string.Empty;
 
-    /// <summary>The role of the login account when the profile was created: Barista or Cashier.</summary>
+    /// <summary>The role of the login account when the profile was created: Barista or Cashier, or BranchManager for a manager the brand admin pays a monthly salary.</summary>
     public string Role { get; private set; } = string.Empty;
 
     public string? Position { get; private set; }
@@ -66,6 +66,15 @@ public sealed class Employee : AuditableEntity<Guid>, IBranchScoped
     }
 
     public void ChangeStatus(EmployeeStatus status) => Status = status;
+
+    public const decimal MonthlySalaryMax = 1_000_000_000m;
+
+    /// <summary>The fixed monthly salary of a branch manager, set by the brand admin. Null for baristas and cashiers, who are paid by their shifts.</summary>
+    public decimal? MonthlySalary { get; private set; }
+
+    public bool IsManager => Role == "BranchManager";
+
+    public void SetMonthlySalary(decimal amount) => MonthlySalary = amount;
 
     public const int BankNameMaxLength = 50;
     public const int BankAccountNumberMaxLength = 30;

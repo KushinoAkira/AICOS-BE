@@ -11,7 +11,7 @@ internal static class PayrollLock
     public static async Task EnsureOpenAsync(WorkforceSchedulingDbContext db, Guid tenantId, Guid branchId, DateOnly day, CancellationToken ct)
     {
         var locked = await db.PayrollPeriods.AsNoTracking().AnyAsync(
-            p => p.TenantId == tenantId && p.BranchId == branchId && p.Status != PayrollPeriodStatus.Reopened && p.From <= day && p.To >= day, ct);
+            p => p.TenantId == tenantId && p.Kind == PayrollKind.Staff && p.BranchId == branchId && p.Status != PayrollPeriodStatus.Reopened && p.From <= day && p.To >= day, ct);
         if (locked)
         {
             throw new ConflictException(

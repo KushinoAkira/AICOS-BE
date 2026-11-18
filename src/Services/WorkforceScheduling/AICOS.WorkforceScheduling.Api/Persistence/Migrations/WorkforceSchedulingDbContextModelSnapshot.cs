@@ -233,6 +233,11 @@ namespace AICOS.WorkforceScheduling.Api.Persistence.Migrations
                         .HasColumnType("date")
                         .HasColumnName("hire_date");
 
+                    b.Property<decimal?>("MonthlySalary")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("numeric(14,2)")
+                        .HasColumnName("monthly_salary");
+
                     b.Property<string>("Position")
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)")
@@ -438,6 +443,12 @@ namespace AICOS.WorkforceScheduling.Api.Persistence.Migrations
                     b.Property<DateOnly>("From")
                         .HasColumnType("date")
                         .HasColumnName("from");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("kind");
 
                     b.Property<string>("ReopenReason")
                         .HasMaxLength(500)

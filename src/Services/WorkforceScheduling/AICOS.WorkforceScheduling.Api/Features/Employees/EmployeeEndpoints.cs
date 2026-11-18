@@ -72,7 +72,8 @@ public static class EmployeeEndpoints
     {
         var tenantId = TenantScope.Require(user);
         var branch = await WorkforceScope.FilterAsync(user, directory, branchId, ct);
-        var query = db.Employees.AsNoTracking().Where(e => e.TenantId == tenantId);
+        // Branch managers' salary profiles are kept here too, but they are not staff of the branch (no shifts, no hourly pay).
+        var query = db.Employees.AsNoTracking().Where(e => e.TenantId == tenantId && e.Role != "BranchManager");
         if (branch is not null)
         {
             query = query.Where(e => e.BranchId == branch);

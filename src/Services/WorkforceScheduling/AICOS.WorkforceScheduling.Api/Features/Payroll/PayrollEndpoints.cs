@@ -275,7 +275,7 @@ public static class PayrollEndpoints
 
         var adjustments = await adjustmentQuery.ToListAsync(ct);
         var employeeIds = assignments.Select(a => a.EmployeeId).Concat(adjustments.Select(a => a.EmployeeId)).Distinct().ToList();
-        var employees = await db.Employees.AsNoTracking().Where(e => employeeIds.Contains(e.Id)).ToListAsync(ct);
+        var employees = await db.Employees.AsNoTracking().Where(e => employeeIds.Contains(e.Id) && e.Role != ManagerRole).ToListAsync(ct);
         var now = shop.UtcNow;
 
         var lines = employees
@@ -385,6 +385,12 @@ public static class PayrollEndpoints
         var employee = await db.Employees.AsNoTracking().FirstOrDefaultAsync(e => e.Id == r.EmployeeId && e.TenantId == tenantId, ct)
             ?? throw new NotFoundException("Employee", r.EmployeeId!);
         BranchAccess.EnsureCanAccess(user, employee.BranchId);
+        if (employee.IsManager)
+        {
+            throw new BusinessRuleException("payroll.manager_adjustment", "A branch manager's bonus or deduction is set by the brand admin when the managers' payroll is finalized.");
+        }
+
+        PayrollPeriodEndpoints.EnsureManagerPaysStaff(user);
         await PayrollLock.EnsureOpenAsync(db, tenantId, employee.BranchId, r.WorkDate!.Value, ct);
 
         var adjustment = new PayrollAdjustment(tenantId, employee.BranchId, employee.Id, r.WorkDate!.Value, r.Amount!.Value, r.Reason!.Trim());
@@ -402,6 +408,7 @@ public static class PayrollEndpoints
         var tenantId = TenantScope.Require(user);
         var adjustment = await db.PayrollAdjustments.FirstOrDefaultAsync(a => a.Id == id && a.TenantId == tenantId, ct) ?? throw new NotFoundException("Payroll adjustment", id);
         BranchAccess.EnsureCanAccess(user, adjustment.BranchId);
+        PayrollPeriodEndpoints.EnsureManagerPaysStaff(user);
         await PayrollLock.EnsureOpenAsync(db, tenantId, adjustment.BranchId, adjustment.WorkDate, ct);
 
         var before = AdjustmentSnapshot(adjustment);
@@ -414,6 +421,9 @@ public static class PayrollEndpoints
     private static object AdjustmentSnapshot(PayrollAdjustment a) => new { a.EmployeeId, a.BranchId, a.WorkDate, a.Amount, a.Reason };
 
     private const decimal MaxAdjustment = 50_000_000m;
+
+    /// <summary>Branch managers have a monthly salary paid by the brand admin: never part of the staff payroll.</summary>
+    private const string ManagerRole = "BranchManager";
 
     private static void ValidatePeriod(DateOnly? from, DateOnly? to)
     {
