@@ -1,17 +1,36 @@
 name: Docker images
 
-# Builds every service image, scans it, smoke-tests the compose stack, and (main / tags) pushes to GHCR.
+# PR: Compose smoke validates the whole stack once (no GHCR publish).
+# Push to main / version tags: build, scan, push each service image with SBOM + provenance.
 on:
   push:
     branches: [main]
     tags: ["v*.*.*"]
-    paths: ["src/**", "docker/**", "docker-compose.yml", "docker-compose.ci.yml", "scripts/smoke-docker.sh", "scripts/tests/**", "Directory.*.props", "global.json", ".github/workflows/docker-images.yml"]
+    paths:
+      - "src/**"
+      - "docker/**"
+      - "docker-compose.yml"
+      - "docker-compose.ci.yml"
+      - "scripts/smoke-docker.sh"
+      - "scripts/tests/**"
+      - "Directory.*.props"
+      - "global.json"
+      - ".github/workflows/docker-images.yml"
   pull_request:
-    paths: ["src/**", "docker/**", "docker-compose.yml", "docker-compose.ci.yml", "scripts/smoke-docker.sh", "scripts/tests/**", "Directory.*.props", "global.json", ".github/workflows/docker-images.yml"]
+    paths:
+      - "src/**"
+      - "docker/**"
+      - "docker-compose.yml"
+      - "docker-compose.ci.yml"
+      - "scripts/smoke-docker.sh"
+      - "scripts/tests/**"
+      - "Directory.*.props"
+      - "global.json"
+      - ".github/workflows/docker-images.yml"
 
 concurrency:
-  group: docker-${{ github.ref }}
-  cancel-in-progress: true
+  group: docker-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -21,14 +40,43 @@ env:
   OWNER: ${{ github.repository_owner }}
 
 jobs:
-  images:
-    name: ${{ matrix.name }}
+  compose-smoke:
+    name: Compose stack smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      COMPOSE_FILE: docker-compose.yml:docker-compose.ci.yml
+      COMPOSE_PROJECT_NAME: aicos-ci-${{ github.run_id }}-${{ github.run_attempt }}
+      AICOS_CI_MIGRATE_ON_STARTUP: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate throwaway secrets
+        run: bash scripts/init-env.sh
+      - name: Smoke script regression (offline)
+        run: bash scripts/tests/smoke-docker-test.sh
+      - name: Validate CI Compose configuration
+        run: docker compose config --quiet
+      - name: Build and start
+        run: docker compose up -d --build --wait --wait-timeout 600
+      - name: Smoke test through the gateway
+        run: bash scripts/smoke-docker.sh
+      - name: Logs on failure
+        if: failure()
+        run: docker compose logs --tail=200
+      - name: Tear down
+        if: always()
+        run: docker compose down -v
+
+  publish:
+    name: Publish ${{ matrix.name }}
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
     runs-on: ubuntu-latest
     timeout-minutes: 25
     permissions:
       contents: read
       packages: write
       security-events: write
+      id-token: write
     strategy:
       fail-fast: false
       matrix:
@@ -52,8 +100,9 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.OWNER }}/aicos-${{ matrix.name }}
           tags: |
             type=sha,format=short
-            type=ref,event=branch
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
             type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
       - name: Build (local, for scanning)
         uses: docker/build-push-action@v6
         with:
@@ -66,30 +115,36 @@ jobs:
           tags: aicos/${{ matrix.name }}:scan
           cache-from: type=gha,scope=${{ matrix.name }}
           cache-to: type=gha,mode=max,scope=${{ matrix.name }}
-      - name: Trivy image scan (fails on HIGH/CRITICAL with a fix)
+      - name: Trivy SARIF report
         uses: aquasecurity/trivy-action@v0.36.0
-        continue-on-error: true
         with:
           image-ref: aicos/${{ matrix.name }}:scan
           severity: HIGH,CRITICAL
           ignore-unfixed: true
-          exit-code: "0"
           format: sarif
           output: trivy-${{ matrix.name }}.sarif
-      - uses: github/codeql-action/upload-sarif@v3
-        if: always()
+          exit-code: "0"
+      - name: Upload Trivy SARIF
+        if: hashFiles(format('trivy-{0}.sarif', matrix.name)) != ''
+        uses: github/codeql-action/upload-sarif@v4
         continue-on-error: true
         with:
           sarif_file: trivy-${{ matrix.name }}.sarif
           category: trivy-${{ matrix.name }}
+      - name: Trivy gate (HIGH/CRITICAL with fixes)
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: aicos/${{ matrix.name }}:scan
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          format: table
+          exit-code: "1"
       - uses: docker/login-action@v3
-        if: github.event_name == 'push'
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Push with SBOM and provenance
-        if: github.event_name == 'push'
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -104,14 +159,16 @@ jobs:
           provenance: mode=max
           cache-from: type=gha,scope=${{ matrix.name }}
 
-  ai-image:
-    name: ai (Python)
+  publish-ai:
+    name: Publish ai (Python)
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
       contents: read
       packages: write
       security-events: write
+      id-token: write
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
@@ -121,7 +178,7 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.OWNER }}/aicos-ai
           tags: |
             type=sha,format=short
-            type=ref,event=branch
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
             type=semver,pattern={{version}}
       - uses: docker/build-push-action@v6
         with:
@@ -130,29 +187,36 @@ jobs:
           tags: aicos/ai:scan
           cache-from: type=gha,scope=ai
           cache-to: type=gha,mode=max,scope=ai
-      - uses: aquasecurity/trivy-action@v0.36.0
-        continue-on-error: true
+      - name: Trivy SARIF report
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: aicos/ai:scan
           severity: HIGH,CRITICAL
           ignore-unfixed: true
-          exit-code: "0"
           format: sarif
           output: trivy-ai.sarif
-      - uses: github/codeql-action/upload-sarif@v3
-        if: always()
+          exit-code: "0"
+      - name: Upload Trivy SARIF
+        if: hashFiles('trivy-ai.sarif') != ''
+        uses: github/codeql-action/upload-sarif@v4
         continue-on-error: true
         with:
           sarif_file: trivy-ai.sarif
           category: trivy-ai
+      - name: Trivy gate (HIGH/CRITICAL with fixes)
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: aicos/ai:scan
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          format: table
+          exit-code: "1"
       - uses: docker/login-action@v3
-        if: github.event_name == 'push'
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - uses: docker/build-push-action@v6
-        if: github.event_name == 'push'
         with:
           context: src/Services/Ai
           push: true
@@ -161,33 +225,3 @@ jobs:
           sbom: true
           provenance: mode=max
           cache-from: type=gha,scope=ai
-
-  compose-smoke:
-    name: Compose stack smoke test
-    needs: [images, ai-image]
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    env:
-      # This job runs on a fresh GitHub-hosted runner with throwaway secrets and project-owned volumes.
-      # COMPOSE_FILE is shared by startup, diagnostics and cleanup; operating/local configuration is unchanged.
-      COMPOSE_FILE: docker-compose.yml:docker-compose.ci.yml
-      COMPOSE_PROJECT_NAME: aicos-ci-${{ github.run_id }}-${{ github.run_attempt }}
-      AICOS_CI_MIGRATE_ON_STARTUP: "true"
-    steps:
-      - uses: actions/checkout@v4
-      - name: Generate throwaway secrets
-        run: bash scripts/init-env.sh
-      - name: Smoke script regression (offline)
-        run: bash scripts/tests/smoke-docker-test.sh
-      - name: Validate CI Compose configuration
-        run: docker compose config --quiet
-      - name: Build and start
-        run: docker compose up -d --build --wait --wait-timeout 600
-      - name: Smoke test through the gateway
-        run: bash scripts/smoke-docker.sh
-      - name: Logs on failure
-        if: failure()
-        run: docker compose logs --tail=200
-      - name: Tear down
-        if: always()
-        run: docker compose down -v

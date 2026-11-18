@@ -1,0 +1,8 @@
+# Temporary CVE acceptances for Trivy (filesystem + image gates).
+# Always include reason + expiry. Prefer upgrading the dependency or base image.
+#
+# torch is pinned in ai-models/requirements.txt (CUDA training wheel 2.5.1+cu121).
+# CVE-2025-32434 fixed in 2.6.0; CVE-2026-24747 fixed in 2.10.0 — requires a coordinated
+# training-stack upgrade outside this CI change. Expires: 2026-12-31
+CVE-2025-32434
+CVE-2026-24747
