@@ -23,9 +23,11 @@ public sealed record ChangeTenantStatusRequest(TenantStatus? Status);
 public sealed record TenantResponse(
     Guid Id, string Name, string Code, TenantStatus Status, DateTime CreatedAtUtc, DateTime? UpdatedAtUtc,
     Guid? PlanId = null, string? PlanName = null, int BranchCount = 0, string? OwnerName = null, string? OwnerEmail = null, string? OwnerPhone = null,
-    string? ReviewNote = null, string? LogoUrl = null)
+    string? ReviewNote = null, string? LogoUrl = null, Guid? RequestedPlanId = null, string? PaymentClaimReference = null, DateTime? DeletedAtUtc = null)
 {
-    public static TenantResponse From(Tenant t) => new(t.Id, t.Name, t.Code, t.Status, t.CreatedAtUtc, t.UpdatedAtUtc, ReviewNote: t.ReviewNote, LogoUrl: t.LogoUrl);
+    public static TenantResponse From(Tenant t) => new(
+        t.Id, t.Name, t.Code, t.Status, t.CreatedAtUtc, t.UpdatedAtUtc, ReviewNote: t.ReviewNote, LogoUrl: t.LogoUrl,
+        RequestedPlanId: t.RequestedPlanId, PaymentClaimReference: t.PaymentClaimReference, DeletedAtUtc: t.DeletedAtUtc);
 
     /// <summary>Adds the plan and the branch count with two grouped queries for the whole list, not one per tenant.</summary>
     public static async Task<List<TenantResponse>> FromManyAsync(IReadOnlyCollection<Tenant> tenants, IdentityOrganizationDbContext db, CancellationToken ct)

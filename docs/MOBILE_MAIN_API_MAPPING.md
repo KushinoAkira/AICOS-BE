@@ -1,3 +1,5 @@
+> Current feature-flagged Bill implementation: [SESSION_BILL_IMPLEMENTATION.md](SESSION_BILL_IMPLEMENTATION.md). Earlier P0/blocked notes below are historical; no operating schema deployment or real-bank QR is complete.
+
 # Đối chiếu Mobile với Backend main — 2026-11-03
 
 > Cup foundation: Mobile đọc mode trong Order detail/list, chặn nút deliver cả Order cho CupV1/unknown; API cũ thiếu field vẫn WholeOrder. Chưa có real Serving UI/claim adapter vì public API version còn 0. [Conditional approval review](CUP_SERVING_CONDITIONAL_APPROVAL_REVIEW.md).
@@ -73,3 +75,11 @@ Tài liệu này là bản đồ tích hợp, không phê duyệt tạo fixtures
 ## 2026-11-04 — Cash v1 follow-up
 
 See [CASH_COLLECTION_MAIN.md](CASH_COLLECTION_MAIN.md): GET Payments staff/capabilities; optional Idempotency-Key replay for existing POST transactions/cash; optional amountTendered/change response fields. Pending online attempts now block cash (409), instead of silent replacement. Mobile cash confirmation is connected; QR remains disabled. No schema migration.
+
+## 2026-11-13 — Session Bill P0 source update (not deployed)
+
+- Added Staff GET `/api/v1/orders/qr/sessions/{id}/close-eligibility` (tenant/branch scoped, advisory, no writes).
+- Removed payment-only automatic session closure. Used sessions fail closed until authoritative Bill/refund/fulfillment proof exists; empty close remains idempotent. QR/POS close coordination uses the same table lock and rechecks state.
+- Online attempts persist before provider I/O; ambiguous Pending/Expired/Cancelled blocks replacement and cash. Expiry no longer publishes a timed-out payment failure to cancel orders. PaymentResponse adds `requiresReconciliation` without removing existing fields.
+- Chosen policy: no additional rounds after Bill PAID. Legacy round projection guard is conservative; durable Bill checkout fence still pending.
+- Bill-scoped Cash/QR/invoice APIs are still missing; do not loop per-order Cash for Dine-in. Source, tests, SQL draft and blockers: [SESSION_BILL_P0_IMPLEMENTATION.md](SESSION_BILL_P0_IMPLEMENTATION.md).

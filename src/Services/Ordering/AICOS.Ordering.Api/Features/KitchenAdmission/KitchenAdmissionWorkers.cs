@@ -13,7 +13,8 @@ public static class KitchenAdmissionRegistration
         });
         builder.Services.AddScoped<KitchenAdmissionDispatcher>();
         builder.Services.AddScoped<KitchenAdmissionReconciler>();
-        if (builder.Configuration.GetValue<bool>("KitchenAdmission:DispatcherEnabled") || builder.Configuration.GetValue<bool>("KitchenAdmission:ReconciliationEnabled"))
+        if (builder.Configuration.GetValue<bool>("KitchenAdmission:DispatcherEnabled") || builder.Configuration.GetValue<bool>("KitchenAdmission:ReconciliationEnabled")
+            || builder.Configuration.GetValue<bool>("CupServing:AdmissionDispatchEnabled") || builder.Configuration.GetValue<bool>("CupServing:AdmissionReconciliationEnabled"))
             AdmissionMachineAuthentication.RequireKey(builder.Configuration);
         builder.Services.AddHostedService<KitchenAdmissionWorker>();
     }
@@ -25,11 +26,15 @@ public sealed class KitchenAdmissionWorker(IServiceScopeFactory scopes, IConfigu
         LoopAsync("DispatcherEnabled", TimeSpan.FromSeconds(2), async (services, ct) =>
             await services.GetRequiredService<KitchenAdmissionDispatcher>().DispatchOnceAsync(ct), stoppingToken),
         LoopAsync("ReconciliationEnabled", TimeSpan.FromSeconds(15), async (services, ct) =>
-            await services.GetRequiredService<KitchenAdmissionReconciler>().ReconcileOnceAsync(ct), stoppingToken));
+            await services.GetRequiredService<KitchenAdmissionReconciler>().ReconcileOnceAsync(ct), stoppingToken),
+        LoopAsync("CupServing:AdmissionDispatchEnabled", TimeSpan.FromSeconds(2), async (services, ct) =>
+            await services.GetRequiredService<KitchenAdmissionDispatcher>().DispatchOnceAsync(ct), stoppingToken),
+        LoopAsync("CupServing:AdmissionReconciliationEnabled", TimeSpan.FromSeconds(15), async (services, ct) =>
+            await services.GetRequiredService<KitchenAdmissionReconciler>().ReconcileOnceAsync(ct, cups: true), stoppingToken));
 
     private async Task LoopAsync(string flag, TimeSpan interval, Func<IServiceProvider, CancellationToken, Task<int>> operation, CancellationToken ct)
     {
-        if (!configuration.GetValue<bool>("KitchenAdmission:" + flag)) return;
+        if (!configuration.GetValue<bool>(flag.Contains(':') ? flag : "KitchenAdmission:" + flag)) return;
         while (!ct.IsCancellationRequested)
         {
             try

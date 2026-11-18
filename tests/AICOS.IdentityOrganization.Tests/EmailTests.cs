@@ -233,7 +233,7 @@ public sealed class EmailTests
         var approved = await superAdmin.PostAsJsonAsync($"/api/v1/identity/tenants/{tenant.Id}/approve", new { });
 
         approved.StatusCode.Should().Be(HttpStatusCode.OK);
-        (await approved.Content.ReadFromJsonAsync<TenantResponse>(AuthEndpointsTests.Json))!.Status.Should().Be(TenantStatus.Active);
+        (await approved.Content.ReadFromJsonAsync<TenantResponse>(AuthEndpointsTests.Json))!.Status.Should().Be(TenantStatus.AwaitingPayment);   // approved, waits for its payment
     }
 }
 

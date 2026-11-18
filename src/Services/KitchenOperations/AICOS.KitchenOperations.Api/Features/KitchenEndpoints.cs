@@ -27,7 +27,13 @@ public static class KitchenEndpoints
     {
         var group = api.MapGroup(string.Empty).WithTags("Kitchen Operations");
 
-        group.MapGet("/staff/capabilities", () => new { ConditionalTicketUpdatesVersion = 1, CupServingVersion = 0, ClaimVersion = 0 })
+        group.MapGet("/staff/capabilities", (IConfiguration config) => new
+        {
+            ConditionalTicketUpdatesVersion = 1,
+            BaristaWorkflowVersion = Barista.BaristaOperations.Enabled(config) ? 1 : 0,
+            CupServingVersion = config.GetValue<bool>("CupServing:ApiEnabled") ? 1 : 0,
+            ClaimVersion = config.GetValue<bool>("CupServing:ApiEnabled") && CupServing.CupServingEndpoints.LeaseApproved(config) ? 1 : 0
+        })
             .RequireAuthorization(AicosPolicies.Staff);
         group.MapGet("/queue", QueueAsync).RequireAuthorization(AicosPolicies.Staff);
         group.MapGet("/batches", BatchesAsync).RequireAuthorization(AicosPolicies.Staff);
@@ -105,10 +111,11 @@ public static class KitchenEndpoints
         IEventBus bus,
         TimeProvider clock,
         ILoggerFactory loggers,
+        IConfiguration configuration,
         CancellationToken ct)
     {
         var now = clock.GetUtcNow().UtcDateTime;
-        var outcome = await KitchenTicketTransitions.UpdateAsync(id, r, db, user, now, ct);
+        var outcome = await KitchenTicketTransitions.UpdateAsync(id, r, db, user, now, ct, configuration);
         var ticket = outcome.Ticket;
         if (!outcome.Changed) return Results.Ok(TicketMapper.ToDto(ticket));
         var log = loggers.CreateLogger("AICOS.Kitchen.Tickets");

@@ -84,6 +84,16 @@ public sealed class FakePayments : IPaymentClient
         WhileOpen?.Invoke().GetAwaiter().GetResult();
         return Task.FromResult(new RefundRequestResult("Succeeded"));
     }
+
+    /// <summary>The bank accounts customers gave when cancelling, by payment.</summary>
+    public List<(Guid PaymentId, string Bank, string Number, string Holder)> BankAccounts { get; } = [];
+
+    public async Task<RefundRequestResult> RequestRefundToBankAsync(Guid paymentId, string reason, string bankName, string accountNumber, string accountHolder, CancellationToken ct)
+    {
+        var result = await RequestRefundAsync(paymentId, "Cancellation", null, reason, ct);
+        BankAccounts.Add((paymentId, bankName, accountNumber, accountHolder));
+        return result with { Status = "PendingApproval" };
+    }
 }
 
 /// <summary>Counter orders: prices from the menu, tenant and branch rules, the events from Payment and Kitchen, delivery and the manager exception path.</summary>

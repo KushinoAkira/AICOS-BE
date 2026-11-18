@@ -19,6 +19,9 @@ public sealed record AdjustAttendanceRequest(DateTimeOffset? CheckInAt, DateTime
 
 public sealed record MarkAbsentRequest(string? Reason);
 
+/// <summary>Status: Late, LeftEarly, ExcusedAbsence, UnexcusedAbsence, Other, or empty to follow check-in and check-out again.</summary>
+public sealed record SetAttendanceStatusRequest(string? Status, string? Note);
+
 public sealed record ApproveRangeRequest(Guid? BranchId, DateOnly? From, DateOnly? To, Guid? EmployeeId);
 
 public sealed record ApproveRangeResult(int Approved, int NeedsAttention);
@@ -86,6 +89,7 @@ public static class AttendanceEndpoints
         group.MapPost("/{id:guid}/approve", ApproveAsync).RequireAuthorization(AicosPolicies.Management);
         group.MapPost("/{id:guid}/adjust", AdjustAsync).RequireAuthorization(AicosPolicies.Management);
         group.MapPost("/{id:guid}/absent", AbsentAsync).RequireAuthorization(AicosPolicies.Management);
+        group.MapPost("/{id:guid}/status", SetStatusAsync).RequireAuthorization(AicosPolicies.Management);
     }
 
     // ------------------------------------------------------------------ employee: check in / out
@@ -307,6 +311,33 @@ public static class AttendanceEndpoints
 
         await AuditTrail.PublishAsync(
             bus, user, loggers.CreateLogger("AICOS.Workforce.Attendance"), assignment.TenantId, "attendance.absence_recorded", "ShiftAssignment", assignment.Id,
+            before, Snapshot(assignment));
+        return (await ScheduleEndpoints.MapAsync(db, [assignment], ct))[0];
+    }
+
+    /// <summary>
+    /// The manager overrides the automatic status when needed (late, left early, excused or unexcused absence, other) and keeps a note.
+    /// An empty status goes back to automatic. The shift must have started. Audited.
+    /// </summary>
+    private static async Task<ShiftAssignmentResponse> SetStatusAsync(
+        Guid id, SetAttendanceStatusRequest r, WorkforceSchedulingDbContext db, ICurrentUser user, ShopClock shop, IEventBus bus, ILoggerFactory loggers, CancellationToken ct)
+    {
+        var errors = new ValidationErrors();
+        if (!string.IsNullOrWhiteSpace(r.Status) && !ShiftAssignment.ManagerStatuses.Contains(r.Status))
+        {
+            errors.Add("Status", $"Status must be one of: {string.Join(", ", ShiftAssignment.ManagerStatuses)}, or empty for automatic.");
+        }
+
+        CommonRules.MaxLength(errors, "Note", r.Note, "Note", 500);
+        errors.ThrowIfAny();
+
+        var assignment = await ReviewableAsync(db, user, id, shop, requireEnded: false, ct);
+        var before = Snapshot(assignment);
+        assignment.SetManagerStatus(r.Status, r.Note, user.UserId, shop.UtcNow);
+        await db.SaveChangesAsync(ct);
+
+        await AuditTrail.PublishAsync(
+            bus, user, loggers.CreateLogger("AICOS.Workforce.Attendance"), assignment.TenantId, "attendance.status_set", "ShiftAssignment", assignment.Id,
             before, Snapshot(assignment));
         return (await ScheduleEndpoints.MapAsync(db, [assignment], ct))[0];
     }

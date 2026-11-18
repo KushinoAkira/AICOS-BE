@@ -1,3 +1,6 @@
+using AICOS.Payments.Api.Features.SplitBilling;
+using AICOS.Payments.Api.Features.CashierShifts;
+using AICOS.Payments.Api.Features.SessionBilling;
 using AICOS.BuildingBlocks.Hosting;
 using AICOS.BuildingBlocks.Http;
 using AICOS.Contracts.Events;
@@ -14,6 +17,7 @@ using AICOS.Payments.Api.Infrastructure;
 using AICOS.Payments.Api.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
+if (BillingMachineAuth.Enabled(builder.Configuration)) _ = BillingMachineAuth.Key(builder.Configuration);
 
 builder.AddAicosServiceDefaults(PaymentsService.Info);
 builder.AddAicosPostgres<PaymentsDbContext>(PaymentsService.Info);
@@ -48,6 +52,11 @@ builder.Services.AddIntegrationEventHandler<OrderCancelledIntegrationEvent, Paym
 // builder.Services.AddIntegrationEventHandler<SomeEvent, SomeEventHandler>();   // consume events from other services
 // builder.Services.AddAicosServiceClient<IOtherClient, OtherClient>(builder.Configuration, "Other");   // sync REST call to another service
 
+builder.AddSessionBilling();
+builder.Services.AddHttpClient("collections");
+builder.Services.AddScoped<CollectionDispatcher>();
+builder.Services.AddHostedService<CollectionWorker>();
+
 var app = builder.Build();
 
 await app.MigrateDatabaseAsync<PaymentsDbContext>();
@@ -60,6 +69,9 @@ api.MapCancellationPolicyEndpoints();
 api.MapMerchantSettingEndpoints();
 api.MapPaymentEndpoints();
 api.MapOrderSettlementEndpoints();
+app.MapSessionBilling(api);
+api.MapCashierShifts();
+api.MapSplitPlans();
 api.MapWebhookEndpoints();
 api.MapPayOsEndpoints();
 api.MapMomoEndpoints();

@@ -31,11 +31,18 @@ public sealed class TenantEndpointsTests : IDisposable
 
     // ------------------------------------------------------------------ UC-05
     [Fact]
-    public async Task SuperAdmin_creates_a_tenant_with_its_first_brand_admin_who_can_log_in()
+    public async Task SuperAdmin_creates_a_tenant_with_its_first_brand_admin_who_can_log_in_once_the_plan_is_paid()
     {
-        var tenant = await CreateTenantAsync("acme", "admin@acme.com");
+        var tenant = await CreateTenantAsync("acme", "admin@acme.com", open: false);
 
-        tenant.Status.Should().Be(TenantStatus.Active);
+        tenant.Status.Should().Be(TenantStatus.AwaitingPayment);
+        await ExpectLoginRejectedAsync("admin@acme.com", "tenant.awaiting_payment");
+        (await _superAdmin.PatchAsJsonAsync($"{Tenants}/{tenant.Id}/status", new ChangeTenantStatusRequest(TenantStatus.Active), Json))
+            .StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);                                   // only a payment opens it
+
+        await PayAsync(tenant.Id);
+
+        (await _superAdmin.GetFromJsonAsync<TenantResponse>($"{Tenants}/{tenant.Id}", Json))!.Status.Should().Be(TenantStatus.Active);
         var login = await LoginAsync("admin@acme.com");
         login.User.Role.Should().Be(AicosRoles.BrandAdmin);
         login.User.TenantId.Should().Be(tenant.Id);
@@ -270,7 +277,8 @@ public sealed class TenantEndpointsTests : IDisposable
     private static CreateTenantRequest NewTenant(string code, string adminEmail) =>
         new($"Brand {code}", code, new FirstAdminRequest("Brand Owner", adminEmail, "0901234567", Password));
 
-    private async Task<TenantResponse> CreateTenantAsync(string code, string adminEmail, bool plan = true)
+    /// <summary>A new brand waits for its payment; <paramref name="open"/> pays its plan (or opens it, without a plan) so its users can work.</summary>
+    private async Task<TenantResponse> CreateTenantAsync(string code, string adminEmail, bool plan = true, bool open = true)
     {
         var response = await _superAdmin.PostAsJsonAsync(Tenants, NewTenant(code, adminEmail), Json);
         response.EnsureSuccessStatusCode();
@@ -280,7 +288,42 @@ public sealed class TenantEndpointsTests : IDisposable
             _factory.GivePlan(tenant.Id);
         }
 
+        if (open)
+        {
+            if (plan)
+            {
+                await PayAsync(tenant.Id);
+            }
+            else
+            {
+                _factory.Open(tenant.Id);
+            }
+        }
+
         return tenant;
+    }
+
+    /// <summary>The Super Admin records the payment of the plan (the test plan costs 100,000).</summary>
+    private async Task PayAsync(Guid tenantId) =>
+        (await _superAdmin.PostAsJsonAsync($"{Tenants}/{tenantId}/subscription/payments", new { amount = 100_000, method = "BankTransfer", reference = "FT-TEST" }, Json))
+            .EnsureSuccessStatusCode();
+
+    [Fact]
+    public async Task The_super_admin_soft_deletes_a_tenant_its_users_cannot_sign_in_and_it_leaves_the_list()
+    {
+        var tenant = await CreateTenantAsync("gone", "owner@gone.com");
+        var session = await LoginAsync("owner@gone.com");
+
+        (await _factory.CreateClientAs(AicosRoles.BrandAdmin, tenantId: tenant.Id).DeleteAsync($"{Tenants}/{tenant.Id}")).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        (await _superAdmin.DeleteAsync($"{Tenants}/{tenant.Id}?reason=Test%20data")).StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+        await ExpectLoginRejectedAsync("owner@gone.com", "tenant.deleted");
+        (await _factory.CreateClient().PostAsJsonAsync($"{Auth}/refresh", new RefreshTokenRequest(session.RefreshToken), Json)).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        (await _superAdmin.GetFromJsonAsync<PagedResponse<TenantResponse>>(Tenants, Json))!.Items.Should().NotContain(t => t.Id == tenant.Id);
+        (await _superAdmin.GetFromJsonAsync<PagedResponse<TenantResponse>>($"{Tenants}?status=Deleted", Json))!.Items.Should().ContainSingle(t => t.Id == tenant.Id);
+        (await _superAdmin.DeleteAsync($"{Tenants}/{tenant.Id}")).StatusCode.Should().Be(HttpStatusCode.Conflict);
+        (await _superAdmin.PatchAsJsonAsync($"{Tenants}/{tenant.Id}/status", new ChangeTenantStatusRequest(TenantStatus.Active), Json)).StatusCode.Should().Be(HttpStatusCode.Conflict);
+        (await _superAdmin.PostAsJsonAsync(Tenants, NewTenant("gone", "x@gone.com"), Json)).StatusCode.Should().Be(HttpStatusCode.Conflict);   // the code stays taken
     }
 
     private static async Task<BranchResponse> CreateBranchAsync(HttpClient admin, string name)

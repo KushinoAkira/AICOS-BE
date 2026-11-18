@@ -82,6 +82,19 @@ namespace AICOS.WorkforceScheduling.Api.Persistence.Migrations
                         .HasColumnType("character varying(500)")
                         .HasColumnName("manager_note");
 
+                    b.Property<decimal>("OpeningAmount")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("numeric(14,2)")
+                        .HasColumnName("opening_amount");
+
+                    b.Property<Guid?>("PreviousClosingId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("previous_closing_id");
+
+                    b.Property<DateTime?>("SinceUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("since_utc");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -113,6 +126,9 @@ namespace AICOS.WorkforceScheduling.Api.Persistence.Migrations
 
                     b.HasIndex("TenantId", "BranchId", "Status")
                         .HasDatabaseName("ix_cash_closings_tenant_id_branch_id_status");
+
+                    b.HasIndex("TenantId", "BranchId", "SubmittedAtUtc")
+                        .HasDatabaseName("ix_cash_closings_tenant_id_branch_id_submitted_at_utc");
 
                     b.ToTable("cash_closings", "workforce");
                 });
@@ -161,6 +177,9 @@ namespace AICOS.WorkforceScheduling.Api.Persistence.Migrations
 
                     b.HasIndex("CashierUserId", "OccurredAtUtc")
                         .HasDatabaseName("ix_cash_transactions_cashier_user_id_occurred_at_utc");
+
+                    b.HasIndex("TenantId", "BranchId", "OccurredAtUtc")
+                        .HasDatabaseName("ix_cash_transactions_tenant_id_branch_id_occurred_at_utc");
 
                     b.ToTable("cash_transactions", "workforce");
                 });
@@ -790,6 +809,16 @@ namespace AICOS.WorkforceScheduling.Api.Persistence.Migrations
                     b.Property<bool>("IsReplacement")
                         .HasColumnType("boolean")
                         .HasColumnName("is_replacement");
+
+                    b.Property<string>("ManagerNote")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("manager_note");
+
+                    b.Property<string>("ManagerStatus")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("manager_status");
 
                     b.Property<Guid?>("ReplacementShiftId")
                         .HasColumnType("uuid")

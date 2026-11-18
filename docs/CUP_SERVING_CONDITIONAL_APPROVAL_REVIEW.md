@@ -1,5 +1,7 @@
 # Cup Serving — conditional approval review và foundation increment
 
+**Cập nhật 2026-11-07:** tài liệu này lưu kết quả foundation ban đầu. Tiến độ mới, API V2, HTTP commands/projection, migration đã chạy riêng trên cluster test và các gate còn lại ở [CUP_SERVING_V2_IMPLEMENTATION.md](CUP_SERVING_V2_IMPLEMENTATION.md). Các câu “chưa map/chưa apply test” bên dưới là trạng thái lịch sử, không phải kết quả increment mới. Database vận hành vẫn chưa apply/enable.
+
 2026-11-07. Tiếp tục thiết kế `ITEM_LEVEL_SERVING_AND_MULTI_STAFF_DESIGN.md` sau phê duyệt có điều kiện. **Chưa production-ready; chưa có public Claim/Pickup/Serve API hoặc create CupV1 hoạt động.** Lượt này làm phần nền độc lập với quyết định đóng phiên/Payment và chuẩn bị migration, không rollout feature.
 
 ## 1. Schema review: giảm 5+2 xuống 4+2

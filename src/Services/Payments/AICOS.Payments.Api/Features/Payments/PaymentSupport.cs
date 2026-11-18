@@ -28,20 +28,23 @@ public sealed record PaymentResponse(
     Guid? CreatedByUserId = null,
     Guid? CashierUserId = null,
     decimal? AmountTendered = null,
-    decimal? Change = null)
+    decimal? Change = null,
+    bool RequiresReconciliation = false)
 {
     public static PaymentResponse From(Payment p, IReadOnlyList<RefundResponse>? refunds = null) => new(
         p.Id, p.BranchId, p.OrderId, p.Amount, p.Method, p.Status, p.TransactionRef, p.CheckoutUrl, p.ExpiresAtUtc, p.PaidAtUtc, p.FailureReason, p.PaidLate,
         p.RefundedAmount, p.IsPaid ? p.Refundable : 0, p.CreatedAtUtc, refunds, p.CreatedBy, p.CashierUserId, CashReceiptMetadata.Tendered(p),
-        CashReceiptMetadata.Tendered(p) is { } tendered ? tendered - p.Amount : null);
+        CashReceiptMetadata.Tendered(p) is { } tendered ? tendered - p.Amount : null, p.RequiresReconciliation);
 }
 
 public sealed record RefundResponse(
     Guid Id, Guid PaymentId, Guid BranchId, Guid OrderId, decimal Amount, RefundKind Kind, string Reason, RefundStatus Status, bool WithinPolicy,
-    Guid? RequestedBy, Guid? DecidedBy, DateTime? DecidedAtUtc, string? DecisionNote, DateTime CreatedAtUtc)
+    Guid? RequestedBy, Guid? DecidedBy, DateTime? DecidedAtUtc, string? DecisionNote, DateTime CreatedAtUtc,
+    string? BankName = null, string? BankAccountNumber = null, string? BankAccountHolder = null, string? ProviderReference = null)
 {
     public static RefundResponse From(PaymentRefund r) => new(
-        r.Id, r.PaymentId, r.BranchId, r.OrderId, r.Amount, r.Kind, r.Reason, r.Status, r.WithinPolicy, r.RequestedBy, r.DecidedBy, r.DecidedAtUtc, r.DecisionNote, r.CreatedAtUtc);
+        r.Id, r.PaymentId, r.BranchId, r.OrderId, r.Amount, r.Kind, r.Reason, r.Status, r.WithinPolicy, r.RequestedBy, r.DecidedBy, r.DecidedAtUtc, r.DecisionNote, r.CreatedAtUtc,
+        r.BankName, r.BankAccountNumber, r.BankAccountHolder, r.ProviderReference);
 }
 
 /// <summary>Who may touch which payment, shared by every endpoint of the Payment service.</summary>

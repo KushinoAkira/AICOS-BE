@@ -1,0 +1,14 @@
+# Only for the reviewed pre-Cup, schema-compatible Ordering image.
+# Keep this overlay LAST. Do not use `up` without specifying `order --no-deps`.
+services:
+  order:
+    image: aicos-main/order:session-guard-20261112
+    environment:
+      Database__MigrateOnStartup: "false"
+      KitchenAdmission__CaptureEnabled: "false"
+      KitchenAdmission__DispatcherEnabled: "false"
+      KitchenAdmission__ReconciliationEnabled: "false"
+      KitchenAdmission__MachineKey: !reset null
+      CupServing__CaptureEnabled: "false"
+      CupServing__DispatcherEnabled: "false"
+      CupServing__ApiEnabled: "false"

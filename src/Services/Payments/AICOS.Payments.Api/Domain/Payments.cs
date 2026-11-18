@@ -114,6 +114,9 @@ public sealed class Payment : AuditableEntity<Guid>
 
     public bool IsCash => Method == CashMethod;
 
+    /// <summary>A local expiry/cancel is not evidence that the provider cannot receive money.</summary>
+    public bool RequiresReconciliation => !IsCash && !IsPaid && ProviderState != ProviderState.Failed;
+
     public bool IsFinal => Status is not PaymentStatus.Pending;
 
     public bool IsPaid => Status is PaymentStatus.Succeeded or PaymentStatus.PartiallyRefunded or PaymentStatus.Refunded;
@@ -221,6 +224,23 @@ public sealed class PaymentRefund : AuditableEntity<Guid>
     public string? DecisionNote { get; private set; }
 
     public string? ProviderReference { get; private set; }
+
+    /// <summary>The bank the customer asked the money to be sent back to (a customer cancellation); null when the money goes back the way it came.</summary>
+    public string? BankName { get; private set; }
+
+    public string? BankAccountNumber { get; private set; }
+
+    public string? BankAccountHolder { get; private set; }
+
+    /// <summary>The money goes back by a bank transfer the brand admin makes by hand, after approving.</summary>
+    public bool ToBankAccount => BankAccountNumber is not null;
+
+    public void SendToBankAccount(string bankName, string accountNumber, string accountHolder)
+    {
+        BankName = bankName.Trim();
+        BankAccountNumber = accountNumber.Trim();
+        BankAccountHolder = accountHolder.Trim().ToUpperInvariant();
+    }
 
     public void Succeed(string? providerReference, Guid? decidedBy, DateTime now)
     {

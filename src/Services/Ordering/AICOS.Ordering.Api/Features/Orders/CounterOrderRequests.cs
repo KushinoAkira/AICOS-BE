@@ -72,10 +72,15 @@ internal static class CounterOrderRequests
             var expected = await db.TableSessions.FirstOrDefaultAsync(s => s.Id == expectedId && s.TenantId == tenantId, ct);
             if (expected is null || !expected.IsOpen || expected.TableId != table.TableId || expected.BranchId != branchId)
                 throw new ConflictException("The table session changed or closed. Reload before ordering.", "qr.session_changed");
+            await Qr.TableSessions.EnsureCanAddRoundAsync(db, expected.Id, ct);
             return expected;
         }
         var session = await db.TableSessions.FirstOrDefaultAsync(s => s.TenantId == tenantId && s.TableId == table.TableId && s.Status == TableSessionStatus.Open, ct);
-        if (session is not null) return session;
+        if (session is not null)
+        {
+            await Qr.TableSessions.EnsureCanAddRoundAsync(db, session.Id, ct);
+            return session;
+        }
         session = new TableSession(tenantId, branchId, table.TableId, table.TableCode, now);
         db.TableSessions.Add(session);
         return session;

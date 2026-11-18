@@ -76,6 +76,8 @@ internal sealed class ShiftAssignmentConfiguration : IEntityTypeConfiguration<Sh
         builder.Property(a => a.ReviewStatus).HasConversion<string>().HasMaxLength(20);
         builder.Property(a => a.DeclineReason).HasMaxLength(500);
         builder.Property(a => a.ReviewNote).HasMaxLength(500);
+        builder.Property(a => a.ManagerStatus).HasMaxLength(30);
+        builder.Property(a => a.ManagerNote).HasMaxLength(500);
         builder.Ignore(a => a.Hours);
         builder.Ignore(a => a.EffectiveCheckInUtc);
         builder.Ignore(a => a.EffectiveCheckOutUtc);
@@ -145,6 +147,8 @@ internal sealed class CashClosingConfiguration : IEntityTypeConfiguration<CashCl
         builder.Property(c => c.Id).ValueGeneratedNever();
         builder.Property(c => c.ExpectedAmount).HasPrecision(14, 2);
         builder.Property(c => c.CountedAmount).HasPrecision(14, 2);
+        builder.Property(c => c.OpeningAmount).HasPrecision(14, 2);
+        builder.HasIndex(c => new { c.TenantId, c.BranchId, c.SubmittedAtUtc });
         builder.Property(c => c.Difference).HasPrecision(14, 2);
         builder.Property(c => c.CashierNote).HasMaxLength(500);
         builder.Property(c => c.ManagerNote).HasMaxLength(500);
@@ -164,6 +168,7 @@ internal sealed class CashTransactionConfiguration : IEntityTypeConfiguration<Ca
         builder.Property(t => t.Amount).HasPrecision(14, 2);
         builder.HasIndex(t => t.SourceEventId).IsUnique();
         builder.HasIndex(t => new { t.CashierUserId, t.OccurredAtUtc });
+        builder.HasIndex(t => new { t.TenantId, t.BranchId, t.OccurredAtUtc });
     }
 }
 

@@ -12,7 +12,8 @@ using Microsoft.EntityFrameworkCore;
 namespace AICOS.Payments.Api.Infrastructure;
 
 /// <summary>What Payment needs to know about an order before taking money for it.</summary>
-public sealed record OrderInfo(Guid Id, Guid BranchId, decimal FinalAmount, string Status, string PaymentStatus);
+/// <summary><c>CustomerId</c>: the account of the member who placed the order, null for a walk-in.</summary>
+public sealed record OrderInfo(Guid Id, Guid BranchId, decimal FinalAmount, string Status, string PaymentStatus, bool IsTableSession = false, Guid? CustomerId = null);
 
 /// <summary>
 /// Asks the Order service about orders, with the token of the caller (so the Order service applies its own brand, branch and customer rules).
@@ -49,7 +50,9 @@ internal sealed class HttpOrderDirectory(HttpClient http) : IOrderDirectory
         var body = await response.Content.ReadFromJsonAsync<JsonElement>(Json, ct);
         return new OrderInfo(
             orderId, body.GetProperty("branchId").GetGuid(), body.GetProperty("finalAmount").GetDecimal(),
-            body.GetProperty("status").GetString() ?? string.Empty, body.GetProperty("paymentStatus").GetString() ?? string.Empty);
+            body.GetProperty("status").GetString() ?? string.Empty, body.GetProperty("paymentStatus").GetString() ?? string.Empty,
+            body.TryGetProperty("type", out var type) && type.GetString() == "DineIn",
+            body.TryGetProperty("customerId", out var customer) && customer.ValueKind == JsonValueKind.String ? customer.GetGuid() : null);
     }
 
     public async Task<IReadOnlyList<OrderForReconciliation>> ListForReconciliationAsync(Guid? branchId, DateOnly from, DateOnly to, CancellationToken ct)
@@ -103,9 +106,10 @@ internal sealed class HttpOrderDirectory(HttpClient http) : IOrderDirectory
 internal static class OrderChecks
 {
     /// <summary>The order exists for this caller, is open, is not paid yet, belongs to the branch, and the amount is what is due.</summary>
-    public static async Task<OrderInfo> EnsurePayableAsync(IOrderDirectory orders, Guid orderId, Guid branchId, decimal amount, CancellationToken ct)
+    public static async Task<OrderInfo> EnsurePayableAsync(IOrderDirectory orders, Guid orderId, Guid branchId, decimal amount, CancellationToken ct, bool billEnabled = false)
     {
         var order = await orders.GetAsync(orderId, ct);
+        if (billEnabled && order.IsTableSession) throw new ConflictException("Use the aggregate session bill, not an individual order.", "billing.session_required");
         if (order.Status is "Cancelled" or "NoShow" or "Unfulfillable")
         {
             throw new BusinessRuleException("payment.order_cancelled", "This order was closed without fulfilment and cannot accept payment.");

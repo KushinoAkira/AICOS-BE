@@ -1,3 +1,4 @@
+using AICOS.KitchenOperations.Api.Features.Barista;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -20,7 +21,7 @@ public sealed record CupEffect(Guid OperationId, bool Replayed, CupTask Cup, Cup
 /// Lease duration is a trusted server policy argument, never a request field.
 /// </summary>
 public sealed class CupServingUnitOfWork(KitchenOperationsDbContext db, ICurrentUser user,
-    TimeProvider clock, TimeSpan leaseDuration)
+    TimeProvider clock, TimeSpan leaseDuration, IConfiguration? configuration = null)
 {
     private static readonly JsonSerializerOptions Json = new() { Converters = { new JsonStringEnumConverter() } };
 
@@ -35,7 +36,8 @@ public sealed class CupServingUnitOfWork(KitchenOperationsDbContext db, ICurrent
         if (command.Action is CupAction.Start or CupAction.Ready) KitchenEndpoints.RequireBar(user);
         else if (!new[] { AicosRoles.Cashier, AicosRoles.BranchManager, AicosRoles.BrandAdmin }.Any(user.IsInRole))
             throw new ForbiddenException("Only counter staff may claim or serve cups.");
-        if (leaseDuration <= TimeSpan.Zero) throw new InvalidOperationException("An approved server lease policy is required.");
+        if (command.Action is CupAction.Claim or CupAction.Renew && leaseDuration <= TimeSpan.Zero)
+            throw new InvalidOperationException("An approved server lease policy is required.");
         var hint = await db.CupTasks.AsNoTracking().SingleOrDefaultAsync(c => c.Id == command.CupId && c.TenantId == tenant, ct)
             ?? throw new NotFoundException("Cup", command.CupId);
         BranchAccess.EnsureCanAccess(user, hint.BranchId);
@@ -65,6 +67,7 @@ public sealed class CupServingUnitOfWork(KitchenOperationsDbContext db, ICurrent
                     throw new ConflictException("Operation key was used with another request.", "operation.key_reused");
                 return new CupEffect(previous.Id, true, cup, claim, previous.ResultJson, now, ticket.RecoveryHoldReason);
             }
+            if(command.Action is CupAction.Start or CupAction.Ready)await BaristaOperations.RequireAcceptedAsync(db,ticket,configuration,ct);
             ticket.RequireRecoveryClear();
             if (!ticket.IsEligibleForBar || ticket.Status is Domain.Enums.KitchenTicketStatus.Cancelled or Domain.Enums.KitchenTicketStatus.Completed)
                 throw new ConflictException("Ticket is not available for cup operations.", "serving.ticket_unavailable");
@@ -104,6 +107,7 @@ public sealed class CupServingUnitOfWork(KitchenOperationsDbContext db, ICurrent
             if (manifest is null || manifest.Length != 32)
                 throw new ConflictException("V2 admission proof is required.", "serving.admission_not_ready");
             ticket.RecordCupProgress(cups, now);
+            await BaristaOperations.CompleteAsync(db,ticket,actor,now,configuration,ct);
             var version = ticket.AdvanceFulfillmentVersion();
             var snapshot = new FulfillmentSnapshot(Guid.NewGuid(), tenant, ticket.BranchId, cup.OrderId, ticket.Id,
                 version, Convert.ToHexString(manifest), cups.Count,
@@ -113,15 +117,35 @@ public sealed class CupServingUnitOfWork(KitchenOperationsDbContext db, ICurrent
                 cups.All(c => c.Service == CupService.Served) ? cups.Max(c => c.ServedAtUtc) : null);
             var after = JsonSerializer.Serialize(cup, Json);
             var result = JsonSerializer.Serialize(new { Cup = cup, Claim = claim, ActorRole = user.Role }, Json);
-            var operation = new CupOperation { TenantId = tenant, BranchId = cup.BranchId, CupId = cup.Id,
-                ActorId = actor, OperationKey = command.Key, Command = command.Action.ToString(), RequestHash = requestHash,
-                VersionBefore = oldVersion, VersionAfter = cup.Version, BeforeJson = before, AfterJson = after,
-                ResultJson = result, CommittedAtUtc = now };
+            var operation = new CupOperation
+            {
+                TenantId = tenant,
+                BranchId = cup.BranchId,
+                CupId = cup.Id,
+                ActorId = actor,
+                OperationKey = command.Key,
+                Command = command.Action.ToString(),
+                RequestHash = requestHash,
+                VersionBefore = oldVersion,
+                VersionAfter = cup.Version,
+                BeforeJson = before,
+                AfterJson = after,
+                ResultJson = result,
+                CommittedAtUtc = now
+            };
             db.CupOperations.Add(operation);
-            db.FulfillmentOutbox.Add(new FulfillmentOutbox { EventId = snapshot.EventId, TenantId = tenant,
-                BranchId = cup.BranchId, OrderId = cup.OrderId, SourceVersion = version,
-                Payload = JsonSerializer.Serialize(snapshot), PayloadHash = FulfillmentSnapshotHash.Compute(snapshot),
-                CreatedAtUtc = now, NextAttemptAtUtc = now });
+            db.FulfillmentOutbox.Add(new FulfillmentOutbox
+            {
+                EventId = snapshot.EventId,
+                TenantId = tenant,
+                BranchId = cup.BranchId,
+                OrderId = cup.OrderId,
+                SourceVersion = version,
+                Payload = JsonSerializer.Serialize(snapshot),
+                PayloadHash = FulfillmentSnapshotHash.Compute(snapshot),
+                CreatedAtUtc = now,
+                NextAttemptAtUtc = now
+            });
             await db.SaveChangesAsync(ct);
             return new CupEffect(operation.Id, false, cup, claim, result, now, ticket.RecoveryHoldReason);
         }, ct);

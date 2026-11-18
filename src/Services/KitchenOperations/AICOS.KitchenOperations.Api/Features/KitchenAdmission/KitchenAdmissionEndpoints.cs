@@ -10,9 +10,10 @@ public static class KitchenAdmissionEndpoints
 {
     public static void MapKitchenAdmission(this WebApplication app)
     {
-        if (!app.Configuration.GetValue<bool>("KitchenAdmission:ReceiverEnabled")) return;
+        var legacy = app.Configuration.GetValue<bool>("KitchenAdmission:ReceiverEnabled");
+        if (!legacy && !app.Configuration.GetValue<bool>("CupServing:AdmissionEnabled")) return;
         var group = app.MapGroup("/internal/v1/kitchen/order-admissions").ExcludeFromDescription();
-        group.MapPost("", async (AdmissionRequest request, HttpContext http, KitchenAdmissionService service, CancellationToken ct) =>
+        if (legacy) group.MapPost("", async (AdmissionRequest request, HttpContext http, KitchenAdmissionService service, CancellationToken ct) =>
         {
             RequireScope(http, request.TenantId, request.BranchId);
             var ack = await service.EnsureAsync(request, true, ct);
@@ -28,7 +29,7 @@ public static class KitchenAdmissionEndpoints
             return request.OrderIds.Distinct().Select(id =>
             {
                 var ticket = tickets.SingleOrDefault(t => t.OrderId == id);
-                return new AdmissionPresence(id, ticket?.Id, ticket?.Status.ToString(), ticket?.RecoveryHoldReason, ticket?.TableNumber, ticket?.CompletedAtUtc);
+                return new AdmissionPresence(id, ticket?.Id, ticket?.Status.ToString(), ticket?.RecoveryHoldReason, ticket?.TableNumber, ticket?.CompletedAtUtc, ticket?.IsPaid);
             }).ToArray();
         }).RequireAuthorization(p => p.AddAuthenticationSchemes(AdmissionMachineAuthentication.Scheme).RequireAuthenticatedUser().RequireClaim("scope", "kitchen.admission.lookup"));
         app.MapGet("/api/v1/kitchen/recovery/status", async (KitchenOperationsDbContext db, ICurrentUser user, CancellationToken ct) =>

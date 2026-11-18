@@ -21,6 +21,13 @@ public static class OrderDeliveryEndpoints
                 await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock(hashtextextended({key}, 0))", ct);
             }
             var order = await OrderAccess.LoadAsync(db, user, id, ct);
+            if (transaction is not null && db.BillEnabled && order.TableId is { } table)
+            {
+                var tableKey = $"aicos:counter-table:{tenant}:{table}";
+                await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock(hashtextextended({tableKey}, 0))", ct);
+                await db.Entry(order).ReloadAsync(ct);
+                if (order.TableId != table) throw new AICOS.BuildingBlocks.Exceptions.ConflictException("Table changed. Reload delivery.", "qr.session_changed");
+            }
             order.RequireWholeOrderOperation();
             var replay = order.DeliveredAtUtc is not null && !order.IsVoided;
             if (!replay)

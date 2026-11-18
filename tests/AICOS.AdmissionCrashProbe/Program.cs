@@ -19,7 +19,26 @@ await OperationalTestTarget.VerifyAsync(connection);
 var input = await Console.In.ReadToEndAsync();
 var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
 { ["KitchenAdmission:CaptureEnabled"] = "true", ["KitchenAdmission:ReceiverEnabled"] = "true" }).Build();
-if (mode == "ordering-after-commit")
+if (mode == "cup-operation-after-commit")
+{
+    var operation = JsonSerializer.Deserialize<ProbeOperation>(input, AdmissionProtocol.Json)!;
+    await using var db = new KitchenOperationsDbContext(new DbContextOptionsBuilder<KitchenOperationsDbContext>()
+        .UseNpgsql(connection).UseSnakeCaseNamingConvention().AddInterceptors(new CommitBoundary("kitchen-after-commit", operation.Command.CupId)).Options);
+    var staff = new ProbeStaff(operation.Tenant, operation.Branch, operation.Actor);
+    await new AICOS.KitchenOperations.Api.Features.CupServing.CupServingUnitOfWork(db, staff, TimeProvider.System,
+        TimeSpan.FromSeconds(120)).ExecuteAsync(operation.Command);
+    throw new InvalidOperationException("Cup operation crash boundary was not reached.");
+}
+else if (mode.StartsWith("cup-", StringComparison.Ordinal))
+{
+    var request = JsonSerializer.Deserialize<AICOS.Contracts.Serving.CupAdmissionRequest>(input, AdmissionProtocol.Json)!;
+    var boundary = mode.Replace("cup-", "kitchen-", StringComparison.Ordinal);
+    await using var db = new KitchenOperationsDbContext(new DbContextOptionsBuilder<KitchenOperationsDbContext>()
+        .UseNpgsql(connection).UseSnakeCaseNamingConvention().AddInterceptors(new SaveBoundary(boundary, request.OrderId), new CommitBoundary(boundary, request.OrderId)).Options);
+    await new AICOS.KitchenOperations.Api.Features.CupServing.CupAdmissionWriter(db, TimeProvider.System).ApplyAsync(request);
+    throw new InvalidOperationException("Cup crash boundary was not reached.");
+}
+else if (mode == "ordering-after-commit")
 {
     var ids = JsonSerializer.Deserialize<Guid[]>(input)!;
     await using var db = new OrderingDbContext(new DbContextOptionsBuilder<OrderingDbContext>().UseNpgsql(connection)
@@ -67,4 +86,16 @@ sealed class CommitBoundary(string mode, Guid order) : DbTransactionInterceptor
             Console.WriteLine("READY:" + order); await Console.Out.FlushAsync(); await Task.Delay(Timeout.Infinite, ct);
         }
     }
+}
+
+sealed record ProbeOperation(Guid Tenant, Guid Branch, Guid Actor, AICOS.KitchenOperations.Api.Features.CupServing.CupCommand Command);
+sealed record ProbeStaff(Guid Tenant, Guid Branch, Guid Actor) : AICOS.BuildingBlocks.Security.ICurrentUser
+{
+    public bool IsAuthenticated => true;
+    public Guid? UserId => Actor;
+    public string? Name => "Test staff";
+    public Guid? TenantId => Tenant;
+    public Guid? BranchId => Branch;
+    public string? Role => AICOS.BuildingBlocks.Security.AicosRoles.Cashier;
+    public bool IsInRole(string role) => role == Role;
 }

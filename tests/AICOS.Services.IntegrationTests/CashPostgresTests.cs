@@ -239,6 +239,46 @@ public sealed class CashPostgresTests : IAsyncLifetime
         responses.Count(r => r.StatusCode == HttpStatusCode.Conflict).Should().Be(1);
         ((await Rows(first)).Count + (await Rows(second)).Count).Should().Be(1);
     }
+    [CashPostgresFact]
+    public async Task Sixteen_online_retries_share_one_committed_attempt()
+    {
+        var order = Order();
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<PaymentsDbContext>();
+            if (!await db.PaymentProviders.AnyAsync(p => p.Code == "Mock"))
+            {
+                var provider = new PaymentProvider("Mock", "Scratch provider", ProviderMode.Mock);
+                provider.SetEnabled(true); db.PaymentProviders.Add(provider); await db.SaveChangesAsync();
+            }
+        }
+        var request = new { orderId = order, branchId = _branch, amount = 50000, providerCode = "Mock" };
+        var responses = await Task.WhenAll(Enumerable.Range(0, 16).Select(_ =>
+            _client.PostAsJsonAsync("/api/v1/payments/transactions", request)));
+        responses.Count(r => r.StatusCode == HttpStatusCode.Created).Should().Be(1);
+        responses.Count(r => r.StatusCode == HttpStatusCode.OK).Should().Be(15);
+        var rows = await Rows(order);
+        rows.Should().ContainSingle();
+        foreach (var response in responses)
+            (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid().Should().Be(rows[0].Id);
+    }
+
+    [CashPostgresFact]
+    public async Task Expired_unverified_transfer_blocks_parallel_cash_requests()
+    {
+        var order = Order();
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<PaymentsDbContext>();
+            var payment = new Payment(ServiceFactory<PaymentsService, PaymentsDbContext>.DefaultTenantId,
+                _branch, order, 50000, "Mock", "Expired without provider evidence");
+            payment.MarkExpired(); db.Payments.Add(payment); await db.SaveChangesAsync();
+        }
+        var responses = await Task.WhenAll(Enumerable.Range(0, 8).Select(i => Pay(order, "expired-" + i)));
+        responses.Should().OnlyContain(r => r.StatusCode == HttpStatusCode.Conflict);
+        (await Rows(order)).Should().ContainSingle();
+    }
+
     private sealed class SaveFault : SaveChangesInterceptor
     {
         public int Armed;

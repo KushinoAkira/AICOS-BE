@@ -8,23 +8,29 @@ using AICOS.Payments.Api.Features.Policies;
 using AICOS.Payments.Api.Infrastructure;
 using AICOS.Payments.Api.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace AICOS.Payments.Api.Features.Payments;
 
-/// <summary>POST /transactions/{id}/refunds. A missing amount means "as much as the brand policy allows".</summary>
-public sealed record RefundRequest(decimal? Amount, RefundKind? Kind, string? Reason);
+/// <summary>
+/// POST /transactions/{id}/refunds. A missing amount means "as much as the brand policy allows". A customer gives the bank account the money
+/// should go back to; such a refund always waits for an approver (the manager of the branch, or the brand admin when the policy says so), who transfers it by hand.
+/// </summary>
+public sealed record RefundRequest(decimal? Amount, RefundKind? Kind, string? Reason, string? BankName = null, string? BankAccountNumber = null, string? BankAccountHolder = null);
 
 public sealed record RefundDecisionRequest(string? Note);
 
 /// <summary>POST /refunds/{id}/transferred: the money of a refund awaiting a manual transfer was sent back. <c>Reference</c> is the bank transaction reference.</summary>
 public sealed record RefundTransferRequest(string? Reference, string? Note);
+/// <summary>POST /refunds/{id}/approve. <c>Reference</c>: the bank transaction reference, required for a refund sent to the customer's bank account.</summary>
+public sealed record RefundApproveRequest(string? Note, string? Reference = null);
 
 /// <summary>
 /// Refund request and result (SCRUM-88). A refund inside the brand cancellation policy is paid back at once (when the brand allows
 /// automatic approval, BR-75); anything else is an exception that waits for the approver the brand chose (BR-30).
 /// Routes: /api/v1/payments/transactions/{id}/refunds and /api/v1/payments/refunds.
 /// </summary>
-public static class RefundEndpoints
+public static partial class RefundEndpoints
 {
     public static void MapRefundEndpoints(this RouteGroupBuilder api)
     {
@@ -48,11 +54,23 @@ public static class RefundEndpoints
         ICurrentUser user,
         IEventBus bus,
         ILoggerFactory loggers,
+        IOrderDirectory orders,
         CancellationToken ct)
     {
         var errors = new ValidationErrors();
         CommonRules.Required(errors, "Reason", r.Reason, "Reason", 300);
         CommonRules.RequiredEnum(errors, "Kind", r.Kind, "Kind");
+        var toBank = !string.IsNullOrWhiteSpace(r.BankName) || !string.IsNullOrWhiteSpace(r.BankAccountNumber) || !string.IsNullOrWhiteSpace(r.BankAccountHolder);
+        if (toBank)
+        {
+            CommonRules.Required(errors, "BankName", r.BankName, "Bank", 100);
+            CommonRules.Required(errors, "BankAccountHolder", r.BankAccountHolder, "Account holder", 100);
+            if (string.IsNullOrWhiteSpace(r.BankAccountNumber) || !BankAccountNumberRegex().IsMatch(r.BankAccountNumber.Trim()))
+            {
+                errors.Add("BankAccountNumber", "The account number has 6 to 20 digits, without spaces.");
+            }
+        }
+
         if (r.Amount is not null)
         {
             CommonRules.Positive(errors, "Amount", r.Amount, "Amount");
@@ -74,12 +92,18 @@ public static class RefundEndpoints
             throw new ForbiddenException("A customer can only ask for the refund the brand cancellation policy gives.", "refund.customer_policy_only");
         }
 
+
         if (user.IsInRole(AicosRoles.Barista) && r.Kind != RefundKind.Unfulfillable)
         {
             throw new ForbiddenException("The bar can only ask for the refund of an order it could not make.", "refund.bar_unfulfillable_only");
         }
 
-        var payment = await PaymentAccess.LoadAsync(db, user, id, ct);
+        var payment = await LoadForRequestAsync(db, user, orders, id, ct);
+        if (user.IsInRole(AicosRoles.Customer) && !toBank)
+        {
+            throw new ValidationFailedException("BankAccountNumber", "Give the bank account the money should be sent back to.");
+        }
+
         if (!payment.IsPaid)
         {
             throw new BusinessRuleException("payment.not_refundable", $"Only a paid payment can be refunded (this one is {payment.Status}).");
@@ -117,14 +141,20 @@ public static class RefundEndpoints
 
         var within = r.Kind != RefundKind.Exception && amount <= policyCap;
         var refund = new PaymentRefund(payment, amount, r.Kind!.Value, r.Reason!.Trim(), user.UserId, within);
+        if (toBank)
+        {
+            refund.SendToBankAccount(r.BankName!, r.BankAccountNumber!, r.BankAccountHolder!);
+        }
+
         db.PaymentRefunds.Add(refund);
         await db.SaveChangesAsync(ct);
 
         var audit = loggers.CreateLogger("AICOS.Payments.Refunds");
         await AuditTrail.PublishAsync(bus, user, audit, tenantId, "refund.requested", "PaymentRefund", refund.Id, null, Snapshot(refund));
-        if (within && policy.AutoApproveWithinPolicy)
+        // A transfer to a bank account is always made by hand after the brand admin looked at it.
+        if (within && policy.AutoApproveWithinPolicy && !refund.ToBankAccount)
         {
-            await refunds.ProcessAsync(refund, payment, user.UserId, ct);
+            await refunds.ProcessAsync(refund, payment, user.UserId, ct, TillHolder(user));
             await AuditTrail.PublishAsync(bus, user, audit, tenantId, "refund.auto_approved", "PaymentRefund", refund.Id, null, Snapshot(refund));
         }
         else
@@ -135,8 +165,13 @@ public static class RefundEndpoints
         return Results.Created($"/api/v1/payments/refunds/{refund.Id}", RefundResponse.From(refund));
     }
 
+    /// <summary>
+    /// The refunds of the caller's brand (a branch manager: their branch). <c>from</c>/<c>to</c> (shop-local days) keep the ones asked for in that
+    /// period, for the refund history of the reconciliation page.
+    /// </summary>
     private static async Task<List<RefundResponse>> ListAsync(
-        PaymentsDbContext db, ICurrentUser user, RefundStatus? status, Guid? branchId, Guid? paymentId, int? limit, CancellationToken ct)
+        PaymentsDbContext db, ICurrentUser user, RefundStatus? status, Guid? branchId, Guid? paymentId, int? limit,
+        IOptions<PaymentOptions> options, TimeProvider clock, DateOnly? from, DateOnly? to, CancellationToken ct)
     {
         var tenantId = TenantScope.Require(user);
         var query = db.PaymentRefunds.AsNoTracking().Where(x => x.TenantId == tenantId);
@@ -156,6 +191,12 @@ public static class RefundEndpoints
             query = query.Where(x => x.PaymentId == paymentId);
         }
 
+        if (from is not null || to is not null)
+        {
+            var (_, _, startUtc, endUtc) = ReconciliationEndpoints.Range(options.Value, clock, from, to);
+            query = query.Where(x => x.CreatedAtUtc >= startUtc && x.CreatedAtUtc < endUtc);
+        }
+
         var rows = await query.OrderByDescending(x => x.CreatedAtUtc).Take(Math.Clamp(limit ?? 50, 1, 200)).ToListAsync(ct);
         return rows.Select(RefundResponse.From).ToList();
     }
@@ -164,9 +205,17 @@ public static class RefundEndpoints
         RefundResponse.From(await LoadAsync(db, user, id, ct));
 
     private static async Task<RefundResponse> ApproveAsync(
-        Guid id, PaymentsDbContext db, RefundProcessor refunds, ICurrentUser user, IEventBus bus, ILoggerFactory loggers, CancellationToken ct)
+        Guid id, RefundApproveRequest? r, PaymentsDbContext db, RefundProcessor refunds, ICurrentUser user, IEventBus bus, ILoggerFactory loggers, CancellationToken ct)
     {
         var refund = await LoadAsync(db, user, id, ct);
+        if (refund.ToBankAccount)
+        {
+            var errors = new ValidationErrors();
+            CommonRules.Required(errors, "Reference", r?.Reference, "Bank transaction reference", 80);
+            CommonRules.MaxLength(errors, "Note", r?.Note, "Note", 300);
+            errors.ThrowIfAny();
+        }
+
         var policy = await CancellationPolicyEndpoints.ForTenantAsync(db, refund.TenantId, ct);
         if (refund.Status != RefundStatus.PendingApproval)
         {
@@ -192,7 +241,15 @@ public static class RefundEndpoints
             throw new BusinessRuleException("refund.exceeds_payment", "The payment can no longer cover this refund.");
         }
 
-        await refunds.ProcessAsync(refund, payment, user.UserId, ct);
+        if (refund.ToBankAccount)
+        {
+            await refunds.CompleteBankTransferAsync(refund, payment, r!.Reference!.Trim(), user.UserId, ct);
+        }
+        else
+        {
+            await refunds.ProcessAsync(refund, payment, user.UserId, ct, TillHolder(user));
+        }
+
         await AuditTrail.PublishAsync(bus, user, loggers.CreateLogger("AICOS.Payments.Refunds"), refund.TenantId, "refund.approved", "PaymentRefund", refund.Id, null, Snapshot(refund));
         return RefundResponse.From(refund);
     }
@@ -255,6 +312,43 @@ public static class RefundEndpoints
         return RefundResponse.From(refund);
     }
 
+    /// <summary>Who hands cash back at the till: a cashier doing it themselves. Anyone else (the bar, a manager, the brand admin, a customer) leaves it to the cashier who took the money.</summary>
+    private static Guid? TillHolder(ICurrentUser user) => user.IsInRole(AicosRoles.Cashier) ? user.UserId : null;
+
+    /// <summary>
+    /// The payment a refund is asked for. A customer may ask for a payment of their own order even when a cashier took it (cash at the counter):
+    /// the Order service confirms the order is theirs.
+    /// </summary>
+    private static async Task<Payment> LoadForRequestAsync(PaymentsDbContext db, ICurrentUser user, IOrderDirectory orders, Guid id, CancellationToken ct)
+    {
+        if (!user.IsInRole(AicosRoles.Customer))
+        {
+            return await PaymentAccess.LoadAsync(db, user, id, ct);
+        }
+
+        var tenantId = TenantScope.Require(user);
+        var payment = await db.Payments.FirstOrDefaultAsync(p => p.Id == id && p.TenantId == tenantId, ct) ?? throw new NotFoundException("Payment", id);
+        if (payment.CreatedBy == user.UserId)
+        {
+            return payment;
+        }
+
+        OrderInfo order;
+        try
+        {
+            order = await orders.GetAsync(payment.OrderId, ct);
+        }
+        catch (BusinessRuleException)
+        {
+            throw new NotFoundException("Payment", id);
+        }
+
+        return order.CustomerId == user.UserId ? payment : throw new NotFoundException("Payment", id);
+    }
+
+    [System.Text.RegularExpressions.GeneratedRegex("^[0-9]{6,20}$")]
+    private static partial System.Text.RegularExpressions.Regex BankAccountNumberRegex();
+
     private static async Task<PaymentRefund> LoadAsync(PaymentsDbContext db, ICurrentUser user, Guid id, CancellationToken ct)
     {
         var tenantId = TenantScope.Require(user);
@@ -271,8 +365,11 @@ public sealed class RefundProcessor(PaymentsDbContext db, GatewayRegistry gatewa
 {
     public DateTime UtcNow => clock.GetUtcNow().UtcDateTime;
 
-    /// <summary>Runs the refund. <paramref name="actor"/> is who approved it (null when the system did, within policy); a cash refund is paid by that person at the till.</summary>
-    public async Task ProcessAsync(PaymentRefund refund, Payment payment, Guid? actor, CancellationToken ct)
+    /// <summary>
+    /// Runs the refund. <paramref name="actor"/> is who approved it (null when the system did, within policy). A cash refund leaves the till of
+    /// <paramref name="handedBackBy"/> (a cashier refunding at the counter), otherwise the till of the cashier who took the money.
+    /// </summary>
+    public async Task ProcessAsync(PaymentRefund refund, Payment payment, Guid? actor, CancellationToken ct, Guid? handedBackBy = null)
     {
         string? providerReference = null;
         if (!payment.IsCash)
@@ -297,14 +394,14 @@ public sealed class RefundProcessor(PaymentsDbContext db, GatewayRegistry gatewa
             providerReference = result.ProviderReference;
         }
 
-        await CompleteAsync(refund, payment, providerReference, actor, ct);
+        await CompleteAsync(refund, payment, providerReference, actor, ct, handedBackBy);
     }
 
     /// <summary>A refund that waited for a manual transfer was sent back: <paramref name="bankReference"/> is the bank transaction reference.</summary>
     public Task CompleteManualTransferAsync(PaymentRefund refund, Payment payment, string bankReference, Guid? actor, CancellationToken ct) =>
         CompleteAsync(refund, payment, $"MANUAL:{bankReference}", actor, ct);
 
-    private async Task CompleteAsync(PaymentRefund refund, Payment payment, string? providerReference, Guid? actor, CancellationToken ct)
+    private async Task CompleteAsync(PaymentRefund refund, Payment payment, string? providerReference, Guid? actor, CancellationToken ct, Guid? handedBackBy = null)
     {
         refund.Succeed(providerReference, actor, UtcNow);
         payment.ApplyRefund(refund.Amount);
@@ -314,7 +411,19 @@ public sealed class RefundProcessor(PaymentsDbContext db, GatewayRegistry gatewa
         if (payment.IsCash)
         {
             // The till pays money out: negative cash for the closing of whoever hands it back.
-            await bus.PublishAsync(new CashPaymentRecordedEvent(payment.TenantId, payment.BranchId, actor ?? payment.CashierUserId ?? Guid.Empty, payment.OrderId, -refund.Amount, UtcNow), ct);
+            await bus.PublishAsync(new CashPaymentRecordedEvent(payment.TenantId, payment.BranchId, handedBackBy ?? payment.CashierUserId ?? actor ?? Guid.Empty, payment.OrderId, -refund.Amount, UtcNow), ct);
         }
+    }
+
+    /// <summary>
+    /// The approver sent the money to the customer's bank account by hand: the refund is done with that bank reference. Nothing leaves the till,
+    /// whatever the customer paid with: the transfer comes from the brand's bank account.
+    /// </summary>
+    public async Task CompleteBankTransferAsync(PaymentRefund refund, Payment payment, string bankReference, Guid? actor, CancellationToken ct)
+    {
+        refund.Succeed($"BANK:{bankReference}", actor, UtcNow);
+        payment.ApplyRefund(refund.Amount);
+        await db.SaveChangesAsync(ct);
+        await bus.PublishAsync(new PaymentRefundedEvent(payment.TenantId, payment.BranchId, payment.Id, refund.Id, payment.OrderId, refund.Amount, payment.RefundedAmount, payment.Method), ct);
     }
 }

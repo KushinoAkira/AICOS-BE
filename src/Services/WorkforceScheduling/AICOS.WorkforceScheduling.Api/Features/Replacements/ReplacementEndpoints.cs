@@ -20,7 +20,11 @@ public sealed record OpenReplacementRequest(Guid? AssignmentId, Guid? WorkShiftI
 
 public sealed record RegisterReplacementRequest(string? Note);
 
-public sealed record ApproveReplacementRequest(Guid? ApplicationId, string? Note);
+/// <summary>
+/// The manager picks one volunteer (<see cref="ApplicationId"/>), or puts an employee of the branch on the shift directly
+/// (<see cref="EmployeeId"/>): staff tell the manager they are busy, and the manager arranges who replaces them.
+/// </summary>
+public sealed record ApproveReplacementRequest(Guid? ApplicationId, string? Note, Guid? EmployeeId = null);
 
 public sealed record CancelReplacementRequest(string? Note);
 
@@ -50,9 +54,9 @@ public sealed record ReplacementShiftResponse(
 
 /// <summary>
 /// UC-30 Open and Approve Replacement Shift, UC-31 Register for Replacement Shift. Routes: /api/v1/workforce/replacement-shifts.
-/// The Branch Manager opens a shift that needs somebody else, or a Barista or Cashier asks for a replacement of their own coming shift;
-/// Baristas and Cashiers of the same branch register; the replacement
-/// only takes effect when the Branch Manager approves one of them (BR-51). The replacement works it as a normal assignment (check-in,
+/// The Branch Manager opens a shift that needs somebody else, or a Barista or Cashier tells the manager they are busy for a coming shift of
+/// their own; the manager then puts an employee of the branch on it (or picks one of the colleagues who registered). The replacement
+/// only takes effect when the Branch Manager decides (BR-51). The replacement works it as a normal assignment (check-in,
 /// check-out, review), is paid at the brand replacement rate, and keeps their contract type (BR-52). Approval is audited.
 /// </summary>
 public static class ReplacementEndpoints
@@ -213,7 +217,15 @@ public static class ReplacementEndpoints
         CancellationToken ct)
     {
         var errors = new ValidationErrors();
-        CommonRules.RequiredId(errors, "ApplicationId", r.ApplicationId, "Application");
+        if (r.EmployeeId is null)
+        {
+            CommonRules.RequiredId(errors, "ApplicationId", r.ApplicationId, "Application");
+        }
+        else if (r.ApplicationId is not null)
+        {
+            errors.Add("ApplicationId", "Give either the application to approve or the employee to put on the shift, not both.");
+        }
+
         CommonRules.MaxLength(errors, "Note", r.Note, "Note", 500);
         errors.ThrowIfAny();
 
@@ -223,15 +235,38 @@ public static class ReplacementEndpoints
             throw new BusinessRuleException("replacement.not_open", $"A replacement shift in status {replacement.Status} can no longer be changed.");
         }
 
-        var application = await db.ReplacementApplications.FirstOrDefaultAsync(a => a.Id == r.ApplicationId && a.ReplacementShiftId == id, ct)
-            ?? throw new NotFoundException("Application", r.ApplicationId!);
-        if (application.Status != ApplicationStatus.Pending)
+        ReplacementApplication? application = null;
+        Guid employeeId;
+        if (r.EmployeeId is { } direct)
         {
-            throw new BusinessRuleException("replacement.application_closed", $"An application in status {application.Status} cannot be approved.");
+            employeeId = direct;
+            application = await db.ReplacementApplications.FirstOrDefaultAsync(a => a.ReplacementShiftId == id && a.EmployeeId == direct && a.Status == ApplicationStatus.Pending, ct);
+        }
+        else
+        {
+            application = await db.ReplacementApplications.FirstOrDefaultAsync(a => a.Id == r.ApplicationId && a.ReplacementShiftId == id, ct)
+                ?? throw new NotFoundException("Application", r.ApplicationId!);
+            if (application.Status != ApplicationStatus.Pending)
+            {
+                throw new BusinessRuleException("replacement.application_closed", $"An application in status {application.Status} cannot be approved.");
+            }
+
+            employeeId = application.EmployeeId;
         }
 
         EnsureNotOver(replacement.WorkDate, replacement.EndTime, shop);
-        var employee = await db.Employees.FirstAsync(e => e.Id == application.EmployeeId, ct);
+        var employee = await db.Employees.FirstOrDefaultAsync(e => e.Id == employeeId && e.TenantId == replacement.TenantId, ct)
+            ?? throw new NotFoundException("Employee", employeeId);
+        if (employee.BranchId != replacement.BranchId)
+        {
+            throw new BusinessRuleException("replacement.other_branch", "The employee works at another branch.");
+        }
+
+        if (replacement.OriginalAssignmentId is { } replacedId
+            && await db.ShiftAssignments.AnyAsync(a => a.Id == replacedId && a.EmployeeId == employee.Id, ct))
+        {
+            throw new BusinessRuleException("replacement.same_employee", "The employee who asked for the replacement cannot replace themselves.");
+        }
         if (employee.Status != EmployeeStatus.Active)
         {
             throw new BusinessRuleException("replacement.employee_inactive", "The employee is inactive.");
@@ -255,8 +290,9 @@ public static class ReplacementEndpoints
             }
         }
 
-        application.Approve();
-        foreach (var other in await db.ReplacementApplications.Where(a => a.ReplacementShiftId == id && a.Id != application.Id && a.Status == ApplicationStatus.Pending).ToListAsync(ct))
+        application?.Approve();
+        var approvedId = application?.Id;
+        foreach (var other in await db.ReplacementApplications.Where(a => a.ReplacementShiftId == id && a.Id != approvedId && a.Status == ApplicationStatus.Pending).ToListAsync(ct))
         {
             other.Reject();
         }

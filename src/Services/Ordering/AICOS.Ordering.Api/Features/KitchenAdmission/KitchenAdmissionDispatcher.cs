@@ -6,16 +6,17 @@ using Microsoft.EntityFrameworkCore;
 namespace AICOS.Ordering.Api.Features.KitchenAdmission;
 
 public sealed class KitchenAdmissionDispatcher(OrderingDbContext db, IKitchenAdmissionTransport transport,
-    TimeProvider clock, ILogger<KitchenAdmissionDispatcher> logger)
+    TimeProvider clock, ILogger<KitchenAdmissionDispatcher> logger, IConfiguration configuration)
 {
     public async Task<int> DispatchOnceAsync(CancellationToken ct = default)
     {
         var now = clock.GetUtcNow().UtcDateTime;
+        var cups = configuration.GetValue<bool>("CupServing:AdmissionDispatchEnabled");
         var claimed = await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
         {
             db.ChangeTracker.Clear();
             await using var tx = await db.Database.BeginTransactionAsync(ct);
-            var rows = await db.AdmissionOutbox.FromSqlInterpolated($"SELECT * FROM ordering.kitchen_admission_outbox WHERE consumer_key = {AdmissionProtocol.Consumer} AND ((state = 'PENDING' AND next_attempt_at_utc <= {now}) OR (state = 'IN_FLIGHT' AND lease_until_utc <= {now})) ORDER BY next_attempt_at_utc, event_id LIMIT 50 FOR UPDATE SKIP LOCKED").ToListAsync(ct);
+            var rows = await db.AdmissionOutbox.FromSqlInterpolated($"SELECT * FROM ordering.kitchen_admission_outbox WHERE (consumer_key = {AdmissionProtocol.Consumer} OR ({cups} AND consumer_key = {AICOS.Contracts.Serving.CupAdmissionProtocol.Consumer})) AND ((state = 'PENDING' AND next_attempt_at_utc <= {now}) OR (state = 'IN_FLIGHT' AND lease_until_utc <= {now})) ORDER BY next_attempt_at_utc, event_id LIMIT 50 FOR UPDATE SKIP LOCKED").ToListAsync(ct);
             foreach (var row in rows)
             {
                 row.State = "IN_FLIGHT"; row.LeaseToken = Guid.NewGuid(); row.LeaseUntilUtc = now.AddSeconds(30);
@@ -42,14 +43,15 @@ public sealed class KitchenAdmissionDispatcher(OrderingDbContext db, IKitchenAdm
                     await using var snapshot = await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct);
                     var order = await db.Orders.AsNoTracking().Include(o => o.Items).ThenInclude(i => i.Options).AsSplitQuery()
                         .SingleOrDefaultAsync(o => o.TenantId == row.TenantId && o.BranchId == row.BranchId && o.Id == row.OrderId, ct);
-                    var result = order is null ? null : AdmissionProjection.Request(row, order);
-                    await snapshot.CommitAsync(ct); return result;
+                    await snapshot.CommitAsync(ct); return order;
                 });
                 if (request is null) { state = "NEEDS_REVIEW"; error = "admission.source_missing"; }
                 else
                 {
                     // No database transaction is open while waiting for Kitchen.
-                    var result = await transport.SendAsync(request, ct);
+                    var result = row.SchemaVersion == 2
+                        ? await transport.SendCupAsync(AdmissionProjection.CupRequest(row, request), ct)
+                        : await transport.SendAsync(AdmissionProjection.Request(row, request), ct);
                     var ack = result.Ack;
                     var valid = ack is not null && ack.EventId == row.EventId && ack.ConsumerKey == row.ConsumerKey
                         && ack.TenantId == row.TenantId && ack.BranchId == row.BranchId && ack.OrderId == row.OrderId

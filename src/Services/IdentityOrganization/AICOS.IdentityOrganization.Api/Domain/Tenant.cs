@@ -15,6 +15,12 @@ public enum TenantStatus
 
     /// <summary>The registration was refused. The brand never became active.</summary>
     Rejected,
+
+    /// <summary>Created or approved, but its plan is not paid yet: nobody of the brand can sign in until the Super Admin records the payment.</summary>
+    AwaitingPayment,
+
+    /// <summary>Removed by the Super Admin (soft delete): hidden from lists, nobody can sign in, the data and the code are kept.</summary>
+    Deleted,
 }
 
 /// <summary>A brand that rents the platform (UC-05). All brand data hangs off its id (BR-04).</summary>
@@ -66,6 +72,46 @@ public sealed class Tenant : AuditableEntity<Guid>
 
     public string? ReviewNote { get; private set; }
 
+    /// <summary>The plan the owner picked (and paid, they say) on the pricing page when registering; assigned when the registration is approved.</summary>
+    public Guid? RequestedPlanId { get; private set; }
+
+    /// <summary>The payment reference the owner got from the (simulated) checkout; the Super Admin checks it before recording the payment.</summary>
+    public string? PaymentClaimReference { get; private set; }
+
+    public DateTime? DeletedAtUtc { get; private set; }
+
+    public string? DeleteReason { get; private set; }
+
+    public void RequestPlan(Guid? planId, string? paymentReference)
+    {
+        RequestedPlanId = planId;
+        PaymentClaimReference = string.IsNullOrWhiteSpace(paymentReference) ? null : paymentReference.Trim();
+    }
+
+    /// <summary>A new brand waits for its first payment before anyone can use it.</summary>
+    public void AwaitPayment() => Status = TenantStatus.AwaitingPayment;
+
+    /// <summary>The first payment arrived: the brand opens.</summary>
+    public void ActivateAfterPayment()
+    {
+        if (Status == TenantStatus.AwaitingPayment)
+        {
+            Status = TenantStatus.Active;
+        }
+    }
+
+    public void SoftDelete(string? reason, DateTime now)
+    {
+        if (Status == TenantStatus.Deleted)
+        {
+            throw new ConflictException("This brand is already deleted.", "tenant.deleted");
+        }
+
+        Status = TenantStatus.Deleted;
+        DeletedAtUtc = now;
+        DeleteReason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
+    }
+
     public static string NormalizeCode(string code) => code.Trim().ToLowerInvariant();
 
     /// <summary>A brand registered by its owner: it does nothing until a Super Admin approves it.</summary>
@@ -83,10 +129,11 @@ public sealed class Tenant : AuditableEntity<Guid>
 
     public void ChangeStatus(TenantStatus status) => Status = status;
 
+    /// <summary>Accepts the registration. The brand then waits for its payment (<see cref="TenantStatus.AwaitingPayment"/>).</summary>
     public void Approve(Guid? reviewer, DateTime now)
     {
         EnsurePending();
-        Status = TenantStatus.Active;
+        Status = TenantStatus.AwaitingPayment;
         ReviewedBy = reviewer;
         ReviewedAtUtc = now;
         ReviewNote = null;
@@ -100,6 +147,9 @@ public sealed class Tenant : AuditableEntity<Guid>
         ReviewedAtUtc = now;
         ReviewNote = reason.Trim();
     }
+
+    /// <summary>The display name shown to customers and staff. The code (subdomain, links, QR codes) stays the same.</summary>
+    public void Rename(string name) => Name = name.Trim();
 
     public void UpdateProfile(string? description, string? logoUrl, string? primaryColor, string? secondaryColor)
     {

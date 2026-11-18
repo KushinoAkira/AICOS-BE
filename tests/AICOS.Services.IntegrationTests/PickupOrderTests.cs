@@ -262,11 +262,16 @@ public sealed class PickupOrderTests : IDisposable
         var paymentId = Guid.NewGuid();
         await _f.HandleAsync(Paid(order, paymentId));
 
-        var cancelled = await (await _customer.Post($"{Orders}/{order.Id()}/cancel", new { reason = "Bận việc" })).Body();
+        await _customer.Post($"{Orders}/{order.Id()}/cancel", new { reason = "Bận việc" }).ShouldBe(400);   // a paid order needs the bank account
+        await _customer.Post($"{Orders}/{order.Id()}/cancel", new { bankName = "Vietcombank", bankAccountNumber = "0123456789", bankAccountHolder = "Nguyen Van A" }).ShouldBe(400);                 // and the reason
+        _payments.Refunds.Should().BeEmpty();
+
+        var cancelled = await (await _customer.Post($"{Orders}/{order.Id()}/cancel", new { reason = "Bận việc", bankName = "Vietcombank", bankAccountNumber = "0123456789", bankAccountHolder = "Nguyen Van A" })).Body();
 
         cancelled.GetProperty("status").GetString().Should().Be("Cancelled");
         cancelled.GetProperty("refundStatus").GetString().Should().Be("RefundPending");
         _payments.Refunds.Should().ContainSingle().Which.Should().Be((paymentId, "Cancellation", (decimal?)null, "Bận việc"));
+        _payments.BankAccounts.Should().ContainSingle().Which.Should().Be((paymentId, "Vietcombank", "0123456789", "Nguyen Van A"));
         _f.Events.Published.OfType<OrderCancelledIntegrationEvent>().Single().WasPaid.Should().BeTrue();
         (await _manager.GetFromJsonAsync<JsonElement>($"{Orders}/exceptions")).EnumerateArray().Select(o => o.Id()).Should().Contain(order.Id());
     }
@@ -278,7 +283,7 @@ public sealed class PickupOrderTests : IDisposable
         await _f.HandleAsync(Paid(order));
         _payments.Fail = new AICOS.BuildingBlocks.Exceptions.BusinessRuleException("refund.nothing_to_refund", "The brand policy refunds nothing.");
 
-        await _customer.Post($"{Orders}/{order.Id()}/cancel", new { reason = "x" }).ShouldBe(422, "refund.nothing_to_refund");
+        await _customer.Post($"{Orders}/{order.Id()}/cancel", new { reason = "x", bankName = "Vietcombank", bankAccountNumber = "0123456789", bankAccountHolder = "Nguyen Van A" }).ShouldBe(422, "refund.nothing_to_refund");
 
         (await GetAsync(order.Id())).GetProperty("status").GetString().Should().Be("Confirmed");
     }
@@ -335,6 +340,30 @@ public sealed class PickupOrderTests : IDisposable
         (await _customer.GetFromJsonAsync<JsonElement>($"{Orders}/{order.Id()}/feedback")).GetProperty("rating").GetInt32().Should().Be(4);
 
         await _customer.Post($"{Orders}/{order.Id()}/feedback", new { rating = 1 }).ShouldBe(409, "feedback.duplicate");
+    }
+
+    [Fact]
+    public async Task The_shop_replies_to_a_rating_the_customer_sees_it_and_the_list_names_the_drinks()
+    {
+        var order = await CompletedOrderAsync();
+        var feedback = await (await _customer.Post($"{Orders}/{order.Id()}/feedback", new { rating = 2, comment = "Hơi ngọt" })).Body();
+
+        await _manager.Put($"{Orders}/feedbacks/{feedback.Id()}/reply", new { reply = "  " }).ShouldBe(400);
+        await _cashier.Put($"{Orders}/feedbacks/{feedback.Id()}/reply", new { reply = "x" }).ShouldBe(403);
+        await _otherManager.Put($"{Orders}/feedbacks/{feedback.Id()}/reply", new { reply = "x" }).ShouldBe(404);                     // not their brand or branch
+        await _manager.Put($"{Orders}/feedbacks/{Guid.NewGuid()}/reply", new { reply = "x" }).ShouldBe(404);
+
+        var replied = await (await _manager.Put($"{Orders}/feedbacks/{feedback.Id()}/reply", new { reply = " Cảm ơn bạn, lần sau quán giảm đường nhé " })).Body();
+        replied.GetProperty("reply").GetString().Should().Be("Cảm ơn bạn, lần sau quán giảm đường nhé");
+        replied.GetProperty("repliedAtUtc").ValueKind.Should().Be(JsonValueKind.String);
+        await _manager.Put($"{Orders}/feedbacks/{feedback.Id()}/reply", new { reply = "Đã sửa câu trả lời" }).ShouldBe(200);   // can be changed
+
+        var list = await _manager.GetFromJsonAsync<JsonElement>($"{Orders}/feedbacks");
+        var row = list.EnumerateArray().Single(f => f.Id() == feedback.Id());
+        row.GetProperty("reply").GetString().Should().Be("Đã sửa câu trả lời");
+        row.GetProperty("items").GetArrayLength().Should().BeGreaterThan(0);
+        row.GetProperty("items")[0].GetProperty("productName").GetString().Should().NotBeNullOrEmpty();
+        (await _customer.GetFromJsonAsync<JsonElement>($"{Orders}/feedbacks/mine"))[0].GetProperty("reply").GetString().Should().Be("Đã sửa câu trả lời");
     }
 
     [Fact]

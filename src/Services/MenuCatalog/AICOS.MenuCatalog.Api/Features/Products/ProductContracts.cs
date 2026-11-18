@@ -72,13 +72,30 @@ internal static class ProductValidator
     public const int MaxGroups = 10;
     public const int MaxOptionsPerGroup = 30;
 
+    /// <summary>An uploaded drink photo is stored as a data URL; the web app shrinks it before sending.</summary>
+    public const int MaxPictureLength = 400_000;
+
+    private static bool IsPicture(string? value) =>
+        value is not null && (value.StartsWith("data:image/jpeg;base64,", StringComparison.Ordinal) || value.StartsWith("data:image/png;base64,", StringComparison.Ordinal) || value.StartsWith("data:image/webp;base64,", StringComparison.Ordinal));
+
     public static void EnsureValid(ProductRequest r)
     {
         var errors = new ValidationErrors();
         CommonRules.RequiredId(errors, "CategoryId", r.CategoryId, "Category");
         CommonRules.Required(errors, "Name", r.Name, "Product name", Product.NameMaxLength);
         CommonRules.MaxLength(errors, "Description", r.Description, "Description", Product.DescriptionMaxLength);
-        CommonRules.OptionalUrl(errors, "ImageUrl", r.ImageUrl, "Image URL");
+        // A link, or a small picture uploaded from the computer (resized by the web app), kept in the record like the brand logo.
+        if (IsPicture(r.ImageUrl))
+        {
+            if (r.ImageUrl!.Length > MaxPictureLength)
+            {
+                errors.Add("ImageUrl", $"The picture is too large (at most {MaxPictureLength / 1000} KB once encoded). Use a smaller image.");
+            }
+        }
+        else
+        {
+            CommonRules.OptionalUrl(errors, "ImageUrl", r.ImageUrl, "Image URL");
+        }
         CommonRules.Positive(errors, "BasePrice", r.BasePrice, "Base price", MaxPrice);
 
         var tags = r.Tags ?? [];

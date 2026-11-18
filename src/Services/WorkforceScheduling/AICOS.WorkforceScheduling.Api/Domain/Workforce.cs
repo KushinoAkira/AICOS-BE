@@ -309,6 +309,58 @@ public sealed class ShiftAssignment : AuditableEntity<Guid>, IBranchScoped
         Review(managerId, reason, nowUtc);
     }
 
+    /// <summary>Statuses a manager may set by hand. Absences change pay (like Ghi vắng); the others only label the record.</summary>
+    public static readonly string[] ManagerStatuses = ["Late", "LeftEarly", "ExcusedAbsence", "UnexcusedAbsence", "Other"];
+
+    private static bool IsAbsenceStatus(string? status) => status is "ExcusedAbsence" or "UnexcusedAbsence";
+
+    /// <summary>What the manager set by hand over the automatic status, or null when the record follows check-in and check-out.</summary>
+    public string? ManagerStatus { get; private set; }
+
+    /// <summary>The manager's note about this shift (left early for a reason, swapped informally...).</summary>
+    public string? ManagerNote { get; private set; }
+
+    /// <summary>
+    /// Sets or clears the manager's status. An absence status records the absence (no pay) and needs a shift without check-in.
+    /// Clearing an absence the manager set this way puts the record back to automatic and unreviewed.
+    /// </summary>
+    public void SetManagerStatus(string? status, string? note, Guid? managerId, DateTime nowUtc)
+    {
+        var wasAbsenceStatus = IsAbsenceStatus(ManagerStatus);
+        ManagerNote = string.IsNullOrWhiteSpace(note) ? null : note.Trim();
+        if (string.IsNullOrWhiteSpace(status))
+        {
+            ManagerStatus = null;
+            if (wasAbsenceStatus && IsAbsent)
+            {
+                IsAbsent = false;
+                ReviewStatus = AttendanceReviewStatus.Unreviewed;
+                ReviewNote = null;
+                ReviewedBy = null;
+                ReviewedAtUtc = null;
+            }
+
+            return;
+        }
+
+        if (IsAbsenceStatus(status))
+        {
+            if (EffectiveCheckInUtc is not null)
+            {
+                throw new BusinessRuleException("attendance.checked_in", "The employee checked in for this shift; adjust the times instead of recording an absence.");
+            }
+
+            MarkAbsent(ManagerNote ?? (status == "ExcusedAbsence" ? "Vắng có phép" : "Vắng không phép"), managerId, nowUtc);
+        }
+        else if (wasAbsenceStatus && IsAbsent)
+        {
+            IsAbsent = false;
+            ReviewStatus = AttendanceReviewStatus.Unreviewed;
+        }
+
+        ManagerStatus = status;
+    }
+
     public void MarkAbsent(string reason, Guid? managerId, DateTime nowUtc)
     {
         IsAbsent = true;
@@ -540,8 +592,13 @@ public sealed class CashClosing : AuditableEntity<Guid>, IBranchScoped
     {
     }
 
-    public CashClosing(Guid tenantId, Guid branchId, Guid assignmentId, Guid employeeId, decimal expectedAmount, decimal countedAmount, string? note, DateTime nowUtc)
+    public CashClosing(
+        Guid tenantId, Guid branchId, Guid assignmentId, Guid employeeId, decimal expectedAmount, decimal countedAmount, string? note, DateTime nowUtc,
+        decimal openingAmount = 0, DateTime? sinceUtc = null, Guid? previousClosingId = null)
     {
+        OpeningAmount = openingAmount;
+        SinceUtc = sinceUtc;
+        PreviousClosingId = previousClosingId;
         Id = Guid.NewGuid();
         TenantId = tenantId;
         BranchId = branchId;
@@ -564,6 +621,14 @@ public sealed class CashClosing : AuditableEntity<Guid>, IBranchScoped
     public Guid EmployeeId { get; private set; }
 
     public decimal ExpectedAmount { get; private set; }
+
+    /// <summary>What the previous handover of the branch counted (0 for the first handover of the day): the cash the drawer started from.</summary>
+    public decimal OpeningAmount { get; private set; }
+
+    /// <summary>Cash that moved at the branch after this moment (the previous handover, or the start of the shop day) is in the expected amount.</summary>
+    public DateTime? SinceUtc { get; private set; }
+
+    public Guid? PreviousClosingId { get; private set; }
 
     public decimal CountedAmount { get; private set; }
 

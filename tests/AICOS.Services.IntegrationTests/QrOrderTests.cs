@@ -419,9 +419,59 @@ public sealed class QrOrderTests : IDisposable
         _vouchers.Redeemed.Single().Customer.Should().Be(memberId);
     }
 
+    [Fact]
+    public async Task Close_eligibility_is_read_only_scoped_and_not_a_payment_close_permit()
+    {
+        var (token, id) = await ScanAsync();
+        var phone = Phone(token);
+        var cashier = _f.As(AicosRoles.Cashier, _b1);
+        var path = $"{Qr}/sessions/{id}/close-eligibility";
+        await _guest.GetAsync(path).ShouldBe(401);
+        await _f.As(AicosRoles.Cashier, _b2).GetAsync(path).ShouldBe(403);
+        await _f.As(AicosRoles.Cashier, _b1, tenantId: _otherTenant).GetAsync(path).ShouldBe(404);
+        var empty = await cashier.GetFromJsonAsync<JsonElement>(path);
+        empty.GetProperty("canClose").GetBoolean().Should().BeTrue();
+        empty.GetProperty("advisoryOnly").GetBoolean().Should().BeTrue();
+        await AddAsync(phone, quantity: 1);
+        var round = await (await phone.Post($"{Qr}/checkout", new { })).Body();
+        await _f.HandleAsync(Paid(round));
+        var used = await cashier.GetFromJsonAsync<JsonElement>(path);
+        used.GetProperty("canClose").GetBoolean().Should().BeFalse();
+        used.GetProperty("unsettledOrders").GetInt32().Should().Be(0);
+        used.GetProperty("unservedOrders").GetInt32().Should().Be(1);
+        used.GetProperty("requiresBillVerification").GetBoolean().Should().BeTrue();
+        var bill = await cashier.GetFromJsonAsync<JsonElement>($"{Qr}/sessions/{id}/bill");
+        bill.GetProperty("status").GetString().Should().Be("Open");
+    }
+
+    [Fact]
+    public async Task Repeated_close_of_an_empty_session_is_idempotent()
+    {
+        var (_, id) = await ScanAsync();
+        var cashier = _f.As(AicosRoles.Cashier, _b1);
+        await cashier.Post($"{Qr}/sessions/{id}/close", new { }).ShouldBe(204);
+        await cashier.Post($"{Qr}/sessions/{id}/close", new { }).ShouldBe(204);
+    }
+
+    [Fact]
+    public async Task Idle_timer_does_not_close_paid_unserved_orders()
+    {
+        var (token, id) = await ScanAsync();
+        var phone = Phone(token);
+        await AddAsync(phone, quantity: 1);
+        var round = await (await phone.Post($"{Qr}/checkout", new { })).Body();
+        await _f.HandleAsync(Paid(round));
+        _f.Clock.Now = Now.AddDays(2);
+        using var scope = _f.Services.CreateScope();
+        (await TableSessionExpiryWorker.CloseIdleAsync(scope.ServiceProvider.GetRequiredService<OrderingDbContext>(),
+            _f.Clock.Now.UtcDateTime, TimeSpan.FromHours(6), default)).Should().Be(0);
+        var bill = await _f.As(AicosRoles.Cashier, _b1).GetFromJsonAsync<JsonElement>($"{Qr}/sessions/{id}/bill");
+        bill.GetProperty("status").GetString().Should().Be("Open");
+    }
+
     // ------------------------------------------------------------------ the sitting ends
     [Fact]
-    public async Task When_every_round_is_paid_the_session_closes_and_a_new_scan_opens_a_new_one()
+    public async Task When_every_round_is_paid_the_session_stays_open_for_service_but_rejects_another_round()
     {
         var (token, sessionId) = await ScanAsync();
         var phone = Phone(token);
@@ -434,16 +484,18 @@ public sealed class QrOrderTests : IDisposable
         await AddAsync(phone, _cake, 1);                                                          // one round is still unpaid: the table can keep ordering
         await _f.HandleAsync(Paid(second));
 
-        await phone.Post($"{Qr}/cart/items", new { productId = _cake, quantity = 1 }).ShouldBe(409, "qr.session_closed");
-        await phone.Post($"{Qr}/checkout", new { }).ShouldBe(409, "qr.session_closed");
+        await phone.Post($"{Qr}/cart/items", new { productId = _cake, quantity = 1 }).ShouldBe(200);
+        await _f.As(AicosRoles.Cashier, _b1).Post($"{Qr}/sessions/{sessionId}/close", new { }).ShouldBe(409, "qr.session_verification_required");
         (await phone.GetFromJsonAsync<JsonElement>($"{Qr}/session/bill")).GetProperty("due").GetDecimal().Should().Be(0);   // the bill stays readable
         (await phone.GetFromJsonAsync<JsonElement>($"{Qr}/orders")).GetArrayLength().Should().Be(2);
 
-        (await ScanAsync()).SessionId.Should().NotBe(sessionId);
+        await phone.Post($"{Qr}/checkout", new { }).ShouldBe(409, "qr.session_already_settled");
+        (await phone.GetFromJsonAsync<JsonElement>($"{Qr}/orders")).GetArrayLength().Should().Be(2);
+        (await ScanAsync()).SessionId.Should().Be(sessionId);
     }
 
     [Fact]
-    public async Task A_cancelled_round_does_not_keep_the_session_open()
+    public async Task Cancelling_a_round_cannot_close_a_paid_but_unserved_session()
     {
         var (token, sessionId) = await ScanAsync();
         var phone = Phone(token);
@@ -455,14 +507,14 @@ public sealed class QrOrderTests : IDisposable
 
         await _f.As(AicosRoles.Cashier, _b1).Post($"/api/v1/orders/{second.Id()}/cancel", new { reason = "Khách đổi ý" }).ShouldBe(200);
 
-        await phone.Post($"{Qr}/cart/items", new { productId = _cake, quantity = 1 }).ShouldBe(409, "qr.session_closed");
+        await phone.Post($"{Qr}/cart/items", new { productId = _cake, quantity = 1 }).ShouldBe(200);
         var bill = await phone.GetFromJsonAsync<JsonElement>($"{Qr}/session/bill");
-        (bill.GetProperty("status").GetString(), bill.GetProperty("total").GetDecimal()).Should().Be(("Closed", 55_000m));   // the cancelled round is not counted
+        (bill.GetProperty("status").GetString(), bill.GetProperty("total").GetDecimal()).Should().Be(("Open", 55_000m));   // the cancelled round is not counted
         sessionId.Should().NotBeEmpty();
     }
 
     [Fact]
-    public async Task Staff_list_the_open_tables_with_what_is_due_and_close_a_table_by_hand()
+    public async Task Staff_cannot_close_a_used_table_without_authoritative_bill_and_fulfillment_verification()
     {
         var (token, sessionId) = await ScanAsync();
         var phone = Phone(token);
@@ -483,9 +535,9 @@ public sealed class QrOrderTests : IDisposable
         var unpaidBill = await cashier.GetFromJsonAsync<JsonElement>($"{Qr}/sessions/{sessionId}/bill");
         var unpaidOrderId = unpaidBill.GetProperty("orders")[0].GetProperty("orderId").GetGuid();
         await cashier.Post($"/api/v1/orders/{unpaidOrderId}/cancel", new { reason = "Test settlement guard; guest changed mind" }).ShouldBe(200);
-        await cashier.Post($"{Qr}/sessions/{sessionId}/close", new { }).ShouldBe(204);
-        await phone.Post($"{Qr}/cart/items", new { productId = _latte, quantity = 1 }).ShouldBe(409, "qr.session_closed");
-        (await cashier.GetFromJsonAsync<JsonElement>($"{Qr}/sessions")).GetArrayLength().Should().Be(0);
+        await cashier.Post($"{Qr}/sessions/{sessionId}/close", new { }).ShouldBe(409, "qr.session_verification_required");
+        await phone.Post($"{Qr}/cart/items", new { productId = _latte, quantity = 1 }).ShouldBe(200);
+        (await cashier.GetFromJsonAsync<JsonElement>($"{Qr}/sessions")).GetArrayLength().Should().Be(1);
     }
 
     [Fact]

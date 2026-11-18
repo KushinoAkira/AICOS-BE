@@ -30,7 +30,7 @@ internal sealed class ProductConfiguration : IEntityTypeConfiguration<Product>
         builder.Property(p => p.Id).ValueGeneratedNever();
         builder.Property(p => p.Name).HasMaxLength(Product.NameMaxLength).IsRequired();
         builder.Property(p => p.Description).HasMaxLength(Product.DescriptionMaxLength);
-        builder.Property(p => p.ImageUrl).HasMaxLength(1000);
+        builder.Property(p => p.ImageUrl).HasMaxLength(400_000);   // a link or an uploaded picture (data URL)
         builder.Property(p => p.BasePrice).HasPrecision(12, 2);
 
         // Stored as one comma-separated text column; portable across PostgreSQL and the in-memory test provider.

@@ -40,7 +40,7 @@ jobs:
       matrix:
         include:
           - language: csharp
-            build-mode: autobuild
+            build-mode: manual
           - language: python
             build-mode: none
     steps:
@@ -54,6 +54,14 @@ jobs:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
           queries: security-extended
+      # Use the SDK selected by setup-dotnet instead of autobuild installing
+      # global.json's minimum SDK and retrying with another dependency graph.
+      - name: Restore and build C# for CodeQL
+        if: matrix.language == 'csharp'
+        run: |
+          dotnet --version
+          dotnet restore AICOS.sln
+          dotnet build AICOS.sln --configuration Release --no-restore --no-incremental
       - uses: github/codeql-action/analyze@v3
         with:
           category: codeql-${{ matrix.language }}

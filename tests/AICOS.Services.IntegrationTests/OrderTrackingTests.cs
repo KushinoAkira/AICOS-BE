@@ -124,7 +124,7 @@ public sealed class OrderTrackingTests : IDisposable
     };
 
     [Fact]
-    public async Task A_guest_at_the_table_follows_the_order_live_and_is_told_when_the_sitting_ends()
+    public async Task A_guest_follows_payment_and_kitchen_updates_without_a_false_session_closed_event()
     {
         var (token, phone) = await ScanAsync(_t1);
         var screen = await ConnectAsync(token);
@@ -138,12 +138,9 @@ public sealed class OrderTrackingTests : IDisposable
         var ready = screen.Orders.Single(m => m.GetProperty("kind").GetString() == "Ready");
         (ready.GetProperty("orderCode").GetString(), ready.GetProperty("status").GetString(), ready.GetProperty("title").GetString()).Should().Be((order.GetProperty("orderCode").GetString(), "Ready", "Đơn đã sẵn sàng"));
         ready.GetProperty("message").GetString().Should().Contain("A1");
-        for (var i = 0; i < 100 && screen.Closed.IsEmpty; i++)
-        {
-            await Task.Delay(50);
-        }
-
-        screen.Closed.Single().GetProperty("reason").GetString().Should().Be("Paid");                  // every round is paid: the session ended
+        screen.Closed.Should().BeEmpty("payment does not end service");
+        var bill = await phone.GetFromJsonAsync<JsonElement>($"{Orders}/qr/session/bill");
+        bill.GetProperty("status").GetString().Should().Be("Open");
     }
 
     [Fact]

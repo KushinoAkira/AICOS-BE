@@ -16,6 +16,8 @@ public sealed class CustomerEngagementDbContext(DbContextOptions<CustomerEngagem
 
     public DbSet<Voucher> Vouchers => Set<Voucher>();
 
+    public DbSet<MemberOrder> MemberOrders => Set<MemberOrder>();
+
     public DbSet<LoyaltyRule> LoyaltyRules => Set<LoyaltyRule>();
 
     public DbSet<CustomerNotification> Notifications => Set<CustomerNotification>();
@@ -86,6 +88,22 @@ internal sealed class VoucherConfiguration : IEntityTypeConfiguration<Voucher>
         builder.HasIndex(v => new { v.TenantId, v.Code }).IsUnique();
         builder.HasIndex(v => new { v.TenantId, v.BranchId, v.Status });
         builder.HasIndex(v => v.IssuedToCustomerId);
+        builder.Property(v => v.RequiredOrderAmount).HasPrecision(14, 2);
+        builder.HasIndex(v => new { v.CampaignId, v.IssuedToCustomerId }).IsUnique().HasFilter("campaign_id IS NOT NULL");   // one claim per member
+    }
+}
+
+internal sealed class MemberOrderConfiguration : IEntityTypeConfiguration<MemberOrder>
+{
+    public void Configure(EntityTypeBuilder<MemberOrder> builder)
+    {
+        builder.ToTable("member_orders");
+        builder.HasKey(o => o.Id);
+        builder.Property(o => o.Id).ValueGeneratedNever();
+        builder.Property(o => o.Amount).HasPrecision(14, 2);
+        builder.HasOne<Customer>().WithMany().HasForeignKey(o => o.CustomerId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasIndex(o => o.OrderId).IsUnique();
+        builder.HasIndex(o => new { o.CustomerId, o.PaidAtUtc });
     }
 }
 

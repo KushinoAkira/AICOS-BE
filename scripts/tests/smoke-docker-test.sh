@@ -5,7 +5,7 @@ root="$(cd "$(dirname "$0")/../.." && pwd)"
 test_dir="$(mktemp -d)"
 cleanup() {
   rm -f -- "$test_dir/bin/curl" "$test_dir/bin/sleep" "$test_dir/scripts/smoke-docker.sh" \
-    "$test_dir/calls" "$test_dir/branches" "$test_dir/logins" "$test_dir/output"
+    "$test_dir/calls" "$test_dir/branches" "$test_dir/logins" "$test_dir/output" "$test_dir/super_done" "$test_dir/paid"
   rmdir -- "$test_dir/bin" "$test_dir/scripts" "$test_dir"
 }
 trap cleanup EXIT
@@ -46,16 +46,18 @@ case "$method:$path" in
       status=500; body='{"detail":"DO_NOT_LOG_RESPONSE_BODY"}'
     elif [ "$SMOKE_TEST_CASE" = missing-token ]; then
       body='{"detail":"DO_NOT_LOG_RESPONSE_BODY"}'
+    elif [ -f "$SMOKE_TEST_ROOT/super_done" ] && [ ! -f "$SMOKE_TEST_ROOT/paid" ]; then
+      # A new brand stays closed until the Super Admin records its plan payment.
+      status=403; body='{"errorCode":"tenant.awaiting_payment"}'
     else
+      : > "$SMOKE_TEST_ROOT/super_done"
       body='{"accessToken":"UNIT_TEST_TOKEN_NOT_REAL"}'
     fi ;;
-  GET:/api/v1/identity/subscription) status=404 ;;
+  POST:/api/v1/identity/tenants/*/subscription/payments)
+    : > "$SMOKE_TEST_ROOT/paid"; status=201; body="{\"id\":\"$id\"}" ;;
+  GET:/api/v1/identity/subscription) status=200 ;;
   POST:/api/v1/identity/branches)
-    if [ ! -f "$SMOKE_TEST_ROOT/branches" ]; then
-      printf '1' > "$SMOKE_TEST_ROOT/branches"; status=422
-    else
-      status=201; body="{\"id\":\"$id\"}"
-    fi ;;
+    status=201; body="{\"id\":\"$id\"}" ;;
   GET:/api/v1/identity/tenants/*) body='{"branchCount":1}' ;;
   POST:/api/v1/identity/tenants|POST:/api/v1/identity/subscription-plans|POST:/api/v1/identity/users|POST:/api/v1/identity/tenants/*/subscription|POST:/api/v1/menu/categories|POST:/api/v1/menu/products)
     status=201; body="{\"id\":\"$id\"}" ;;
@@ -77,7 +79,7 @@ MOCK
 chmod +x "$test_dir/bin/curl" "$test_dir/bin/sleep"
 
 for scenario in order-500 multi-line-error missing-id invalid-id valid-id login-retry login-failure missing-token; do
-  rm -f -- "$test_dir/calls" "$test_dir/branches" "$test_dir/logins" "$test_dir/output"
+  rm -f -- "$test_dir/calls" "$test_dir/branches" "$test_dir/logins" "$test_dir/output" "$test_dir/super_done" "$test_dir/paid"
   result=0
   SMOKE_TEST_CASE="$scenario" SMOKE_TEST_ROOT="$test_dir" \
     SEED_ADMIN_EMAIL='seed@example.invalid' SEED_ADMIN_PASSWORD='DUMMY_TEST_PASSWORD' \

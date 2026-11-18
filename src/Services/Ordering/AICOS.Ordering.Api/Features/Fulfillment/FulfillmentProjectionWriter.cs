@@ -38,8 +38,6 @@ public sealed class FulfillmentProjectionWriter(OrderingDbContext db, TimeProvid
                 if (receipt.TenantId != snapshot.TenantId || receipt.BranchId != snapshot.BranchId
                     || receipt.OrderId != snapshot.OrderId || receipt.PayloadHash != hash)
                     throw new ConflictException("Receipt identity differs.", "fulfillment.receipt_conflict");
-                if (transaction is not null) await transaction.CommitAsync(ct);
-                return Ack(snapshot, hash, receipt.Result);
             }
             var now = transaction is not null
                 ? await db.Database.SqlQuery<DateTime>($"SELECT clock_timestamp() AS \"Value\"").SingleAsync(ct)
@@ -48,12 +46,21 @@ public sealed class FulfillmentProjectionWriter(OrderingDbContext db, TimeProvid
             var added = projection is null; projection ??= new OrderFulfillmentProjection();
             var result = projection.Apply(snapshot, now).ToString();
             if (added) db.FulfillmentProjection.Add(projection);
-            db.FulfillmentReceipts.Add(new FulfillmentReceipt { EventId = snapshot.EventId, TenantId = snapshot.TenantId,
-                BranchId = snapshot.BranchId, OrderId = snapshot.OrderId, SourceVersion = snapshot.Version,
-                PayloadHash = hash, Result = result, AppliedAtUtc = now });
+            if (receipt is null) db.FulfillmentReceipts.Add(new FulfillmentReceipt
+            {
+                EventId = snapshot.EventId,
+                TenantId = snapshot.TenantId,
+                BranchId = snapshot.BranchId,
+                OrderId = snapshot.OrderId,
+                SourceVersion = snapshot.Version,
+                PayloadHash = hash,
+                Result = result,
+                AppliedAtUtc = now
+            });
             await db.SaveChangesAsync(ct);
             if (transaction is not null) await transaction.CommitAsync(ct);
-            return Ack(snapshot, hash, result);
+            // Revalidate/repair the projection, but preserve the historical response for this EventId.
+            return Ack(snapshot, hash, receipt?.Result ?? result);
         });
 
     private static FulfillmentAck Ack(FulfillmentSnapshot s, string hash, string result) =>
