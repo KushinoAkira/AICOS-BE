@@ -44,6 +44,8 @@ public static class SessionBillingEndpoints
             if (!session.IsOpen || session.TableId != table) throw new ConflictException("Session changed.", "qr.session_changed");
             var quote = await SessionBillQuotes.ReadAsync(db, session, ct);
             if (quote.Fingerprint != request.Fingerprint) throw new ConflictException("Bill contents changed. Reload before collecting.", "billing.stale");
+            if (quote.ManualDiscountReviewRequired)
+                throw new ConflictException("Review and save the discount after order changes before collecting.", "discount.review_required");
             var fence = await db.SessionCheckouts.FirstOrDefaultAsync(x => x.SessionId == id, ct);
             if (fence is null)
             {

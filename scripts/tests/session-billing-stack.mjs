@@ -9,6 +9,7 @@ import {fileURLToPath} from 'node:url';
 import {runFlow} from './session-billing-stack-flow.mjs';
 import {runBaristaFlow} from './barista-stack-flow.mjs';
 const baristaMode=process.argv.includes('--barista');
+const takeawayOnly=process.argv.includes('--takeaway-only');
 const operationsMode=process.argv.includes('--operations');
 const precheckMode=process.argv.includes('--precheck');
 const dashboardMode=process.argv.includes('--dashboard')||precheckMode;
@@ -177,6 +178,7 @@ try{
   for(const [n,,,s] of services){if(n!=='gateway'){const key={identity:'Identity',menu:'Menu',table:'Table',order:'Order',kitchen:'Kitchen',payment:'Payment',reporting:'Reporting',workforce:'Workforce'}[n];env['Services__'+key+'__BaseUrl']='http://'+n+':8080';env['ReverseProxy__Clusters__'+n+'__Destinations__primary__Address']='http://'+n+':8080';}}
   if(operationsMode){env.TableTransfer__Enabled='true';env.TableTransfer__MachineKey=machine;env.SplitBill__Enabled='true';}
   if(cashierMode){env.CashierShifts__RequireOpenForCash=String(requireShift);env.CashierShifts__Enabled='true';env.CashierShifts__MachineKey=machine;}
+  if(name==='payment'&&process.env.AICOS_TAKEAWAY_QR_TEST==='true'){env.TakeawayQr__Enabled='true';env.TakeawayQr__AllowTestProvider='true';env.Payments__MockWebhookSecret=webhook;}
   if(schema)env.ConnectionStrings__Default='Host=postgres;Database='+databases[schema]+';Username='+role(schema)+';Password='+passwords[schema];
   if(baristaMode&&name==='kitchen'){env.BaristaWorkflow__Enabled='true';env.BaristaWorkflow__PrintAgentUrl='http://printer:8080/';env.BaristaWorkflow__PrintAgentKey=printerKey;env.BaristaWorkflow__AllowTestPrinter='true';}
   if(name==='order'){env.KitchenAdmission__CaptureEnabled='true';env.KitchenAdmission__DispatcherEnabled='true';env.KitchenAdmission__ReconciliationEnabled='true';env.KitchenAdmission__MachineKey=admission;}
@@ -187,14 +189,14 @@ try{
  gateway=serviceIds.gateway;const inspection=JSON.parse(await docker(['inspect',gateway]))[0];const binding=inspection.NetworkSettings.Ports['8080/tcp'][0];assert.equal(binding.HostIp,'127.0.0.1');base='http://127.0.0.1:'+binding.HostPort;
  await until(async()=>{const r=await fetch(base+'/api/v1/identity/public/subscription-plans');return r.status===200;},'Gateway Identity');
  await docker(['run','--rm','--network',network,'--mount','type=bind,src='+tools+',dst=/testtools,readonly','--entrypoint','dotnet','aicos-main/identity:local','/testtools/AICOS.Billing.StackTools.dll','health']);report('Eight services live/ready/Swagger; Gateway metadata/live (ready/Swagger N/A by source)');
- const ctx={base,userPassword,webhook,sql,databases,report,until,docker,run,serviceIds,redis,temporary,root,checks,cashierMode,operationsMode,dashboardMode,requireShift,mobileRoot,precheckMode};if(baristaMode){await runBaristaFlow(ctx);await sql(databases.kitchen,await fs.readFile(path.join(root,'docs/migrations/barista-workflow/90_rollback.EMPTY_ONLY.sql'),'utf8'),{schema:'kitchen',approval:'rollback',deny:true});report('Nonempty Barista acceptance/print audit rollback refused');}else await runFlow(ctx);
+ const ctx={base,userPassword,webhook,sql,databases,report,until,docker,run,serviceIds,redis,temporary,root,checks,cashierMode,operationsMode,dashboardMode,requireShift,mobileRoot,precheckMode,takeawayOnly};if(baristaMode){await runBaristaFlow(ctx);await sql(databases.kitchen,await fs.readFile(path.join(root,'docs/migrations/barista-workflow/90_rollback.EMPTY_ONLY.sql'),'utf8'),{schema:'kitchen',approval:'rollback',deny:true});report('Nonempty Barista acceptance/print audit rollback refused');}else await runFlow(ctx);
  if(operationsMode){for(const schema of ['ordering','kitchen','payment'])await sql(databases[schema],await fs.readFile(path.join(baselines,schema+'.operations.down.sql'),'utf8'),{deny:true});report('Nonempty transfer/split audit and used routing rollback refused');}
  if(cashierMode){await sql(databases.payment,await fs.readFile(path.join(baselines,'payment.cashier.down.sql'),'utf8'),{deny:true});await sql(databases.reporting,await fs.readFile(path.join(baselines,'reporting.cashier.down.sql'),'utf8'),{deny:true});report('Nonempty cashier ledger and Reporting inbox rollback refused');}
- await sql(databases.payment,await script('90_payments_rollback.sql'),{schema:'payment',approval:'rollback',deny:true});report('Nonempty financial rollback rejected; received money/audit retained');
+ if(!takeawayOnly){await sql(databases.payment,await script('90_payments_rollback.sql'),{schema:'payment',approval:'rollback',deny:true});report('Nonempty financial rollback rejected; received money/audit retained');}
  for(const name of ['payment','order','kitchen','reporting','workforce'])await docker(['stop',serviceIds[name]]);
  for(const schema of ['ordering','payment']){
   const db=databases[schema],target='aicos_billstack_restore_paid_'+schema;
-  const tables=schema==='ordering'?['table_sessions','orders','session_checkouts']:['session_bills','session_bill_orders','session_bill_attempts','session_bill_events'];
+  const tables=schema==='ordering'?['table_sessions','orders','session_checkouts']:['session_bills','session_bill_orders','session_bill_attempts','session_bill_events','payments','payment_webhook_events','collection_outbox'];
   const fingerprint=async(database)=>Promise.all(tables.map(t=>sql(database,'SELECT md5(COALESCE(string_agg(row_to_json(r)::text,chr(124) ORDER BY row_to_json(r)::text),chr(124))) FROM '+schema+'.'+t+' r;')));
   const prior=await fingerprint(db);await docker(['exec',pg,'pg_dump','-U','bill_stack_admin','-Fc','-d',db,'-f','/tmp/'+schema+'-paid.dump']);await sql('postgres','CREATE DATABASE '+target+';');await docker(['exec',pg,'pg_restore','-U','bill_stack_admin','-d',target,'/tmp/'+schema+'-paid.dump']);assert.deepEqual(await fingerprint(target),prior);
  }report('Paid ledger/attempts/audit and Ordering sessions/orders restored exactly into separate copies');
@@ -204,7 +206,7 @@ try{
  // Container logs stay in ephemeral containers. Do not dump secrets or authorization bodies.
  if(error.detail){let diagnostic=error.detail;for(const value of [adminPassword,userPassword,jwt,machine,admission,webhook,printerKey,...Object.values(passwords)])diagnostic=diagnostic.replaceAll(value,'[redacted]');console.log('Diagnostic: '+diagnostic.replace(/eyJ[A-Za-z0-9_.-]{40,}/g,'[redacted token]').slice(-2500));}
 }finally{
- await fs.writeFile(path.join(root,'docs',precheckMode?(requireShift?'CASH_PRECHECK_E2E_EVIDENCE.json':'CASH_PRECHECK_OFF_EVIDENCE.json'):dashboardMode?(requireShift?'CASHIER_DASHBOARD_ENFORCED_EVIDENCE.json':'CASHIER_DASHBOARD_E2E_EVIDENCE.json'):baristaMode?'BARISTA_STACK_TEST_EVIDENCE.json':operationsMode?'TABLE_TRANSFER_SPLIT_E2E_EVIDENCE.json':cashierMode?'CASHIER_SHIFT_STACK_TEST_EVIDENCE.json':'SESSION_BILL_STACK_TEST_EVIDENCE.json'),JSON.stringify({cluster,checks,operatingContainersUnchanged:await snapshot(existing)===before,qr:'Mock only; not bank verification'},null,2)+'\n');
+ await fs.writeFile(path.join(root,'docs',process.env.AICOS_TAKEAWAY_QR_TEST==='true'?'TAKEAWAY_QR_E2E_EVIDENCE.json':precheckMode?(requireShift?'CASH_PRECHECK_E2E_EVIDENCE.json':'CASH_PRECHECK_OFF_EVIDENCE.json'):dashboardMode?(requireShift?'CASHIER_DASHBOARD_ENFORCED_EVIDENCE.json':'CASHIER_DASHBOARD_E2E_EVIDENCE.json'):baristaMode?'BARISTA_STACK_TEST_EVIDENCE.json':operationsMode?'TABLE_TRANSFER_SPLIT_E2E_EVIDENCE.json':cashierMode?'CASHIER_SHIFT_STACK_TEST_EVIDENCE.json':'SESSION_BILL_STACK_TEST_EVIDENCE.json'),JSON.stringify({cluster,checks,operatingContainersUnchanged:await snapshot(existing)===before,qr:'Mock only; not bank verification'},null,2)+'\n');
  if(process.exitCode && dashboardMode && process.argv.includes('--keep-failed-test')){console.log('Retained only this labelled disposable test stack for diagnosis: '+network);}
  else {
  for(const id of containers.reverse()){const x=JSON.parse(await docker(['inspect',id]))[0];assert.equal(x.Config.Labels['aicos.purpose'],purpose);assert.deepEqual(Object.keys(x.NetworkSettings.Networks),[network]);await docker(['rm','-f',id]);}

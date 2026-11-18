@@ -2,6 +2,8 @@
 
 # Danh mục API Backend main — 2026-11-03
 
+> 2026-11-18: GET/PUT `/api/v1/orders/qr/sessions/{sessionId}/manual-discount`, Cashier/management + live Identity/branch check. Percent/VND replace/remove with reason, fingerprint/revision/idempotency and append-only audit; no promotion stacking/zero-total Bill. Optional `quote.manualDiscountReviewRequired` blocks collection pending re-review after add/cancel (omitted when false). One audit-table migration proposed/tested scratch, flags OFF, NOT deployed. [Contract, tests and approval gates](SESSION_MANUAL_DISCOUNT_IMPLEMENTATION.md).
+
 > 2026-11-13 additive source: GET `/api/v1/orders/staff/takeaway-summary?branchId={guid}` — Staff, tenant/branch scoped, SELECT-only whole-branch active/ready counts; Cup orders mark readyOrdersKnown=false. No migration or deployment performed. Contract, fallback and test scope: [TABLE_MAP_API_SYNC.md](TABLE_MAP_API_SYNC.md).
 
 > Cup Serving foundation 2026-11-07: Order detail/list thêm `fulfillmentMode` additive/default WholeOrder. Kitchen capabilities thêm `cupServingVersion=0`, `claimVersion=0`; **chưa có public cup/claim endpoint**. Legacy deliver/status/remake/sticker/transfer có guard cho CupV1. [Review/schema/API boundaries](CUP_SERVING_CONDITIONAL_APPROVAL_REVIEW.md); không deploy/apply migration trong lượt chuẩn bị.
@@ -601,3 +603,7 @@ See [CASH_COLLECTION_MAIN.md](CASH_COLLECTION_MAIN.md): GET Payments staff/capab
 ## Cashier Shift Precheck — 2026-11-15
 
 GET /api/v1/payments/cashier-shifts/cash-precheck?branchId=... (Payments; Counter roles) returns branchId/cashierId/allowed/requiresOpenShift/shiftStatus/reasonCode/message. GET is read-only and does not reserve eligibility or confirm money. Additive, no existing endpoint/DTO removed. Shared by Mobile Dine-in and Takeaway. Cash command routes revalidate live Identity authorization plus the existing transactional drawer policy. QR unchanged. See CASH_PRECHECK.md.
+
+## 2026-11-17 — Staff Takeaway QR V1 (test-only)
+
+Additive GET/POST `/api/v1/payments/staff/takeaway/{orderId}/qr`. Counter RBAC, active-branch/fresh-account validation on create, stable idempotency and read-only recovery by orderId. Mock only, Development-only, feature flags default OFF; no Bill entity, migration or SessionBilling mutation. Existing routes remain. Legacy Description cannot claim the reserved `takeaway-qr:v1:` metadata namespace. Details and actual isolated E2E evidence: `TAKEAWAY_QR_IMPLEMENTATION.md`, `TAKEAWAY_QR_E2E_EVIDENCE.json`.

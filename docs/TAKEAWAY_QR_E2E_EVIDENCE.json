@@ -1,0 +1,115 @@
+{
+  "cluster": "7709126715418345513",
+  "checks": [
+    {
+      "name": "SQL SHA256 matches reviewed manifests",
+      "status": "PASS"
+    },
+    {
+      "name": "Offline EF baseline export without service startup",
+      "status": "PASS"
+    },
+    {
+      "name": "Container/network/no-host-port/tmpfs/cluster guards",
+      "status": "PASS"
+    },
+    {
+      "name": "Reporting empty inbox backup/restore/rollback/reapply verified on clone",
+      "status": "PASS"
+    },
+    {
+      "name": "Synthetic fixtures only; no operating data/secrets copied",
+      "status": "PASS"
+    },
+    {
+      "name": "ordering: reviewed SQL, repeat safely refused, role login/deny, backup/restore and rollback/reapply PASS",
+      "status": "PASS"
+    },
+    {
+      "name": "Empty Cashier migration rollback/reapply tested on separate restored clone only",
+      "status": "PASS"
+    },
+    {
+      "name": "payment: reviewed SQL, repeat safely refused, role login/deny, backup/restore and rollback/reapply PASS",
+      "status": "PASS"
+    },
+    {
+      "name": "Non-owner service roles have no superuser/role/DB creation/history update or cross-service CONNECT",
+      "status": "PASS"
+    },
+    {
+      "name": "All service tables/columns/nullability/types match EF relational models",
+      "status": "PASS"
+    },
+    {
+      "name": "Actual CHECK/PK/own FK and session/Bill/pending uniqueness definitions verified",
+      "status": "PASS"
+    },
+    {
+      "name": "Five new tables; no cross-service FK; existing session/bill uniqueness retained",
+      "status": "PASS"
+    },
+    {
+      "name": "Cashier projection and outbox role ACL prepared on guarded test cluster only",
+      "status": "PASS"
+    },
+    {
+      "name": "Eight services live/ready/Swagger; Gateway metadata/live (ready/Swagger N/A by source)",
+      "status": "PASS"
+    },
+    {
+      "name": "Synthetic tenant stays closed until plan payment is recorded through real Identity API",
+      "status": "PASS"
+    },
+    {
+      "name": "Real Identity login and scoped Cashier/Barista accounts through Gateway",
+      "status": "PASS"
+    },
+    {
+      "name": "Money shift opens without attendance; second open request conflicts",
+      "status": "PASS"
+    },
+    {
+      "name": "Takeaway QR real PostgreSQL concurrent admission/key drift/Cash exclusion; one durable attempt",
+      "status": "PASS"
+    },
+    {
+      "name": "Takeaway cold recovery by orderId after lost client response and service restart retains reference/id",
+      "status": "PASS"
+    },
+    {
+      "name": "Flutter real HTTP creates Mock QR, exits PENDING, reopens after callback and renders verified CONFIRMED",
+      "status": "PASS"
+    },
+    {
+      "name": "Takeaway signed duplicate webhook/late screen exit/Ordering offline/Redis restart recover without second payment",
+      "status": "PASS"
+    },
+    {
+      "name": "Takeaway FAILED replay is stable; neither new QR nor Cash silently replaces an unresolved test intent",
+      "status": "PASS"
+    },
+    {
+      "name": "Simultaneous Cash/QR on a fresh takeaway order has exactly one admitted collection",
+      "status": "PASS"
+    },
+    {
+      "name": "Takeaway ledger/Reporting match +70000 total across two obligations, QR ShiftId null and no duplicate fact after restart",
+      "status": "PASS"
+    },
+    {
+      "name": "Nonempty cashier ledger and Reporting inbox rollback refused",
+      "status": "PASS"
+    },
+    {
+      "name": "Paid ledger/attempts/audit and Ordering sessions/orders restored exactly into separate copies",
+      "status": "PASS"
+    },
+    {
+      "name": "All preexisting container IDs/images/start times/status/restart counts unchanged",
+      "status": "PASS"
+    }
+  ],
+  "operatingContainersUnchanged": true,
+  "qr": "Mock only; not bank verification"
+}

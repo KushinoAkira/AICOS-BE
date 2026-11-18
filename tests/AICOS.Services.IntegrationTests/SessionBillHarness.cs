@@ -38,6 +38,8 @@ public sealed class SessionBillHarness : IDisposable
     public bool LosePaidAck, KitchenOffline;
     public bool EnableCashierShifts, RequireCashierShift;
     public bool EnableSplitBill, EnableTableTransfer;
+    public bool EnableSessionDiscount;
+    public IDiscountActorVerifier? DiscountActor;
     public string AddTransferTarget(string code) => _tables.Add(Tenant,Branch,code);
     public AICOS.Payments.Api.Infrastructure.IPaymentGateway? TestGateway;
     private string? _connection;
@@ -55,6 +57,8 @@ public sealed class SessionBillHarness : IDisposable
         ["TableTransfer:MachineKey"] = MachineKey,
         ["TableTransfer:DispatcherEnabled"] = "false",
         ["SessionBilling:Enabled"] = "true",
+        ["SessionDiscount:Enabled"] = EnableSessionDiscount.ToString(),
+        ["SessionDiscount:GuardEnabled"] = EnableSessionDiscount.ToString(),
         ["SessionBilling:MachineKey"] = MachineKey,
         ["SessionBilling:AllowTestProviders"] = "true",
         ["SessionBilling:TestWebhookSecret"] = WebhookSecret,
@@ -70,6 +74,11 @@ public sealed class SessionBillHarness : IDisposable
         _connection = connection;
         Ordering = new(services =>
         {
+            if (DiscountActor is not null)
+            {
+                services.RemoveAll<IDiscountActorVerifier>();
+                services.AddSingleton(DiscountActor);
+            }
             services.RemoveAll<IMenuCatalogClient>(); services.AddSingleton<IMenuCatalogClient>(_menu);
             if(EnableTableTransfer)services.AddHttpClient("table-transfer").ConfigurePrimaryHttpMessageHandler(()=>new TransferBridge(this));
             services.RemoveAll<ITableQrClient>(); services.AddSingleton<ITableQrClient>(_tables);

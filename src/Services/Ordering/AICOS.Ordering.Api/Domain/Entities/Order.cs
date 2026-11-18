@@ -205,6 +205,17 @@ public class Order : AuditableEntity<Guid>, IBranchScoped
         DiscountAmount = Math.Min(Math.Max(0, discountAmount), OriginalAmount);
     }
 
+    public void SetSessionManualDiscount(decimal amount)
+    {
+        if (PaymentStatus != PaymentStatus.Unpaid || IsVoided || PayFirst || Type != OrderType.DineIn || TableSessionId is null)
+            throw new ConflictException("Only unpaid session orders can be discounted.", "discount.order_locked");
+        if (!string.IsNullOrWhiteSpace(PromotionCode))
+            throw new ConflictException("Manual discount cannot stack with promotions.", "discount.promotion_exists");
+        if (amount < 0 || amount > OriginalAmount || decimal.Truncate(amount) != amount)
+            throw new ValidationFailedException("amount", "Discount must be whole VND within the order subtotal.");
+        DiscountAmount = amount;
+    }
+
     public void SwitchServiceType(OrderType newType, Guid? tableId = null, string? tableNumber = null, string? deliveryAddress = null)
     {
         RequireWholeOrderOperation();

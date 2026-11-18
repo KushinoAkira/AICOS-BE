@@ -22,6 +22,7 @@ builder.AddAicosServiceDefaults(OrderingService.Info);
 builder.AddAicosPostgres<OrderingDbContext>(OrderingService.Info);
 builder.AddAicosEventBus();
 builder.Services.AddAicosBranchDirectory(builder.Configuration);   // asks Identity whether a branch belongs to the brand
+builder.Services.AddAicosServiceClient<IDiscountActorVerifier, DiscountActorVerifier>(builder.Configuration, "Identity");
 
 // Other services. Prices come from Menu, vouchers from Customer, refunds go to Payment; the caller's bearer token is forwarded.
 builder.Services.AddAicosServiceClient<IMenuCatalogClient, HttpMenuCatalogClient>(builder.Configuration, "Menu");
@@ -75,6 +76,7 @@ api.MapTableTransferEndpoints();
 api.MapTransferHistory();
 api.MapQrOrderEndpoints();
 app.MapSessionBilling(api);
+api.MapSessionDiscounts();
 
 app.MapHub<OrderTrackingHub>("/hubs/orders");
 

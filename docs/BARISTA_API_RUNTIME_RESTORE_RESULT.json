@@ -1,0 +1,28 @@
+{
+  "date": "2026-11-17",
+  "scope": "local Barista API only",
+  "checks": [
+    {
+      "name": "Verified local cluster/schema/migration; no mounted data; startup migration and workers OFF",
+      "status": "PASS"
+    },
+    {
+      "name": "Only Kitchen recreated on identical image; credentials/JWT/ports/other flags preserved; Barista API ON, print worker OFF",
+      "status": "PASS"
+    },
+    {
+      "name": "Kitchen/Gateway health 200; Barista GET authentication rejects missing/invalid token with 401",
+      "status": "PASS"
+    },
+    {
+      "name": "All Kitchen table row fingerprints and all other container snapshots unchanged",
+      "status": "PASS"
+    }
+  ],
+  "originalImage": "sha256:65a2fed2f0a501899734415359cd48158e238f9b434af76449eea996b3930970",
+  "previousKitchenId": "fb6d440422c1b9153fe468368191492e17aa045faf2c53be7b7a03f578cd411d",
+  "databaseRowsUnchanged": true,
+  "otherContainersUnchanged": true,
+  "newKitchenId": "d5de94bbafea94b4835456c5288185eaf31ee97d4cc3c4c38fceb3fc9f0bef4d",
+  "status": "PASS"
+}

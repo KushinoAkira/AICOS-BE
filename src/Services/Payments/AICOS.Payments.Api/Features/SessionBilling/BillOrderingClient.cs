@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using System.Text.Json;
 using AICOS.BuildingBlocks.Exceptions;
 using AICOS.BuildingBlocks.Security;
 using AICOS.Contracts.Billing;
@@ -36,7 +37,18 @@ internal sealed class HttpBillOrderingClient(HttpClient http, IConfiguration con
     private sealed record PaidAck(Guid BillId, Guid PaymentId, bool Applied);
     private static async Task<SessionBillQuote> Read(HttpResponseMessage response, CancellationToken ct)
     {
-        if ((int)response.StatusCode == 409) throw new ConflictException("The session or bill changed. Reload before collecting.", "billing.stale");
+        if ((int)response.StatusCode == 409)
+        {
+            try
+            {
+                var problem = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: ct);
+                if (problem.ValueKind == JsonValueKind.Object && problem.TryGetProperty("errorCode", out var code)
+                    && code.ValueKind == JsonValueKind.String && code.GetString() == "discount.review_required")
+                    throw new ConflictException("Review and save the discount before collecting.", "discount.review_required");
+            }
+            catch (JsonException) { }
+            throw new ConflictException("The session or bill changed. Reload before collecting.", "billing.stale");
+        }
         if ((int)response.StatusCode is 403 or 404) throw new NotFoundException("Session", "requested");
         if (!response.IsSuccessStatusCode) throw new DependencyUnavailableException("ordering-billing");
         return await response.Content.ReadFromJsonAsync<SessionBillQuote>(cancellationToken: ct) ?? throw new DependencyUnavailableException("ordering-billing");

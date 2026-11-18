@@ -27,6 +27,7 @@ builder.Services.Configure<PaymentOptions>(builder.Configuration.GetSection(Paym
 builder.Services.AddSingleton<SecretProtector>();
 builder.Services.AddSingleton(new GatewayRegistry(PaymentProvider.SupportedCodes.Select(c => (IPaymentGateway)new SimulatedGateway(c))));
 builder.Services.AddScoped<PaymentProcessor>();
+builder.Services.AddHostedService<TakeawayQrRecoveryWorker>();
 builder.Services.AddScoped<RefundProcessor>();
 builder.Services.AddHostedService<PaymentExpiryJob>();
 builder.Services.AddAicosBranchDirectory(builder.Configuration);   // asks Identity whether a branch belongs to the brand
@@ -53,6 +54,7 @@ api.MapProviderEndpoints();
 api.MapCancellationPolicyEndpoints();
 api.MapMerchantSettingEndpoints();
 api.MapPaymentEndpoints();
+api.MapTakeawayQr();
 api.MapOrderSettlementEndpoints();
 app.MapSessionBilling(api);
 api.MapCashierShifts();

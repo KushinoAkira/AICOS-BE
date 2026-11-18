@@ -1,0 +1,78 @@
+{
+  "date": "2026-11-17",
+  "scope": "Approved local Bill/Cash; QR OFF; no SQL writes",
+  "checks": [
+    {
+      "name": "Exact local cluster, five existing empty Bill tables and required column permissions PASS; legacy money preserved",
+      "status": "PASS"
+    },
+    {
+      "name": "Four fresh custom-format backups created with private ACL/SHA256 while all target writers stopped",
+      "status": "PASS"
+    },
+    {
+      "name": "Separate machine credential protected with DPAPI; no DB password or JWT changes",
+      "status": "PASS"
+    },
+    {
+      "name": "order ready on exact existing image; Billing ON, QR OFF, migration OFF; unrelated settings preserved",
+      "status": "PASS"
+    },
+    {
+      "name": "kitchen ready on exact existing image; Billing ON, QR OFF, migration OFF; unrelated settings preserved",
+      "status": "PASS"
+    },
+    {
+      "name": "table ready on exact existing image; Billing ON, QR OFF, migration OFF; unrelated settings preserved",
+      "status": "PASS"
+    },
+    {
+      "name": "payment ready on exact existing image; Billing ON, QR OFF, migration OFF; unrelated settings preserved",
+      "status": "PASS"
+    },
+    {
+      "name": "Machine auth works; Gateway/health PASS; all four database fingerprints and other containers unchanged",
+      "status": "PASS"
+    }
+  ],
+  "legacyPaidOpenOrders": 1,
+  "legacyPolicy": "Existing already-paid legacy sessions stay blocked by billing.legacy_payment; no reset or money conversion.",
+  "backups": [
+    {
+      "database": "aicos_ordering",
+      "file": "C:\\Users\\ASUS\\AppData\\Local\\AICOS\\private-backups\\session-billing-20261117-9a3aad8dca\\aicos_ordering.dump",
+      "bytes": 54329,
+      "sha256": "93507798ed9f4d7043186918408e2e06c2e19d91e41294e447c80eddd958220d"
+    },
+    {
+      "database": "aicos_kitchen",
+      "file": "C:\\Users\\ASUS\\AppData\\Local\\AICOS\\private-backups\\session-billing-20261117-9a3aad8dca\\aicos_kitchen.dump",
+      "bytes": 54475,
+      "sha256": "e4410a8d4375d5f878e80a8eefe928347b3ce97729d4b9834b1cf5b68bdde12a"
+    },
+    {
+      "database": "aicos_table_reservation",
+      "file": "C:\\Users\\ASUS\\AppData\\Local\\AICOS\\private-backups\\session-billing-20261117-9a3aad8dca\\aicos_table_reservation.dump",
+      "bytes": 15529,
+      "sha256": "5321162f494859611c6a803e8ea43fea652c23e73162ee8715bb44c6df0094e9"
+    },
+    {
+      "database": "aicos_payment",
+      "file": "C:\\Users\\ASUS\\AppData\\Local\\AICOS\\private-backups\\session-billing-20261117-9a3aad8dca\\aicos_payment.dump",
+      "bytes": 46047,
+      "sha256": "2fef977314c7ef828094acd8d56ad8204d9f676305c726935404dbe0b4e58278"
+    }
+  ],
+  "backupDirectory": "C:\\Users\\ASUS\\AppData\\Local\\AICOS\\private-backups\\session-billing-20261117-9a3aad8dca",
+  "machineKey": "Separate DPAPI-protected local credential; not logged",
+  "originalDataUnchanged": true,
+  "otherContainersUnchanged": true,
+  "status": "PASS",
+  "paymentSmoke": "Read-only only; no login, JWT creation, payment POST or session close",
+  "newContainers": {
+    "order": "818fff49a5f7356ad9623aebd6743efeb953a959406bd4b6656fc04d54e7bab3",
+    "kitchen": "f32972bec6d444f1dce13952f19856225eca2c2c7c8f8b48471aa6efd86b94ce",
+    "table": "1204d1268cbed568087ccc9038ae18c25200f7f8d2254a82e6bf23f5c336c848",
+    "payment": "b48d6cec0579fe48e2fd413f3e83cf26a4cd756c409546727450aa97559eaf21"
+  }
+}

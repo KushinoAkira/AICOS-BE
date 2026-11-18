@@ -1,3 +1,4 @@
+import {runTakeawayQr} from './takeaway-qr-flow.mjs';
 import {startSessionQrUi} from './session-qr-ui-flow.mjs';
 import {precheckContracts} from './cash-precheck-flow.mjs';
 import {dashboardSnapshot, dashboardFinalChecks} from './cashier-dashboard-flow.mjs';
@@ -36,6 +37,7 @@ export async function runFlow(c){
  const category=(await request('POST','/api/v1/menu/categories',owner,{name:'Test Coffee'},null,201)).data;
  const product=(await request('POST','/api/v1/menu/products',owner,{categoryId:category.id,name:'Bill Test Latte',basePrice:35000},null,201)).data;
  await request('PUT','/api/v1/menu/products/'+product.id+'/branches/'+branch.id,owner,{isPublished:true},null,200);
+ if(c.takeawayOnly){await runTakeawayQr(c,{request,cashier,barista,owner,branch,product,staffPassword});return;}
  const area=(await request('POST','/api/v1/tables/areas',owner,{branchId:branch.id,name:'Isolated Zone',sortOrder:0},null,201)).data;
  async function open(code){const table=(await request('POST','/api/v1/tables/dining-tables',owner,{branchId:branch.id,areaId:area.id,tableCode:code,capacity:4},null,201)).data;const scan=(await request('POST','/api/v1/orders/qr/scan',null,{qrToken:table.qrToken},null,200)).data;return {table,session:scan.sessionId};}
  const orderBody=(s,quantity=1)=>({branchId:branch.id,type:'DineIn',tableId:s.table.id,tableNumber:s.table.tableCode,tableQrToken:s.table.qrToken,expectedSessionId:s.session,items:[{productId:product.id,quantity}]});
@@ -126,5 +128,6 @@ export async function runFlow(c){
  }
  if(c.dashboardMode)await dashboardFinalChecks(c,{request,open,add,bill,collect,cashier,cashier2,barista,branch,staffPassword,moneyShift,product});
  if(c.operationsMode)await runOperationsFlow({...c,request,open,add,bill,cashier,cashier2,barista,owner,branch,area,product});
+ if(process.env.AICOS_TAKEAWAY_QR_TEST==='true')await runTakeawayQr(c,{request,cashier,barista,owner,branch,product,staffPassword});
  const money=await sql(databases.payment,"SELECT count(*) FROM payment.session_bills b JOIN payment.session_bill_attempts a ON a.id=b.paid_payment_id WHERE b.status IN ('PAID','CLOSED') AND (a.status<>'SUCCEEDED' OR a.amount<>b.total);");assert.equal(money,'0');report('No PAID Bill lacks matching SUCCEEDED amount proof');
 }

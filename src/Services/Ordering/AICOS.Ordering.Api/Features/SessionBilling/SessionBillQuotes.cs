@@ -28,7 +28,15 @@ internal static class SessionBillQuotes
             i.ProductName, i.Quantity, i.UnitPrice, i.TotalPrice, i.OptionsText, i.Note, i.Id))).ToArray();
         // Include full snapshot content so same-price item edits cannot reuse an obsolete quote.
         var fingerprint = BillIdentity.Hash(System.Text.Json.JsonSerializer.Serialize(new { Rounds = rounds, Lines = lines }));
+        var review = false;
+        if (db.DiscountGuardEnabled)
+        {
+            var discount = await db.SessionDiscountEvents.AsNoTracking().Where(x => x.TenantId == session.TenantId && x.SessionId == session.Id)
+                .OrderByDescending(x => x.Revision).FirstOrDefaultAsync(ct);
+            review = discount?.RequiresReview(fingerprint) == true;
+        }
         return new(session.TenantId, session.BranchId, session.Id, session.TableId, session.TableCode,
-            fingerprint, live.Sum(o => o.OriginalAmount), live.Sum(o => o.DiscountAmount), live.Sum(o => o.FinalAmount), rounds, lines);
+            fingerprint, live.Sum(o => o.OriginalAmount), live.Sum(o => o.DiscountAmount), live.Sum(o => o.FinalAmount), rounds, lines,
+            ManualDiscountReviewRequired: review);
     }
 }

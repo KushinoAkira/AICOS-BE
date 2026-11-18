@@ -1,0 +1,73 @@
+import {startTakeawayQrUi} from './takeaway-qr-ui-flow.mjs';
+import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
+export async function runTakeawayQr(c, f) {
+ const {request,cashier,barista,owner,branch,product,staffPassword}=f;
+ const {report,sql,databases,until,docker,serviceIds,redis}=c;
+ const createOrder=async()=> (await request('POST','/api/v1/orders',cashier,{branchId:branch.id,type:'Takeaway',counterMode:'Takeaway',items:[{productId:product.id,quantity:1}]},'takeaway-'+crypto.randomUUID(),201)).data;
+ const path=id=>'/api/v1/payments/staff/takeaway/'+id+'/qr';
+ const read=async id=>(await request('GET',path(id)+'?branchId='+branch.id,cashier,null,null,200)).data;
+ const start=(id,key,amount=35000)=>request('POST',path(id),cashier,{branchId:branch.id,amount},key);
+ const reporting=async()=>(await request('GET','/api/v1/reporting/collections?branchId='+branch.id,owner,null,null,200)).data;
+ const before=await reporting();
+ const order=await createOrder(); const me=(await request('GET','/api/v1/identity/auth/me',cashier,null,null,200)).data; const key='qr_'+order.id.replaceAll('-','')+'_'+me.id.replaceAll('-','');
+ await request('GET',path(order.id)+'?branchId='+branch.id,null,null,null,401);
+ await request('GET',path(order.id)+'?branchId='+branch.id,barista,null,null,403);
+ await request('GET',path(order.id)+'?branchId='+crypto.randomUUID(),cashier,null,null,403);
+ assert.equal((await read(order.id)).canCreate,true);
+ const finishUi=process.env.AICOS_TAKEAWAY_QR_UI_TEST==='true'?await startTakeawayQrUi(c,{order,branch,staffPassword}):null;
+ const snapshots=await Promise.all(Array.from({length:5},()=>start(order.id,key)));
+ assert.ok(snapshots.every(r=>r.status===200));
+ const first=snapshots[0].data; assert.equal(first.state,'Pending');
+ assert.ok(snapshots.every(r=>r.data.attempt.id===first.attempt.id));
+ const id=first.attempt.id, ref=first.attempt.transactionRef;
+ assert.equal(await sql(databases.payment,"SELECT count(*) FROM payment.payments WHERE order_id='"+order.id+"';"),'1');
+ assert.equal((await start(order.id,key,1)).status,409);
+ await request('POST','/api/v1/payments/transactions/cash',cashier,{orderId:order.id,branchId:branch.id,amount:35000},'cash-conflict-'+crypto.randomUUID(),409);
+ report('Takeaway QR real PostgreSQL concurrent admission/key drift/Cash exclusion; one durable attempt');
+ // Discard the admission response: cold client only knows orderId, never creates again from a timeout.
+ await sql(databases.payment,"UPDATE payment.payments SET checkout_url=NULL WHERE id='"+id+"';");
+ await docker(['restart',serviceIds.payment]);
+ const recovered=await until(async()=>{const r=await read(order.id);return r.attempt?.id===id&&r.state==='Pending'&&r;},'Takeaway attempt after Payments restart');
+ assert.equal(recovered.state,'Pending'); assert.equal(recovered.canCreate,false);
+ assert.equal((await start(order.id,key)).data.attempt.id,id);
+ report('Takeaway cold recovery by orderId after lost client response and service restart retains reference/id');
+ async function callback(attempt,outcome,event='takeaway-'+crypto.randomUUID(),signature){
+  const body={eventId:event,transactionRef:attempt.transactionRef,status:outcome,amount:attempt.amount};
+  body.signature=signature??crypto.createHmac('sha256',c.webhook).update(event+'|'+body.transactionRef+'|'+outcome+'|'+body.amount).digest('hex');
+  return request('POST','/api/v1/payments/webhooks/Mock',null,body);
+ }
+ assert.equal((await callback(first.attempt,'success','invalid-signature','bad')).status,401);
+ // Ordering is offline during the callback; recovery must not depend on the original Pub/Sub message.
+ await docker(['stop',serviceIds.order]);
+ const responses=await Promise.all(Array.from({length:4},()=>callback(first.attempt,'success','duplicate-qr-receipt')));
+ assert.ok(responses.every(r=>r.status===200));
+ await docker(['restart',redis]);await docker(['restart',serviceIds.payment]);await docker(['start',serviceIds.order]);
+ await until(async()=>{const r=await request('GET','/api/v1/payments/orders/'+order.id+'/settlement',cashier);return r.status===200&&r.data.state==='Settled';},'Takeaway durable replay into restarted Ordering',90);
+ assert.equal((await read(order.id)).state,'Confirmed'); if(finishUi)await finishUi();
+ assert.equal((await start(order.id,key)).data.attempt.id,id);
+ assert.equal(await sql(databases.payment,"SELECT count(*) FROM payment.payment_webhook_events WHERE event_id='duplicate-qr-receipt';"),'1');
+ report('Takeaway signed duplicate webhook/late screen exit/Ordering offline/Redis restart recover without second payment');
+ const failedOrder=await createOrder(),failedKey='failed-'+crypto.randomUUID();
+ const pending=(await start(failedOrder.id,failedKey)).data;
+ assert.equal((await callback(pending.attempt,'failed')).status,200);
+ assert.equal((await read(failedOrder.id)).state,'Failed');
+ assert.equal((await start(failedOrder.id,failedKey)).data.attempt.id,pending.attempt.id);
+ assert.equal((await read(failedOrder.id)).canCreate,false);
+ await request('POST','/api/v1/payments/transactions/cash',cashier,{orderId:failedOrder.id,branchId:branch.id,amount:35000},'failed-cash-'+crypto.randomUUID(),409);
+ report('Takeaway FAILED replay is stable; neither new QR nor Cash silently replaces an unresolved test intent');
+ const racingOrder=await createOrder();
+ const race=await Promise.all([start(racingOrder.id,'race-'+crypto.randomUUID()),request('POST','/api/v1/payments/transactions/cash',cashier,{orderId:racingOrder.id,branchId:branch.id,amount:35000},'race-cash-'+crypto.randomUUID())]);
+ const cashWon=race[1].status===201;
+ assert.ok(cashWon ? race[0].status===409 : race[0].status===200&&race[1].status===409);
+ if(!cashWon)assert.equal((await callback(race[0].data.attempt,'success')).status,200);
+ assert.equal(await sql(databases.payment,"SELECT count(*) FROM payment.payments WHERE order_id='"+racingOrder.id+"' AND status='Succeeded';"),'1');
+ report('Simultaneous Cash/QR on a fresh takeaway order has exactly one admitted collection');
+ await until(async()=>{const r=await reporting();return r.confirmedCollected===before.confirmedCollected+70000;},'Takeaway collection reaches Reporting',90);
+ const after=await reporting();assert.equal(after.qrCollected,before.qrCollected+(cashWon?35000:70000));assert.equal(after.cashCollected,before.cashCollected+(cashWon?35000:0));
+ assert.equal(await sql(databases.payment,"SELECT count(*) FROM payment.collection_outbox WHERE id='"+id+"' AND shift_id IS NULL;"),'1');
+ assert.equal(await sql(databases.payment,"SELECT COALESCE(sum(amount),0) FROM payment.payments WHERE order_id='"+order.id+"' AND status='Succeeded';"),'35000');
+ await docker(['restart',serviceIds.reporting]);await docker(['restart',serviceIds.payment]);
+ await until(async()=>{const r=await reporting();return r.confirmedCollected===after.confirmedCollected;},'Reporting replay totals');
+ report('Takeaway ledger/Reporting match +70000 total across two obligations, QR ShiftId null and no duplicate fact after restart');
+}

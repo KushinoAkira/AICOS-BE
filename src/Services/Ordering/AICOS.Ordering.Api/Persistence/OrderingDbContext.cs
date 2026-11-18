@@ -14,7 +14,9 @@ public sealed class OrderingDbContext(DbContextOptions<OrderingDbContext> option
 {
     public DbSet<AICOS.Ordering.Api.Features.Qr.TableTransferOperation> TableTransfers => Set<AICOS.Ordering.Api.Features.Qr.TableTransferOperation>();
     internal bool BillEnabled => configuration?.GetValue<bool>("SessionBilling:Enabled") == true;
+    internal bool DiscountGuardEnabled => configuration?.GetValue<bool>("SessionDiscount:GuardEnabled") == true;
     public DbSet<SessionCheckout> SessionCheckouts => Set<SessionCheckout>();
+    public DbSet<SessionDiscountEvent> SessionDiscountEvents => Set<SessionDiscountEvent>();
     public DbSet<AdmissionOutbox> AdmissionOutbox => Set<AdmissionOutbox>();
     public DbSet<AdmissionReconcileState> AdmissionReconcile => Set<AdmissionReconcileState>();
     public DbSet<OrderFulfillmentProjection> FulfillmentProjection => Set<OrderFulfillmentProjection>();

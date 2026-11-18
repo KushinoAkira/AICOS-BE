@@ -14,3 +14,9 @@ docs/proposals/session-billing/*.sql text eol=lf
 docs/proposals/session-billing/SHA256SUMS.txt text eol=lf
 docs/migrations/cashier-shifts/*.sql text eol=lf
 docs/migrations/cashier-shifts/SHA256SUMS.txt text eol=lf
+
+# Keep reviewed manual-discount SQL and EF checksum bytes portable.
+docs/proposals/session-discount/*.sql text eol=lf
+docs/proposals/session-discount/*SHA256SUMS.txt text eol=lf
+src/Services/Ordering/AICOS.Ordering.Api/Persistence/Migrations/*OrderingSessionManualDiscount*.cs text eol=lf
+src/Services/Ordering/AICOS.Ordering.Api/Persistence/Migrations/OrderingDbContextModelSnapshot.cs text eol=lf

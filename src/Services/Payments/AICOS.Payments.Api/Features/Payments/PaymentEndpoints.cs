@@ -61,6 +61,8 @@ public static class PaymentEndpoints
         CommonRules.RequiredId(errors, "OrderId", r.OrderId, "Order");
         ValidateAmount(errors, r.Amount);
         CommonRules.MaxLength(errors, "Description", r.Description, "Description", 200);
+        if (r.Description?.TrimStart().StartsWith(TakeawayQrEndpoints.Prefix, StringComparison.Ordinal) == true)
+            errors.Add("Description", "Reserved payment intent metadata.");
         var code = PaymentProvider.SupportedCodes.FirstOrDefault(c => string.Equals(c, r.ProviderCode?.Trim(), StringComparison.OrdinalIgnoreCase));
         if (code is null)
         {

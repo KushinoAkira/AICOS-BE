@@ -50,7 +50,8 @@ try {
         $filters=@(
             'FullyQualifiedName~SessionBillPostgresTests.Additive_migrations_can_rollback_empty_new_tables_without_losing_legacy_session',
             'FullyQualifiedName~SessionBillPostgresTests&FullyQualifiedName!~Additive_migrations_can_rollback_empty_new_tables_without_losing_legacy_session',
-            'FullyQualifiedName~SessionBillProjectionPostgresTests'
+            'FullyQualifiedName~SessionBillProjectionPostgresTests',
+            'FullyQualifiedName~SessionDiscountPostgresTests'
         )
         $stage=0
         foreach($filter in $filters){
