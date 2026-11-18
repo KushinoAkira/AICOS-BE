@@ -11,12 +11,21 @@ function Login($login, $password) {
 $token = Login "owner@caphenha.local" "Brand@12345"
 $h = @{ Authorization = "Bearer $token"; "Content-Type" = "application/json" }
 
-$branches = Invoke-RestMethod -Uri "$base/identity/branches/active" -Headers $h
-$q1 = @($branches)[0]
+function ItemsOf($response) {
+  if ($null -eq $response) { return @() }
+  # Prefer envelope fields only when the payload is a single object (not an array).
+  if ($response -isnot [System.Array] -and $response.PSObject.Properties.Name -contains "value") { return @($response.value) }
+  if ($response -isnot [System.Array] -and $response.PSObject.Properties.Name -contains "items") { return @($response.items) }
+  return @($response)
+}
+
+$all = ItemsOf (Invoke-RestMethod -Uri "$base/identity/branches/active" -Headers $h)
+$q1 = $all | Where-Object { $_.name -match "Quan 1|Quận 1|Q1" } | Select-Object -First 1
+if (-not $q1) { $q1 = $all | Select-Object -First 1 }
 Write-Host "Branch Q1: $($q1.id) $($q1.name)"
 
-# Starter plan often allows only 1 branch — keep a second branch optional.
-$td = @($branches) | Where-Object { $_.name -match "Thu|Thủ|Duc|Đức" } | Select-Object -First 1
+$td = $all | Where-Object { $_.name -match "Thu|Thủ|Duc|Đức" } | Select-Object -First 1
+$q3 = $all | Where-Object { $_.name -match "Quan 3|Quận 3|Q3" } | Select-Object -First 1
 if (-not $td) {
   try {
     $td = Invoke-RestMethod -Method Post -Uri "$base/identity/branches" -Headers $h -Body (@{
@@ -28,13 +37,30 @@ if (-not $td) {
     Write-Host "Skip second branch (plan limit or API error): $($_.Exception.Message)"
   }
 }
+if (-not $q3) {
+  try {
+    $q3 = Invoke-RestMethod -Method Post -Uri "$base/identity/branches" -Headers $h -Body (@{
+        name = "Quan 3"; address = "88 Nguyen Thi Minh Khai, Q3"; phone = "0283456789"
+        openingTime = "07:00:00"; closingTime = "22:00:00"
+      } | ConvertTo-Json)
+    Write-Host "Created branch Q3: $($q3.id)"
+  } catch {
+    Write-Host "Skip Quan 3 branch (plan limit or API error): $($_.Exception.Message)"
+  }
+}
 
 function Ensure-Category($name, $sort) {
-  $cats = Invoke-RestMethod -Uri "$base/menu/categories" -Headers $h
-  $list = if ($cats.value) { $cats.value } elseif ($cats.items) { $cats.items } else { @($cats) }
+  $list = ItemsOf (Invoke-RestMethod -Uri "$base/menu/categories" -Headers $h)
   $hit = @($list) | Where-Object { $_.name -eq $name } | Select-Object -First 1
   if ($hit) { return $hit }
-  return Invoke-RestMethod -Method Post -Uri "$base/menu/categories" -Headers $h -Body (@{ name = $name; sortOrder = $sort } | ConvertTo-Json)
+  try {
+    return Invoke-RestMethod -Method Post -Uri "$base/menu/categories" -Headers $h -Body (@{ name = $name; sortOrder = $sort } | ConvertTo-Json)
+  } catch {
+    $list = ItemsOf (Invoke-RestMethod -Uri "$base/menu/categories" -Headers $h)
+    $hit = @($list) | Where-Object { $_.name -eq $name } | Select-Object -First 1
+    if ($hit) { return $hit }
+    throw
+  }
 }
 
 $catCoffee = Ensure-Category "Ca phe" 1
@@ -61,10 +87,9 @@ $products = @(
   @{ cat = $catTea.id; name = "Sinh to xoai"; desc = "Xoai chin xay da - mon Thu Duc."; price = 42000; tags = @("trai cay", "mua he") }
 )
 
-$existing = Invoke-RestMethod -Uri "$base/menu/products?pageSize=100" -Headers $h
-$existItems = if ($existing.items) { $existing.items } else { @() }
+$existItems = ItemsOf (Invoke-RestMethod -Uri "$base/menu/products?pageSize=100" -Headers $h)
 $byName = @{}
-foreach ($p in @($existItems)) { $byName[$p.name] = $p }
+foreach ($p in @($existItems)) { if ($p -and $p.name) { $byName[[string]$p.name] = $p } }
 
 $created = @{}
 foreach ($row in $products) {
@@ -104,6 +129,14 @@ if ($td) {
     $p = $created[$n]
     $price = if ($n -eq "Bac xiu") { 30000 } elseif ($n -eq "Cold brew") { 45000 } else { [int]$p.basePrice }
     Publish $p.id $td.id $price
+  }
+}
+if ($q3) {
+  # Quận 3: same as Q1 but Ca phe sua is 35.000 (branch price override demo)
+  foreach ($n in $q1Names) {
+    $p = $created[$n]
+    $price = if ($n -eq "Ca phe sua") { 35000 } else { [int]$p.basePrice }
+    Publish $p.id $q3.id $price
   }
 }
 

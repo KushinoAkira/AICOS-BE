@@ -16,6 +16,7 @@ from common.catalogs import Catalog
 from common.item import Item
 from common.menu import MENU, SHOP, TOPPINGS
 from common.pairings import PAIRING_DOCS
+from common.policy_kb import POLICY_DOCS
 
 log = logging.getLogger("aicos.rag")
 EMBED_MODEL = os.environ.get("AICOS_EMBED_MODEL", "intfloat/multilingual-e5-small")
@@ -24,7 +25,7 @@ EMBED_MODEL = os.environ.get("AICOS_EMBED_MODEL", "intfloat/multilingual-e5-smal
 @dataclass
 class Doc:
     id: str
-    kind: str  # "item" | "shop" | "topping" | "pairing"
+    kind: str  # "item" | "shop" | "topping" | "pairing" | "policy"
     text: str
     item: Item | None = None
 
@@ -61,6 +62,9 @@ def build_docs(catalog: Catalog | None = None) -> list[Doc]:
         docs.append(Doc("toppings", "topping", "Topping: " + ", ".join(f"{n} +{p}đ" for n, p in toppings)))
     for i, text in enumerate(PAIRING_DOCS):
         docs.append(Doc(f"pairing-{i}", "pairing", text + branch_note))
+    # Customer FAQ / multi-tenant policy (public only) — same for every branch.
+    for i, text in enumerate(POLICY_DOCS):
+        docs.append(Doc(f"policy-{i}", "policy", text + branch_note))
     return docs
 
 

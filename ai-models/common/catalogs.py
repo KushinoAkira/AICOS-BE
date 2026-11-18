@@ -96,6 +96,9 @@ SEED: dict[str, dict[str, Catalog]] = {
     "trasuamay": {
         "default": Catalog("trasuamay", "default", "Trà Sữa Mây", TRASUAMAY, _shop("Trà Sữa Mây"), TOPPINGS_TEA),
     },
+    "democoffee": {
+        "default": Catalog("democoffee", "default", "Demo Coffee", CAPHENHA_Q1[:8], _shop("Demo Coffee"), TOPPINGS_COFFEE),
+    },
     "demo": {
         "default": Catalog("demo", "default", "AICOS Coffee (demo)", CAPHENHA_Q1, _shop("AICOS Coffee (demo)"), TOPPINGS_COFFEE),
     },

@@ -95,11 +95,12 @@ PAIRING_RULES: list[PairingRule] = [
 ]
 
 PAIRING_DOCS: list[str] = [
-    "Nguyên tắc ghép món: đồ uống đậm (espresso, cà phê đen) hợp bánh ngọt đậm như tiramisu hoặc socola.",
-    "Latte, cappuccino hoặc cà phê sữa hợp croissant bơ / bánh mì que vì sữa cân vị bánh.",
+    "Nguyên tắc F&B: đồ uống đậm (espresso, cà phê đen, americano) hợp bánh ngọt đậm như tiramisu hoặc socola — vị đắng 'rửa' vị ngọt.",
+    "Rule café: ly đã có sữa (latte, cappuccino, bạc xỉu, cà phê sữa) nên kèm bánh nhẹ / bánh mì mặn — tránh chồng hai lớp béo.",
     "Buổi sáng Việt Nam: cà phê sữa đá hoặc bạc xỉu hay đi với bánh mì / bánh mì que pate.",
-    "Trà đào cam sả, trà vải hợp ngày nóng; nên gợi ý thêm snack nhẹ nếu khách muốn ăn kèm.",
-    "Matcha latte hợp bánh ngọt hoặc hạt điều rang — vị trà cắt độ ngọt.",
+    "Cold brew / trà trái cây hợp snack giòn mặn nhẹ (hạt điều, bánh mì que), không át vị đồ uống.",
+    "Matcha latte hợp bánh ngọt vừa phải hoặc hạt điều — vị trà cắt độ ngọt.",
+    "Khi khách hỏi 'ăn kèm': CHỈ gợi ý bánh / ăn vặt đang bán tại chi nhánh; không trả thêm đồ uống.",
     "Khách dị ứng sữa: ưu tiên cà phê đen, americano, cold brew, trà trái cây, nước ép — không gợi ý latte/trà sữa.",
     "Trẻ em / mang thai / khó ngủ: tránh caffeine; gợi ý trà hoa cúc, trà gừng mật ong, nước ép, soda.",
     "Chỉ được gợi ý món đang bán tại đúng chi nhánh khách đang xem; không lấy món của quán/chi nhánh khác.",

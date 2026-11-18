@@ -49,6 +49,10 @@ def _infer(name: str, category: str, description: str, tags: list[str]) -> dict[
         ("ngày mưa", r"gừng|socola nóng"),
         ("matcha", r"matcha"),
         ("ngọt", r"trà sữa|trân châu|socola|tiramisu"),
+        ("ít đắng", r"latte|bạc xỉu|bac xiu|cà phê sữa|ca phe sua|cold brew|êm|ít đắng|dễ uống|nhiều sữa"),
+        ("đậm", r"cà phê đen|ca phe den|espresso|americano|đắng rõ|đậm đà"),
+        ("nhẹ", r"bạc xỉu|bac xiu|dễ uống|nhẹ"),
+        ("béo", r"latte|cappuccino|bạc xỉu|cà phê sữa|sữa"),
     ):
         if re.search(pat, blob) and label not in inferred_tags:
             inferred_tags.append(label)
