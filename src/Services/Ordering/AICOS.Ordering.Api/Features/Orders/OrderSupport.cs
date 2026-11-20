@@ -123,6 +123,25 @@ public sealed class OrderEventPublisher(IEventBus bus, IOrderNotifier notifier, 
         await ChangedAsync(o, "Paid", ct);
     }
 
+    /// <summary>
+    /// A member paid online: asks Identity Service to mail the receipt to the member's account. Not for cash at the counter (the cashier hands the
+    /// printed bill) nor for a walk-in without an account.
+    /// </summary>
+    public async Task ReceiptAsync(Order o, string paymentMethod, CancellationToken ct)
+    {
+        if (o.CustomerId is not { } customerId || string.Equals(paymentMethod, "Cash", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        var lines = o.Items
+            .Select(i => new ReceiptLineDto(i.ProductName, string.IsNullOrWhiteSpace(i.OptionsText) ? null : i.OptionsText, i.Note, i.Quantity, i.UnitPrice, i.TotalPrice))
+            .ToList();
+        await SafeAsync(new OrderReceiptRequestedIntegrationEvent(
+            o.TenantId, o.BranchId, o.Id, o.OrderCode, customerId, o.Type.ToString(), o.TableNumber, paymentMethod, o.PaymentId, o.PaidAtUtc ?? DateTime.UtcNow,
+            o.OriginalAmount, o.PromotionCode, o.DiscountAmount, o.FinalAmount, lines), ct);
+    }
+
     public async Task CompletedAsync(Order o, CancellationToken ct)
     {
         await SafeAsync(new OrderCompletedIntegrationEvent(

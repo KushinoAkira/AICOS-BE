@@ -2,6 +2,7 @@ using AICOS.BuildingBlocks.Messaging;
 using AICOS.Contracts.Events;
 using AICOS.Ordering.Api.Domain.Entities;
 using AICOS.Ordering.Api.Domain.Enums;
+using AICOS.Ordering.Api.Features.Analytics;
 using AICOS.Ordering.Api.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -31,10 +32,12 @@ public sealed class PaymentSucceededHandler(OrderingDbContext db, OrderEventPubl
         var wasCompleted = order.Status == OrderStatus.Completed;
         order.MarkAsPaid(OrderAccess.MethodOf(@event.Method), @event.Method, @event.PaymentId, @event.PaidAtUtc);
         await db.SaveChangesAsync(cancellationToken);
+        await BasketUpsert.FromOrderAsync(db, order, cancellationToken);
 
         if (!order.IsVoided)
         {
             await events.PaidAsync(order, cancellationToken);   // loyalty points are awarded from this; a late payment for a cancelled order earns nothing
+            await events.ReceiptAsync(order, @event.Method, cancellationToken);   // a member who paid online gets the receipt by mail
         }
 
         if (!wasCompleted && order.Status == OrderStatus.Completed)

@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using AICOS.BuildingBlocks.Security;
 using AICOS.Payments.Api.Persistence;
 using AICOS.Ordering.Api.Persistence;
@@ -17,6 +18,31 @@ public sealed class SessionBillPostgresTests : IAsyncLifetime
     private readonly SessionBillHarness _h = new();
     public Task InitializeAsync() => _h.InitializeAsync(Environment.GetEnvironmentVariable("AICOS_BILL_TEST_CONNECTION")!);
     public Task DisposeAsync() { _h.Dispose(); return Task.CompletedTask; }
+    [BillPostgresFact]
+    public async Task First_POS_round_on_empty_table_and_parallel_replay_commit_one_session_and_one_order()
+    {
+        var qr = _h.AddTransferTarget("POS-EMPTY");
+        using var scope = _h.Ordering.Services.CreateScope();
+        var tables = scope.ServiceProvider.GetRequiredService<AICOS.Ordering.Api.Services.ITableQrClient>();
+        var table = (await tables.LookupAsync(qr, default))!;
+        var body = new { type = "DineIn", branchId = _h.Branch, tableId = table.TableId,
+            tableNumber = table.TableCode, tableQrToken = qr, items = new[] { new { productId = _h.Product, quantity = 1 } } };
+        async Task<HttpResponseMessage> Send()
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/orders") { Content = JsonContent.Create(body) };
+            request.Headers.Add("Idempotency-Key", "first-pos-empty-table");
+            return await _h.OrderCashier.SendAsync(request);
+        }
+        var responses = await Task.WhenAll(Enumerable.Range(0, 8).Select(_ => Send()));
+        foreach (var response in responses) response.IsSuccessStatusCode.Should().BeTrue(await response.Content.ReadAsStringAsync());
+        responses.Count(x => x.StatusCode == HttpStatusCode.Created).Should().Be(1);
+        var ids = new List<Guid>();
+        foreach (var response in responses) ids.Add((await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid());
+        ids.Distinct().Should().HaveCount(1);
+        var db = scope.ServiceProvider.GetRequiredService<OrderingDbContext>();
+        (await db.TableSessions.CountAsync(x => x.TableId == table.TableId)).Should().Be(1);
+        (await db.Orders.CountAsync(x => x.TableId == table.TableId)).Should().Be(1);
+    }
     [BillPostgresFact]
     public async Task Sixteen_cashiers_cannot_collect_a_bill_twice()
     {

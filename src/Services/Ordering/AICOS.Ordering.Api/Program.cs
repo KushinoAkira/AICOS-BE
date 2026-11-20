@@ -1,4 +1,5 @@
 using AICOS.Ordering.Api.Features.SessionBilling;
+using AICOS.Ordering.Api.Features.OrderCancellation;
 using AICOS.BuildingBlocks.Caching;
 using AICOS.BuildingBlocks.Hosting;
 using AICOS.BuildingBlocks.Http;
@@ -8,6 +9,7 @@ using AICOS.BuildingBlocks.Security;
 using AICOS.Contracts.Events;
 using AICOS.Ordering.Api;
 using AICOS.Ordering.Api.Features;
+using AICOS.Ordering.Api.Features.Analytics;
 using AICOS.Ordering.Api.Features.Orders;
 using AICOS.Ordering.Api.Features.PickupSlots;
 using AICOS.Ordering.Api.Features.Qr;
@@ -17,12 +19,16 @@ using AICOS.Ordering.Api.Features.KitchenAdmission;
 
 var builder = WebApplication.CreateBuilder(args);
 if (BillingMachineAuth.Enabled(builder.Configuration)) _ = BillingMachineAuth.Key(builder.Configuration);
+if (OrderCancellationMachineAuth.GuardEnabled(builder.Configuration)) _ = OrderCancellationMachineAuth.Key(builder.Configuration);
 
 builder.AddAicosServiceDefaults(OrderingService.Info);
 builder.AddAicosPostgres<OrderingDbContext>(OrderingService.Info);
 builder.AddAicosEventBus();
 builder.Services.AddAicosBranchDirectory(builder.Configuration);   // asks Identity whether a branch belongs to the brand
 builder.Services.AddAicosServiceClient<IDiscountActorVerifier, DiscountActorVerifier>(builder.Configuration, "Identity");
+builder.Services.AddAicosServiceClient<IKitchenCancellationClient, KitchenCancellationClient>(builder.Configuration, "Kitchen");
+builder.Services.AddScoped<OrderCancellationDispatcher>();
+builder.Services.AddHostedService<OrderCancellationWorker>();
 
 // Other services. Prices come from Menu, vouchers from Customer, refunds go to Payment; the caller's bearer token is forwarded.
 builder.Services.AddAicosServiceClient<IMenuCatalogClient, HttpMenuCatalogClient>(builder.Configuration, "Menu");
@@ -45,6 +51,11 @@ builder.Services.AddSignalR();
 builder.Services.AddScoped<IOrderNotifier, SignalROrderNotifier>();
 builder.Services.AddHostedService<PickupOrderExpiryWorker>();
 builder.Services.AddHostedService<TableSessionExpiryWorker>();
+
+builder.Services.Configure<AprioriOptions>(builder.Configuration.GetSection(AprioriOptions.SectionName));
+builder.Services.AddHttpClient<IAprioriClient, HttpAprioriClient>();
+builder.Services.AddScoped<AprioriMiner>();
+builder.Services.AddHostedService<AprioriMineJob>();
 
 // QR table ordering: the shared cart lives in Redis, sessions and orders in Postgres.
 builder.Services.AddAicosCache();
@@ -75,8 +86,10 @@ api.MapOrderingEndpoints();
 api.MapTableTransferEndpoints();
 api.MapTransferHistory();
 api.MapQrOrderEndpoints();
+api.MapAprioriEndpoints();
 app.MapSessionBilling(api);
 api.MapSessionDiscounts();
+api.MapOrderCancellations();
 
 app.MapHub<OrderTrackingHub>("/hubs/orders");
 

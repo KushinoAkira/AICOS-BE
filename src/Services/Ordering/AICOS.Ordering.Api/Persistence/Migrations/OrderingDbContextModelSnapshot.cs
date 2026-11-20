@@ -23,6 +23,103 @@ namespace AICOS.Ordering.Api.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("AICOS.Ordering.Api.Domain.Entities.AssociationRule", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("AntecedentNames")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("antecedent_names");
+
+                    b.Property<string>("AntecedentProductIds")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("antecedent_product_ids");
+
+                    b.Property<Guid?>("BranchId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("branch_id");
+
+                    b.Property<double>("Confidence")
+                        .HasColumnType("double precision")
+                        .HasColumnName("confidence");
+
+                    b.Property<string>("ConsequentNames")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("consequent_names");
+
+                    b.Property<string>("ConsequentProductIds")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("consequent_product_ids");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by");
+
+                    b.Property<double>("Lift")
+                        .HasColumnType("double precision")
+                        .HasColumnName("lift");
+
+                    b.Property<DateTime>("MinedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("mined_at_utc");
+
+                    b.Property<string>("PairKey")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("pair_key");
+
+                    b.Property<double>("Support")
+                        .HasColumnType("double precision")
+                        .HasColumnName("support");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<int>("TransactionCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("transaction_count");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at_utc");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by");
+
+                    b.Property<bool>("VoucherCreated")
+                        .HasColumnType("boolean")
+                        .HasColumnName("voucher_created");
+
+                    b.HasKey("Id")
+                        .HasName("pk_association_rules");
+
+                    b.HasIndex("TenantId", "MinedAtUtc")
+                        .HasDatabaseName("ix_association_rules_tenant_id_mined_at_utc");
+
+                    b.HasIndex("TenantId", "BranchId", "PairKey")
+                        .IsUnique()
+                        .HasDatabaseName("ix_association_rules_tenant_id_branch_id_pair_key");
+
+                    b.ToTable("association_rules", "ordering");
+                });
+
             modelBuilder.Entity("AICOS.Ordering.Api.Domain.Entities.Order", b =>
                 {
                     b.Property<Guid>("Id")
@@ -253,6 +350,108 @@ namespace AICOS.Ordering.Api.Persistence.Migrations
                             t.HasCheckConstraint("ck_order_fulfillment_mode", "fulfillment_mode IN ('WholeOrder','CupV1')");
 
                             t.HasCheckConstraint("ck_orders_amounts", "discount_amount >= 0 AND refunded_amount >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("AICOS.Ordering.Api.Domain.Entities.OrderBasket", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("branch_id");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by");
+
+                    b.Property<Guid?>("CustomerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("customer_id");
+
+                    b.Property<DateTime>("PaidAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("paid_at_utc");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<decimal>("TotalAmount")
+                        .HasPrecision(18)
+                        .HasColumnType("numeric(18,0)")
+                        .HasColumnName("total_amount");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at_utc");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id")
+                        .HasName("pk_order_baskets");
+
+                    b.HasIndex("TenantId", "PaidAtUtc")
+                        .HasDatabaseName("ix_order_baskets_tenant_id_paid_at_utc");
+
+                    b.HasIndex("TenantId", "BranchId", "PaidAtUtc")
+                        .HasDatabaseName("ix_order_baskets_tenant_id_branch_id_paid_at_utc");
+
+                    b.ToTable("order_baskets", "ordering", t =>
+                        {
+                            t.HasCheckConstraint("ck_order_baskets_total", "total_amount >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("AICOS.Ordering.Api.Domain.Entities.OrderBasketItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("BasketId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("basket_id");
+
+                    b.Property<decimal>("LineAmount")
+                        .HasPrecision(18)
+                        .HasColumnType("numeric(18,0)")
+                        .HasColumnName("line_amount");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("product_id");
+
+                    b.Property<string>("ProductName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("product_name");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("integer")
+                        .HasColumnName("quantity");
+
+                    b.HasKey("Id")
+                        .HasName("pk_order_basket_items");
+
+                    b.HasIndex("BasketId")
+                        .HasDatabaseName("ix_order_basket_items_basket_id");
+
+                    b.HasIndex("BasketId", "ProductId")
+                        .HasDatabaseName("ix_order_basket_items_basket_id_product_id");
+
+                    b.ToTable("order_basket_items", "ordering", t =>
+                        {
+                            t.HasCheckConstraint("ck_order_basket_items_qty", "quantity > 0 AND line_amount >= 0");
                         });
                 });
 
@@ -863,6 +1062,146 @@ namespace AICOS.Ordering.Api.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("AICOS.Ordering.Api.Domain.Entities.OrderBasketItem", b =>
+                {
+                    b.HasOne("AICOS.Ordering.Api.Domain.Entities.OrderBasket", null)
+                        .WithMany("Items")
+                        .HasForeignKey("BasketId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_order_basket_items_order_baskets_basket_id");
+                });
+            modelBuilder.Entity("AICOS.Ordering.Api.Features.OrderCancellation.OrderCancellationOperation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_id");
+
+                    b.Property<string>("AfterJson")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("after_json");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("integer")
+                        .HasColumnName("attempts");
+
+                    b.Property<string>("BeforeJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("before_json");
+
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("branch_id");
+
+                    b.Property<DateTime?>("CompletedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("completed_at_utc");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<string>("Fingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("fingerprint");
+
+                    b.Property<DateTime?>("LegacyPublishedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("legacy_published_at_utc");
+
+                    b.Property<DateTime>("NextAttemptAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("next_attempt_at_utc");
+
+                    b.Property<string>("OrderCode")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("order_code");
+
+                    b.Property<Guid>("OrderId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("order_id");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(250)
+                        .HasColumnType("character varying(250)")
+                        .HasColumnName("reason");
+
+                    b.Property<string>("ReasonCode")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("reason_code");
+
+                    b.Property<string>("RequestHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("request_hash");
+
+                    b.Property<Guid>("SessionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("session_id");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("state");
+
+                    b.Property<string>("TableCode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("table_code");
+
+                    b.Property<Guid>("TableId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("table_id");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<long>("Version")
+                        .HasColumnType("bigint")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id")
+                        .HasName("pk_order_cancellation_operations");
+
+                    b.HasIndex("NextAttemptAtUtc")
+                        .HasDatabaseName("ix_order_cancellation_operations_next_attempt_at_utc")
+                        .HasFilter("completed_at_utc IS NULL");
+
+                    b.HasIndex("OrderId")
+                        .HasDatabaseName("ix_order_cancellation_operations_order_id");
+
+                    b.HasIndex("SessionId")
+                        .HasDatabaseName("ix_order_cancellation_operations_session_id");
+
+                    b.HasIndex("TenantId", "OrderId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_order_cancellation_operations_tenant_id_order_id")
+                        .HasFilter("completed_at_utc IS NULL");
+
+                    b.HasIndex("TenantId", "SessionId")
+                        .HasDatabaseName("ix_order_cancellation_operations_tenant_id_session_id");
+
+                    b.ToTable("order_cancellation_operations", "ordering", t =>
+                        {
+                            t.HasCheckConstraint("ck_order_cancellation_state", "state IN ('QUEUED','RESERVED','APPLIED','ABORTING','COMPLETED','REJECTED','ABORTED') AND attempts >= 0 AND version >= 0 AND ((state IN ('COMPLETED','REJECTED','ABORTED')) = (completed_at_utc IS NOT NULL))");
+                        });
+                });
+
             modelBuilder.Entity("AICOS.Ordering.Api.Features.Qr.TableTransferOperation", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1114,6 +1453,23 @@ namespace AICOS.Ordering.Api.Persistence.Migrations
                         .HasConstraintName("fk_order_fulfillment_projection_orders_order_id");
                 });
 
+            modelBuilder.Entity("AICOS.Ordering.Api.Features.OrderCancellation.OrderCancellationOperation", b =>
+                {
+                    b.HasOne("AICOS.Ordering.Api.Domain.Entities.Order", null)
+                        .WithMany()
+                        .HasForeignKey("OrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_order_cancellation_operations_orders_order_id");
+
+                    b.HasOne("AICOS.Ordering.Api.Domain.TableSession", null)
+                        .WithMany()
+                        .HasForeignKey("SessionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_order_cancellation_operations_table_sessions_session_id");
+                });
+
             modelBuilder.Entity("AICOS.Ordering.Api.Features.Qr.TableTransferOperation", b =>
                 {
                     b.HasOne("AICOS.Ordering.Api.Domain.TableSession", null)
@@ -1135,6 +1491,11 @@ namespace AICOS.Ordering.Api.Persistence.Migrations
                 });
 
             modelBuilder.Entity("AICOS.Ordering.Api.Domain.Entities.Order", b =>
+                {
+                    b.Navigation("Items");
+                });
+
+            modelBuilder.Entity("AICOS.Ordering.Api.Domain.Entities.OrderBasket", b =>
                 {
                     b.Navigation("Items");
                 });

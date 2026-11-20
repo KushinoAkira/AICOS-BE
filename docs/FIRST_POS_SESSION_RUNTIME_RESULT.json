@@ -1,0 +1,45 @@
+{
+  "scope": "Approved local Ordering hotfix only",
+  "startedUtc": "2026-11-19T16:24:50.342Z",
+  "checks": [
+    {
+      "name": "Exact container/image/cluster verified; migration and mutation workers OFF; no mounts or feature changes",
+      "status": "PASS"
+    },
+    {
+      "name": "Exact container/image/cluster verified; migration and mutation workers OFF; no mounts or feature changes",
+      "status": "PASS"
+    },
+    {
+      "name": "Ordering live/ready and Gateway route 200; absent/invalid JWT 401; environment/credentials/ports/labels preserved",
+      "status": "PASS"
+    },
+    {
+      "name": "Other-container lifecycle unchanged; original container/image retained stopped; current Ordering fingerprint recorded",
+      "status": "PASS"
+    }
+  ],
+  "previous": {
+    "id": "818fff49a5f7356ad9623aebd6743efeb953a959406bd4b6656fc04d54e7bab3",
+    "image": "sha256:1eb134f5d0c1f9fb49088cf51c6dd9dddb1f3bf06b4905d16662c3a88d60d503",
+    "started": "2026-11-19T10:20:06.539690575Z",
+    "status": "running",
+    "restarts": 0,
+    "preservedName": "aicos-main-order-before-pos-hotfix-818fff49"
+  },
+  "replacementId": "df05d9c1e342fade36e4bebe4b94cfe6407f698204ddc32b8c8ed8da7d7a1653",
+  "status": "PASS",
+  "priorAttemptFailedPhase": "read-only smoke",
+  "rowFingerprintComparison": "NOT RUN: initial pre-start hash was not persisted before label assertion failed",
+  "currentOrderingFingerprintHash": "29ffb8784ab607174c154c82c469ebf2a8e86cdbcb0309eafcd3869b65da92ad",
+  "orderingTablesVerified": 13,
+  "otherContainerLifecycleEvents": "PASS: no other container start/stop/recreate event during rollout",
+  "replacement": {
+    "id": "df05d9c1e342fade36e4bebe4b94cfe6407f698204ddc32b8c8ed8da7d7a1653",
+    "image": "sha256:4938a60a4ee23039f9a7ef901a1f3d0065d831eeb8053d440192c4ba65a38922",
+    "started": "2026-11-19T16:24:54.499551321Z",
+    "status": "running",
+    "restarts": 0
+  },
+  "verifiedUtc": "2026-11-19T16:26:43.775Z"
+}

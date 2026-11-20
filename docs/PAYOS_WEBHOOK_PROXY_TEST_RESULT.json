@@ -1,0 +1,27 @@
+﻿{
+    "Status":  "PASS",
+    "Purpose":  "isolated payOS webhook transport",
+    "NginxImage":  "nginx@sha256:caf4e1e032a20f9c3c5e28fc7f25ffd768ad8677b4975c54193075997b3a97e3",
+    "PythonImage":  "sha256:890bc08a9ac921ea0d7a5c6ed5112d802bacb011b4ca03938489d484ba93d65b",
+    "Network":  "aicos-payos-proxy-test-456e07010e",
+    "NoHostPorts":  true,
+    "Tests":  [
+                  "test_body_and_untrusted_headers (__main__.ProxyChecks.test_body_and_untrusted_headers) ... ok",
+                  "test_body_limit (__main__.ProxyChecks.test_body_limit) ... ok",
+                  "test_browser_return_is_forced_readonly_and_drops_body_and_credentials (__main__.ProxyChecks.test_browser_return_is_forced_readonly_and_drops_body_and_credentials) ... ok",
+                  "test_browser_routes_reject_other_methods_and_normalized_paths (__main__.ProxyChecks.test_browser_routes_reject_other_methods_and_normalized_paths) ... ok",
+                  "test_chunked_body_preserved (__main__.ProxyChecks.test_chunked_body_preserved) ... ok",
+                  "test_methods_do_not_reach_upstream (__main__.ProxyChecks.test_methods_do_not_reach_upstream) ... ok",
+                  "test_path_normalization_cannot_bypass_allowlist (__main__.ProxyChecks.test_path_normalization_cannot_bypass_allowlist) ... ok",
+                  "test_result_page_ignores_untrusted_payment_status (__main__.ProxyChecks.test_result_page_ignores_untrusted_payment_status) ... ok",
+                  "test_unrelated_paths_do_not_reach_upstream (__main__.ProxyChecks.test_unrelated_paths_do_not_reach_upstream) ... ok",
+                  "",
+                  "----------------------------------------------------------------------",
+                  "Ran 9 tests in 0.575s",
+                  "",
+                  "OK"
+              ],
+    "ExistingContainersUnchanged":  true,
+    "Cleanup":  true,
+    "ExistingContainerCount":  17
+}

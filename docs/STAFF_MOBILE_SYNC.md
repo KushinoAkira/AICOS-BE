@@ -1,5 +1,9 @@
 # Staff Mobile — main Backend synchronization
 
+## 19/11/2026 — Payment main merge candidate
+
+See [PAYMENT_MAIN_INTEGRATION_REVIEW.md](PAYMENT_MAIN_INTEGRATION_REVIEW.md). Candidate combines main `de7e011`/Payment PR #40 with reviewed local code and preserved cancellation WIP; merge is uncommitted in `be/payment-main-integration-20261119`. Main now has payOS/MoMo/ZaloPay for order payments, not automatic real-provider Session Bill support. Flutter Mock QR V1 remains unchanged. No deployment/schema change or real provider payment was executed.
+
 ## Kết quả cuối — bổ sung settlement API chỉ đọc
 
 - Mới: GET /api/v1/payments/orders/{orderId}/settlement (Staff). Implementation tách

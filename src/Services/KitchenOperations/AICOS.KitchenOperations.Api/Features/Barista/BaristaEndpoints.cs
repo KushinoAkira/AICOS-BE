@@ -76,6 +76,7 @@ public static class BaristaEndpoints
             SentToBarAtUtc = ticket.CreatedAtUtc,
             ticket.FulfillmentMode,
             ticket.RecoveryHoldReason,
+            CancellationPending = db.CancellationGuardEnabled && await db.CancellationReceipts.AnyAsync(x => x.TenantId == ticket.TenantId && x.OrderId == ticket.OrderId && x.State == "HELD", ct),
             Acceptance = acceptance,
             Items = ticket.Items.Select(i => new { i.Id, i.ProductId, i.ProductName, i.Quantity, i.Note }),
             Cups = cups,
@@ -107,9 +108,12 @@ public static class BaristaEndpoints
         rows = rows.Take(take).ToList();
         var ids = rows.Select(t => t.Id).ToArray();
         var accept = await db.BaristaAcceptances.AsNoTracking().Where(a => ids.Contains(a.TicketId)).ToListAsync(ct);
+        var held = db.CancellationGuardEnabled
+            ? await db.CancellationReceipts.AsNoTracking().Where(x => x.TenantId == tenant && x.State == "HELD" && x.TicketId != null && ids.Contains(x.TicketId.Value)).Select(x => x.TicketId!.Value).ToListAsync(ct)
+            : [];
         return new
         {
-            Items = rows.Select(t => new { Ticket = TicketMapper.ToDto(t), t.FulfillmentMode, t.RecoveryHoldReason, Acceptance = accept.SingleOrDefault(a => a.TicketId == t.Id && a.Cycle == t.RemakeCount) }),
+            Items = rows.Select(t => new { Ticket = TicketMapper.ToDto(t), t.FulfillmentMode, t.RecoveryHoldReason, CancellationPending = held.Contains(t.Id), Acceptance = accept.SingleOrDefault(a => a.TicketId == t.Id && a.Cycle == t.RemakeCount) }),
             Offset = skip,
             HasMore = more
         };

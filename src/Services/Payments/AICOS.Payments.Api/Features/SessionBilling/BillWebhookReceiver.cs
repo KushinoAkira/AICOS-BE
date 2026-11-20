@@ -9,7 +9,7 @@ namespace AICOS.Payments.Api.Features.SessionBilling;
 
 public sealed class BillWebhookReceiver(PaymentsDbContext db, BillLedgerService ledger, IConfiguration config, TimeProvider time, BillOutboxDispatcher dispatcher)
 {
-    private sealed record ReceiptIdentity(string Provider, string TransactionRef, string Status, decimal Amount);
+    private sealed record ReceiptIdentity(string Provider, string TransactionRef, string Status, decimal Amount, string? ProviderReference = null, string? Issue = null);
     private static readonly JsonSerializerOptions Web = new(JsonSerializerDefaults.Web);
     public async Task<object> ReceiveAsync(string provider, WebhookRequest request, CancellationToken ct)
     {
@@ -20,12 +20,19 @@ public sealed class BillWebhookReceiver(PaymentsDbContext db, BillLedgerService 
             throw new ValidationFailedException("webhook", "Invalid signed receipt fields.");
         if (!WebhookSignature.Verify(config["SessionBilling:TestWebhookSecret"]!, request.EventId, request.TransactionRef!, request.Status!, request.Amount.Value, request.Signature))
             throw new UnauthorizedException("Invalid receipt signature.", "webhook.invalid_signature");
+        return await ApplyAsync(provider, request, null, ct);
+    }
+    internal Task<object> ApplyVerifiedPayOsAsync(WebhookRequest request, string? issue, CancellationToken ct) =>
+        ApplyAsync(AICOS.Payments.Api.Domain.PaymentProvider.PayOsCode, request, issue, ct);
+    private async Task<object> ApplyAsync(string provider, WebhookRequest request, string? issue, CancellationToken ct)
+    {
         var attempt = await db.BillAttempts.AsNoTracking().FirstOrDefaultAsync(a => a.TransactionRef == request.TransactionRef && a.Provider == provider, ct)
             ?? throw new NotFoundException("Bill payment", "reference");
-        var mismatch = attempt.Amount != request.Amount;
+        var mismatch = attempt.Amount != request.Amount || issue is not null;
         var eventHash = BillIdentity.Hash($"{attempt.TenantId}:{provider}:{request.EventId}");
         var receiptId = new Guid(Convert.FromHexString(eventHash)[..16]);
-        var identity = new ReceiptIdentity(provider, request.TransactionRef!, request.Status!, request.Amount.Value);
+        var identity = new ReceiptIdentity(provider, request.TransactionRef!, request.Status!, request.Amount!.Value,
+            provider == "PayOS" ? request.ProviderReference : null, issue);
         var payload = JsonSerializer.Serialize(identity, Web);
         var duplicate = await BillLock.RunAsync(db, attempt.BillId, async () =>
         {
@@ -42,9 +49,9 @@ public sealed class BillWebhookReceiver(PaymentsDbContext db, BillLedgerService 
             if (mismatch)
             {
                 bill.NeedsReconciliation = true; bill.Version++;
-                ledger.AddJournal(bill, "AMOUNT_MISMATCH", new { row.Id, request.Amount, Expected = row.Amount }, now);
+                ledger.AddJournal(bill, issue ?? "AMOUNT_MISMATCH", new { row.Id, request.Amount, Expected = row.Amount }, now);
             }
-            else if (request.Status == "success") await ledger.MarkPaidAsync(bill, row, request.EventId, now, ct);
+            else if (request.Status == "success") await ledger.MarkPaidAsync(bill, row, provider == "PayOS" ? request.ProviderReference : request.EventId, now, ct);
             else if (row.Status == "PENDING") row.Status = "FAILED";
             db.BillJournal.Add(new BillJournal { Id = receiptId, BillId = bill.Id, Kind = "PROVIDER_RECEIPT", Payload = payload,
                 CreatedAtUtc = now, DeliveredAtUtc = now, NextAttemptAtUtc = now });

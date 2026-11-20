@@ -13,14 +13,24 @@ internal static class OnlinePaymentCreation
 {
     public static async Task<IResult> CreateAsync(CreatePaymentRequest r, string code, PaymentsDbContext db,
         PaymentProcessor processor, GatewayRegistry gateways, SecretProtector protector, ICurrentUser user,
-        IBranchDirectory directory, IOrderDirectory orders, CancellationToken ct)
+        IBranchDirectory directory, IOrderDirectory orders, CancellationToken ct, bool singleAttempt = false)
     {
         var tenantId = TenantScope.Require(user);
         var outcome = await PaymentOrderLock.RunAsync(db, tenantId, r.OrderId!.Value, async () =>
         {
             db.ChangeTracker.Clear();
             var branchId = await PaymentEndpoints.ResolveBranchAsync(user, directory, r.BranchId, ct);
-            await OrderChecks.EnsurePayableAsync(orders, r.OrderId!.Value, branchId, r.Amount!.Value, ct, db.BillEnabled);
+            if (singleAttempt)
+            {
+                var prior = await db.Payments.Where(p => p.TenantId == tenantId && p.OrderId == r.OrderId).ToListAsync(ct);
+                if (prior.Count != 0)
+                {
+                    if (prior.Count != 1 || prior[0].BranchId != branchId || prior[0].Amount != r.Amount || prior[0].Method != code || prior[0].RefundedAmount != 0)
+                        throw new ConflictException("Reconcile the existing obligation.", "payment.online_pending");
+                    return (Payment: prior[0], Created: false, Merchant: (await MerchantResolver.ResolveAsync(db, tenantId, branchId, code, ct))!);
+                }
+            }
+            await OrderChecks.EnsurePayableAsync(orders, r.OrderId!.Value, branchId, r.Amount!.Value, ct, db.BillEnabled || singleAttempt);
             var merchant = await MerchantResolver.ResolveAsync(db, tenantId, branchId, code!, ct)
                 ?? throw new BusinessRuleException("payment.method_unavailable", $"{code} is not available at this branch.");
 

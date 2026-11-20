@@ -37,6 +37,7 @@ internal static class SessionBillQuotes
         }
         return new(session.TenantId, session.BranchId, session.Id, session.TableId, session.TableCode,
             fingerprint, live.Sum(o => o.OriginalAmount), live.Sum(o => o.DiscountAmount), live.Sum(o => o.FinalAmount), rounds, lines,
-            ManualDiscountReviewRequired: review);
+            ManualDiscountReviewRequired: review,
+            OrderCancellationPending: await Features.OrderCancellation.OrderCancellationRules.PendingSession(db, session.Id, ct));
     }
 }

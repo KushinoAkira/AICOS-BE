@@ -1,4 +1,5 @@
 using AICOS.KitchenOperations.Api.Features.Barista;
+using AICOS.KitchenOperations.Api.Features.OrderCancellation;
 using AICOS.KitchenOperations.Api.Features.SessionBilling;
 using AICOS.BuildingBlocks.Hosting;
 using AICOS.BuildingBlocks.Messaging;
@@ -14,6 +15,7 @@ using AICOS.KitchenOperations.Api.Features.KitchenAdmission;
 
 var builder = WebApplication.CreateBuilder(args);
 if (BillingMachineAuth.Enabled(builder.Configuration)) _ = BillingMachineAuth.Key(builder.Configuration);
+if (OrderCancellationMachineAuth.GuardEnabled(builder.Configuration)) _ = OrderCancellationMachineAuth.Key(builder.Configuration);
 
 builder.AddAicosServiceDefaults(KitchenOperationsService.Info);
 builder.AddAicosPostgres<KitchenOperationsDbContext>(KitchenOperationsService.Info);
@@ -48,6 +50,7 @@ var app = builder.Build();
 await app.MigrateDatabaseAsync<KitchenOperationsDbContext>();
 app.UseAicosServiceDefaults();
 app.MapKitchenBillPaid();
+app.MapKitchenCancellations();
 app.MapKitchenAdmission();
 app.MapTableTransferReceiver();
 AICOS.KitchenOperations.Api.Features.CupServing.CupServingEndpoints.MapCupServing(app);

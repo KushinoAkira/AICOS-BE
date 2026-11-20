@@ -22,6 +22,9 @@ public enum RefundStatus
     Succeeded,
     Failed,
     Rejected,
+
+    /// <summary>Approved, but the provider has no refund API (payOS): staff transfer the money back by hand, then record the transfer.</summary>
+    AwaitingTransfer,
 }
 
 /// <summary>Why money goes back; decides which percentage of the brand policy applies.</summary>
@@ -112,7 +115,9 @@ public sealed class Payment : AuditableEntity<Guid>
     public bool IsCash => Method == CashMethod;
 
     /// <summary>A local expiry/cancel is not evidence that the provider cannot receive money.</summary>
-    public bool RequiresReconciliation => !IsCash && !IsPaid && (ProviderState != ProviderState.Failed || Description.StartsWith("takeaway-qr:v1:", StringComparison.Ordinal));
+    public bool RequiresReconciliation => !IsCash && !IsPaid && (ProviderState != ProviderState.Failed
+        || Description.StartsWith("takeaway-qr:v1:", StringComparison.Ordinal)
+        || Description.StartsWith("takeaway-payos:v1:", StringComparison.Ordinal));
 
     public bool IsFinal => Status is not PaymentStatus.Pending;
 
@@ -243,6 +248,15 @@ public sealed class PaymentRefund : AuditableEntity<Guid>
     {
         Status = RefundStatus.Succeeded;
         ProviderReference = providerReference;
+        DecidedBy = decidedBy;
+        DecidedAtUtc = now;
+    }
+
+    /// <summary>The refund is approved but must be transferred by hand; <see cref="Succeed"/> follows once staff record the transfer.</summary>
+    public void AwaitTransfer(string note, Guid? decidedBy, DateTime now)
+    {
+        Status = RefundStatus.AwaitingTransfer;
+        DecisionNote = note;
         DecidedBy = decidedBy;
         DecidedAtUtc = now;
     }

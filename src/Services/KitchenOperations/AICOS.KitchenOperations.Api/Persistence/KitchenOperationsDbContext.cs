@@ -8,8 +8,11 @@ using AICOS.KitchenOperations.Api.Features.CupServing;
 
 namespace AICOS.KitchenOperations.Api.Persistence;
 
-public sealed class KitchenOperationsDbContext(DbContextOptions<KitchenOperationsDbContext> options) : AicosDbContext(options)
+public sealed class KitchenOperationsDbContext(DbContextOptions<KitchenOperationsDbContext> options, IConfiguration? configuration = null) : AicosDbContext(options)
 {
+    internal bool CancellationGuardEnabled => configuration?.GetValue<bool>("OrderCancellation:GuardEnabled") == true;
+    internal bool BaristaWorkflowEnabled => configuration?.GetValue<bool>("BaristaWorkflow:Enabled") == true;
+    public DbSet<AICOS.KitchenOperations.Api.Features.OrderCancellation.KitchenCancellationReceipt> CancellationReceipts => Set<AICOS.KitchenOperations.Api.Features.OrderCancellation.KitchenCancellationReceipt>();
     public DbSet<BaristaAcceptance> BaristaAcceptances => Set<BaristaAcceptance>();
     public DbSet<KitchenPrintJob> PrintJobs => Set<KitchenPrintJob>();
     protected override string Schema => KitchenOperationsService.Info.Schema;

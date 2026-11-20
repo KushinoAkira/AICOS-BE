@@ -8,7 +8,7 @@ namespace AICOS.KitchenOperations.Api.Features;
 internal static class KitchenTicketWrites
 {
     public static Task<T> RunAsync<T>(KitchenOperationsDbContext db, Guid tenant, Guid orderId,
-        Func<Task<T>> mutation, CancellationToken ct) =>
+        Func<Task<T>> mutation, CancellationToken ct, bool cancellationProtocol = false) =>
         db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
         {
             db.ChangeTracker.Clear();
@@ -18,6 +18,9 @@ internal static class KitchenTicketWrites
                 var key = $"aicos:kitchen-operation:{tenant}:{orderId}";
                 await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock(hashtextextended({key}, 0))", ct);
             }
+            if (!cancellationProtocol && db.CancellationGuardEnabled &&
+                await db.CancellationReceipts.AnyAsync(x => x.TenantId == tenant && x.OrderId == orderId && x.State == "HELD", ct))
+                throw new AICOS.BuildingBlocks.Exceptions.ConflictException("Order cancellation is awaiting synchronization.", "order.cancel_pending");
             var result = await mutation();
             if (transaction is not null) await transaction.CommitAsync(ct);
             return result;

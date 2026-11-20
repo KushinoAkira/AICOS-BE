@@ -1,5 +1,9 @@
 # Staff Order phi thanh toán — tiến độ Phase A–F
 
+## Hủy đơn trước-Bar — 2026-11-19
+
+Source hủy cả đơn Dine-in/WholeOrder đã có operation/receipt bền vững, xác minh Kitchen chưa nhận/in/pha, retry/idempotency và guard tài chính/phiên. Xem [SAFE_ORDER_CANCELLATION_IMPLEMENTATION.md](SAFE_ORDER_CANCELLATION_IMPLEMENTATION.md). Feature OFF, hai migration/ACL chưa apply runtime. Cup/riêng món/override sau pha và đóng phiên không thu tiền sau hủy hết món vẫn BLOCKED; không dùng hủy legacy để đi vòng.
+
 ## CupV1 blocker review — 2026-11-07
 
 - Thêm kiểm thử PostgreSQL bằng `kitchen_svc`/`ordering_svc` non-owner, credentials ngẫu nhiên chỉ trong test. Role workflow + replay + SQL ledger denials PASS; ma trận quyền thật ở `CUP_SERVING_ACL_PERMISSION_MATRIX.md`.

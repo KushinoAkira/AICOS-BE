@@ -15,6 +15,9 @@ public sealed class OrderingDbContext(DbContextOptions<OrderingDbContext> option
     public DbSet<AICOS.Ordering.Api.Features.Qr.TableTransferOperation> TableTransfers => Set<AICOS.Ordering.Api.Features.Qr.TableTransferOperation>();
     internal bool BillEnabled => configuration?.GetValue<bool>("SessionBilling:Enabled") == true;
     internal bool DiscountGuardEnabled => configuration?.GetValue<bool>("SessionDiscount:GuardEnabled") == true;
+    internal bool CancellationGuardEnabled => configuration?.GetValue<bool>("OrderCancellation:GuardEnabled") == true;
+    internal Guid? ApplyingCancellation { get; set; }
+    public DbSet<AICOS.Ordering.Api.Features.OrderCancellation.OrderCancellationOperation> Cancellations => Set<AICOS.Ordering.Api.Features.OrderCancellation.OrderCancellationOperation>();
     public DbSet<SessionCheckout> SessionCheckouts => Set<SessionCheckout>();
     public DbSet<SessionDiscountEvent> SessionDiscountEvents => Set<SessionDiscountEvent>();
     public DbSet<AdmissionOutbox> AdmissionOutbox => Set<AdmissionOutbox>();
@@ -38,11 +41,11 @@ public sealed class OrderingDbContext(DbContextOptions<OrderingDbContext> option
     {
         async Task<int> Save()
         {
-            if (configuration is not null && BillingMachineAuth.Enabled(configuration)) await SessionBillingWriteGuard.CheckAsync(this, ct);
+            if (BillEnabled || CancellationGuardEnabled) await SessionBillingWriteGuard.CheckAsync(this, ct);
             CaptureAdmissions();
             return await base.SaveChangesAsync(acceptAllChangesOnSuccess, ct);
         }
-        if (configuration is null || !BillingMachineAuth.Enabled(configuration) || !Database.IsRelational() || Database.CurrentTransaction is not null)
+        if (!(BillEnabled || CancellationGuardEnabled) || !Database.IsRelational() || Database.CurrentTransaction is not null)
             return await Save();
         return await Database.CreateExecutionStrategy().ExecuteAsync(async () =>
         {
@@ -64,6 +67,12 @@ public sealed class OrderingDbContext(DbContextOptions<OrderingDbContext> option
     public DbSet<OrderFeedback> OrderFeedbacks => Set<OrderFeedback>();
 
     public DbSet<TableSession> TableSessions => Set<TableSession>();
+
+    public DbSet<OrderBasket> OrderBaskets => Set<OrderBasket>();
+
+    public DbSet<OrderBasketItem> OrderBasketItems => Set<OrderBasketItem>();
+
+    public DbSet<AssociationRule> AssociationRules => Set<AssociationRule>();
 }
 
 internal sealed class PickupSlotSettingConfiguration : IEntityTypeConfiguration<PickupSlotSetting>
@@ -200,5 +209,57 @@ internal sealed class TableSessionConfiguration : IEntityTypeConfiguration<Table
         builder.HasIndex(s => new { s.TenantId, s.TableId }).IsUnique().HasFilter("status = 'Open'");   // one open session per table
         builder.HasIndex(s => new { s.TenantId, s.BranchId, s.Status });
         builder.HasIndex(s => s.LastActivityAtUtc).HasFilter("status = 'Open'");
+    }
+}
+
+internal sealed class OrderBasketConfiguration : IEntityTypeConfiguration<OrderBasket>
+{
+    public void Configure(EntityTypeBuilder<OrderBasket> builder)
+    {
+        builder.ToTable("order_baskets", t =>
+        {
+            t.HasCheckConstraint("ck_order_baskets_total", "total_amount >= 0");
+        });
+        builder.HasKey(b => b.Id);
+        builder.Property(b => b.Id).ValueGeneratedNever();
+        builder.Property(b => b.TotalAmount).HasPrecision(18, 0);
+        builder.HasMany(b => b.Items).WithOne().HasForeignKey(i => i.BasketId).OnDelete(DeleteBehavior.Cascade);
+        builder.Navigation(b => b.Items).UsePropertyAccessMode(PropertyAccessMode.Field).HasField("_items");
+        builder.HasIndex(b => new { b.TenantId, b.PaidAtUtc });
+        builder.HasIndex(b => new { b.TenantId, b.BranchId, b.PaidAtUtc });
+    }
+}
+
+internal sealed class OrderBasketItemConfiguration : IEntityTypeConfiguration<OrderBasketItem>
+{
+    public void Configure(EntityTypeBuilder<OrderBasketItem> builder)
+    {
+        builder.ToTable("order_basket_items", t =>
+        {
+            t.HasCheckConstraint("ck_order_basket_items_qty", "quantity > 0 AND line_amount >= 0");
+        });
+        builder.HasKey(i => i.Id);
+        builder.Property(i => i.Id).ValueGeneratedNever();
+        builder.Property(i => i.ProductName).HasMaxLength(200).IsRequired();
+        builder.Property(i => i.LineAmount).HasPrecision(18, 0);
+        builder.HasIndex(i => i.BasketId);
+        builder.HasIndex(i => new { i.BasketId, i.ProductId });
+    }
+}
+
+internal sealed class AssociationRuleConfiguration : IEntityTypeConfiguration<AssociationRule>
+{
+    public void Configure(EntityTypeBuilder<AssociationRule> builder)
+    {
+        builder.ToTable("association_rules");
+        builder.HasKey(r => r.Id);
+        builder.Property(r => r.Id).ValueGeneratedNever();
+        builder.Property(r => r.PairKey).HasMaxLength(80).IsRequired();
+        builder.Property(r => r.AntecedentProductIds).HasMaxLength(500).IsRequired();
+        builder.Property(r => r.ConsequentProductIds).HasMaxLength(500).IsRequired();
+        builder.Property(r => r.AntecedentNames).HasMaxLength(500).IsRequired();
+        builder.Property(r => r.ConsequentNames).HasMaxLength(500).IsRequired();
+        builder.HasIndex(r => new { r.TenantId, r.BranchId, r.PairKey }).IsUnique();
+        builder.HasIndex(r => new { r.TenantId, r.MinedAtUtc });
     }
 }

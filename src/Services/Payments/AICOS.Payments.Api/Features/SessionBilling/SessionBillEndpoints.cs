@@ -10,7 +10,7 @@ public static class SessionBillEndpoints
 {
     public static void AddSessionBilling(this WebApplicationBuilder builder)
     {
-        builder.Services.AddScoped<BillLedgerService>(); builder.Services.AddScoped<BillWebhookReceiver>();
+        builder.Services.AddScoped<BillLedgerService>(); builder.Services.AddScoped<BillWebhookReceiver>(); builder.Services.AddScoped<BillPayOsService>();
         builder.Services.AddScoped<BillOutboxDispatcher>(); builder.Services.AddHostedService<BillOutboxWorker>();
         AICOS.BuildingBlocks.Http.ServiceClientExtensions.AddAicosServiceClient<IBillOrderingClient, HttpBillOrderingClient>(builder.Services, builder.Configuration, "Order");
         AICOS.BuildingBlocks.Http.ServiceClientExtensions.AddAicosServiceClient<IBillKitchenClient, HttpBillKitchenClient>(builder.Services, builder.Configuration, "Kitchen");
@@ -26,7 +26,9 @@ public static class SessionBillEndpoints
         bills.MapPost("/{id:guid}/payments/cash", (Guid id, CollectBillRequest request, HttpContext http, ICurrentUser user, BillLedgerService ledger, CancellationToken ct) =>
             ledger.CollectAsync(id, request, http.Request.Headers["Idempotency-Key"].ToString().Trim(), "Cash", user, ct)).RequireAuthorization(b => b.RequireRole(PaymentAccess.CounterRoles)).AddEndpointFilter<AICOS.Payments.Api.Features.CashierShifts.CashActorFilter>();
         bills.MapPost("/{id:guid}/payments/qr", (Guid id, CollectBillRequest request, HttpContext http, ICurrentUser user, BillLedgerService ledger, CancellationToken ct) =>
-            ledger.CollectAsync(id, request, http.Request.Headers["Idempotency-Key"].ToString().Trim(), "QR", user, ct)).RequireAuthorization(b => b.RequireRole(PaymentAccess.CounterRoles));
+            ledger.CollectAsync(id, request, http.Request.Headers["Idempotency-Key"].ToString().Trim(), "QR", user, ct)).RequireAuthorization(b => b.RequireRole(PaymentAccess.CounterRoles)).AddEndpointFilter<AICOS.Payments.Api.Features.CashierShifts.CashActorFilter>();
+        bills.MapPost("/{id:guid}/payments/{paymentId:guid}/query", (Guid id, Guid paymentId, ICurrentUser user, BillPayOsService payos, CancellationToken ct) =>
+            payos.QueryAsync(id, paymentId, user, ct)).RequireAuthorization(b => b.RequireRole(PaymentAccess.CounterRoles)).AddEndpointFilter<AICOS.Payments.Api.Features.CashierShifts.CashActorFilter>();
         bills.MapPost("/webhooks/{provider}", (string provider, WebhookRequest request, BillWebhookReceiver receiver, CancellationToken ct) => receiver.ReceiveAsync(provider, request, ct)).AllowAnonymous();
         var machine = app.MapGroup("/internal/session-billing").AllowAnonymous().AddEndpointFilter(async (context, next) =>
             BillingMachineAuth.Valid(context.HttpContext, context.HttpContext.RequestServices.GetRequiredService<IConfiguration>()) ? await next(context) : Results.Unauthorized());

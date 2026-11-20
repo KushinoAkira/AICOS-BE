@@ -153,7 +153,7 @@ public static class PaymentEndpoints
     /// Transaction status query (SCRUM-87): asks the provider what happened, for a payment whose webhook never came. It also rescues money
     /// that arrived after the payment expired or was cancelled.
     /// </summary>
-    private static async Task<PaymentResponse> QueryAsync(
+    internal static async Task<PaymentResponse> QueryAsync(
         Guid id, PaymentsDbContext db, PaymentProcessor processor, GatewayRegistry gateways, ICurrentUser user, CancellationToken ct)
     {
         var payment = await PaymentAccess.LoadAsync(db, user, id, ct);

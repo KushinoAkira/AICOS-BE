@@ -1,0 +1,117 @@
+{
+  "status": "PASS",
+  "scope": "Payments local only; no feature activation",
+  "startedUtc": "2026-11-20T11:10:23.385Z",
+  "checks": [
+    "Exact image/container/cluster verified; no outstanding PAID dispatch, PayOS provider or active writer; migrations/creation OFF",
+    "Health/Gateway/capability/auth PASS; original credentials/flags/ports retained; all service DB fingerprints unchanged"
+  ],
+  "before": {
+    "id": "b48d6cec0579fe48e2fd413f3e83cf26a4cd756c409546727450aa97559eaf21",
+    "image": "sha256:97a20b743bc2c4ffccef8ece325d3a877cffff6daefb2ff1e84ac84462b0d5b0",
+    "started": "2026-11-20T10:28:56.269287628Z",
+    "status": "running",
+    "restarts": 0
+  },
+  "fingerprintsBefore": {
+    "aicos_ai": {
+      "tables": 0,
+      "hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "aicos_customer": {
+      "tables": 9,
+      "hash": "94bb13dce38e0d207c57528dffb6b7e075403f35e621fddf02a51af2c1ca1bb6"
+    },
+    "aicos_identity": {
+      "tables": 11,
+      "hash": "cee42a2595da540fd36875353164d350fb475ee12f737c8e97005c19de3cc7ea"
+    },
+    "aicos_kitchen": {
+      "tables": 12,
+      "hash": "41c5007fbd079210126dfb9c5478d51dd8706a7bef79d7aac6a949c156ac3896"
+    },
+    "aicos_menu": {
+      "tables": 6,
+      "hash": "3aa063839bd18d6ab3883139c3a6f2c0d523f6a7cb2be7240b792c54a2fe973c"
+    },
+    "aicos_ordering": {
+      "tables": 13,
+      "hash": "aab80a5803c2ed35146e675d53daea379472f143d5820913e26b91ed67e044bc"
+    },
+    "aicos_payment": {
+      "tables": 15,
+      "hash": "861e4c3ce292fe0eb9c5789665497039a2ac13f8607702d385bf54bcd2df839f"
+    },
+    "aicos_reporting": {
+      "tables": 3,
+      "hash": "791493257342a385d1a20619cf4e6126a17f9a3fb36f5087ae2d9c87b86e92dc"
+    },
+    "aicos_table_reservation": {
+      "tables": 3,
+      "hash": "79b688cc320f2d4ae9f58125bbf4433f626e09f7361d243dfcf1e07bef5137d2"
+    },
+    "aicos_workforce": {
+      "tables": 10,
+      "hash": "ffc73cbf20e69ab5aa20e8a8808fb8755df001b040f8f6e0d88ab579b78d949b"
+    }
+  },
+  "backup": {
+    "path": "C:\\Users\\ASUS\\AppData\\Local\\AICOS\\backups\\payment-payos-1795173033061\\aicos_payment.dump",
+    "sha256": "23dfc4c43ce6ef0847b1c8c752b1497fcf9804092d618c944d120eedc6a21f9b",
+    "toc": "PASS",
+    "restoreDrill": "NOT RUN in this gate"
+  },
+  "fallbackName": "aicos-main-payment-before-payos-b48d6cec",
+  "replacementId": "f84c1a138acd27ef2de7ad8d5ab30dbd2c0440670dc7ddcf834e8fb4af30af3e",
+  "replacement": {
+    "id": "f84c1a138acd27ef2de7ad8d5ab30dbd2c0440670dc7ddcf834e8fb4af30af3e",
+    "image": "sha256:e5b000fe72658203a23a92e380591f43d721acb0e8803ec2b784952df19b8fee",
+    "started": "2026-11-20T11:10:34.222584769Z",
+    "status": "running",
+    "restarts": 0
+  },
+  "fingerprintsAfter": {
+    "aicos_ai": {
+      "tables": 0,
+      "hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "aicos_customer": {
+      "tables": 9,
+      "hash": "94bb13dce38e0d207c57528dffb6b7e075403f35e621fddf02a51af2c1ca1bb6"
+    },
+    "aicos_identity": {
+      "tables": 11,
+      "hash": "cee42a2595da540fd36875353164d350fb475ee12f737c8e97005c19de3cc7ea"
+    },
+    "aicos_kitchen": {
+      "tables": 12,
+      "hash": "41c5007fbd079210126dfb9c5478d51dd8706a7bef79d7aac6a949c156ac3896"
+    },
+    "aicos_menu": {
+      "tables": 6,
+      "hash": "3aa063839bd18d6ab3883139c3a6f2c0d523f6a7cb2be7240b792c54a2fe973c"
+    },
+    "aicos_ordering": {
+      "tables": 13,
+      "hash": "aab80a5803c2ed35146e675d53daea379472f143d5820913e26b91ed67e044bc"
+    },
+    "aicos_payment": {
+      "tables": 15,
+      "hash": "861e4c3ce292fe0eb9c5789665497039a2ac13f8607702d385bf54bcd2df839f"
+    },
+    "aicos_reporting": {
+      "tables": 3,
+      "hash": "791493257342a385d1a20619cf4e6126a17f9a3fb36f5087ae2d9c87b86e92dc"
+    },
+    "aicos_table_reservation": {
+      "tables": 3,
+      "hash": "79b688cc320f2d4ae9f58125bbf4433f626e09f7361d243dfcf1e07bef5137d2"
+    },
+    "aicos_workforce": {
+      "tables": 10,
+      "hash": "ffc73cbf20e69ab5aa20e8a8808fb8755df001b040f8f6e0d88ab579b78d949b"
+    }
+  },
+  "fingerprintsUnchanged": true,
+  "otherContainersUnchanged": 16
+}

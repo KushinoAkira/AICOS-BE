@@ -28,6 +28,7 @@ public sealed class SessionBillHarness : IDisposable
     public readonly Guid Tenant = ServiceFactory<OrderingService, OrderingDbContext>.DefaultTenantId;
     public readonly Guid Branch = Guid.NewGuid(), CashierId = Guid.NewGuid();
     public readonly string MachineKey = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
+    public readonly string CancellationKey = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
     public readonly string WebhookSecret = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
     public ServiceFactory<OrderingService, OrderingDbContext> Ordering = null!;
     public ServiceFactory<PaymentsService, PaymentsDbContext> Payments = null!;
@@ -39,9 +40,12 @@ public sealed class SessionBillHarness : IDisposable
     public bool EnableCashierShifts, RequireCashierShift;
     public bool EnableSplitBill, EnableTableTransfer;
     public bool EnableSessionDiscount;
+    public bool EnableSafeCancellation;
+    public AICOS.Ordering.Api.Features.OrderCancellation.IKitchenCancellationClient? CancellationClient;
     public IDiscountActorVerifier? DiscountActor;
     public string AddTransferTarget(string code) => _tables.Add(Tenant,Branch,code);
     public AICOS.Payments.Api.Infrastructure.IPaymentGateway? TestGateway;
+    public Action<IServiceCollection>? ConfigurePayments;
     private string? _connection;
     public Func<Task>? BeforeFreeze;
     private readonly FakeMenu _menu = new();
@@ -59,6 +63,12 @@ public sealed class SessionBillHarness : IDisposable
         ["SessionBilling:Enabled"] = "true",
         ["SessionDiscount:Enabled"] = EnableSessionDiscount.ToString(),
         ["SessionDiscount:GuardEnabled"] = EnableSessionDiscount.ToString(),
+        ["OrderCancellation:Enabled"] = EnableSafeCancellation.ToString(),
+        ["OrderCancellation:GuardEnabled"] = EnableSafeCancellation.ToString(),
+        ["OrderCancellation:DispatcherEnabled"] = "false",
+        ["OrderCancellation:MachineKey"] = CancellationKey,
+        ["BaristaWorkflow:Enabled"] = EnableSafeCancellation.ToString(),
+        ["BaristaWorkflow:WorkerEnabled"] = "false",
         ["SessionBilling:MachineKey"] = MachineKey,
         ["SessionBilling:AllowTestProviders"] = "true",
         ["SessionBilling:TestWebhookSecret"] = WebhookSecret,
@@ -66,7 +76,7 @@ public sealed class SessionBillHarness : IDisposable
     };
     private static void NoTimers(IServiceCollection services)
     {
-        foreach (var d in services.Where(d => d.ImplementationType?.Name is "PickupOrderExpiryWorker" or "TableSessionExpiryWorker" or "PaymentExpiryJob" or "BillOutboxWorker").ToList()) services.Remove(d);
+        foreach (var d in services.Where(d => d.ImplementationType?.Name is "PickupOrderExpiryWorker" or "TableSessionExpiryWorker" or "PaymentExpiryJob" or "BillOutboxWorker" or "OrderCancellationWorker").ToList()) services.Remove(d);
     }
     public async Task InitializeAsync(string? connection = null)
     {
@@ -74,6 +84,11 @@ public sealed class SessionBillHarness : IDisposable
         _connection = connection;
         Ordering = new(services =>
         {
+            if (EnableSafeCancellation)
+            {
+                services.RemoveAll<AICOS.Ordering.Api.Features.OrderCancellation.IKitchenCancellationClient>();
+                services.AddSingleton<AICOS.Ordering.Api.Features.OrderCancellation.IKitchenCancellationClient>(CancellationClient ?? new CancellationBridge(this));
+            }
             if (DiscountActor is not null)
             {
                 services.RemoveAll<IDiscountActorVerifier>();
@@ -84,7 +99,17 @@ public sealed class SessionBillHarness : IDisposable
             services.RemoveAll<ITableQrClient>(); services.AddSingleton<ITableQrClient>(_tables);
             services.RemoveAll<IBillSettlementClient>(); services.AddSingleton<IBillSettlementClient>(new SettlementBridge(this)); NoTimers(services);
         }, connection, settings: Settings, environmentName: "Development");
-        Kitchen = new(services => NoTimers(services), connection, settings: Settings, environmentName: "Development");
+        Kitchen = new(services =>
+        {
+            if (EnableSafeCancellation)
+            {
+                services.RemoveAll<AICOS.KitchenOperations.Api.Features.Barista.IBarOrderDirectory>();
+                services.RemoveAll<AICOS.KitchenOperations.Api.Features.Barista.IBarLocationDirectory>();
+                services.AddSingleton<AICOS.KitchenOperations.Api.Features.Barista.IBarOrderDirectory>(new CancellationMetadata());
+                services.AddSingleton<AICOS.KitchenOperations.Api.Features.Barista.IBarLocationDirectory>(new CancellationMetadata());
+            }
+            NoTimers(services);
+        }, connection, settings: Settings, environmentName: "Development");
         Payments = CreatePayments(connection);
         if (connection is not null)
         {
@@ -110,6 +135,7 @@ public sealed class SessionBillHarness : IDisposable
             services.RemoveAll<AICOS.Payments.Api.Infrastructure.GatewayRegistry>();
             services.AddSingleton(new AICOS.Payments.Api.Infrastructure.GatewayRegistry([TestGateway]));
         }
+        ConfigurePayments?.Invoke(services);
         NoTimers(services);
     }, connection, settings: Settings, environmentName: "Development");
     public Task RestartPaymentsAsync()
@@ -251,5 +277,21 @@ public sealed class SessionBillHarness : IDisposable
             var body=await request.Content!.ReadFromJsonAsync<AICOS.Contracts.Events.DurableTableTransfer>(cancellationToken:ct);
             return await client.PostAsJsonAsync("/internal/table-transfers",body,ct);
         }
+    }
+    private sealed class CancellationBridge(SessionBillHarness h) : AICOS.Ordering.Api.Features.OrderCancellation.IKitchenCancellationClient
+    {
+        public async Task<AICOS.Contracts.Orders.CancellationAck> SendAsync(string action, AICOS.Contracts.Orders.CancellationReservation body, CancellationToken ct)
+        {
+            if (h.KitchenOffline) throw new HttpRequestException("Test Kitchen offline");
+            using var client = h.Kitchen.CreateClient(); client.DefaultRequestHeaders.Add(OrderCancellationMachineAuth.Header, h.CancellationKey);
+            var response = await client.PostAsJsonAsync("/internal/order-cancellations/" + action, body, ct);
+            response.EnsureSuccessStatusCode();
+            return (await response.Content.ReadFromJsonAsync<AICOS.Contracts.Orders.CancellationAck>(cancellationToken: ct))!;
+        }
+    }
+    private sealed class CancellationMetadata : AICOS.KitchenOperations.Api.Features.Barista.IBarLocationDirectory, AICOS.KitchenOperations.Api.Features.Barista.IBarOrderDirectory
+    {
+        public Task<string?> AreaAsync(Guid branch, string? table, CancellationToken ct) => Task.FromResult<string?>("Test area");
+        public Task<DateTime?> CreatedAtAsync(Guid order, Guid branch, CancellationToken ct) => Task.FromResult<DateTime?>(DateTime.UtcNow);
     }
 }

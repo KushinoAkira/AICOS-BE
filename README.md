@@ -17,6 +17,19 @@ Audit source main hiện tại (2026-11-03):
 Nền backend microservice cho **AI-Integrated Smart Coffee Shop Platform** (.NET 8 · PostgreSQL · Redis · Docker).
 Kiến trúc bám theo sơ đồ `AICOS_Architecture_Diagram.png`: API Gateway + 11 service (10 .NET + 1 Python AI).
 
+## CodeGraph
+
+Index cục bộ cho agent (Cursor MCP): thư mục `.codegraph/` (DB không commit). Cấu hình MCP: `.cursor/mcp.json`.
+
+```powershell
+npm i -g @colbymchenry/codegraph   # một lần trên máy
+codegraph init                     # lần đầu sau khi clone
+codegraph status
+codegraph sync                     # làm mới thủ công nếu cần
+```
+
+Ưu tiên `codegraph_explore` khi tìm định nghĩa / chuỗi gọi / route trước khi grep lan man.
+
 ## Yêu cầu
 
 - .NET SDK 8 (`global.json` ghim 8.0.x), Docker Desktop, Python 3.11 (chỉ khi chạy AI service ngoài Docker)

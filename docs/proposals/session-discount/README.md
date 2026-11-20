@@ -6,6 +6,8 @@ Both Enabled and GuardEnabled default OFF. Mutation endpoint requires both. Enab
 
 ## Schema decision
 
+19 November 2026: the subsequent safe-order-cancellation migration intentionally advances the shared Ordering model snapshot. Its current checksum is refreshed in EF_SHA256SUMS.txt; the two manual-discount migration source files are unchanged. See `../order-cancellation/README.md`; neither feature is implicitly approved for operational migration.
+
 After source review, no new `orders` column is necessary: existing `discount_amount` stores the total, while a new append-only `ordering.session_discount_events` records the exact previous/new per-order discounts. Unknown existing discounts or any promotion code block mutation; no promotion is overwritten. This supersedes the earlier column-plus-table idea in TABLE_OPERATIONS_AND_MANUAL_DISCOUNT_PROPOSAL.md.
 
 One EF migration: `20261118143317_OrderingSessionManualDiscount`. It creates one 13-column audit table, a PK, same-service session FK with RESTRICT, input CHECK, FK index and unique tenant/session/revision index. No existing table/column/index is recreated or changed. Operation ID is derived from tenant + actor + idempotency key; request hash includes session, quote/revision and body. Same key/different body is 409. The table is used only through the new gated endpoints, so an OFF deployment does not query it.

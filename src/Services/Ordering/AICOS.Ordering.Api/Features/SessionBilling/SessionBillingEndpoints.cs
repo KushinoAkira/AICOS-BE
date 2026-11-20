@@ -42,6 +42,8 @@ public static class SessionBillingEndpoints
         {
             if (db.Database.IsRelational()) await db.Entry(session).ReloadAsync(ct);
             if (!session.IsOpen || session.TableId != table) throw new ConflictException("Session changed.", "qr.session_changed");
+            if (await Features.OrderCancellation.OrderCancellationRules.PendingSession(db, id, ct))
+                throw new ConflictException("Wait for the Kitchen cancellation result before collecting.", "order.cancel_pending");
             var quote = await SessionBillQuotes.ReadAsync(db, session, ct);
             if (quote.Fingerprint != request.Fingerprint) throw new ConflictException("Bill contents changed. Reload before collecting.", "billing.stale");
             if (quote.ManualDiscountReviewRequired)

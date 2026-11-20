@@ -103,7 +103,7 @@ public static class ReconciliationEndpoints
         }
 
         var pendingRefunds = await db.PaymentRefunds.CountAsync(
-            r => r.TenantId == tenantId && r.Status == RefundStatus.PendingApproval && (branch == null || r.BranchId == branch), ct);
+            r => r.TenantId == tenantId && (r.Status == RefundStatus.PendingApproval || r.Status == RefundStatus.AwaitingTransfer) && (branch == null || r.BranchId == branch), ct);
 
         return new ReconciliationReport(
             fromDate, toDate, branch, payments.Count, paid.Count, paid.Sum(p => p.Amount), paid.Sum(p => p.RefundedAmount), paid.Sum(p => p.Amount - p.RefundedAmount),

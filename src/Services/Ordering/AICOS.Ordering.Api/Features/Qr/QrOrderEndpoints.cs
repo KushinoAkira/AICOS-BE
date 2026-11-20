@@ -33,7 +33,8 @@ public sealed record QrOrderStatus(Guid Id, string OrderCode, OrderStatus Status
 
 public sealed record QrBillOrder(
     Guid OrderId, string OrderCode, OrderStatus Status, PaymentStatus PaymentStatus, DateTime CreatedAtUtc, decimal FinalAmount, IReadOnlyList<OrderItemResponse> Items,
-    Guid? CashierId = null, Guid? CustomerId = null, DateTime? ReadyAtUtc = null, DateTime? DeliveredAtUtc = null);
+    Guid? CashierId = null, Guid? CustomerId = null, DateTime? ReadyAtUtc = null, DateTime? DeliveredAtUtc = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)] bool CancellationPending = false);
 
 /// <summary>The bill of the table: every round of the session. Cancelled orders are listed but not counted; <c>Due</c> is what is still unpaid.</summary>
 public sealed record QrBillResponse(
@@ -333,7 +334,11 @@ public static class QrOrderEndpoints
         var orders = await db.Orders.AsNoTracking().Include(o => o.Items).ThenInclude(i => i.Options).AsSplitQuery()
             .Where(o => o.TableSessionId == session.Id).ToListAsync(ct);
         var locked = db.BillEnabled && await db.SessionCheckouts.AnyAsync(x => x.SessionId == session.Id, ct);
-        return QrBillResponse.From(session, orders) with { CheckoutLocked = locked };
+        var pending = db.CancellationGuardEnabled ? await db.Cancellations.AsNoTracking()
+            .Where(x => x.SessionId == session.Id && x.CompletedAtUtc == null).Select(x => x.OrderId).ToListAsync(ct) : [];
+        var result = QrBillResponse.From(session, orders);
+        return result with { CheckoutLocked = locked || pending.Count > 0,
+            Orders = result.Orders.Select(x => x with { CancellationPending = pending.Contains(x.OrderId) }).ToArray() };
     }
 
     // ------------------------------------------------------------------ paying from the table

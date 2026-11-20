@@ -7,11 +7,15 @@ using AICOS.Payments.Api.Domain;
 using AICOS.Payments.Api.Infrastructure;
 using AICOS.Payments.Api.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using AICOS.Payments.Api.Features.Payments;
+using System.Globalization;
 
 namespace AICOS.Payments.Api.Features.SessionBilling;
 
 public sealed class BillLedgerService(PaymentsDbContext db, IBillOrderingClient ordering, GatewayRegistry gateways,
-    IConfiguration config, IHostEnvironment environment, TimeProvider time, BillOutboxDispatcher dispatcher)
+    IConfiguration config, IHostEnvironment environment, TimeProvider time, BillOutboxDispatcher dispatcher,
+    IOptions<PayOsOptions> payOsOptions, SecretProtector protector)
 {
     private DateTime Now => time.GetUtcNow().UtcDateTime;
     public async Task<BillView> GetAsync(Guid session, ICurrentUser user, CancellationToken ct)
@@ -21,7 +25,9 @@ public sealed class BillLedgerService(PaymentsDbContext db, IBillOrderingClient 
         if (saved is not null) { BranchAccess.EnsureCanAccess(user, saved.BranchId); return await ViewAsync(saved, ct); }
         var quote = await ordering.QuoteAsync(session, ct);
         Scope(quote, user);
-        return new(BillIdentity.For(tenant, session), session, quote.BranchId, "DRAFT", 0, quote.Fingerprint, quote, false, false, null, false, TestQrAllowed());
+        var provider = await QrProviderAsync(tenant, quote.BranchId, ct);
+        return new(BillIdentity.For(tenant, session), session, quote.BranchId, "DRAFT", 0, quote.Fingerprint, quote, false, false, null,
+            provider == "Mock", provider is not null, provider);
     }
     public async Task<BillView> GetByIdAsync(Guid id, ICurrentUser user, bool invoice, CancellationToken ct)
     {
@@ -59,9 +65,12 @@ public sealed class BillLedgerService(PaymentsDbContext db, IBillOrderingClient 
         IPaymentGateway? gateway = null;
         if (method == "QR")
         {
-            if (request.ProviderCode != "Mock" || !TestQrAllowed())
+            var allowed = request.ProviderCode == PaymentProvider.PayOsCode
+                ? await PayOsStaffPolicy.AvailableAsync(db, protector, payOsOptions.Value, tenant, quote.BranchId, ct)
+                : request.ProviderCode == "Mock" && TestQrAllowed();
+            if (!allowed)
                 throw new DependencyUnavailableException("verified-bill-qr-provider");
-            gateway = gateways.For("Mock");
+            gateway = gateways.For(request.ProviderCode!);
         }
         // Freeze commits in Ordering BEFORE local collection. No distributed transaction.
         // A crash after freeze is recovered using the same deterministic bill id and fingerprint.
@@ -84,6 +93,8 @@ public sealed class BillLedgerService(PaymentsDbContext db, IBillOrderingClient 
                 throw new ConflictException("Bill is paid or requires reconciliation.", "billing.not_collectible");
             if (await db.BillAttempts.AnyAsync(a => a.BillId == id && a.Status == "PENDING", ct))
                 throw new ConflictException("Resolve the existing QR first.", "payment.online_pending");
+            if (await db.BillAttempts.AnyAsync(a => a.BillId == id && a.Provider == PaymentProvider.PayOsCode, ct))
+                throw new ConflictException("Reconcile the existing bank attempt before another collection.", "payment.online_pending");
             var orderIds = quote.Orders.Select(o => o.OrderId).ToArray();
             var legacy = await db.Payments.AsNoTracking().Where(p => p.TenantId == tenant && orderIds.Contains(p.OrderId)).ToListAsync(ct);
             if (legacy.Any(p => p.IsPaid || p.RequiresReconciliation || p.RefundedAmount > 0))
@@ -96,8 +107,16 @@ public sealed class BillLedgerService(PaymentsDbContext db, IBillOrderingClient 
                 db.SessionBillOrders.AddRange(quote.Orders.Select(o => new SessionBillOrder { BillId = id, OrderId = o.OrderId, Amount = o.Amount }));
             }
             var attempt = new BillAttempt { Id = stableAttemptId, TenantId = tenant, BillId = id, CreatedByUserId = actor, KeyHash = keyHash,
-                RequestHash = requestHash, Method = method, Provider = method == "QR" ? "Mock" : null, Amount = quote.Total,
+                RequestHash = requestHash, Method = method, Provider = method == "QR" ? request.ProviderCode : null, Amount = quote.Total,
                 Tendered = method == "Cash" ? request.AmountTendered : null, TransactionRef = "BILL" + stableAttemptId.ToString("N"), CreatedAtUtc = Now };
+            if (attempt.Provider == PaymentProvider.PayOsCode)
+            {
+                var code = PayOs.OrderCodeOf(attempt.TransactionRef);
+                if (db.Database.IsRelational()) await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock(hashtextextended({"payos-bill-code:" + code.ToString(CultureInfo.InvariantCulture)},0))", ct);
+                var prefix = PayOs.BillReferencePrefixOf(code)!;
+                if (await db.BillAttempts.AnyAsync(a => a.Provider == PaymentProvider.PayOsCode && a.TransactionRef.StartsWith(prefix), ct))
+                    throw new ConflictException("Provider reference collision; no bank intent was created.", "payment.reference_conflict");
+            }
             db.BillAttempts.Add(attempt);
             AddJournal(bill, "ATTEMPT", new { attempt.Id, method, actor }, Now);
             if (method == "Cash") await MarkPaidAsync(bill, attempt, null, Now, ct);
@@ -144,9 +163,13 @@ public sealed class BillLedgerService(PaymentsDbContext db, IBillOrderingClient 
         var paidState = bill.Status is "PAID" or "CLOSED";
         var invalidProof = paidState && (attempt?.Status != "SUCCEEDED" || attempt.Amount != bill.Total || attempt.PaidAtUtc is null);
         var pendingRisk = paidState && await db.BillAttempts.AnyAsync(a => a.BillId == bill.Id && a.Status == "PENDING", ct);
-        return BillView.From(bill, attempt, attempt?.Provider == "Mock") with { QrAvailable = TestQrAllowed(),
+        var provider = await QrProviderAsync(bill.TenantId, bill.BranchId, ct);
+        return BillView.From(bill, attempt, attempt?.Provider == "Mock") with { QrAvailable = provider is not null, QrProviderCode = provider,
             NeedsReconciliation = bill.NeedsReconciliation || invalidProof || pendingRisk || await LegacyRiskAsync(db, bill, ct) };
     }
+    private async Task<string?> QrProviderAsync(Guid tenant, Guid branch, CancellationToken ct) =>
+        await PayOsStaffPolicy.AvailableAsync(db, protector, payOsOptions.Value, tenant, branch, ct)
+            ? PaymentProvider.PayOsCode : TestQrAllowed() ? "Mock" : null;
     internal static async Task<bool> LegacyRiskAsync(PaymentsDbContext db, SessionBill bill, CancellationToken ct)
     {
         var ids = JsonSerializer.Deserialize<SessionBillQuote>(bill.QuoteJson)!.Orders.Select(o => o.OrderId).ToArray();

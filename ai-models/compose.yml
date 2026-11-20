@@ -23,6 +23,8 @@ services:
       OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:3b}
       OLLAMA_TIMEOUT: ${OLLAMA_TIMEOUT:-60}
       CORS_ORIGINS: ${AI_CORS_ORIGINS:-http://localhost:8443,http://localhost:5173}
+      # Live branch menus (never cross-tenant): public Menu API via gateway or menu service.
+      MENU_API_BASE_URL: ${MENU_API_BASE_URL:-http://gateway:8080/api/v1/menu}
     ports:
       - "127.0.0.1:8090:8000"
     volumes:

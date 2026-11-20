@@ -136,3 +136,27 @@ public static class OrderStatusTexts
         };
     }
 }
+
+/// <summary>One line of an emailed receipt: the drink, its chosen options and note, the quantity, the unit price (options included) and the line total.</summary>
+public record ReceiptLineDto(string Name, string? Options, string? Note, int Quantity, decimal UnitPrice, decimal LineTotal);
+
+/// <summary>
+/// Published by Order Service when a member's order is paid online (bank transfer, wallet or card; not cash at the counter). Identity Service,
+/// which holds the member's email address and the brand and branch names, mails the receipt. Published once, when the order turns paid.
+/// </summary>
+public record OrderReceiptRequestedIntegrationEvent(
+    Guid TenantId,
+    Guid BranchId,
+    Guid OrderId,
+    string OrderCode,
+    Guid CustomerId,
+    string OrderType,
+    string? TableNumber,
+    string PaymentMethod,
+    Guid? PaymentId,
+    DateTime PaidAtUtc,
+    decimal Subtotal,
+    string? PromotionCode,
+    decimal Discount,
+    decimal Total,
+    IReadOnlyList<ReceiptLineDto> Lines) : IntegrationEvent;

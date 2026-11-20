@@ -10,9 +10,10 @@ public sealed record GatewayPaymentRequest(
 
 public sealed record GatewayCheckout(string CheckoutUrl);
 
-public sealed record GatewayStatus(ProviderState State, string? ProviderReference, string? FailureReason);
+public sealed record GatewayStatus(ProviderState State, string? ProviderReference, string? FailureReason, decimal? ReceivedAmount = null);
 
-public sealed record GatewayRefundResult(bool Success, string? ProviderReference, string? FailureReason);
+/// <summary><c>RequiresManualTransfer</c>: the provider cannot refund by API, so the refund waits for staff to transfer the money by hand.</summary>
+public sealed record GatewayRefundResult(bool Success, string? ProviderReference, string? FailureReason, bool RequiresManualTransfer = false);
 
 /// <summary>
 /// The one interface every payment provider implements (SCRUM-85). The Payment service talks to providers only through it, so adding a

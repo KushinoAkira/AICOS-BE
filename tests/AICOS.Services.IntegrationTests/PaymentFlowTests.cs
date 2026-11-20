@@ -42,7 +42,7 @@ public abstract class PaymentTestBase : IDisposable
     protected readonly HttpClient Customer;
     protected readonly HttpClient OtherAdmin;
 
-    protected PaymentTestBase(Action<IServiceCollection>? configure = null)
+    protected PaymentTestBase(Action<IServiceCollection>? configure = null, string? environmentName = null)
     {
         F = new ServiceFactory<PaymentsService, PaymentsDbContext>(services =>
         {
@@ -50,7 +50,7 @@ public abstract class PaymentTestBase : IDisposable
             services.RemoveAll<AICOS.Payments.Api.Infrastructure.IOrderDirectory>();
             services.AddSingleton<AICOS.Payments.Api.Infrastructure.IOrderDirectory>(Orders);
             configure?.Invoke(services);
-        });
+        }, environmentName: environmentName);
         F.Observer = RegisterOrderAsync;
         B1 = F.Branches.Add(Tenant, name: "Quận 1");
         B2 = F.Branches.Add(Tenant, name: "Quận 3");

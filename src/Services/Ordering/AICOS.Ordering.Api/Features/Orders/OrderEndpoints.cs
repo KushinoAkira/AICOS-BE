@@ -300,6 +300,8 @@ public static class OrderEndpoints
         errors.ThrowIfAny();
 
         var order = await OrderAccess.LoadAsync(db, user, id, ct);
+        if (db.CancellationGuardEnabled && order.Type == OrderType.DineIn && order.TableSessionId != null && !order.PayFirst)
+            throw new ConflictException("Use the verified Kitchen cancellation workflow.", "order.cancel_protocol_required");
         if (user.IsInRole(AicosRoles.Customer))
         {
             return await CancelAsCustomerAsync(order, r, db, payments, events, clock, ct);

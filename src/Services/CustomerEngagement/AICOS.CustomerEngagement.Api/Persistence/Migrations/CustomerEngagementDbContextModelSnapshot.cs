@@ -24,6 +24,64 @@ namespace AICOS.CustomerEngagement.Api.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("AICOS.CustomerEngagement.Api.Domain.CrmCampaignSend", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by");
+
+                    b.Property<Guid>("CustomerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("customer_id");
+
+                    b.Property<DateOnly>("SentOn")
+                        .HasColumnType("date")
+                        .HasColumnName("sent_on");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("type");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at_utc");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by");
+
+                    b.Property<string>("VoucherCode")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("voucher_code");
+
+                    b.HasKey("Id")
+                        .HasName("pk_crm_campaign_sends");
+
+                    b.HasIndex("CustomerId", "Type", "SentOn")
+                        .IsUnique()
+                        .HasDatabaseName("ix_crm_campaign_sends_customer_id_type_sent_on");
+
+                    b.HasIndex("TenantId", "Type", "SentOn")
+                        .HasDatabaseName("ix_crm_campaign_sends_tenant_id_type_sent_on");
+
+                    b.ToTable("crm_campaign_sends", "customer");
+                });
+
             modelBuilder.Entity("AICOS.CustomerEngagement.Api.Domain.Customer", b =>
                 {
                     b.Property<Guid>("Id")
@@ -58,6 +116,10 @@ namespace AICOS.CustomerEngagement.Api.Persistence.Migrations
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)")
                         .HasColumnName("full_name");
+
+                    b.Property<DateTime?>("LastPaidAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_paid_at_utc");
 
                     b.Property<int>("LifetimePoints")
                         .HasColumnType("integer")
@@ -125,6 +187,12 @@ namespace AICOS.CustomerEngagement.Api.Persistence.Migrations
 
                     b.HasIndex("UserId")
                         .HasDatabaseName("ix_customers_user_id");
+
+                    b.HasIndex("TenantId", "Birthday")
+                        .HasDatabaseName("ix_customers_tenant_id_birthday");
+
+                    b.HasIndex("TenantId", "LastPaidAtUtc")
+                        .HasDatabaseName("ix_customers_tenant_id_last_paid_at_utc");
 
                     b.HasIndex("TenantId", "UserId")
                         .IsUnique()

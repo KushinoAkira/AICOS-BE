@@ -18,6 +18,7 @@ public sealed class SessionBillCloser(OrderingDbContext db, IBillSettlementClien
         var proof = fence?.PaymentId is null ? null : await payments.ProofAsync(fence.BillId, ct);
         var settled = Matches(session, fence, proof);
         var reasons = new List<string>();
+        if (await Features.OrderCancellation.OrderCancellationRules.PendingSession(db, session.Id, ct)) reasons.Add("order.cancel_pending");
         if (!session.IsOpen) reasons.Add("qr.session_closed");
         if (!settled) reasons.Add("billing.not_settled");
         if (unserved > 0) reasons.Add("qr.session_unserved");
@@ -35,6 +36,8 @@ public sealed class SessionBillCloser(OrderingDbContext db, IBillSettlementClien
             if (db.Database.IsRelational()) await db.Entry(session).ReloadAsync(ct);
             if (!session.IsOpen) return false;
             if (session.TableId != table) throw new ConflictException("Session moved.", "qr.session_changed");
+            if (await Features.OrderCancellation.OrderCancellationRules.PendingSession(db, session.Id, ct))
+                throw new ConflictException("Resolve cancellation before closing.", "order.cancel_pending");
             var current = await db.SessionCheckouts.SingleAsync(x => x.SessionId == session.Id, ct);
             if (!Matches(session, current, proof) || await UnservedAsync(session.Id, ct) > 0)
                 throw new ConflictException("Finish all valid servings before closing.", "qr.session_unserved");

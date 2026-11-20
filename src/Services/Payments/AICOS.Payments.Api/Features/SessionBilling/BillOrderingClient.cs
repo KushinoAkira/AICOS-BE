@@ -43,8 +43,20 @@ internal sealed class HttpBillOrderingClient(HttpClient http, IConfiguration con
             {
                 var problem = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: ct);
                 if (problem.ValueKind == JsonValueKind.Object && problem.TryGetProperty("errorCode", out var code)
-                    && code.ValueKind == JsonValueKind.String && code.GetString() == "discount.review_required")
-                    throw new ConflictException("Review and save the discount before collecting.", "discount.review_required");
+                    && code.ValueKind == JsonValueKind.String)
+                {
+                    // Preserve known business reasons without forwarding private upstream details.
+                    var conflict = code.GetString() switch
+                    {
+                        "billing.legacy_payment" => new ConflictException("Existing order payments require reconciliation before collecting a session bill.", "billing.legacy_payment"),
+                        "billing.empty" => new ConflictException("There are no billable orders.", "billing.empty"),
+                        "qr.session_closed" => new ConflictException("The table session is closed.", "qr.session_closed"),
+                        "discount.review_required" => new ConflictException("Review and save the discount before collecting.", "discount.review_required"),
+                        "order.cancel_pending" => new ConflictException("Wait for the order cancellation result before collecting.", "order.cancel_pending"),
+                        _ => null
+                    };
+                    if (conflict is not null) throw conflict;
+                }
             }
             catch (JsonException) { }
             throw new ConflictException("The session or bill changed. Reload before collecting.", "billing.stale");

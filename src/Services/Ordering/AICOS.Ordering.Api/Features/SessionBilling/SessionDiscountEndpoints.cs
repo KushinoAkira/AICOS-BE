@@ -71,6 +71,7 @@ public static class SessionDiscountEndpoints
         var reason = !session.IsOpen || await db.SessionCheckouts.AnyAsync(x => x.SessionId == session.Id, ct)
             ? "discount.locked" : Conflict(live, latest);
         if (live.Any(x => x.TenantId != session.TenantId || x.BranchId != session.BranchId)) reason = "discount.reconciliation";
+        if (await Features.OrderCancellation.OrderCancellationRules.PendingSession(db, session.Id, ct)) reason = "order.cancel_pending";
         if (reason is null && config.GetValue<bool>("TableTransfer:Enabled") &&
             await db.TableTransfers.AnyAsync(x => x.TenantId == session.TenantId && x.SessionId == session.Id && x.SyncedAtUtc == null, ct))
             reason = "discount.transfer_pending";

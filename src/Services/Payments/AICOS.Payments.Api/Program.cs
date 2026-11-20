@@ -25,7 +25,25 @@ builder.AddAicosEventBus();
 
 builder.Services.Configure<PaymentOptions>(builder.Configuration.GetSection(PaymentOptions.SectionName));
 builder.Services.AddSingleton<SecretProtector>();
-builder.Services.AddSingleton(new GatewayRegistry(PaymentProvider.SupportedCodes.Select(c => (IPaymentGateway)new SimulatedGateway(c))));
+builder.Services.Configure<PayOsOptions>(builder.Configuration.GetSection(PayOsOptions.SectionName));
+builder.Services.AddHttpClient(PayOsGateway.HttpClientName, c => c.Timeout = TimeSpan.FromSeconds(15))
+    .RedactLoggedHeaders(_ => true)
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
+builder.Services.AddSingleton<PayOsGateway>();
+builder.Services.Configure<MomoOptions>(builder.Configuration.GetSection(MomoOptions.SectionName));
+builder.Services.PostConfigure<MomoOptions>(o => o.Live = o.Live || !string.IsNullOrWhiteSpace(o.PartnerCode));
+builder.Services.AddHttpClient(MomoGateway.HttpClientName, c => c.Timeout = TimeSpan.FromSeconds(35));   // MoMo asks for at least 30 s
+builder.Services.AddSingleton<MomoGateway>();
+builder.Services.Configure<ZaloPayOptions>(builder.Configuration.GetSection(ZaloPayOptions.SectionName));
+builder.Services.PostConfigure<ZaloPayOptions>(o => o.Live = o.Live || !string.IsNullOrWhiteSpace(o.AppId));
+builder.Services.AddHttpClient(ZaloPayGateway.HttpClientName, c => c.Timeout = TimeSpan.FromSeconds(30));
+builder.Services.AddSingleton<ZaloPayGateway>();
+// payOS talks to the real payOS API; the other providers are still simulated inside AICOS.
+builder.Services.AddSingleton(sp => new GatewayRegistry(
+    PaymentProvider.SupportedCodes.Where(c => c != PaymentProvider.PayOsCode && c != PaymentProvider.MomoCode && c != ZaloPay.Code).Select(c => (IPaymentGateway)new SimulatedGateway(c))
+        .Append(sp.GetRequiredService<PayOsGateway>())
+        .Append(sp.GetRequiredService<MomoGateway>())
+        .Append(sp.GetRequiredService<ZaloPayGateway>())));
 builder.Services.AddScoped<PaymentProcessor>();
 builder.Services.AddHostedService<TakeawayQrRecoveryWorker>();
 builder.Services.AddScoped<RefundProcessor>();
@@ -55,11 +73,16 @@ api.MapCancellationPolicyEndpoints();
 api.MapMerchantSettingEndpoints();
 api.MapPaymentEndpoints();
 api.MapTakeawayQr();
+api.MapTakeawaySandbox();
+api.MapTakeawayPayOs();
 api.MapOrderSettlementEndpoints();
 app.MapSessionBilling(api);
 api.MapCashierShifts();
 api.MapSplitPlans();
 api.MapWebhookEndpoints();
+api.MapPayOsEndpoints();
+api.MapMomoEndpoints();
+api.MapZaloPayEndpoints();
 api.MapRefundEndpoints();
 api.MapReconciliationEndpoints();
 

@@ -25,6 +25,8 @@ public sealed class CustomerEngagementDbContext(DbContextOptions<CustomerEngagem
     public DbSet<StaffNotification> StaffNotifications => Set<StaffNotification>();
 
     public DbSet<StaffNotificationRead> StaffNotificationReads => Set<StaffNotificationRead>();
+
+    public DbSet<CrmCampaignSend> CrmCampaignSends => Set<CrmCampaignSend>();
 }
 
 internal sealed class CustomerConfiguration : IEntityTypeConfiguration<Customer>
@@ -47,6 +49,22 @@ internal sealed class CustomerConfiguration : IEntityTypeConfiguration<Customer>
         builder.HasIndex(c => new { c.TenantId, c.UserId }).IsUnique();
         builder.HasIndex(c => c.UserId);
         builder.HasIndex(c => c.Phone);
+        builder.HasIndex(c => new { c.TenantId, c.LastPaidAtUtc });
+        builder.HasIndex(c => new { c.TenantId, c.Birthday });
+    }
+}
+
+internal sealed class CrmCampaignSendConfiguration : IEntityTypeConfiguration<CrmCampaignSend>
+{
+    public void Configure(EntityTypeBuilder<CrmCampaignSend> builder)
+    {
+        builder.ToTable("crm_campaign_sends");
+        builder.HasKey(s => s.Id);
+        builder.Property(s => s.Id).ValueGeneratedNever();
+        builder.Property(s => s.Type).HasConversion<string>().HasMaxLength(20).IsRequired();
+        builder.Property(s => s.VoucherCode).HasMaxLength(30);
+        builder.HasIndex(s => new { s.CustomerId, s.Type, s.SentOn }).IsUnique();
+        builder.HasIndex(s => new { s.TenantId, s.Type, s.SentOn });
     }
 }
 
